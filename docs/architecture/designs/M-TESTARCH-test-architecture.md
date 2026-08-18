@@ -486,6 +486,51 @@ every registry id must resolve to a doc row, then the family a test lives in is 
 gives it, and a second taxonomy cannot form without failing the gate. The lean was right; this is the
 mechanism that makes it stick.
 
+### 6.1 BUILT — `check_docs.py` check **C6**, @VE, 2026-08-18 (TASK-521)
+
+Landed as `check_c6()` in `app/tools/check_docs.py`, alongside C1–C5. `run/check` reads **12/12**.
+Corrections to the specification above, all found by building it:
+
+- **The vocabulary in rule 1 was already superseded.** §6 proposed `automated`/`manual`/`planned`.
+  P0 (`116c64f`, TASK-514) had already established **`impl` / `resv` / `blocked`** and registered 44
+  ids against it. Implementing §6 literally would have made a *fourth* live vocabulary — the corpus
+  already carries three (`impl/resv/blocked`; the persona's `planned/written/passing/failing`,
+  `verification_engineer.md:43`; and `PASS/FAIL/SKIP` result columns). C6 implements P0's.
+- **Rule 1 was split in two, because it conflated two questions.** "Declares a status" (C6.2) and
+  "the status is true" (C6.3) fail for different reasons and carry different exemption rights. C6.3
+  is the one with teeth and admits **no exceptions**.
+- **Vocabulary policing is NOT C6's job.** C6.2 asserts a status is *present*; whether the value is
+  drawn from a closed set is C4's question, undefined pending TASK-508. Two checks owning one rule
+  is how they diverge.
+- **Binding is id-keyed, not row-keyed.** The corpus routinely writes an id twice — a family table
+  with no status column plus a detail table or a `###` entry that has one. Row-keying reports 62
+  undeclared rows for 8 genuinely undeclared ids.
+- **The 5 `T_PLE_WR_156..160` orphans are 41.** Re-measured 2026-08-18: **41** registry ids resolve
+  to no entry in `docs/verification/`, in six families, and `T_FLK_01..22` appear nowhere under
+  `docs/` **at all**. The reverse direction is smaller than §1 claimed once measured id-keyed rather
+  than row-keyed: **8** doc ids declare no status, **0** declare one that is false.
+- **The orphan set is not random, and that is the finding.** All 41 are *specified* — in an
+  Architect-owned design doc, or in a task entry. What is missing in every case is the VE-owned plan
+  row. The leak is one-directional: design → code, plan bypassed.
+
+**It is BLOCKING, not advisory**, with the 49 findings grandfathered on
+[`docs/verification/id_binding_exceptions.md`](../../verification/id_binding_exceptions.md) —
+dated, task-owned, keyed on `(kind, id)`, no wildcards. §6 asked for "an exception list that shrinks
+is a gate"; the mechanism that makes it shrink is that **a stale row is itself a blocking failure**.
+Advisory was rejected: 49 permanent advisory failures are scrolled past, which is the exact
+mechanism by which "covered" and "green" got conflated (LL-140). With the ledger the unexcepted
+count is 0, which is precisely TASK-475's own phase-1 rule ("block on what reads 0 today").
+
+**Negative tests (BP-068):** `T_DOC_10..14` in `app/tools/test_check_docs.py`, mutation-verified —
+14 deliberate breaks of C6, 13 caught by a named test. The 14th is recorded rather than papered
+over: the third, belt-and-braces `kind != "mismatch"` guard in `check_c6` is unreachable, because
+kind-keyed lookup plus the parser's kind validation already hold that property twice over.
+
+**Self-reference, found by building it:** the ledger lives in `docs/verification/` and its rows are
+keyed by test id, so it parsed as a plan and grandfathered itself into existence — every `orphan`
+row became a doc entry, clearing the orphan and creating a fresh `undeclared` finding in its place.
+The ledger is excluded from the scan; `T_DOC_13` pins it.
+
 ## 7. Flake policy — promote OQ5 to a decision too
 
 `ve_suite_base` has a `flake()` state and ADR-059 D13 requires a pre-declared flaky set. Neither says

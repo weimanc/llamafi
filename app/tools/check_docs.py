@@ -12,6 +12,7 @@ Checks
   C3        every `cyd2usb*` build-env name in docs exists in app/platformio.ini           (advisory)
   C4        Status: uses the closed vocabulary                        (advisory, rule undefined)
   C5        relative .md links resolve                                                     (BLOCKING)
+  C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
 
 Phase 1 blocks on C5 and C1-delta only: both read 0 today, and a gate that fails
 on day one gets switched off.
@@ -38,6 +39,7 @@ Rules that are easy to get wrong, and are therefore spelled out here:
 from __future__ import annotations
 
 import argparse
+import ast
 import glob
 import os
 import re
@@ -319,6 +321,282 @@ def check_c5(c: Corpus) -> Result:
     return r
 
 
+# ── C6 — test-id binding (M-TESTARCH §6, TASK-521) ────────────────────────────
+#
+# WHAT IT ASSERTS, in three parts. They are one Result because they are one
+# invariant read from two ends: the executable registries and the VE-owned plan
+# must describe the same set of tests.
+#
+#   C6.1  orphan     — every id in an executable registry resolves to an entry
+#                      in docs/verification/. Measured 41 today.
+#   C6.2  undeclared — every id that HAS a doc entry declares a status somewhere
+#                      among its entries. Measured 8 today.
+#   C6.3  mismatch   — the declared status matches reality: `impl` => the id is
+#                      in a registry; `resv` => it is not. Measured 0 today.
+#
+# WHY THIS IS BLOCKING RATHER THAN ADVISORY, given a 49-failure red count.
+# TASK-475's own rule is "phase 1 blocks on what reads 0 today", and with the
+# ledger below the UNEXCEPTED count is 0. A blocking check plus a ledger that
+# cannot grow silently is strictly stronger than an advisory check with 49
+# permanent failures: advisory failures are scrolled past, which is the exact
+# mechanism by which "covered" and "green" got conflated (LL-140). The debt is
+# not hidden — every run prints the ledger size, and a ledger row whose failure
+# no longer occurs is itself a BLOCKING failure, so the list can only shrink.
+#
+# C6.3 ADMITS NO EXCEPTIONS. A ledger row of kind `mismatch` is an error. A
+# stale `impl` is the specific defect this check exists for; an exemption for it
+# would be an exemption from the point.
+#
+# SCOPE RULES, and why each is the way it is:
+#
+#   * Status VOCABULARY is not policed here. C6.2 asserts a status field is
+#     PRESENT; whether the value is drawn from a closed vocabulary is C4's
+#     question and is undefined pending TASK-508. C6.3 acts only on the three
+#     binding values (`impl`/`resv`/`blocked`) established by P0 (116c64f).
+#     `blocked` is deliberately unconstrained: a blocked test may or may not
+#     have a body, that is what "blocked" means.
+#   * Binding is ID-KEYED, not row-keyed. The same id is routinely written twice
+#     — a family table with no status column plus a detail table or a `###`
+#     entry that carries one. Row-keying reports 62 undeclared rows for 8
+#     genuinely undeclared ids.
+#   * Exemptions reuse is_exempt() and reuse its existing split: exempt files
+#     are never SCANNED for status (so `*-review.md` cannot declare one), but
+#     are always usable as RESOLUTION SOURCES for C6.1. Same rule as C2 and the
+#     tasks-archive.md case in the module docstring. No second mechanism.
+#   * T_DOC_* — the checker's own tests — are NOT special-cased. They are
+#     registered in test_plan.md like everything else (`test_plan.md:89-97` and
+#     the detail table below it), and they bind. A self-test family that could
+#     not satisfy the gate it ships with would be the finding, not the rule.
+
+TEST_ID_RE = re.compile(r"T\d{3}[a-z]?|T_[A-Z0-9]+(?:_[A-Z0-9]+)*_\d+[a-z]?")
+STATUS_COL_RE = re.compile(r"^\**\s*(?:status|result|outcome)\s*\**$", re.I)
+STATUS_FIELD_RE = re.compile(r"\*\*Status\*\*\s*:\s*([^\n]*)")
+HEADING_ID_RE = re.compile(r"^#{2,6}\s+`?([A-Za-z0-9_]+)`?\b")
+BINDING_RE = re.compile(r"`?(impl|resv|blocked)`?\b")
+SEP_CELL_RE = re.compile(r":?-{2,}:?")
+LEDGER_REL = "docs/verification/id_binding_exceptions.md"
+LEDGER_KINDS = ("orphan", "undeclared")
+
+
+def _is_test_id(s: str) -> bool:
+    return bool(TEST_ID_RE.fullmatch(s))
+
+
+def _row_cells(line: str) -> list[str]:
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def test_registries(root: str) -> dict[str, str]:
+    """id -> "path:line" for every executable test registry under app/tools/.
+
+    DISCOVERED, not whitelisted: any module-level assignment to a name called
+    `ALL` or containing `TEST` whose value is a dict of id keys, or a list of
+    ids / (id, fn) pairs / references to functions named after ids. A new
+    satellite suite is therefore picked up with no edit here — which is the
+    point, since the last three orphan families all arrived that way.
+    """
+    reg: dict[str, str] = {}
+    tools = os.path.join(root, "app", "tools")
+    if not os.path.isdir(tools):
+        return reg
+    for path in sorted(glob.glob(os.path.join(tools, "*.py"))):
+        rel = os.path.relpath(path, root).replace(os.sep, "/")
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                tree = ast.parse(fh.read())
+        except (OSError, SyntaxError):
+            continue
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            names = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if not any(n == "ALL" or "TEST" in n.upper() for n in names):
+                continue
+            found: set[str] = set()
+            val = node.value
+            if isinstance(val, ast.Dict):
+                for k in val.keys:
+                    if isinstance(k, ast.Constant) and isinstance(k.value, str) \
+                            and _is_test_id(k.value):
+                        found.add(k.value)
+            elif isinstance(val, (ast.List, ast.Tuple)):
+                for e in val.elts:
+                    if isinstance(e, ast.Constant) and isinstance(e.value, str) \
+                            and _is_test_id(e.value):
+                        found.add(e.value)
+                    elif isinstance(e, (ast.Tuple, ast.List)) and e.elts \
+                            and isinstance(e.elts[0], ast.Constant) \
+                            and isinstance(e.elts[0].value, str) \
+                            and _is_test_id(e.elts[0].value):
+                        found.add(e.elts[0].value)
+                    elif isinstance(e, ast.Name) and _is_test_id(e.id.upper()):
+                        # `ALL = [t_flk_01, ...]` — a list of function objects.
+                        found.add(e.id.upper())
+            for tid in found:
+                reg.setdefault(tid, f"{rel}:{node.lineno}")
+    return reg
+
+
+def doc_test_entries(c: Corpus) -> dict[str, list[tuple[str, str, bool]]]:
+    """id -> [(file:line, status_text)] over docs/verification/.
+
+    Two entry forms, both real in this corpus:
+      * a table row whose first cell is a test id, status taken from a column
+        headed Status/Result/Outcome (NOT "Expected result" — that column holds
+        criteria, and reading it as a status makes every spec table look
+        declared);
+      * a `### T001 — ...` / `### \\`T_CC_01\\`...` heading, status taken from a
+        `**Status**:` field in the following 30 lines (the persona's entry
+        format, verification_engineer.md:43).
+    Each entry is (location, status_text, scanned). Exempt files contribute
+    entries with scanned=False: they RESOLVE C6.1 but can neither declare a
+    status nor be accused of failing to — C6.2 skips any id whose every entry is
+    in a historical record. Same split as C2, one mechanism (is_exempt).
+    """
+    entries: dict[str, list[tuple[str, str, bool]]] = {}
+    # The exception ledger is EXCLUDED. Its rows are keyed by test id and parse
+    # as doc entries, so without this the ledger grandfathers its own rows into
+    # existence: every `orphan` row became a doc entry, which cleared the orphan
+    # and created a fresh `undeclared` finding in its place. A ledger row is a
+    # record of missing coverage, never coverage.
+    docs = [p for p in c.all_docs
+            if p.startswith("docs/verification/") and p != LEDGER_REL]
+    for rel in docs:
+        scan_status = not is_exempt(rel)
+        lines = c.read(rel).split("\n")
+        header: list[str] | None = None
+        for i, line in enumerate(lines, 1):
+            s = line.strip()
+            if s.startswith("|"):
+                cells = _row_cells(s)
+                if all(SEP_CELL_RE.fullmatch(x) for x in cells if x):
+                    continue
+                if header is None:
+                    header = cells
+                    continue
+                tid = cells[0].strip("`* ")
+                if not _is_test_id(tid):
+                    continue
+                cols = [k for k, h in enumerate(header) if STATUS_COL_RE.match(h)]
+                status = cells[cols[0]] if cols and cols[0] < len(cells) else ""
+                entries.setdefault(tid, []).append(
+                    (f"{rel}:{i}", status.strip() if scan_status else "", scan_status))
+                continue
+            header = None
+            m = HEADING_ID_RE.match(s)
+            if not m or not _is_test_id(m.group(1)):
+                continue
+            block = "\n".join(lines[i:i + 30])
+            fm = STATUS_FIELD_RE.search(block)
+            status = fm.group(1).strip() if (fm and scan_status) else ""
+            entries.setdefault(m.group(1), []).append((f"{rel}:{i}", status, scan_status))
+    return entries
+
+
+def _parse_ledger(c: Corpus) -> tuple[dict[tuple[str, str], str], list[str]]:
+    """Return ({(kind, id): "ledger:line"}, [malformed-row errors])."""
+    ledger: dict[tuple[str, str], str] = {}
+    errors: list[str] = []
+    path = c.abspath(LEDGER_REL)
+    if not os.path.exists(path):
+        return ledger, errors
+    header: list[str] | None = None
+    for i, line in enumerate(c.read(LEDGER_REL).split("\n"), 1):
+        s = line.strip()
+        if not s.startswith("|"):
+            header = None
+            continue
+        cells = _row_cells(s)
+        if all(SEP_CELL_RE.fullmatch(x) for x in cells if x):
+            continue
+        if header is None:
+            header = cells
+            continue
+        tid = cells[0].strip("`* ")
+        if not _is_test_id(tid):
+            continue
+        where = f"{LEDGER_REL}:{i}"
+        kind = cells[1].strip("`* ").lower() if len(cells) > 1 else ""
+        owner = cells[3].strip() if len(cells) > 3 else ""
+        since = cells[4].strip() if len(cells) > 4 else ""
+        if kind not in LEDGER_KINDS:
+            errors.append(f"{where}: kind '{kind}' -> C6.3 (mismatch) admits no "
+                          f"exceptions; valid kinds are {list(LEDGER_KINDS)}")
+            continue
+        if not TASK_RE.search(owner):
+            errors.append(f"{where}: {tid} -> exception has no owning TASK- id")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", since):
+            errors.append(f"{where}: {tid} -> exception has no ISO date in 'since'")
+        ledger[(kind, tid)] = where
+    return ledger, errors
+
+
+def check_c6(c: Corpus) -> Result:
+    r = Result("C6", blocking=True)
+    reg = test_registries(c.root)
+    if not reg:
+        r.skipped = True
+        r.summary = "skipped (no executable registries under app/tools/)"
+        return r
+    entries = doc_test_entries(c)
+    ledger, r.failures = _parse_ledger(c)
+    used: set[tuple[str, str]] = set()
+    raw: list[tuple[str, str, str]] = []          # (kind, id, message)
+
+    # C6.1 — every registry id resolves to a doc entry.
+    for tid in sorted(set(reg) - set(entries)):
+        raw.append(("orphan", tid,
+                    f"{reg[tid]}: {tid} -> executable, but no entry in docs/verification/"))
+    # C6.2 — every id with a doc entry declares a status somewhere.
+    for tid, ents in sorted(entries.items()):
+        if any(st for _loc, st, _sc in ents):
+            continue
+        if not any(sc for _loc, _st, sc in ents):
+            continue          # historical records only — nothing to declare
+        raw.append(("undeclared", tid,
+                    f"{ents[0][0]}: {tid} -> doc entry declares no status "
+                    f"(Status/Result column, or a **Status**: field)"))
+    # C6.3 — declared status must match reality. No exceptions.
+    for tid, ents in sorted(entries.items()):
+        toks = set()
+        for _loc, st, _sc in ents:
+            m = BINDING_RE.match(st.lstrip("*` "))
+            if m:
+                toks.add(m.group(1))
+        if "impl" in toks and tid not in reg:
+            raw.append(("mismatch", tid,
+                        f"{ents[0][0]}: {tid} -> declared `impl` but is in no "
+                        f"executable registry"))
+        elif toks == {"resv"} and tid in reg:
+            raw.append(("mismatch", tid,
+                        f"{ents[0][0]}: {tid} -> declared `resv` but a body is "
+                        f"registered at {reg[tid]}"))
+
+    counts = {"orphan": 0, "undeclared": 0, "mismatch": 0}
+    excepted = 0
+    for kind, tid, msg in raw:
+        counts[kind] += 1
+        key = (kind, tid)
+        if kind != "mismatch" and key in ledger:
+            used.add(key)
+            excepted += 1
+            continue
+        r.failures.append(msg)
+    # A ledger row whose failure no longer occurs is itself a failure: that is
+    # what makes the list shrink rather than calcify into fiction.
+    for key, where in sorted(ledger.items()):
+        if key not in used:
+            r.failures.append(f"{where}: {key[1]} -> stale exception, the '{key[0]}' "
+                              f"finding no longer occurs; delete this row")
+    r.total = len(reg) + len(entries)
+    bound = len(set(reg) & set(entries))
+    r.summary = (f"{len(reg)} registry ids, {len(entries)} doc ids, {bound} bound; "
+                 f"{counts['orphan']} orphan / {counts['undeclared']} undeclared / "
+                 f"{counts['mismatch']} mismatched; {excepted} on the ledger, "
+                 f"{len(r.failures)} unexcepted")
+    return r
+
+
 # ── C1-delta ──────────────────────────────────────────────────────────────────
 
 def _git(root: str, *args: str) -> str:
@@ -473,7 +751,15 @@ def check_c1_delta(c: Corpus, base_spec: str) -> Result:
 def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
     c = Corpus(root)
 
-    blocking: list[Result] = [check_c5(c)]
+    blocking: list[Result] = [check_c5(c), check_c6(c)]
+    # C6 prints its ledger arithmetic even when clean. A blocking check that is
+    # invisible on the happy path cannot be distinguished from one that was
+    # silently skipped — the failure mode TASK-511 hit from the other side.
+    for _r in blocking:
+        if _r.cid == "C6" and not _r.failures and not quiet:
+            # A SKIP is not an OK. Labelling one as the other is the same
+            # conflation this line exists to prevent.
+            print(f"    [{'skip' if getattr(_r, 'skipped', False) else 'ok'}] C6: {_r.summary}")
     if no_git:
         skipped = Result("C1-delta", blocking=True)
         skipped.skipped = True

@@ -1,8 +1,10 @@
+    [skip] C6: skipped (no executable registries under app/tools/)
 === Doc check ===
 
 [1/1] C5
     docs/architecture/designs/M-FIX-main.md:76: M-FIX-missing.md -> link target does not exist
   FAIL  C5: 1 broken of 4 relative .md links
+[warn] C6: skipped (no executable registries under app/tools/)
 [warn] C1-delta: skipped (--no-git)
 [warn] C1-full (advisory, not counted): 5 broken of 9 citations
     docs/architecture/designs/M-FIX-main.md:16: app/src/ghost.cpp:1 -> no file resolves with >= 1 lines

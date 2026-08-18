@@ -110,8 +110,15 @@ TASK-480's migration list.
 also invoked by `app/tools/smoke_test.sh` (so `run/check` gate 9 covers the checker, while gate 12
 runs it against the live corpus). Host-side only: no DUT, no serial, no network.
 
-All nine are **passing** as of TASK-475 phase 1. Delta/split scenarios build throwaway repos in
-`mktemp -d`; the live tree is never modified by a test.
+All fourteen are **passing**: `T_DOC_01..09` as of TASK-475 phase 1, `T_DOC_10..14` added with the
+C6 id-binding gate (TASK-521, M-TESTARCH §6). Delta/split scenarios build throwaway repos in
+`mktemp -d`; C6 scenarios build throwaway roots with their own `app/tools/` registry; the live tree
+is never modified by a test.
+
+`T_DOC_10..14` are C6's own BP-068 negative tests, and C6 is the check that requires every
+executable id to have a row here — so these five rows are the gate binding itself. That is
+deliberate: a self-test family exempt from the gate it ships with would be the finding, not the
+rule.
 
 | id | Type | Objective | Expected result | Status |
 |---|---|---|---|---|
@@ -124,6 +131,11 @@ All nine are **passing** as of TASK-475 phase 1. Delta/split scenarios build thr
 | `T_DOC_07` | unit | C2 glob resolution incl. a simulated board split | Unfiled id → 1 failure; once the id is filed in a **new** `tasks-*.md`, the glob discovers it → 0 | passing |
 | `T_DOC_08` | unit | C3 scope | the fixture's unknown prefixed env is flagged; `cyd` and `trinity` **not** flagged in fixture or live corpus | passing |
 | `T_DOC_09` | unit | C5 link integrity | 4 links, exactly 1 broken; anchors stripped, URL-encoded targets resolved, external links ignored | passing |
+| `T_DOC_10` | unit | **C6.1 negative** — an executable id with no doc row | Positive control clean; dropping one plan row → exactly 1 `orphan`, message names the id, the reason, and the **registry** site (not a doc that never mentions it) | passing |
+| `T_DOC_11` | unit | **C6.3 negative** — the teeth: a declared status that is a lie | `impl` with no body → mismatch; `resv` with a body → mismatch; `blocked` → never a mismatch, with or without a body; **a ledger row cannot suppress a mismatch**, and `mismatch` is rejected as an exception kind | passing |
+| `T_DOC_12` | unit | **C6.2 negative** — a doc row with no status at all | Missing `Status` column and empty status cell both fail; an `Expected result` column is **not** a status; id-keyed, so the same id declared in a second table counts; `**Status**:` field form counts | passing |
+| `T_DOC_13` | unit | C6 exception ledger — a gate, not an amnesty | A valid row suppresses exactly its finding and the debt stays in the summary; a **stale** row FAILS; no `TASK-` owner or no ISO date FAILS; the ledger is never scanned as a plan (else it grandfathers itself) | passing |
+| `T_DOC_14` | unit | C6 registry discovery + the exemption split | All three registry shapes (dict / `(id, fn)` pairs / function-ref list) discovered with no edit to the checker; an exempt file resolves C6.1 but cannot declare a status — **with the non-exempt control**; no registries → skip loudly, never a silent 100 % | passing |
 
 **Non-vacuity — mutation-tested, not assumed.** Each mechanism was deliberately broken and the suite
 re-run. Caught: inline-backtick suppression reintroduced (`T_DOC_03` ×2), recursive `docs/`

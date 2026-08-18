@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_check_docs.py — T_DOC_01..T_DOC_09 for run/check-docs (TASK-475).
+"""test_check_docs.py — T_DOC_01..T_DOC_14 for run/check-docs (TASK-475, TASK-521).
 
 Registered in docs/verification/test_plan.md under the T_DOC_ family, reserved
 by @VE before this harness existed. Host-side only: no DUT, no serial, no
@@ -354,13 +354,280 @@ def t_doc_09() -> None:
           "external links must be ignored")
 
 
+# ── C6 — id binding (TASK-521, M-TESTARCH §6) ────────────────────────────────
+#
+# BP-068: every one of T_DOC_10..14 breaks C6 the way C6 is meant to catch, and
+# asserts the failure MESSAGE, not just a count. Each also carries its positive
+# control in the same tree, so a check that fired for an unrelated reason — or
+# that fires unconditionally — cannot pass.
+#
+# These build throwaway trees rather than using the frozen fixture: C6 reads
+# app/tools/*.py, and the frozen fixture deliberately has none (it prints
+# "skipped (no executable registries)" in golden.txt, which is itself the
+# assertion that C6 fails closed on a corpus it cannot measure).
+
+def c6_tree(tmp: str, name: str, registry: list[str], docs: dict[str, str],
+            ledger: str | None = None) -> str:
+    """A minimal root: one executable registry + a docs/verification/ corpus."""
+    root = os.path.join(tmp, name)
+    os.makedirs(os.path.join(root, "app", "tools"), exist_ok=True)
+    with open(os.path.join(root, "app", "tools", "run_fx_tests.py"), "w") as fh:
+        fh.write("ALL_TESTS = [\n" + "".join(f"    {i!r},\n" for i in registry) + "]\n")
+    for rel, text in docs.items():
+        write(root, rel, text)
+    if ledger is not None:
+        write(root, "docs/verification/id_binding_exceptions.md", ledger)
+    return root
+
+
+def c6(root: str):
+    return cd.check_c6(cd.Corpus(root))
+
+
+PLAN_HDR = "# Test Plan\n\n| id | Covers | Status |\n|---|---|---|\n"
+LEDGER_HDR = "# Ledger\n\n| id | kind | why | owner | since |\n|---|---|---|---|---|\n"
+
+
+def t_doc_10() -> None:
+    """NEGATIVE: an executable id with no doc row must fail C6.1."""
+    tid = "T_DOC_10"
+    with tempfile.TemporaryDirectory() as tmp:
+        # Positive control first: both registry ids have rows -> clean.
+        ok = c6_tree(tmp, "ok", ["T_FX_01", "T_FX_02"],
+                     {"docs/verification/test_plan.md": PLAN_HDR
+                      + "| `T_FX_01` | a | `impl` |\n| `T_FX_02` | b | `impl` |\n"})
+        r0 = c6(ok)
+        check(tid, r0.failures == [], f"positive control must be clean, got {r0.failures}")
+
+        # Break it exactly one way: drop T_FX_02's row.
+        bad = c6_tree(tmp, "bad", ["T_FX_01", "T_FX_02"],
+                      {"docs/verification/test_plan.md": PLAN_HDR
+                       + "| `T_FX_01` | a | `impl` |\n"})
+        r = c6(bad)
+        check(tid, len(r.failures) == 1, f"exactly 1 orphan expected, got {r.failures}")
+        check(tid, any("T_FX_02" in f and "no entry in docs/verification/" in f
+                       for f in r.failures),
+              f"orphan message must name the id and the reason, got {r.failures}")
+        check(tid, "1 orphan" in r.summary, f"summary must count the orphan: {r.summary}")
+        # The orphan is reported against the REGISTRY location, so the reader is
+        # sent to the code that runs, not to a doc that does not mention it.
+        check(tid, any("run_fx_tests.py" in f for f in r.failures),
+              f"orphan must cite the registry site, got {r.failures}")
+
+
+def t_doc_11() -> None:
+    """NEGATIVE: a row marked `impl` with no body must fail C6.3 — the teeth.
+
+    And it must fail even WITH a ledger row trying to grandfather it: C6.3 is
+    the check LL-140 is about, and an exemption for it would be an exemption
+    from the point.
+    """
+    tid = "T_DOC_11"
+    with tempfile.TemporaryDirectory() as tmp:
+        bad = c6_tree(tmp, "stale", ["T_FX_01"],
+                      {"docs/verification/test_plan.md": PLAN_HDR
+                       + "| `T_FX_01` | a | `impl` |\n| `T_FX_09` | ghost | `impl` |\n"})
+        r = c6(bad)
+        check(tid, any("T_FX_09" in f and "declared `impl`" in f and "no executable registry" in f
+                       for f in r.failures),
+              f"stale `impl` must be reported as such, got {r.failures}")
+        check(tid, "1 mismatched" in r.summary, f"summary must count it: {r.summary}")
+
+        # A `resv` row that DOES have a body is the same defect mirrored.
+        rev = c6_tree(tmp, "resv", ["T_FX_01"],
+                      {"docs/verification/test_plan.md": PLAN_HDR
+                       + "| `T_FX_01` | a | `resv` |\n"})
+        rr = c6(rev)
+        check(tid, any("T_FX_01" in f and "declared `resv`" in f and "body is registered" in f
+                       for f in rr.failures),
+              f"`resv` with a body must be reported, got {rr.failures}")
+
+        # `blocked` is deliberately unconstrained, in BOTH directions.
+        for reg, why in ((["T_FX_01"], "with a body"), ([], "without a body")):
+            b = c6_tree(tmp, f"blk{len(reg)}", reg or ["T_FX_00"],
+                        {"docs/verification/test_plan.md": PLAN_HDR
+                         + "| `T_FX_01` | a | `blocked` — TASK-1 |\n"
+                         + "| `T_FX_00` | b | `impl` |\n"})
+            rb = c6(b)
+            check(tid, not any("T_FX_01" in f and "mismatch" not in f and "declared" in f
+                               for f in rb.failures),
+                  f"`blocked` {why} must not be a mismatch, got {rb.failures}")
+
+        # THE LOAD-BEARING ONE: the ledger cannot suppress a mismatch.
+        led = c6_tree(tmp, "ledgered", ["T_FX_01"],
+                      {"docs/verification/test_plan.md": PLAN_HDR
+                       + "| `T_FX_01` | a | `impl` |\n| `T_FX_09` | ghost | `impl` |\n"},
+                      ledger=LEDGER_HDR + "| `T_FX_09` | mismatch | wishful | TASK-1 | 2026-08-18 |\n")
+        rl = c6(led)
+        check(tid, any("T_FX_09" in f and "no executable registry" in f for f in rl.failures),
+              f"a ledger row must NOT suppress a mismatch, got {rl.failures}")
+        check(tid, any("admits no exceptions" in f for f in rl.failures),
+              f"the bad ledger kind must itself be reported, got {rl.failures}")
+        # HONEST NOTE, from mutation testing: the no-exception property is held
+        # by TWO independent mechanisms — the kind guard above, and the fact
+        # that suppression is keyed on (kind, id) so a `mismatch` finding can
+        # never match a ledger row of an exemptable kind. Deleting the third,
+        # belt-and-braces `kind != "mismatch"` test in check_c6 changes no
+        # observable behaviour and NO test catches it. Recorded rather than
+        # papered over (the T_DOC_05 precedent). The constant is pinned instead:
+        check(tid, "mismatch" not in cd.LEDGER_KINDS,
+              f"`mismatch` must never become an exemptable kind: {cd.LEDGER_KINDS}")
+
+
+def t_doc_12() -> None:
+    """NEGATIVE: a doc row with no status at all must fail C6.2."""
+    tid = "T_DOC_12"
+    with tempfile.TemporaryDirectory() as tmp:
+        bad = c6_tree(tmp, "nostatus", ["T_FX_01", "T_FX_02"], {
+            "docs/verification/test_plan.md":
+                "# Test Plan\n\n| id | Covers |\n|---|---|\n"
+                "| `T_FX_01` | no status column at all |\n",
+            "docs/verification/regression_suite/fx.md":
+                PLAN_HDR + "| `T_FX_02` | empty status cell |  |\n",
+        })
+        r = c6(bad)
+        ids = {f.split(": ")[1].split(" ->")[0] for f in r.failures}
+        check(tid, ids == {"T_FX_01", "T_FX_02"},
+              f"both the missing column and the empty cell must fail, got {sorted(ids)}")
+        check(tid, all("declares no status" in f for f in r.failures),
+              f"message must say what is missing, got {r.failures}")
+        check(tid, "2 undeclared" in r.summary, f"summary must count them: {r.summary}")
+
+        # POSITIVE CONTROL, and the id-keyed rule: the SAME id declared once
+        # anywhere is declared. A family table with no status column plus a
+        # detail table that has one is the live corpus's normal shape, and
+        # row-keying reports it as broken.
+        ok = c6_tree(tmp, "twice", ["T_FX_01"], {
+            "docs/verification/test_plan.md":
+                "# Test Plan\n\n| id | Covers |\n|---|---|\n| `T_FX_01` | family row |\n"
+                "\n| id | Covers | Status |\n|---|---|---|\n| `T_FX_01` | detail row | `impl` |\n",
+        })
+        check(tid, c6(ok).failures == [],
+              f"an id declared in a second table must count as declared: {c6(ok).failures}")
+
+        # The `### T001` entry form declares via a **Status**: field.
+        ok2 = c6_tree(tmp, "heading", ["T001"], {
+            "docs/verification/test_plan.md":
+                "# Test Plan\n\n### T001 — [f-1] a thing\n- **Type**: unit\n"
+                "- **Status**: passing\n",
+        })
+        check(tid, c6(ok2).failures == [],
+              f"a **Status**: field must count as declared: {c6(ok2).failures}")
+
+        # An "Expected result" column is criteria, not a status. Reading it as
+        # one would make every spec table look declared.
+        bad2 = c6_tree(tmp, "expected", ["T_FX_01"], {
+            "docs/verification/test_plan.md":
+                "# Test Plan\n\n| id | Expected result |\n|---|---|\n"
+                "| `T_FX_01` | exits 0 |\n",
+        })
+        check(tid, any("T_FX_01" in f for f in c6(bad2).failures),
+              "an 'Expected result' column must not be read as a status")
+
+
+def t_doc_13() -> None:
+    """The ledger is a gate, not an amnesty: it must shrink and stay honest."""
+    tid = "T_DOC_13"
+    with tempfile.TemporaryDirectory() as tmp:
+        docs = {"docs/verification/test_plan.md": PLAN_HDR + "| `T_FX_01` | a | `impl` |\n"}
+        good_row = "| `T_FX_02` | orphan | not registered yet | TASK-1 | 2026-08-18 |\n"
+
+        # A well-formed row suppresses exactly its own finding.
+        ok = c6_tree(tmp, "led-ok", ["T_FX_01", "T_FX_02"], docs,
+                     ledger=LEDGER_HDR + good_row)
+        r = c6(ok)
+        check(tid, r.failures == [], f"a valid exception must suppress, got {r.failures}")
+        check(tid, "1 orphan" in r.summary and "1 on the ledger" in r.summary
+              and "0 unexcepted" in r.summary,
+              f"the debt must stay VISIBLE in the summary, got {r.summary}")
+
+        # STALE: the id gets its row, so the exception no longer applies.
+        stale = c6_tree(tmp, "led-stale", ["T_FX_01", "T_FX_02"],
+                        {"docs/verification/test_plan.md": PLAN_HDR
+                         + "| `T_FX_01` | a | `impl` |\n| `T_FX_02` | b | `impl` |\n"},
+                        ledger=LEDGER_HDR + good_row)
+        rs = c6(stale)
+        check(tid, any("stale exception" in f and "T_FX_02" in f for f in rs.failures),
+              f"a stale exception must FAIL so the list shrinks, got {rs.failures}")
+
+        # No owning task / no ISO date -> the row is rejected.
+        for row, want in (
+            ("| `T_FX_02` | orphan | why | @VE | 2026-08-18 |\n", "no owning TASK- id"),
+            ("| `T_FX_02` | orphan | why | TASK-1 | soon |\n", "no ISO date"),
+        ):
+            rb = c6(c6_tree(tmp, "led" + want[:6].replace(" ", ""),
+                            ["T_FX_01", "T_FX_02"], docs, ledger=LEDGER_HDR + row))
+            check(tid, any(want in f for f in rb.failures),
+                  f"ledger row {row.strip()!r} must be rejected ({want}), got {rb.failures}")
+
+        # SELF-REFERENCE: the ledger's own rows must not count as coverage.
+        # Without this the ledger grandfathers itself into existence — every
+        # `orphan` row becomes a doc entry, clearing the orphan and creating a
+        # fresh `undeclared` finding in its place. Found by building it.
+        check(tid, not any("id_binding_exceptions.md" in f for f in c6(ok).failures),
+              "the ledger must not be scanned as a plan")
+
+
+def t_doc_14() -> None:
+    """Registry discovery + the exemption split, at the mechanism."""
+    tid = "T_DOC_14"
+    with tempfile.TemporaryDirectory() as tmp:
+        # DISCOVERY, not a whitelist: a NEW satellite suite binds with no edit
+        # to check_docs.py. This is the mechanism the 41 live orphans arrived
+        # through, so it is asserted rather than assumed.
+        root = c6_tree(tmp, "disc", ["T_FX_01"],
+                       {"docs/verification/test_plan.md": PLAN_HDR
+                        + "| `T_FX_01` | a | `impl` |\n"})
+        for fname, body in (
+            ("test_sat_dict.py", 'ALL_TESTS = {"T_SAT_01": None}\n'),
+            ("test_sat_pairs.py", 'TESTS = [("T_SAT_02", None)]\n'),
+            ("test_sat_fns.py", "def t_sat_03():\n    pass\n\n\nALL = [t_sat_03]\n"),
+        ):
+            with open(os.path.join(root, "app", "tools", fname), "w") as fh:
+                fh.write(body)
+        found = {f.split(": ")[1].split(" ->")[0] for f in c6(root).failures}
+        check(tid, found == {"T_SAT_01", "T_SAT_02", "T_SAT_03"},
+              f"all three registry SHAPES must be discovered, got {sorted(found)}")
+
+        # EXEMPTION SPLIT, reusing is_exempt(): a historical record RESOLVES a
+        # registry id (no orphan) but can never DECLARE its status (no
+        # undeclared complaint either). Same rule as C2's tasks-archive case.
+        ex = c6_tree(tmp, "exempt", ["T_FX_07"], {
+            "docs/verification/test_plan.md": PLAN_HDR + "| `T_FX_01` | a | `impl` |\n",
+            "docs/verification/regression_suite/old-ve-review.md":
+                "# Old\n\n| id | Covers |\n|---|---|\n| `T_FX_07` | reviewed once |\n",
+        })
+        rex = c6(ex)
+        check(tid, not any("T_FX_07" in f for f in rex.failures),
+              f"an exempt file must resolve C6.1 and be silent on C6.2, got {rex.failures}")
+        # CONTROL: the identical file, not exempt, IS held to C6.2.
+        ctl = c6_tree(tmp, "notexempt", ["T_FX_07"], {
+            "docs/verification/test_plan.md": PLAN_HDR + "| `T_FX_01` | a | `impl` |\n",
+            "docs/verification/regression_suite/old-notes.md":
+                "# Old\n\n| id | Covers |\n|---|---|\n| `T_FX_07` | reviewed once |\n",
+        })
+        check(tid, any("T_FX_07" in f and "declares no status" in f for f in c6(ctl).failures),
+              "the same table in a NON-exempt file must fail C6.2 — otherwise the "
+              "exempt case above passes for the wrong reason")
+
+        # FAIL CLOSED: no registries at all is a skip with a stated reason, not
+        # a silent pass that reports 100% binding.
+        bare = os.path.join(tmp, "bare")
+        write(bare, "docs/verification/test_plan.md", PLAN_HDR + "| `T_FX_01` | a | `impl` |\n")
+        rb = c6(bare)
+        check(tid, rb.skipped and "no executable registries" in rb.summary,
+              f"a corpus with no registries must skip loudly, got {rb.summary!r}")
+
+
 TESTS = [("T_DOC_01", t_doc_01), ("T_DOC_02", t_doc_02), ("T_DOC_03", t_doc_03),
          ("T_DOC_04", t_doc_04), ("T_DOC_05", t_doc_05), ("T_DOC_06", t_doc_06),
-         ("T_DOC_07", t_doc_07), ("T_DOC_08", t_doc_08), ("T_DOC_09", t_doc_09)]
+         ("T_DOC_07", t_doc_07), ("T_DOC_08", t_doc_08), ("T_DOC_09", t_doc_09),
+         ("T_DOC_10", t_doc_10), ("T_DOC_11", t_doc_11), ("T_DOC_12", t_doc_12),
+         ("T_DOC_13", t_doc_13), ("T_DOC_14", t_doc_14)]
 
 
 def main() -> int:
-    print("=== test_check_docs.py — T_DOC_01..09 ===")
+    print("=== test_check_docs.py — T_DOC_01..14 ===")
     for tid, fn in TESTS:
         before = len(FAILURES)
         try:
