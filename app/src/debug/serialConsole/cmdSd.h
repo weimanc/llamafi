@@ -4,6 +4,12 @@
 // included from inside main.cpp's `#ifdef SERIAL_DEBUG` block, so this
 // file is never reached in a production build.
 
+// TASK-521's sdopendir probe calls the POSIX layer directly, one level below
+// Arduino's FS wrapper, so it needs these explicitly.
+#include <dirent.h>
+#include <errno.h>
+#include <sys/stat.h>
+
 static const char *sdCardTypeName(sdcard_type_t t) {
   switch (t) {
     case CARD_MMC:  return "MMC";
@@ -314,6 +320,116 @@ static void cmdSdMbr(const char *) {
     return;
   }
   Serial.println("{\"ok\":true,\"cmd\":\"sdmbr\"}");
+}
+
+// TASK-521 root-cause instrument. `SD.open(dir)` fails during playback with
+// `VFSFileImpl(): opendir(...) failed`, and that log line carries no errno — so
+// every candidate mechanism (a full max_files table, a contiguous-heap
+// shortfall, FATFS mutex contention with the audio pump, a 200-entry directory
+// specifically) produces the SAME message. This calls the raw POSIX opendir()
+// directly, one level below Arduino's FS wrapper, and reports the errno plus the
+// wall time and the live byte-addressable heap. The mapping is unambiguous:
+//   ENOMEM(12)    — ff_memalloc(sizeof(vfs_fat_dir_t)) or FatFs FR_NOT_ENOUGH_CORE
+//   ENFILE(23)    — FR_TOO_MANY_OPEN_FILES, i.e. the open-handle table (kSdMaxFiles)
+//   ETIMEDOUT(116)— FR_TIMEOUT, i.e. FF_FS_TIMEOUT contention on the FATFS mutex
+//   EIO(5)/ENODEV — a real card/disk error
+// The trailing malloc ladder prices the exact allocation vfs_fat_opendir makes
+// (~700 B: FF_DIR + FILINFO + struct dirent + the DIR header) against what the
+// heap can actually serve at that instant.
+static void cmdSdOpenDir(const char *args) {
+  char path[96] = "/";
+  if (args && args[0]) strlcpy(path, args, sizeof(path));
+  // Strip a trailing slash exactly as fileBrowser::open() does, so this probe
+  // exercises the same string the browser hands to the VFS.
+  {
+    size_t n = strlen(path);
+    if (n > 1 && path[n - 1] == '/') path[n - 1] = '\0';
+  }
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdopendir\",\"error\":\"not mounted\"}");
+    return;
+  }
+  const uint32_t kByteCap = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+  char full[128];
+  snprintf(full, sizeof(full), "/sd%s", (path[0] == '/') ? path : "/");
+
+  const size_t free8Before = heap_caps_get_free_size(kByteCap);
+  const size_t lfb8Before = heap_caps_get_largest_free_block(kByteCap);
+  const unsigned stackFree = (unsigned)uxTaskGetStackHighWaterMark(nullptr);
+
+  // stat() first: it resolves the same directory entry through the same FATFS
+  // mutex but makes NO heap allocation of its own. stat OK + opendir ENOMEM
+  // separates "the filesystem cannot see the directory" from "the filesystem
+  // saw it and could not allocate the handle".
+  struct stat st;
+  errno = 0;
+  const unsigned long ts0 = micros();
+  const int strc = stat(full, &st);
+  const unsigned long statUs = micros() - ts0;
+  const int statErrno = errno;
+
+  errno = 0;
+  const unsigned long t0 = micros();
+  DIR *d = opendir(full);
+  const unsigned long elapsedUs = micros() - t0;
+  const int e = errno;
+  if (d) closedir(d);
+
+  Serial.printf("{\"probe\":\"sdopendir\",\"path\":\"%s\",\"statOk\":%s,\"statErrno\":%d,"
+                "\"isDir\":%s,\"statUs\":%lu,\"opendirOk\":%s,\"errno\":%d,"
+                "\"elapsedUs\":%lu,\"free8Before\":%u,\"lfb8Before\":%u,"
+                "\"stackFreeB\":%u}\n",
+                path, (strc == 0) ? "true" : "false", statErrno,
+                (strc == 0 && S_ISDIR(st.st_mode)) ? "true" : "false", statUs,
+                d ? "true" : "false", e, elapsedUs,
+                (unsigned)free8Before, (unsigned)lfb8Before, stackFree);
+
+  // What a plain malloc can be served right now, at the sizes that matter.
+  static const size_t kSizes[] = { 256, 512, 700, 1024, 2048, 4096 };
+  for (unsigned i = 0; i < sizeof(kSizes) / sizeof(kSizes[0]); i++) {
+    void *p = malloc(kSizes[i]);
+    const bool got = (p != nullptr);
+    if (p) ::free(p);
+    Serial.printf("{\"probe\":\"sdopendir\",\"mallocB\":%u,\"ok\":%s}\n",
+                  (unsigned)kSizes[i], got ? "true" : "false");
+    esp_task_wdt_reset();
+  }
+  Serial.printf("{\"ok\":%s,\"cmd\":\"sdopendir\",\"path\":\"%s\",\"errno\":%d,"
+                "\"lfb8\":%u,\"free8\":%u}\n",
+                d ? "true" : "false", path, e,
+                (unsigned)heap_caps_get_largest_free_block(kByteCap),
+                (unsigned)heap_caps_get_free_size(kByteCap));
+}
+
+// TASK-521 companion instrument: how many of the mount's kSdMaxFiles open-file
+// slots are actually FREE right now. Opens the same regular file repeatedly
+// until the VFS refuses, then closes them all. If this reports >=1 free slot at
+// the same instant that opendir() fails, the "the handle table is full" story
+// is dead — measured, not argued.
+static void cmdSdSlots(const char *args) {
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdslots\",\"error\":\"not mounted\"}");
+    return;
+  }
+  if (!args || !args[0]) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdslots\",\"error\":\"usage: sdslots <file>\"}");
+    return;
+  }
+  // kSdMaxFiles is small; +2 headroom proves the ceiling is real rather than
+  // just running out of probe slots.
+  const int kMax = (int)kSdMaxFiles + 2;
+  File held[16];
+  int got = 0;
+  for (int i = 0; i < kMax && i < 16; i++) {
+    File f = SD.open(args, FILE_READ);
+    if (!f) break;
+    held[got++] = f;
+    esp_task_wdt_reset();
+  }
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdslots\",\"path\":\"%s\",\"maxFiles\":%u,"
+                "\"freeSlotsObserved\":%d,\"triedUpTo\":%d}\n",
+                args, (unsigned)kSdMaxFiles, got, kMax);
+  for (int i = 0; i < got; i++) held[i].close();
 }
 
 // Plain directory listing with sizes — needed to pick a pre-existing, cleanly

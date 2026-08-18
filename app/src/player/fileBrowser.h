@@ -32,6 +32,7 @@
 
 #include <Arduino.h>
 #include <SD.h>
+#include <errno.h>          // TASK-521: separates ENOMEM from ENOENT on open()
 #include <esp_heap_caps.h>
 #include <string.h>
 
@@ -125,6 +126,21 @@ public:
     // the m3u index from starving in the same builds. Re-measure before
     // raising either number; nothing here forces the two variants to share
     // one value again.
+    //
+    // TASK-521 (2026-08-18) — STOP CUTTING. A fifth cut cannot work, and the
+    // reason is measured, not argued: during real MP3 playback on
+    // cyd2usb_player the largest byte-addressable free block is 3 188 B, so
+    // the 4 096 B `_files` array cannot be served at ANY size above 48 files
+    // in ANY allocation order, and 48 would truncate this card's real 53-file
+    // /mp3 — the exact trade every note above refused. Total free8 at that
+    // moment is 5 108 B against an ask of 5 120 B + ~700 B for opendir()'s own
+    // vfs_fat_dir_t, so the two simply do not both fit; claiming the arrays
+    // earlier only moves the failure from alloc() to opendir() (both
+    // reproduced). Browsing while a track plays needs ~6 KB reclaimed from the
+    // playback working set — an Architect decision with the candidate levers
+    // and their measured headroom in
+    // docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md §4.1 — not
+    // another shave of these two constants.
 #if defined(DISABLE_SPOTIFY)
     static const uint16_t FB_MAX_FILES = 64;
 #else
@@ -140,6 +156,28 @@ public:
     // underrun (design §4's 2026-08-08 revision — the original "≤32/tick" in
     // the task text is superseded by this correction; do not raise it back).
     static const uint8_t FB_BATCH = 4;
+
+    // TASK-521: why the last open() failed. Before this, EVERY failure mode
+    // collapsed into one `false` return and one `open failed: <path>` log, so
+    // a harness (and a reader of the log) could not tell "the fixture is not
+    // on the card" from "the byte-addressable heap is exhausted" — and
+    // test_fbrowser_player.py guessed, wrongly, that a `set fbOpen` returning
+    // ok:false meant a missing fixture. It never did: the measured cause is
+    // NoMem (see the header note below). errno from the VFS is what separates
+    // them, and it is only valid on the statement right after the call.
+    enum class OpenErr : uint8_t { None, NoSd, AllocFail, NotFound, NoMem, NotDir, IoErr };
+    static const char* errName(OpenErr e) {
+        switch (e) {
+            case OpenErr::None:      return "none";
+            case OpenErr::NoSd:      return "nosd";
+            case OpenErr::AllocFail: return "allocfail";
+            case OpenErr::NotFound:  return "notfound";
+            case OpenErr::NoMem:     return "nomem";
+            case OpenErr::NotDir:    return "notdir";
+            default:                 return "ioerr";
+        }
+    }
+    OpenErr lastError() const { return _lastErr; }
 
     void bind(Delegate* d) { _delegate = d; }
 
@@ -191,8 +229,13 @@ public:
 
     // Opens (or re-opens, for descend/ascend) `dir` as the current listing.
     bool open(const char* dir) {
-        if (!_dirs && !alloc()) return false;
-        if (!sdReady()) { LOG_W("filebrowser", "no SD card mounted"); return false; }
+        _lastErr = OpenErr::None;
+        if (!_dirs && !alloc()) { _lastErr = OpenErr::AllocFail; return false; }
+        if (!sdReady()) {
+            _lastErr = OpenErr::NoSd;
+            LOG_W("filebrowser", "no SD card mounted");
+            return false;
+        }
         _closeDir();
         char norm[m3u::PL_PATH_MAX];
         strlcpy(norm, (dir && dir[0]) ? dir : "/", sizeof(norm));
@@ -209,10 +252,33 @@ public:
             size_t nn = strlen(norm);
             if (nn > 1 && norm[nn - 1] == '/') norm[nn - 1] = '\0';
         }
+        // TASK-521: errno is only meaningful on the statement immediately after
+        // the failing call — no LOG_*, no isDirectory(), nothing in between.
+        // The VFS FAT layer sets it from vfs_fat_opendir(): ENOMEM when the
+        // ~700 B vfs_fat_dir_t (FF_DIR + FILINFO + struct dirent) cannot be
+        // allocated, ENOENT when the path genuinely is not there.
+        errno = 0;
         _dh = SD.open(norm, FILE_READ);
+        const int oerr = errno;
         if (!_dh || !_dh.isDirectory()) {
-            if (_dh) _dh.close();
-            LOG_W("filebrowser", "open failed: %s", norm);
+            if (_dh) {
+                _dh.close();
+                _lastErr = OpenErr::NotDir;
+            } else if (oerr == ENOMEM) {
+                _lastErr = OpenErr::NoMem;
+            } else if (oerr == ENOENT) {
+                _lastErr = OpenErr::NotFound;
+            } else {
+                _lastErr = OpenErr::IoErr;
+            }
+            // BP-055: total free heap reads healthy here while the number that
+            // actually decides the outcome — the largest byte-addressable
+            // block — is a few hundred bytes. Log both, plus errno, so this
+            // failure never again has to be diagnosed by guesswork.
+            LOG_W("filebrowser", "open failed: %s — reason=%s errno=%d free8=%u largest8=%u",
+                  norm, errName(_lastErr), oerr,
+                  (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                  (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
             return false;
         }
         strlcpy(_dir, norm, sizeof(_dir));
@@ -262,12 +328,28 @@ public:
         _onCancel();
         return true;
     }
+    // TASK-521: built into a stack buffer and Serial.write()n, NOT Serial.printf.
+    // Print::printf() malloc()s whenever the formatted line exceeds its 64 B
+    // stack buffer and returns 0 silently when that malloc fails — which is
+    // exactly the condition this report exists to describe. Measured on the
+    // DUT (2026-08-18): during FILE playback with the browser arrays resident,
+    // free8 was 284 B and `get fbState`, `get heap` and `get plCount` all
+    // returned NOTHING AT ALL, so the harness saw a dead console instead of
+    // the heap figure that explained everything. Same reason `lastErr` is here.
     void dbgReport() const {
-        Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\","
-                      "\"active\":%s,\"pending\":%s,\"dir\":\"%s\","
-                      "\"dirCount\":%u,\"fileCount\":%u,\"last\":true}\n",
-                      active() ? "true" : "false", pending() ? "true" : "false",
-                      _dir, (unsigned)_dirCount, (unsigned)_fileCount);
+        char b[224];
+        int n = snprintf(b, sizeof(b),
+                         "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\","
+                         "\"active\":%s,\"pending\":%s,\"dir\":\"%s\","
+                         "\"dirCount\":%u,\"fileCount\":%u,\"lastErr\":\"%s\","
+                         "\"free8\":%u,\"largest8\":%u,\"last\":true}\n",
+                         active() ? "true" : "false", pending() ? "true" : "false",
+                         _dir, (unsigned)_dirCount, (unsigned)_fileCount,
+                         errName(_lastErr),
+                         (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL |
+                                                                    MALLOC_CAP_8BIT));
+        if (n > 0) Serial.write((const uint8_t*)b, (n < (int)sizeof(b)) ? n : sizeof(b) - 1);
     }
 #endif
 
@@ -364,6 +446,7 @@ private:
     uint16_t    _dirCount  = 0;
     uint16_t    _fileCount = 0;
     State       _state = State::Idle;
+    OpenErr     _lastErr = OpenErr::None;   // TASK-521
     char        _dir[m3u::PL_PATH_MAX] = {0};
 };
 

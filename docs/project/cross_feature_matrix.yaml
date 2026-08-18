@@ -1195,6 +1195,20 @@ interactions:
       browsing and scrolling, not idle playback.
       ---
       PLANNED COVERAGE (2026-08-17, P0: only ids with a running body are listed above.) T_PLR_39 (soak, resv - schedulable now, TASK-442 closed).
+      ---
+      TASK-521 (2026-08-18, DUT-measured): the failure this interaction actually produces today is
+      NOT the blocking/underrun one described above. Browsing while a track plays fails outright,
+      and the mechanism is DRAM exhaustion, not FATFS serialisation. During playback on
+      cyd2usb_player free8 is 5108 B / largest8 3188 B with the browser's arrays unclaimed, and
+      284 B / 140 B once they are claimed; the browser needs 5120 B of arrays plus ~700 B for
+      opendir()'s vfs_fat_dir_t. Whichever allocation is asked for last is the one that fails, so
+      allocation order is not a lever. Measured NOT to be the cause: open-handle exhaustion
+      (sdslots reports 2 of 3 slots free; plCount reports fileOpen:false; FF_FS_LOCK=0 so
+      f_opendir cannot return FR_TOO_MANY_OPEN_FILES), FATFS mutex contention (opendir returns in
+      247-558 us during playback, never ETIMEDOUT against a 10 s FF_FS_TIMEOUT), and directory
+      size (/, /mp3 and /probe200 behave identically). Reclaiming ~6 KB from the playback working
+      set is an Architect decision - see M-WINAMP-PLAYER-local-playback.md section 4.1 for the
+      candidate levers and their measured headroom.
   - id: X053
     feature_a: sdfs-001
     feature_b: memplan-001

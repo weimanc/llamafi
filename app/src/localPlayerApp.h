@@ -641,6 +641,9 @@ public:
     bool dbgFbSelect(int16_t idx)      { return _browser.dbgSelect(idx); }
     bool dbgFbCancel()                 { return _browser.dbgCancel(); }
     void dbgFbState() const            { _browser.dbgReport(); }
+    // TASK-521: which failure mode the last open() hit — the harness needs to
+    // tell "not on the card" from "no byte-addressable heap left".
+    player::FileBrowser::OpenErr dbgFbLastError() const { return _browser.lastError(); }
 
     // TASK-418 / ADR-059 D12 — the play-order engine's own observability,
     // "product surface, not test scaffolding". `advance` steps the SAME

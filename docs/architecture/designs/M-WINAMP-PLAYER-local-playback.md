@@ -124,6 +124,68 @@ Behaviour:
 - Tap file → play now. Tap directory → descend. `..` → ascend. Tap `.m3u` → load as active playlist.
 - Edit-mode `[+]` → append to the current playlist (staged).
 
+### 4.1 Browsing while a track plays is over-budget on DRAM (TASK-521, measured 2026-08-18)
+
+§9 and §4 both assume the browser and the decoder coexist. On `cyd2usb_player` they **do not fit**,
+and the shortfall is in byte-addressable DRAM, not in SD handles, FATFS locking or directory size.
+Measured on the DUT, `cyd2usb_player`, real MP3 playback from `/mp3/rel.m3u`:
+
+| moment | `free8` (`MALLOC_CAP_INTERNAL\|8BIT`) | `largest8` |
+|---|---|---|
+| Player entered, `_pl` loaded, browser arrays **not** claimed | 77 448 B | 73 716 B |
+| same, browser arrays claimed (5 120 B) | 72 288 B | 69 620 B |
+| decoder running, browser arrays **not** claimed | **5 108 B** | **3 188 B** |
+| decoder running, browser arrays claimed | **284 B** | **140 B** |
+
+Starting playback costs ~72 KB of DRAM: the 24 576 B Helix arena (HWM 23 216 B), the 8 192 B
+`wrpump` stack, and ~39 KB of `Audio` object + `InBuff` + I2S DMA buffers. What is left is smaller
+than what the browser needs — 5 120 B of entry arrays **plus** ~700 B for the `vfs_fat_dir_t`
+(`FF_DIR` + `FILINFO` + `struct dirent`) that `vfs_fat_opendir()` allocates on every `opendir()`.
+
+**Allocation order is not the lever.** It only decides *which* allocation fails:
+
+- arrays not yet claimed → `FileBrowser::alloc()` fails (`alloc FAILED (5120 B) … largest=3188`);
+- arrays already claimed → `opendir()` fails with `ENOMEM`, surfacing as the framework's bare
+  `VFSFileImpl(): opendir(/sd/probe200) failed`.
+
+Both were reproduced deliberately. So `open()` cannot be fixed by claiming memory earlier, and it
+cannot be fixed by shrinking the arrays further either: `largest8` is 3 188 B during playback, so
+the 4 096 B `_files` array cannot be served at *any* ordering, and coming down to 48 files would
+truncate this card's real 53-file `/mp3` — the capability the sizing note in `fileBrowser.h` has
+already refused to trade away three times.
+
+Hypotheses eliminated by measurement, so they are not re-litigated:
+
+- **`kSdMaxFiles` / open-handle exhaustion.** `sdslots` reports **2 of 3 slots free** during
+  playback and `get plCount` reports `fileOpen:false` — the playlist file is *not* held open while a
+  track plays. Mechanically it could not have been the cause either: `CONFIG_FATFS_FS_LOCK=0`, so
+  `f_opendir()` has no lock table and cannot return `FR_TOO_MANY_OPEN_FILES`, and `vfs_fat_opendir()`
+  never touches the context's `files[]` array. Raising `kSdMaxFiles` would have **made this worse** —
+  +4 136 B of exactly the resource that is exhausted.
+- **FATFS mutex contention with the audio pump (the X052 story).** `opendir()` returns in
+  247–558 µs during playback, never `ETIMEDOUT`; `FF_FS_TIMEOUT` is 10 s and is never approached.
+- **Something specific to a 200-entry directory.** `/`, `/mp3` and `/probe200` behave identically —
+  `opendir()` resolves a path, it does not enumerate.
+
+**The decision this needs (Architect).** Making browse-during-playback work requires reclaiming
+~6 KB of DRAM from the playback working set. Candidates, with what is known about each:
+
+1. `wrpump` stack 8 192 B → measured high-water use **3 280 B**, i.e. 4 912 B spare. The largest
+   single reclaim available, and the one with real risk: it needs a soak, not an inspection.
+2. Arena cap 24 576 B vs measured HWM 23 216 B → ~1 360 B, safe but not sufficient alone.
+3. `Audio`/`InBuff`/I2S DMA sizing → trades directly against underrun margin (§4's batch policy is
+   already sized off that same window).
+4. Redesign the browser to hold a window rather than a full-directory cache — §4 explicitly rejected
+   re-walking per repaint on cost grounds, so this is a re-opening of that decision, not a tweak.
+
+Until one of those lands, `open()` fails **honestly**: it records why (`nomem` / `notfound` /
+`allocfail` / `nosd` / `notdir` / `ioerr`), logs `errno`, `free8` and `largest8`, and reports the
+reason through `set fbOpen` and `get fbState`. Both replies are emitted from a stack buffer via
+`Serial.write()`, not `Serial.printf()` — `Print::printf()` `malloc()`s whenever the formatted line
+exceeds its 64 B stack buffer and silently returns 0 when that fails, which is why the first
+investigation saw `get fbState`, `get heap` and `get plCount` return *nothing at all* under
+`free8=284` and read it as a dead console.
+
 ## 5. PLEDIT edit mode
 
 | | Option | Verdict |

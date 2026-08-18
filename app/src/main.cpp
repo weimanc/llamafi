@@ -636,6 +636,8 @@ static void cmdSdUmount(const char *);
 static void cmdSdClean(const char *);
 static void cmdSdWrite(const char *);
 static void cmdSdLs(const char *);
+static void cmdSdOpenDir(const char *);
+static void cmdSdSlots(const char *);
 static void cmdSdRead(const char *);
 static void cmdSdMbr(const char *);
 static void cmdSdMkdir(const char *);
@@ -667,6 +669,8 @@ static const SerialCmd kCmds[] = {
   { "sdclean", cmdSdClean, "TASK-408: delete sdprobe fixtures (/probelist, /probebench.bin)", "" },
   { "sdwrite", cmdSdWrite, "TASK-408: isolated sequential write of N 512B chunks", "[chunks=64] [heapCheckEvery=0]" },
   { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/] [q=quiet | n=quiet,no stat]" },
+  { "sdopendir", cmdSdOpenDir, "TASK-521: raw opendir() with errno/timing/heap — which mechanism fails", "[dir=/]" },
+  { "sdslots", cmdSdSlots, "TASK-521: how many open-file slots are free right now", "<file>" },
   { "sdmbr", cmdSdMbr, "TASK-408: raw sector 0 / partition table / volume ID (no mount needed)", "" },
   { "sdread", cmdSdRead, "TASK-408: read-only benchmark against an existing file", "<reads> <path>" },
   { "sdmkdir", cmdSdMkdir, "TASK-415: create a directory (test fixtures)", "<path>" },

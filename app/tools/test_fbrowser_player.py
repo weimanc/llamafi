@@ -97,6 +97,52 @@ def fail(msg: str) -> None:
     sys.exit(1)
 
 
+def _diagnose_fbopen(ser: serial.Serial, r: dict) -> str:
+    """TASK-521 / LL-124 / BP-059. This used to read `set fbOpen` returning
+    ok:false as "(fixture missing?)" — a diagnosis it never checked and that
+    was WRONG every one of the three times it fired. The measured cause was
+    ENOMEM: during FILE playback on cyd2usb_player the byte-addressable
+    (MALLOC_CAP_8BIT/DMA) heap is down to a few hundred bytes, so either the
+    browser's 5 120 B entry arrays or the ~700 B vfs_fat_dir_t inside
+    opendir() cannot be allocated — whichever of the two is asked for last.
+
+    So: report the OBSERVATION first, then let the firmware's own `reason`
+    field speak, and only mention the fixture at all after actually looking
+    for it with `sdls`, which does not go through the file browser's state.
+    """
+    reason = r.get("reason", "<none — firmware predates TASK-521>")
+    free8, largest8 = r.get("free8"), r.get("largest8")
+    heap = ""
+    if free8 is not None:
+        heap = f" free8={free8} largest8={largest8}"
+
+    # `sdls <dir> n` is an independent path: SD.open()+openNextFile() straight
+    # off the mount, nothing to do with the browser's arrays or its cached
+    # state. Its own failure modes are reported distinctly, and it is only
+    # evidence about the FIXTURE if it actually answers.
+    ls = cmd(ser, f"sdls {BROWSE_DIR} n", timeout=25.0)
+    if ls.get("ok") and ls.get("count", 0) > 0:
+        fixture = (f"the fixture IS present ({ls['count']} entries listed by sdls, "
+                   f"a path independent of the browser) — this is NOT a missing fixture")
+    elif ls.get("ok"):
+        fixture = f"sdls lists {BROWSE_DIR} but it is EMPTY — fixture may need regenerating"
+    elif ls.get("error") == "not a directory":
+        fixture = (f"sdls also cannot open {BROWSE_DIR}; that is consistent with a missing "
+                   f"fixture, but sdls shares the same heap, so re-check it with the DUT idle "
+                   f"before concluding the card is at fault")
+    else:
+        fixture = (f"sdls gave no usable answer ({ls}) — fixture presence UNVERIFIED; do not "
+                   f"assume either way")
+
+    hint = ""
+    if reason in ("nomem", "allocfail"):
+        hint = (" — reason=nomem/allocfail is the TASK-521 signature: the 8-bit heap is "
+                "exhausted by the playback working set (arena + Audio + pump stack), not an "
+                "SD or fixture problem")
+    return (f"set fbOpen {BROWSE_DIR} returned ok:false while a track was playing. "
+            f"OBSERVED: reason={reason}{heap}; reply={r}. {fixture}.{hint}")
+
+
 def run_sequence(ser: serial.Serial, walk_timeout_s: float) -> tuple:
     """The whole enter-player -> load -> play -> browse sequence, one shot.
     Returns (elapsed, st) on success. Raises RebootDetected on a crash-reboot
@@ -107,9 +153,42 @@ def run_sequence(ser: serial.Serial, walk_timeout_s: float) -> tuple:
     if not r.get("ok"):
         fail(f"set playerMode player failed: {r}")
 
+    # BP-068 negative check, run BEFORE playback while the heap is healthy: a
+    # path that genuinely is not on the card must come back reason=notfound.
+    # If this ever reports `nomem` (or nothing at all), the reason field is not
+    # discriminating and every "fixture missing" claim below it is worthless —
+    # which is precisely the defect TASK-521 fixed, so it is tested, not
+    # assumed.
+    print("=== BP-068: a genuinely missing path must report reason=notfound ===")
+    r = cmd(ser, "set fbOpen /task521_no_such_dir")
+    if r.get("ok"):
+        fail(f"set fbOpen on a nonexistent path unexpectedly SUCCEEDED: {r}")
+    if r.get("reason") != "notfound":
+        fail(f"reason field does not discriminate: a nonexistent path reported "
+             f"reason={r.get('reason')!r}, expected 'notfound' (reply={r}). "
+             f"Without this the nomem/notfound split below cannot be trusted.")
+    print("negative check OK — reason=notfound")
+    # Note the side effect, deliberately: FileBrowser::open() allocates its two
+    # entry arrays (5 120 B on DISABLE_SPOTIFY builds) BEFORE it touches the
+    # card, and TASK-433 never frees them again, so this probe claims them here
+    # while the heap is healthy. That is the same state the reported TASK-521
+    # repro was in — the arrays already resident, opendir()'s own ~700 B the
+    # thing that fails — so it makes the failure deterministic rather than
+    # alternating between `allocfail` and `nomem` depending on run history. It
+    # is also the EASIER of the two orderings for any future fix to satisfy.
+
     r = cmd(ser, f"set plLoad {PL_PATH}")
     if not r.get("ok"):
-        fail(f"set plLoad {PL_PATH} failed (fixture missing?): {r}")
+        # TASK-521: same unverified "(fixture missing?)" guess as the fbOpen one
+        # below used to make. Check, then report — `sdread 100 <path>` opens the
+        # playlist straight off the mount, independent of m3u::PlaylistIndex.
+        probe = cmd(ser, f"sdread 100 {PL_PATH}", timeout=20.0)
+        if probe.get("ok"):
+            verdict = "the playlist IS readable via sdread — NOT a missing fixture"
+        else:
+            verdict = (f"sdread could not read it either ({probe}) — consistent with a missing "
+                       "fixture, but unproven while the heap is under pressure")
+        fail(f"set plLoad {PL_PATH} returned ok:false: {r}. {verdict}")
 
     r = cmd(ser, "set plPlay 0")
     if not r.get("ok"):
@@ -150,7 +229,7 @@ def run_sequence(ser: serial.Serial, walk_timeout_s: float) -> tuple:
     t0 = time.monotonic()
     r = cmd(ser, f"set fbOpen {BROWSE_DIR}")
     if not r.get("ok"):
-        fail(f"set fbOpen {BROWSE_DIR} failed (fixture missing?): {r}")
+        fail(_diagnose_fbopen(ser, r))
 
     min_playing_seen = True
     st = None

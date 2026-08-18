@@ -268,8 +268,25 @@ static void cmdSet(const char *args) {
   if (strncmp(args, "fbOpen", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
     const char *path = (args[6] == ' ' && args[7] != '\0') ? args + 7 : "/";
     const bool ok = g_LocalPlayerApp.dbgFbOpen(path);
-    Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"%s\"}\n",
-                  ok ? "true" : "false", path);
+    // TASK-521: carry the REASON, and emit it without Print::printf's malloc.
+    // The reason matters because every failure used to look identical from the
+    // harness (test_fbrowser_player.py read a bare ok:false as "fixture
+    // missing?" — it never was); the malloc matters because the dominant
+    // reason is `nomem`, and Print::printf() silently returns 0 when its own
+    // >64 B buffer cannot be allocated, i.e. it drops the reply exactly when
+    // there is something to say.
+    {
+        char b[192];
+        int n = snprintf(b, sizeof(b),
+                         "{\"ok\":%s,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"%s\","
+                         "\"reason\":\"%s\",\"free8\":%u,\"largest8\":%u}\n",
+                         ok ? "true" : "false", path,
+                         player::FileBrowser::errName(g_LocalPlayerApp.dbgFbLastError()),
+                         (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                         (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL |
+                                                                    MALLOC_CAP_8BIT));
+        if (n > 0) Serial.write((const uint8_t*)b, (n < (int)sizeof(b)) ? n : sizeof(b) - 1);
+    }
     return;
   }
   // TASK-416: select a browser row by index (descend / play / load) exactly
