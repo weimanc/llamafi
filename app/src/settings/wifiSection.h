@@ -145,6 +145,14 @@ public:
         WiFi.setAutoReconnect(true);
     }
 
+    // TASK-518 (P4): in-flight = WifiStep::Connecting — the association
+    // attempt, entered at :637 and left by tick()'s WL_CONNECTED / failure /
+    // timeout branches, so it clears on both outcomes. WifiStep::Scanning is
+    // deliberately NOT included: the scan is synchronous inside _startScan()
+    // (tick() is a documented no-op for that step), so it can never be
+    // observed from the loop task and a term for it would always read false.
+    bool hasInFlightOp() const override { return _step == WifiStep::Connecting; }
+
     SectionResult tick() override {
         // Scanning: synchronous scan runs in _startScan(); tick() is a no-op here.
         if (_step == WifiStep::Scanning) return SectionResult::Continue;

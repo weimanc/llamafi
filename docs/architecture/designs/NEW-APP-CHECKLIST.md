@@ -31,6 +31,42 @@ Precedents: `StockApp::_pendingAsync`, `TeletextApp::_pendingFetch`, `SettingsAp
 
 ---
 
+### 1b. `hasInFlightOp()` — quiescence predicate, backs `get idle` (TASK-518 / M-TESTBASE P4)
+
+**Required if**: the app can have ANY operation in flight that `hasPendingAsync()` does not cover —
+a second fetch channel, a stream/file connect on another task, a modal lookup, a connect attempt.
+**Default**: `App::hasInFlightOp()` forwards to `hasPendingAsync()`. That is a *conservative fallback,
+not an answer* — it keeps a new app from silently claiming "idle" while it works, but it will be wrong
+in the other direction (falsely idle) the moment the app has async work outside the `handleInput()` path.
+
+**The contract, and the trap.** `hasInFlightOp()` is TRUE only while an operation **this app started**
+is still running. It is **not** "I have never had data". *An app that is idle-but-empty is idle.*
+
+- [ ] Name, in a comment at the override, **which member expresses "operation in flight"**, where it is
+      set, and where it is cleared. A reviewer must be able to check the clear without reading the app.
+- [ ] Confirm the member **self-clears on the failure path as well as the success path.** A term that can
+      latch true makes `get idle` permanently `false`, which is worse than the `sleep()` it replaces.
+      (TASK-518 found exactly this latch in `LocalPlayerApp::_connecting` and fixed it.)
+- [ ] **Do NOT reuse `isConnecting()` without checking what it means in *this* app.** It carries two
+      incompatible semantics across the existing 13:
+      - *transient-operation* (reusable): `WebRadioApp` `_state == CONNECTING`, `LocalPlayerApp` `_connecting`
+      - *never-had-data-yet* (**not** reusable): `TeletextApp` `!_ready`, `PlaneRadarApp` `!_everHadResult`,
+        `CryptoApp` `!s_cxDataReady`, `WeatherApp` `!s_wxDataReady`, `StockApp` `!_everHadData`, and
+        `spotifyTask::connecting()` — which is `s_lastSuccessfulPollMs == 0` and, under a sustained 403
+        (TASK-243), **never latches false at all**.
+- [ ] If the app's only async work is a `dataTask` fetch with no per-app pending flag (the Weather/Crypto
+      shape), leave the default and **say so in a comment** — those fetches reach `get idle` through its
+      `dataq` term instead. An undocumented absence is indistinguishable from a forgotten override.
+- [ ] A `SettingsSection` subclass with async work overrides `SettingsSection::hasInFlightOp()` instead;
+      `SettingsApp` delegates to the pushed section.
+- [ ] Check `get idle` reports the new app quiescent within a bounded time after its work finishes, and
+      non-quiescent (`"appOp":true`) while it is running.
+
+`get idle` reports the verdict **and every contributing term** — `shellBusy`, `appOp`, `dataq`,
+`dataqInFlight`, `appId`, `appName` — so a `false` always says why. Field set is additive-only (BP-024).
+
+---
+
 ### 2. `tlsYield()` / `tlsResume()` — TLS heap anti-contention (BP-031)
 
 **Required if**: the app spawns or reuses a `dataTask` HTTPS fetcher.  

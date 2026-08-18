@@ -19,6 +19,9 @@
 
 class LifeApp : public App {
 public:
+  // TASK-518 (P4): no hasInFlightOp() override — pure local simulation, no
+  // async work of any kind. Inherits the App default (false), which is true.
+
   void init() override { spawnLife(_s); resume(); }
 
   void resume() override {

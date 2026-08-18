@@ -103,6 +103,15 @@ public:
     // Title shown in the header bar centre-right.
     virtual const char* title() const = 0;
 
+    // TASK-518 (M-TESTBASE P4): true while an async operation THIS SECTION
+    // started is still running — a network lookup, a connect attempt. Backs
+    // SettingsApp::hasInFlightOp() and therefore `get idle`. Same contract as
+    // App::hasInFlightOp(): transient only, never a "has never had data" flag,
+    // and it MUST clear on the failure path too. Safe default = false, so the
+    // purely-local sections (Time, Display, LED, Calibration, System) need not
+    // override.
+    virtual bool hasInFlightOp() const { return false; }
+
 protected:
     // ---- Header chrome -------------------------------------------------------
 

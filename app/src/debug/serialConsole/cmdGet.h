@@ -214,6 +214,61 @@ static void cmdGet(const char *args) {
                   spotifyTask::connecting() ? "true" : "false");
     return;
   }
+  // TASK-518 (M-TESTBASE P4): QUIESCENCE. One honest answer to "is the device
+  // finished doing what I asked?", so a host test can poll this instead of
+  // guessing with a sleep() (252 of them in run_serialdbg_tests.py alone,
+  // 539 across app/tools, calibrated against 2 named constants).
+  //
+  // Three contributing terms, ALL reported alongside the verdict, because a
+  // bare "idle":false is undiagnosable — the caller has to be able to say WHY
+  // it is still waiting without issuing six more commands:
+  //   shellBusy — the shell pre-dispatch gate, `shell::state().busy` since
+  //               M-SRCLAYOUT Stage D (was main.cpp's g_shellBusy). A switchApp or a
+  //               long handleInput is running; taps are being dropped)
+  //   appOp     — the ACTIVE app's hasInFlightOp(): an operation THAT APP
+  //               STARTED is still running. NOT isConnecting(), which means
+  //               two different things across the 13 apps and, for Spotify,
+  //               never latches false under this rig's live 403 (TASK-243).
+  //               See App::hasInFlightOp() for the whole contract.
+  //   dataq     — dataTask queue depth + the FetchType currently dispatched
+  //               (-1 = none). This is the term that covers the apps holding
+  //               no pending flag of their own (Weather, Crypto, and Stock's
+  //               cadence refreshes) — their fetches are observable only here.
+  //
+  // Deliberately NOT a term: spotifyTask's background cadence poll. It is not
+  // an operation anyone asked for, and a Spotify-mode device would never read
+  // idle if it were. `get dataq` still exposes spAct for that.
+  //
+  // Field set is additive-only (BP-024) — extend, never rename.
+  if (strcmp(args, "idle") == 0) {
+    const int ai = (int)currentAppId;
+    const bool appOp = g_apps[ai] && g_apps[ai]->hasInFlightOp();
+    dataTask::DbgQueueState q;
+    dataTask::dbgQueueState(&q);
+    const bool dq = (q.queueWaiting > 0) || (q.inFlight >= 0);
+    const bool idle = !shell::state().busy && !appOp && !dq;
+#define APP_X(Name, icon, cfg, disp) #Name,
+    // const-const so the pointer array is a constant expression and lands in
+    // .rodata (flash), not .dram0.data — `get appId`'s otherwise-identical
+    // table is non-const and does cost RAM. Debug-build headroom is ~8 KB
+    // (M-TESTBASE §7) but there is no reason to spend any of it here.
+    static const char* const kIdleAppNames[] = {
+#include "appRegistry.h"
+    };
+#undef APP_X
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"idle\",\"ms\":%lu,"
+                  "\"idle\":%s,\"shellBusy\":%s,\"appOp\":%s,"
+                  "\"dataq\":%u,\"dataqInFlight\":%d,"
+                  "\"appId\":%d,\"appName\":\"%s\",\"last\":true}\n",
+                  (unsigned long)millis(),
+                  idle       ? "true" : "false",
+                  shell::state().busy ? "true" : "false",
+                  appOp      ? "true" : "false",
+                  (unsigned)q.queueWaiting, (int)q.inFlight,
+                  ai,
+                  (ai < (int)AppId::COUNT) ? kIdleAppNames[ai] : "Unknown");
+    return;
+  }
   if (strcmp(args, "stacks") == 0) {
     // TASK-240: report each task's configured stack size + watermark (min free
     // ever). used = size - free; trim target = used + margin. Also include the

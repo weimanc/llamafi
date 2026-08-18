@@ -55,6 +55,20 @@ public:
 
   bool hasPendingAsync() const override { return _apps.isValidating(); }
 
+  // TASK-518 (P4): Settings has no async work of its own — the operations
+  // belong to whichever section is pushed, so this delegates instead of
+  // reusing hasPendingAsync(), which hardcodes ONE section's ONE operation
+  // (_apps.isValidating()) and is blind to the geocode lookup in that same
+  // section and to WifiSection's connect. With no section pushed, the
+  // category list is a pure render — idle.
+  //
+  // isConnecting() was not reusable because SettingsApp does not implement it
+  // at all: it inherits App's `return false`, which would report a device
+  // mid-WiFi-connect as quiescent.
+  bool hasInFlightOp() const override {
+    return _activeSection ? _activeSection->hasInFlightOp() : false;
+  }
+
   void suspend() override {
     if (_activeSection) { _activeSection->leave(); _activeSection = nullptr; }
     _s.section = -1;

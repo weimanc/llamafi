@@ -62,6 +62,26 @@ public:
   bool hasPendingAsync() const override {
     return spotifyTask::hasPendingActions();
   }
+  // TASK-518 (P4): in-flight = spotifyTask::hasPendingActions(), i.e.
+  // s_actionPending — set when enqueue() accepts a non-POLL action, cleared
+  // when the action queue drains (spotifyTaskStorage.cpp:796 / :413). That is
+  // exactly "a user-initiated operation is still running", and it self-clears
+  // on both the success and the failure path because the clear is the queue
+  // drain, not the HTTP result.
+  //
+  // isConnecting() was NOT reusable: it is spotifyTask::connecting() ==
+  // (s_lastSuccessfulPollMs == 0), a never-had-data latch that only falls on
+  // the FIRST 200/204. Under TASK-243 (owner Premium lapsed, sustained 403 —
+  // still live on this rig) it never falls, so ORing it here would make the
+  // device report never-quiet forever in Spotify mode.
+  //
+  // The background cadence POLL is deliberately excluded: it is not an
+  // operation the caller asked for, and including it would leave a poll-every-
+  // few-seconds app permanently non-idle. A poll actually in flight is still
+  // visible to `get idle` through the dataq/spAct terms.
+  bool hasInFlightOp() const override {
+    return spotifyTask::hasPendingActions();
+  }
   // TASK-245 / ADR-046: red taskbar bar on a persistent 403 (authorization
   // refused — e.g. owner-account Premium lapsed). Self-clears on the next
   // successful poll (see spotifyTask::authError()).

@@ -409,6 +409,20 @@ public:
     // flips its own state, this just observes it).
     bool hasPendingAsync() const override { return _browser.pending(); }
 
+    // TASK-518 (P4): LocalPlayer has TWO independent in-flight operations:
+    //   1. _browser.pending() — a file-browser page walk (fileBrowser.h:188,
+    //      _state == State::Walking, flipped by the browser's own tick()).
+    //      Backs hasPendingAsync().
+    //   2. _connecting — a track open on the audio pump task. Set in _play()
+    //      /_playIndex() (:898, :943), cleared when the open resolves (:340)
+    //      and on every teardown/stop path (:253, :520, and aeStopFile at
+    //      :879/:929), so a failed open clears it too.
+    // isConnecting() IS reusable here (the other of the two apps where it is):
+    // _connecting is transient-operation semantics — an open with a start and
+    // an end — not a never-had-data latch. ORed, not used alone, because it
+    // says nothing about a browser walk.
+    bool hasInFlightOp() const override { return _browser.pending() || _connecting; }
+
     // TASK-416 / NEW-APP-CHECKLIST item 4, TASK-384 precedent: except the
     // browser's own back/up zone from the shell busy gate, or a tap there
     // while a page walk is in flight is silently dropped — confirmed on real
@@ -876,7 +890,14 @@ private:
         }
         // Tapping/advancing to a new row while one plays: stop first, so the
         // engine isn't asked to connect on top of a live decode.
+        // TASK-518: clear the flags with the stop, matching the eject path
+        // (:519-520). aeStopFile() takes the OLD _connecting, so the clear has
+        // to follow it. Without this, the `!aeConnectFile()` early return below
+        // leaves _connecting latched true from the attempt we just tore down —
+        // a stuck amber taskbar indicator before, and now a `get idle` that
+        // never goes quiet again.
         if (_playing || _connecting) aeStopFile(_connecting);
+        _playing = _connecting = false;
         // TASK-435: drop the playlist's file handle BEFORE the arena is asked
         // for its 24 576 B contiguous block. pathAt() above went through
         // _readRecord() -> _ensureOpen() (m3u.h:467), which reopens the FIL if
@@ -927,6 +948,7 @@ private:
     // a cursor that no longer means anything — see tick()'s _direct branch).
     void _playPathDirect(const char* path) {
         if (_playing || _connecting) aeStopFile(_connecting);
+        _playing = _connecting = false;   // TASK-518 — see _startPlayback()
         // TASK-435: same reason as _startPlayback() — this path does not call
         // pathAt(), so it never reopens the handle itself, but the playlist's
         // ~4.4 KB handle can still be open from PLEDIT scrolling before the

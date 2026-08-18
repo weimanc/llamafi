@@ -223,6 +223,21 @@ public:
 
     bool hasPendingAsync() const override { return _active()->hasPendingAsync(); }
 
+    // TASK-518 (P4): in-flight = the active backend's _pendingFetch — set by
+    // navigate() (a user page request) and by poll()'s cadence re-fetch, and
+    // cleared in poll() the moment dataTask::pollTeletext() delivers, on the
+    // parse-failure path as well as the success path (teletextApp.h:139, ahead
+    // of the result.ready branch). Transient and self-clearing, so
+    // hasPendingAsync() is already the right answer; stated explicitly because
+    // this app's isConnecting() is one of the traps.
+    //
+    // isConnecting() NOT reusable: NosTeletextSource::isConnecting() is
+    // !_ready, a never-had-data latch set once on the first page that renders
+    // and never re-armed. A Teletext sitting on a rendered page with no fetch
+    // outstanding is idle, and !_ready would call it busy forever if the very
+    // first fetch ever failed.
+    bool hasInFlightOp() const override { return _active()->hasPendingAsync(); }
+
     bool handleInput(TouchPhase phase, int x, int y) override {
         if (phase != TouchPhase::Release) return false;
 

@@ -63,6 +63,11 @@ public:
   void suspend() override {}
   void tick()    override { cryptoTick(); }
   bool handleInput(TouchPhase, int, int) override { return false; }
+  // TASK-518 (P4): NO hasInFlightOp() override — identical reasoning to
+  // WeatherApp. Crypto holds no pending flag; cryptoTick() enqueues on a
+  // cadence and consumes whatever pollCrypto() returns, so the in-flight fact
+  // lives in dataTask and reaches `get idle` through its dataq term.
+  // isConnecting() NOT reusable: !s_cxDataReady is a never-had-data latch.
   // TASK-245 / ADR-046: amber "connecting" bar until the first crypto fetch lands.
   bool isConnecting() const override { return !s_cxDataReady; }
   // TASK-246: red bar when the last crypto fetch failed (cleared on next success).

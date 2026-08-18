@@ -434,6 +434,29 @@ it **observes X062 and does not close it.**
 across the `App` interface and its 13 implementations, or a documented contract split of
 `isConnecting()` itself. That is an interface change with a `NEW-APP-CHECKLIST` entry, not a debug key.
 
+> **LANDED 2026-08-18, after Stage D as sequenced — and the payoff is NOT what §3b assumed.**
+> `hasInFlightOp()` defaults to `hasPendingAsync()`, never `isConnecting()`, so B3's never-had-data
+> trap is avoided by construction: Teletext delegates to `_active()->hasPendingAsync()` and PlaneRadar
+> to `_pendingFetch`, both explicitly rejecting `!_ready`/`!_everHadResult`. `get idle` reports the
+> contributing terms — `{"idle":…,"shellBusy":…,"appOp":…,"dataq":…,"appName":…}` — so a non-idle
+> answer says why.
+>
+> **DUT-measured, and the headline number I first produced was wrong.** An initial run reported
+> "2.5 s sleep → 0.05 s poll", a 50× win. It was invalid: the first `get idle` already returned true,
+> so the tap never went busy and I had measured a race, not a settle. Re-run with a busy-observed
+> precondition:
+>
+> | | |
+> |---|---|
+> | valid samples | **1 of 5** |
+> | cold switch (first visit to Stock) | **2.06 s** busy→idle (a second observation gave 2.27 s) |
+> | warm switches | busy never observed — completed inside a 50 ms poll, **or the tap did not register; I cannot distinguish** |
+>
+> **So the win is correctness, not speed.** Settle time varies from ~2.1 s cold to under 50 ms warm,
+> and a fixed `sleep(2.5)` pays the worst case every time while still being a guess on a bad day.
+> That variance is the argument for the predicate; a 50× speedup claim would have been fiction built
+> on four races.
+
 **It is still worth doing, and still the cheapest probe of the synchronisation thesis** — mode
 transitions are exactly where "is it finished?" is unanswerable today, and 252 settling sleeps in the
 runner (539 across `app/tools`) are the standing cost. But it lands **with Stage D** (§3.2), and it

@@ -17,6 +17,11 @@ extern TFT_eSPI tft;
 
 class AquariumApp : public App {
 public:
+    // TASK-518 (P4): no hasInFlightOp() override — pure local animation. The
+    // only non-render work is the sprite alloc, which is synchronous inside
+    // init()/the retry tick, so it can never be observed as "in flight" from
+    // the loop task. Inherits the App default (false), which is true.
+
     void init() override {
         memset(_fishPool, 0, sizeof(_fishPool));
         memset(_flakes,   0, sizeof(_flakes));

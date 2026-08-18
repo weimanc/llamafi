@@ -796,6 +796,23 @@ public:
     // station connection (no audio yet) — mirrors SpotifyApp/PlaneRadarApp's
     // isConnecting() pattern, reusing _state rather than adding new tracking.
     bool isConnecting() const override { return _state == WRPlayState::CONNECTING; }
+
+    // TASK-518 (P4): WebRadio has TWO independent in-flight operations, so
+    // neither existing predicate alone is the answer:
+    //   1. _pendingStations — the radio-browser station-list fetch. Set at
+    //      _fetchStations() (:1313, :1539), cleared in tick() when
+    //      pollWebRadioStations() delivers (:568) and by abort on suspend/
+    //      eject (:295, :887, :1704). Backs hasPendingAsync().
+    //   2. _state == WRPlayState::CONNECTING — the stream connect, which runs
+    //      on the wrPump task, not on dataTask, so no queue term can see it.
+    //      Set in _play() (:1662), left on the first PLAYING/ERROR_* tick.
+    // isConnecting() IS reusable here, and this is one of only two apps where
+    // it is: it is transient-operation semantics (a state-machine state with
+    // an entry and an exit), not a never-had-data latch. It is ORed, not used
+    // alone, because it says nothing about the list fetch.
+    bool hasInFlightOp() const override {
+        return _pendingStations || _state == WRPlayState::CONNECTING;
+    }
     // Red active-slot indicator on a sustained stream failure (dead host,
     // stall past the auto-skip/retry budget, WiFi loss, geo/DMCA block).
     // Self-clears the instant _play() lands PLAYING again (userInitiated

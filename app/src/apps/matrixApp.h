@@ -15,6 +15,9 @@
 
 class MatrixApp : public App {
 public:
+  // TASK-518 (P4): no hasInFlightOp() override — pure local animation, no
+  // async work of any kind. Inherits the App default (false), which is true.
+
   void init() override {
     initMatrixState();
     repaintMatrix();

@@ -99,6 +99,23 @@ public:
 
     bool isValidating() const { return _editPhase == StockEditPhase::Validating; }
 
+    // TASK-518 (P4): this section has TWO async operations, and isValidating()
+    // — which is what hasPendingAsync() reports — only covers the first:
+    //   1. _editPhase == Validating: the stock-ticker probe fetch. Cleared in
+    //      tick() on the accept branch, the bad-result branch, AND the
+    //      kValidateTimeoutMs branch, so it cannot latch.
+    //   2. _prLocState == LookupPending: the PlaneRadar postcode geocode.
+    //      Cleared in _tickPrLookup() on both r.ok and !r.ok, and by
+    //      _prAbandonLookup() on Cancel. NOTE: unlike (1) it has no timeout —
+    //      if dataTask never delivers a result for the matching seq, this stays
+    //      true until the user cancels. That is a real (pre-existing) unbounded
+    //      wait, reported honestly rather than papered over: `get idle` will say
+    //      appOp=true, which is what the device is actually doing.
+    bool hasInFlightOp() const override {
+        return _editPhase == StockEditPhase::Validating ||
+               (_prLocActive && _prLocState == PrLocView::LookupPending);
+    }
+
     SectionResult handleInput(TouchPhase phase, int x, int y) override {
         // Keyboard captures all touch while a PrLocView keyboard step is active
         // (mirrors wifiSection's pattern) — checked before back-tap, since the

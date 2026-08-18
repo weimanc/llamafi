@@ -44,6 +44,12 @@ static constexpr int16_t CLK_TAP_SPLIT_Y = 120;
 
 class ClockApp : public App {
 public:
+    // TASK-518 (P4): no hasInFlightOp() override — Clock is entirely local
+    // (RTC read + render; taps only mutate g_settings in RAM and the one
+    // persist is a synchronous save in suspend()). No network, no task, no
+    // queue: it inherits the App default (== hasPendingAsync() == false),
+    // which is the true answer. isConnecting() is not implemented here either.
+
     void init()    override { _snapshotPersisted(); repaint(); }
     void resume()  override { _snapshotPersisted(); repaint(); }
     void suspend() override {

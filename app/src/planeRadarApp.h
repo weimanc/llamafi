@@ -269,6 +269,19 @@ public:
     bool hasError()     const override { return _prErr; }
     bool hasPendingAsync() const override { return _pendingFetch; }
 
+    // TASK-518 (P4): in-flight = _pendingFetch — set in _requestFetch()
+    // (planeRadarApp.h:669) and cleared in tick() on every delivery branch,
+    // including the parse-error retry (:291, :519, :528) and the centre-moved
+    // discard (:479). Transient and self-clearing on failure as well as
+    // success, so hasPendingAsync() is already the answer; the App default
+    // forwards to it and this override just records the reasoning at the site.
+    //
+    // isConnecting() NOT reusable: !_everHadResult is a never-had-data latch,
+    // set true on the first good roster and only re-armed by an explicit
+    // location change (:400). A PlaneRadar showing a stale roster with no
+    // fetch outstanding is idle.
+    bool hasInFlightOp() const override { return _pendingFetch; }
+
     void tick() override {
         unsigned long now = millis();
 

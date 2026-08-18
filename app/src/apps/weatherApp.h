@@ -34,6 +34,20 @@ public:
   void suspend() override {}
   void tick()    override { weatherTick(); }
   bool handleInput(TouchPhase, int, int) override { return false; }
+  // TASK-518 (P4): NO hasInFlightOp() override, deliberately. Weather has
+  // async work, but it holds NO member that expresses "a fetch is in flight" —
+  // weatherTick() enqueues on a 60 s cadence and consumes whatever
+  // pollWeather() hands back; _s.lastDataFetch is a timestamp, not a pending
+  // flag. The in-flight fact lives entirely in dataTask, which is why `get
+  // idle` counts the dataTask queue as its own term: a weather fetch in flight
+  // shows up there (dataq/inFlight), not here. Inheriting the App default
+  // (== hasPendingAsync() == false) is therefore honest for the app-level term
+  // rather than a gap. Adding a _wxPending bool was considered and rejected:
+  // it would have to be cleared by a poll that only fires on delivery, so a
+  // dropped result would latch it true until the next cadence tick.
+  //
+  // isConnecting() NOT reusable: !s_wxDataReady is a never-had-data latch, set
+  // once on the first good fetch and never re-armed.
   // TASK-245 / ADR-046: amber "connecting" bar until the first weather fetch lands.
   bool isConnecting() const override { return !s_wxDataReady; }
   // TASK-246: red bar when the last weather fetch failed (cleared on next success).

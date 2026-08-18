@@ -75,6 +75,21 @@ class StockApp : public App {
   StockViewMode _appliedMode = StockViewMode::List;  // TASK-231: last launch-view applied
 public:
   bool hasPendingAsync() const override { return _pendingAsync; }
+  // TASK-518 (P4): in-flight = _pendingAsync — set at the three chart-request
+  // sites (drillToChart / drillToChartBySym / the range-tab handler) and
+  // cleared in stockTickChart() when a result with matching identity is
+  // consumed, plus suspend(). Transient, self-clearing, so hasPendingAsync()
+  // is already the right answer and the App default forwards to it verbatim;
+  // spelled out here only because this app is one of the ones whose
+  // isConnecting() is a trap.
+  //
+  // isConnecting() NOT reusable: !_everHadData is a never-had-data latch —
+  // true from boot until the first successful fetch of ANY sub-view, and it
+  // is never re-armed. An idle-but-empty Stock is idle.
+  //
+  // Not covered: the periodic list-quote and heatmap refreshes enqueue without
+  // touching _pendingAsync (they are cadence, not a requested operation).
+  // Those are visible to `get idle` through its dataq term instead.
   // TASK-245 / ADR-046: amber "connecting" bar until the first successful fetch
   // (any sub-view) lands; green thereafter.
   bool isConnecting() const override { return !_everHadData; }

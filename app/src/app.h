@@ -48,5 +48,45 @@ struct App {
     // with no async work, or no in-app navigation-while-pending case, need
     // not override.
     virtual bool isNavigationTap(int x, int y) const { (void)x; (void)y; return false; }
+    // TASK-518 (M-TESTBASE P4): QUIESCENCE. Return true while an operation
+    // THIS APP STARTED is still running. Backs `get idle`, so a host test can
+    // ask "is the device finished doing what I asked?" instead of guessing
+    // with a sleep() (252 of them in run_serialdbg_tests.py alone).
+    //
+    // ── The contract, stated once, because it is the trap ──────────────────
+    // "In flight" means a TRANSIENT operation with a start and an end. It is
+    // NOT "I have never had data". An app that is idle-but-empty IS idle:
+    // a device that will never fetch again is quiescent, not busy.
+    //
+    // This is why isConnecting() is NOT the predicate and must not be ANDed
+    // in wholesale (M-TESTBASE §4 P4, blocker B3 — isConnecting() carries two
+    // incompatible meanings across the 13 apps):
+    //   transient-op semantics (reusable here):
+    //     webRadioApp.h  `_state == WRPlayState::CONNECTING`
+    //     localPlayerApp.h `_connecting`
+    //   never-had-data-yet semantics (NOT reusable here):
+    //     teletextApp.h `!_ready` · planeRadarApp.h `!_everHadResult`
+    //     apps/cryptoApp.h `!s_cxDataReady` · apps/weatherApp.h `!s_wxDataReady`
+    //     apps/stockApp.h `!_everHadData`
+    //     spotifyTaskStorage.cpp connecting() == `s_lastSuccessfulPollMs == 0`,
+    //       which latches false only on the FIRST 200/204 — under this rig's
+    //       live 403 (TASK-243) that never happens, so anything ANDing it
+    //       reports never-quiet forever on the actual DUT.
+    //
+    // ── Default ───────────────────────────────────────────────────────────
+    // Defaults to hasPendingAsync(), which is already contractually
+    // "async work initiated by handleInput() is still in flight, self-clearing"
+    // — i.e. a strict subset of this predicate, with the right transient
+    // shape. Consequences: an app with no async work at all inherits false
+    // (safe default, no override needed), and a NEW app that wires only
+    // hasPendingAsync() per NEW-APP-CHECKLIST item 1 gets a conservative
+    // answer rather than a silent "idle" lie. Override when the app has
+    // in-flight work hasPendingAsync() does not cover (a stream connect, a
+    // file open, a second fetch channel) — see NEW-APP-CHECKLIST item 1b.
+    //
+    // Whatever backs it MUST self-clear on both the success and the failure
+    // path. A term that can latch true turns `get idle` into a permanent
+    // "busy", which is worse than the sleep() it replaces.
+    virtual bool hasInFlightOp() const { return hasPendingAsync(); }
     virtual ~App() = default;
 };
