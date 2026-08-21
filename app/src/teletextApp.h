@@ -1,6 +1,7 @@
 #pragma once
 // teletextApp.h — live teletext reader (M-TELETEXT ADR-044).
-// Single-header App class. Slots into appRegistry.h at index 9.
+// Self-contained per D0/SF.11 (M-SRCLAYOUT Stage E / TASK-471). Method
+// bodies live in teletextApp.cpp.
 //
 // NOS Teletekst (page-addressed HTTP poll via dataTask), behind a
 // TeletextSource strategy seam. A second source (NMS Ceefax, a persistent
@@ -19,65 +20,6 @@
 #include "logSink.h"
 
 extern TFT_eSPI tft;
-
-// ── RGB565 teletext colour palette ────────────────────────────────────────────
-static const uint16_t kTTColors[8] = {
-    0x0000,  // 0 black
-    0xF800,  // 1 red
-    0x07E0,  // 2 green
-    0xFFE0,  // 3 yellow
-    0x001F,  // 4 blue
-    0xF81F,  // 5 magenta
-    0x07FF,  // 6 cyan
-    0xFFFF,  // 7 white
-};
-
-// ── Mosaic sub-rects within a CHAR_W×CHAR_H (6×8) cell ──────────────────────
-// Bit order: 0=top-left, 1=top-right, 2=mid-left, 3=mid-right, 4=bot-left, 5=bot-right
-static const int8_t kMosaicRect[6][4] = {  // { dx, dy, w, h }
-    { 0, 0, 3, 3 },  // bit 0 top-left
-    { 3, 0, 3, 3 },  // bit 1 top-right
-    { 0, 3, 3, 3 },  // bit 2 mid-left
-    { 3, 3, 3, 3 },  // bit 3 mid-right
-    { 0, 6, 3, 2 },  // bit 4 bot-left
-    { 3, 6, 3, 2 },  // bit 5 bot-right
-};
-
-// ── Fast-text bar colours (red/green/yellow/cyan) ────────────────────────────
-static const uint16_t kFtlBarColors[4] = { 0xF800, 0x07E0, 0xFFE0, 0x07FF };
-
-// ── ISO-8859-1 extended → nearest ASCII printable ────────────────────────────
-// Font1 (GLCD) only covers 0x20..0x7E. Characters 0x80..0xFF are mapped to
-// their base ASCII letter so the cell background is always drawn and text is
-// readable (ë→e, ü→u, etc.) rather than showing stale pixels.
-static const uint8_t kLatin1Ascii[128] PROGMEM = {
-    // 0x80..0x9F  C1 controls
-    ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
-    ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
-    // 0xA0..0xAF
-    ' ','!','c','L','$','Y','|','p','"','c','a','"','~','-','R','-',
-    // 0xB0..0xBF
-    'o','+','2','3','\'','u','P','*',',','1','o','"','?','?','?','?',
-    // 0xC0..0xCF  À Á Â Ã Ä Å Æ Ç È É Ê Ë Ì Í Î Ï
-    'A','A','A','A','A','A','A','C','E','E','E','E','I','I','I','I',
-    // 0xD0..0xDF  Ð Ñ Ò Ó Ô Õ Ö × Ø Ù Ú Û Ü Ý Þ ß
-    'D','N','O','O','O','O','O','x','O','U','U','U','U','Y','P','B',
-    // 0xE0..0xEF  à á â ã ä å æ ç è é ê ë ì í î ï
-    'a','a','a','a','a','a','a','c','e','e','e','e','i','i','i','i',
-    // 0xF0..0xFF  ð ñ ò ó ô õ ö ÷ ø ù ú û ü ý þ ÿ
-    'd','n','o','o','o','o','o','/','o','u','u','u','u','y','p','y',
-};
-
-// ── Strip UI colours ─────────────────────────────────────────────────────────
-static const uint16_t kStripBg      = 0x1082;  // dark grey ≈ (28,28,28)
-static const uint16_t kStripActive  = 0xDEFB;  // light grey ≈ (220,220,220)
-static const uint16_t kStripDim     = 0x2104;  // dim grey ≈ (70,70,70) — same as taskbar bg
-static const uint16_t kStripBack    = 0x07FF;  // cyan for back zone when history non-empty
-static const uint16_t kStripPageNum = 0xA514;  // mid-grey for page number text
-
-// ── Preset start pages ───────────────────────────────────────────────────────
-static const uint16_t kPagePresets[] = { 101, 601, 702, 800 };
-static const uint8_t  kPollPresets[] = { 30, 60, 120 };
 
 // ── TeletextSource (ADR-057 item 1) ─────────────────────────────────────────
 // Ordinary strategy-pattern seam: NOS is a stateless dataTask poll, Ceefax
@@ -111,42 +53,10 @@ public:
 // TeletextApp had, just relocated so it can sit behind the interface above.)
 class NosTeletextSource : public TeletextSource {
 public:
-    void onResume(uint16_t /*page*/) override {
-        _pollSecs     = g_settings.teletextPollSecs;
-        _lastFetch    = _forceNow();  // force immediate fetch
-        _pendingFetch = false;
-        _ttErr        = false;
-    }
-
+    void onResume(uint16_t /*page*/) override;
     void onSuspend() override {}
-
-    void navigate(uint16_t page, uint8_t sub) override {
-        _lastFetch    = _forceNow();
-        _pendingFetch = true;
-        dataTask::enqueueTeletextPage(page, sub);
-    }
-
-    bool poll(dataTask::TeletextState* out) override {
-        unsigned long now = millis();
-        if (!_pendingFetch && (now - _lastFetch >= (unsigned long)_pollSecs * 1000UL)) {
-            dataTask::enqueueTeletextPage(out->page);
-            _lastFetch    = now;
-            _pendingFetch = true;
-        }
-
-        dataTask::TeletextState result;
-        if (dataTask::pollTeletext(&result)) {
-            _pendingFetch = false;
-            if (result.ready) {
-                *out   = result;
-                _ttErr = false;   // TASK-246: success clears red
-                _ready = true;
-                return true;
-            }
-            _ttErr = true;        // TASK-246: fetch returned but page not parsed → red
-        }
-        return false;
-    }
+    void navigate(uint16_t page, uint8_t sub) override;
+    bool poll(dataTask::TeletextState* out) override;
 
     // TASK-245 / ADR-046: amber "connecting" bar until the first page renders.
     bool isConnecting() const override { return !_ready; }
@@ -175,33 +85,14 @@ private:
 
 class TeletextApp : public App {
 public:
-    void init() override {
-        memset(&_st, 0, sizeof(_st));
-        _histDepth = 0;
-        _lastTapMs = 0;
-        _lastAction[0] = '\0';
-        // appShell calls init() XOR resume() on an app's first entry per
-        // session, so source activation lives in _activateSource() (shared
-        // with resume()), not in either one alone.
-        _activateSource();
-    }
-
-    void resume() override {
-        _activateSource();
-        _draw();
-    }
+    void init() override;
+    void resume() override;
 
     // Shared by init() and resume(). NOS Teletekst is the only backend — the
     // NMS Ceefax second source was cut (ADR-058: not viable within this
     // hardware's DMA budget). The TeletextSource seam is kept for a possible
     // future backend.
-    void _activateSource() {
-        _st.page   = g_settings.teletextPage;
-        _injectedContent = false;
-        _numpadActive = false;
-        _numpadCount  = 0;
-        _active()->onResume(_st.page);
-    }
+    void _activateSource();
 
     void suspend() override { _active()->onSuspend(); }
 
@@ -209,17 +100,7 @@ public:
     bool isConnecting() const override { return _active()->isConnecting(); }
     bool hasError() const override { return _active()->hasError(); }
 
-    void tick() override {
-        if (_active()->poll(&_st)) {
-            if (_active()->usesPageAdjacentNav()) {
-                _st.prevPage    = (_st.page > 100) ? _st.page - 1 : 0;
-                _st.nextPage    = (_st.page < 899) ? _st.page + 1 : 0;
-                _st.subpageNext = _st.subpagePrev = 0;
-                _st.subpageNextSub = _st.subpagePrevSub = 0;
-            }
-            _draw();
-        }
-    }
+    void tick() override;
 
     bool hasPendingAsync() const override { return _active()->hasPendingAsync(); }
 
@@ -238,152 +119,11 @@ public:
     // first fetch ever failed.
     bool hasInFlightOp() const override { return _active()->hasPendingAsync(); }
 
-    bool handleInput(TouchPhase phase, int x, int y) override {
-        if (phase != TouchPhase::Release) return false;
-
-        // 300 ms debounce
-        unsigned long now = millis();
-        if (now - _lastTapMs < 300) {
-            strlcpy(_lastAction, "DEBOUNCE", sizeof(_lastAction));
-            return false;
-        }
-        _lastTapMs = now;
-
-        // Strip is always live (back, nav) even when numpad is active
-        if (x >= TTXT_STRIP_X && x < TTXT_STRIP_X + TTXT_STRIP_W && y < TTXT_BAR_Y0) {
-            return _handleStrip(y);
-        }
-
-        if (_numpadActive) {
-            if (y >= TTXT_BAR_Y0 && y <= TTXT_BAR_Y1) {
-                // Fast-text tap while numpad open: dismiss numpad, navigate
-                _numpadActive = false; _numpadCount = 0;
-                return _handleBar(x);
-            }
-            return _handleNumpad(x, y);
-        }
-
-        if (y >= TTXT_BAR_Y0 && y <= TTXT_BAR_Y1) {
-            return _handleBar(x);
-        }
-        if (y < TTXT_BAR_Y0) {
-            return _handleGrid(x, y);
-        }
-        strlcpy(_lastAction, "NONE", sizeof(_lastAction));
-        return false;
-    }
+    bool handleInput(TouchPhase phase, int x, int y) override;
 
     // ── Serial debug accessors ────────────────────────────────────────────────
-    bool dbgGet(const char* var, char* buf, int len) const {
-        if (strcmp(var, "teletextReady") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextReady\",\"ready\":%s,\"last\":true",
-                     _st.ready ? "true" : "false");
-            return true;
-        }
-        if (strcmp(var, "teletextPage") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextPage\",\"page\":%u,\"last\":true",
-                     (unsigned)_st.page);
-            return true;
-        }
-        if (strcmp(var, "teletextPollSecs") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextPollSecs\",\"pollSecs\":%u,\"last\":true",
-                     (unsigned)g_settings.teletextPollSecs);
-            return true;
-        }
-        if (strcmp(var, "teletextHttpCode") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextHttpCode\",\"val\":%d,\"last\":true",
-                     dataTask::lastTeletextHttpCode());
-            return true;
-        }
-        if (strcmp(var, "teletextLastAction") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextLastAction\",\"val\":\"%s\",\"last\":true",
-                     _lastAction);
-            return true;
-        }
-        if (strcmp(var, "teletextHasSubpages") == 0) {
-            bool has = (_st.subpageNext || _st.subpagePrev);
-            snprintf(buf, len, "\"var\":\"teletextHasSubpages\",\"val\":%s,\"last\":true",
-                     has ? "true" : "false");
-            return true;
-        }
-        if (strcmp(var, "teletextSubpage") == 0) {
-            snprintf(buf, len,
-                     "\"var\":\"teletextSubpage\","
-                     "\"next\":%u,\"nextSub\":%u,\"prev\":%u,\"prevSub\":%u,\"last\":true",
-                     (unsigned)_st.subpageNext, (unsigned)_st.subpageNextSub,
-                     (unsigned)_st.subpagePrev, (unsigned)_st.subpagePrevSub);
-            return true;
-        }
-        // Only the NOS backend remains (Ceefax cut, ADR-058); kept so any
-        // existing serial harness querying it still gets a defined answer.
-        if (strcmp(var, "teletextBackend") == 0) {
-            snprintf(buf, len, "\"var\":\"teletextBackend\",\"val\":\"nos\",\"last\":true");
-            return true;
-        }
-        return false;
-    }
-
-    bool dbgSet(const char* var, const char* val) {
-        if (strcmp(var, "teletextPage") == 0) {
-            int pg = atoi(val);
-            if (pg >= 100 && pg <= 899) {
-                _st.page = (uint16_t)pg;
-                g_settings.teletextPage = _st.page;
-                _nosSource()->debugForceImmediateFetch();
-            }
-            return true;
-        }
-        if (strcmp(var, "triggerTeletextFetch") == 0 && strcmp(val, "1") == 0) {
-            _nosSource()->debugForceImmediateFetch();
-            _nosSource()->debugClearPending();  // allow tick() to enqueue even if prior fetch pending
-            return true;
-        }
-        if (strcmp(var, "teletextSubpageNext") == 0) {
-            // Format: "617-2" sets subpageNext=617 subpageNextSub=2; "0" clears.
-            int pg = atoi(val);
-            const char* dash = strchr(val, '-');
-            uint8_t sub = (dash && dash[1]) ? (uint8_t)atoi(dash + 1) : 0;
-            _st.subpageNext    = (pg >= 100 && pg <= 899) ? (uint16_t)pg : 0;
-            _st.subpageNextSub = _st.subpageNext ? sub : 0;
-            _drawStrip();
-            return true;
-        }
-        if (strcmp(var, "teletextSubpagePrev") == 0) {
-            int pg = atoi(val);
-            const char* dash = strchr(val, '-');
-            uint8_t sub = (dash && dash[1]) ? (uint8_t)atoi(dash + 1) : 0;
-            _st.subpagePrev    = (pg >= 100 && pg <= 899) ? (uint16_t)pg : 0;
-            _st.subpagePrevSub = _st.subpagePrev ? sub : 0;
-            _drawStrip();
-            return true;
-        }
-        if (strcmp(var, "teletextPageContent") == 0) {
-            // Inject synthetic page content from hex-encoded 2000-char string.
-            // Encoding: contiguous hex pairs, e.g. "204e4f53..."
-            // 2000 hex chars = 1000 bytes = 25×40 grid.
-            int vlen = strlen(val);
-            if (vlen == 2000) {
-                for (int r = 0; r < 25; r++) {
-                    for (int ci = 0; ci < 40; ci++) {
-                        int idx = (r * 40 + ci) * 2;
-                        char hi = val[idx], lo = val[idx+1];
-                        auto hexv = [](char c) -> uint8_t {
-                            if (c >= '0' && c <= '9') return c - '0';
-                            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-                            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-                            return 0;
-                        };
-                        _st.cells[r][ci] = (uint8_t)((hexv(hi) << 4) | hexv(lo));
-                    }
-                }
-                _st.ready = true;
-                _injectedContent = true;
-                _draw();
-            }
-            return true;
-        }
-        return false;
-    }
+    bool dbgGet(const char* var, char* buf, int len) const;
+    bool dbgSet(const char* var, const char* val);
 
 private:
     // NOS backend lazy heap-allocated on first entry, never freed — embedding
@@ -415,97 +155,13 @@ private:
     uint8_t  _numpadCount     = 0;
 
     // ── Navigation helpers ────────────────────────────────────────────────────
-    void _navigate(uint16_t page, uint8_t sub = 0) {
-        if (!page || page < 100 || page > 899) return;
-        if (_histDepth < 10) _history[_histDepth++] = _st.page;
-        _st.page = page;
-        _active()->navigate(page, sub);
-    }
-
-    void _goBack() {
-        if (_histDepth == 0) return;
-        _st.page = _history[--_histDepth];
-        _active()->navigate(_st.page, 0);
-    }
+    void _navigate(uint16_t page, uint8_t sub = 0);
+    void _goBack();
 
     // ── Input handlers ───────────────────────────────────────────────────────
-    bool _handleStrip(int y) {
-        if (y >= TTXT_STRIP_SUBUP_Y0 && y <= TTXT_STRIP_SUBUP_Y1) {
-            strlcpy(_lastAction, "STRIP_SUBUP", sizeof(_lastAction));
-            if (_st.subpagePrev) _navigate(_st.subpagePrev, _st.subpagePrevSub);
-            return true;
-        }
-        if (y >= TTXT_STRIP_PAGE_Y0 && y <= TTXT_STRIP_PAGE_Y1) {
-            strlcpy(_lastAction, "STRIP_PAGE", sizeof(_lastAction));
-            _numpadActive = !_numpadActive;
-            _numpadCount  = 0;
-            if (_numpadActive) _drawNumpad(); else _draw();
-            return true;
-        }
-        if (y >= TTXT_STRIP_BACK_Y0 && y <= TTXT_STRIP_BACK_Y1) {
-            strlcpy(_lastAction, "STRIP_BACK", sizeof(_lastAction));
-            if (_numpadActive) {
-                _numpadActive = false; _numpadCount = 0; _draw();
-            } else if (_histDepth > 0) {
-                _goBack();
-            }
-            return true;
-        }
-        if (y >= TTXT_STRIP_PREV_Y0 && y <= TTXT_STRIP_PREV_Y1) {
-            strlcpy(_lastAction, "STRIP_PREV", sizeof(_lastAction));
-            if (_st.prevPage) _navigate(_st.prevPage);
-            return true;
-        }
-        if (y >= TTXT_STRIP_NEXT_Y0 && y <= TTXT_STRIP_NEXT_Y1) {
-            strlcpy(_lastAction, "STRIP_NEXT", sizeof(_lastAction));
-            if (_st.nextPage) _navigate(_st.nextPage);
-            return true;
-        }
-        if (y >= TTXT_STRIP_SUBDN_Y0 && y <= TTXT_STRIP_SUBDN_Y1) {
-            strlcpy(_lastAction, "STRIP_SUBDN", sizeof(_lastAction));
-            if (_st.subpageNext) _navigate(_st.subpageNext, _st.subpageNextSub);
-            return true;
-        }
-        strlcpy(_lastAction, "NONE", sizeof(_lastAction));
-        return false;
-    }
-
-    bool _handleBar(int x) {
-        int btn = x / TTXT_FTL_BTN_W;
-        if (btn < 0) btn = 0;
-        if (btn > 3) btn = 3;
-        char act[16]; snprintf(act, sizeof(act), "BAR_FTL%d", btn);
-        strlcpy(_lastAction, act, sizeof(_lastAction));
-        if (_st.ftlTargets[btn]) _navigate(_st.ftlTargets[btn]);
-        return true;
-    }
-
-    bool _handleGrid(int x, int y) {
-        int row = y / TTXT_CHAR_H;
-        int tap_col = x / TTXT_CHAR_W;
-        if (row < 0 || row >= 25) { strlcpy(_lastAction, "NONE", sizeof(_lastAction)); return false; }
-
-        // Scan row for isolated 3-digit page ref within ±3 cols of tap point
-        const uint8_t* rowData = _st.cells[row];
-        uint16_t found = 0;
-        for (int ci = 0; ci <= 37; ci++) {
-            uint8_t c0 = rowData[ci], c1 = rowData[ci+1], c2 = rowData[ci+2];
-            if (c0 >= '1' && c0 <= '8' && c1 >= '0' && c1 <= '9' && c2 >= '0' && c2 <= '9') {
-                uint16_t pg = (c0-'0')*100 + (c1-'0')*10 + (c2-'0');
-                if (pg >= 100 && pg <= 899) {
-                    int ref_col = ci + 1;  // centre of 3-digit ref
-                    if (abs(ref_col - tap_col) <= 3) { found = pg; break; }
-                }
-            }
-        }
-        if (found) {
-            strlcpy(_lastAction, "GRID_LINK", sizeof(_lastAction));
-            _navigate(found);
-            return true;
-        }
-        strlcpy(_lastAction, "GRID_NONE", sizeof(_lastAction));
-        return false;
-    }
+    bool _handleStrip(int y);
+    bool _handleBar(int x);
+    bool _handleGrid(int x, int y);
 
     // ── Numpad overlay ────────────────────────────────────────────────────────
     // Layout: 3×4 grid of 74×39 px buttons starting at (9, 35).
@@ -513,227 +169,19 @@ private:
     static constexpr int kNpBtnW = 74, kNpBtnH = 39, kNpBtnGap = 1;
     static constexpr int kNpX0   = 9,  kNpY0   = 35, kNpRowH   = 40;
 
-    void _drawNumpad() {
-        tft.fillRect(0, 0, TTXT_GRID_W, TTXT_BAR_Y0, 0x1082);
-
-        // Input display — three digit slots
-        static const uint16_t kEntered = 0xFFE0;  // yellow
-        static const uint16_t kEmpty   = 0x7BEF;  // light grey
-        int sy = 17;
-        for (int i = 0; i < 3; i++) {
-            int sx = 60 + i * 40;
-            if (i < (int)_numpadCount) {
-                char ch[2] = { (char)('0' + _numpadDigits[i]), '\0' };
-                tft.setTextColor(kEntered, 0x1082);
-                tft.setTextDatum(MC_DATUM);
-                tft.drawString(ch, sx, sy, 4);
-            } else {
-                tft.drawFastHLine(sx - 8, sy + 12, 16, kEmpty);
-            }
-        }
-
-        // Buttons
-        static const char* const kLabels[12] = {
-            "1","2","3","4","5","6","7","8","9","DEL","0","GO"
-        };
-        bool canGo = (_numpadCount == 3);
-        for (int i = 0; i < 12; i++) {
-            int col = i % 3, row = i / 3;
-            int bx = kNpX0 + col * (kNpBtnW + kNpBtnGap);
-            int by = kNpY0 + row * kNpRowH;
-            uint16_t bg;
-            if      (i == 9)  bg = 0x8000;                        // DEL: dark red
-            else if (i == 11) bg = canGo ? 0x07E0 : 0x0320;       // GO: bright/dim green
-            else              bg = 0x3186;                          // digit: dark grey
-            tft.fillRoundRect(bx, by, kNpBtnW, kNpBtnH, 3, bg);
-            tft.setTextColor(0xFFFF, bg);
-            tft.setTextDatum(MC_DATUM);
-            tft.drawString(kLabels[i], bx + kNpBtnW / 2, by + kNpBtnH / 2, 2);
-        }
-        _drawStrip();
-    }
-
-    bool _handleNumpad(int x, int y) {
-        if (y >= TTXT_BAR_Y0) { strlcpy(_lastAction, "NONE", sizeof(_lastAction)); return false; }
-        int col = (x - kNpX0) / (kNpBtnW + kNpBtnGap);
-        int row = (y - kNpY0) / kNpRowH;
-        if (col < 0 || col > 2 || row < 0 || row > 3 || x >= kNpX0 + 3 * (kNpBtnW + kNpBtnGap)) {
-            // Tap outside grid — dismiss
-            _numpadActive = false; _numpadCount = 0;
-            _draw();
-            strlcpy(_lastAction, "NUMPAD_DISMISS", sizeof(_lastAction));
-            return true;
-        }
-        static const int8_t kMap[12] = { 1,2,3, 4,5,6, 7,8,9, -1,0,-2 };
-        int8_t val = kMap[row * 3 + col];
-        if (val == -1) {  // DEL
-            if (_numpadCount > 0) _numpadCount--;
-            _drawNumpad();
-            strlcpy(_lastAction, "NUMPAD_DEL", sizeof(_lastAction));
-        } else if (val == -2) {  // GO
-            strlcpy(_lastAction, "NUMPAD_GO", sizeof(_lastAction));
-            _numpadGo();
-        } else {
-            if (_numpadCount < 3) {
-                _numpadDigits[_numpadCount++] = (uint8_t)val;
-                _drawNumpad();
-                char act[16]; snprintf(act, sizeof(act), "NUMPAD_%d", (int)val);
-                strlcpy(_lastAction, act, sizeof(_lastAction));
-                if (_numpadCount == 3) _numpadGo();
-            }
-        }
-        return true;
-    }
-
-    void _numpadGo() {
-        if (_numpadCount < 3) return;
-        uint16_t pg = (uint16_t)_numpadDigits[0] * 100
-                    + (uint16_t)_numpadDigits[1] * 10
-                    + (uint16_t)_numpadDigits[2];
-        _numpadActive = false;
-        _numpadCount  = 0;
-        if (pg >= 100 && pg <= 899) {
-            _navigate(pg);
-        } else {
-            _draw();  // invalid page — just dismiss numpad
-        }
-    }
+    void _drawNumpad();
+    bool _handleNumpad(int x, int y);
+    void _numpadGo();
 
     // ── Renderer ──────────────────────────────────────────────────────────────
-    void _draw() {
-        _drawGrid();
-        _drawStrip();
-        _drawBar();
-    }
-
-    void _drawGrid() {
-        tft.setTextFont(1);
-        tft.setTextDatum(TL_DATUM);
-        for (int ri = 0; ri < 25; ri++) {
-            uint8_t fg = 7, bg = 0;
-            bool gfxMode = false;
-            for (int ci = 0; ci < 40; ci++) {
-                uint8_t c = _st.cells[ri][ci];
-                int px = ci * TTXT_CHAR_W;
-                int py = ri * TTXT_CHAR_H;
-
-                // Process control codes (consume; render as background cell)
-                if (c >= 0x01 && c <= 0x07) { fg = c; gfxMode = false;
-                    tft.fillRect(px, py, TTXT_CHAR_W, TTXT_CHAR_H, kTTColors[bg]); continue; }
-                if (c == 0x10) { fg = 0; gfxMode = true;
-                    tft.fillRect(px, py, TTXT_CHAR_W, TTXT_CHAR_H, kTTColors[bg]); continue; }
-                if (c >= 0x11 && c <= 0x17) { fg = c & 0x07; gfxMode = true;
-                    tft.fillRect(px, py, TTXT_CHAR_W, TTXT_CHAR_H, kTTColors[bg]); continue; }
-                if (c == 0x1C) { bg = 0;
-                    tft.fillRect(px, py, TTXT_CHAR_W, TTXT_CHAR_H, kTTColors[bg]); continue; }
-                if (c == 0x1D) { bg = fg;
-                    tft.fillRect(px, py, TTXT_CHAR_W, TTXT_CHAR_H, kTTColors[bg]); continue; }
-                if (c < 0x20) {
-                    tft.fillRect(px, py, TTXT_CHAR_W, TTXT_CHAR_H, kTTColors[bg]); continue; }
-
-                if (gfxMode) {
-                    // Mosaic: extract 6-bit pattern (bit5 always 1 to stay printable)
-                    uint8_t pat = (c & 0x1F) | ((c & 0x40) >> 1);
-                    tft.fillRect(px, py, TTXT_CHAR_W, TTXT_CHAR_H, kTTColors[bg]);
-                    for (int b = 0; b < 6; b++) {
-                        if (pat & (1 << b)) {
-                            tft.fillRect(px + kMosaicRect[b][0], py + kMosaicRect[b][1],
-                                         kMosaicRect[b][2], kMosaicRect[b][3], kTTColors[fg]);
-                        }
-                    }
-                } else {
-                    // Text mode: Font1 covers 0x20..0x7E; map extended Latin-1 to ASCII base
-                    uint8_t ch = (c <= 0x7E) ? c
-                                             : (uint8_t)pgm_read_byte(&kLatin1Ascii[c - 0x80]);
-                    tft.drawChar(px, py, (char)ch, kTTColors[fg], kTTColors[bg], 1);
-                }
-            }
-        }
-    }
-
-    void _drawStrip() {
-        tft.fillRect(TTXT_STRIP_X, 0, TTXT_STRIP_W, TTXT_GRID_H, kStripBg);
-
-        int cx = TTXT_STRIP_X + TTXT_STRIP_W / 2;
-
-        // Zone 0 — subpage ▲ (y=0..33)
-        {
-            uint16_t col = (_st.subpagePrev) ? kStripActive : kStripDim;
-            int mid = (TTXT_STRIP_SUBUP_Y0 + TTXT_STRIP_SUBUP_Y1) / 2;
-            _drawTriUp(cx, mid - 4, 8, col);
-        }
-        // Zone 1 — page number (y=34..66)
-        {
-            int mid = (TTXT_STRIP_PAGE_Y0 + TTXT_STRIP_PAGE_Y1) / 2;
-            char pbuf[4]; snprintf(pbuf, sizeof(pbuf), "%u", (unsigned)_st.page);
-            tft.setTextFont(1);
-            tft.setTextColor(kStripPageNum, kStripBg);
-            tft.setTextDatum(MC_DATUM);
-            tft.drawString(pbuf, cx, mid, 1);
-            tft.setTextDatum(TL_DATUM);
-        }
-        // Zone 2 — ◄◄ back (y=67..99)
-        {
-            uint16_t col = (_histDepth > 0) ? kStripBack : kStripDim;
-            int mid = (TTXT_STRIP_BACK_Y0 + TTXT_STRIP_BACK_Y1) / 2;
-            _drawTriLeft(cx - 2, mid, 6, col);
-            _drawTriLeft(cx + 3, mid, 6, col);
-        }
-        // Zone 3 — ◄ prev page (y=100..132)
-        {
-            uint16_t col = (_st.prevPage) ? kStripActive : kStripDim;
-            int mid = (TTXT_STRIP_PREV_Y0 + TTXT_STRIP_PREV_Y1) / 2;
-            _drawTriLeft(cx, mid, 8, col);
-        }
-        // Zone 4 — ► next page (y=133..165)
-        {
-            uint16_t col = (_st.nextPage) ? kStripActive : kStripDim;
-            int mid = (TTXT_STRIP_NEXT_Y0 + TTXT_STRIP_NEXT_Y1) / 2;
-            _drawTriRight(cx, mid, 8, col);
-        }
-        // Zone 5 — subpage ▼ (y=166..199)
-        {
-            uint16_t col = (_st.subpageNext) ? kStripActive : kStripDim;
-            int mid = (TTXT_STRIP_SUBDN_Y0 + TTXT_STRIP_SUBDN_Y1) / 2;
-            _drawTriDown(cx, mid + 4, 8, col);
-        }
-    }
-
-    void _drawBar() {
-        for (int i = 0; i < 4; i++) {
-            int x0 = i * TTXT_FTL_BTN_W;
-            tft.fillRect(x0, TTXT_BAR_Y0, TTXT_FTL_BTN_W, TTXT_BAR_H, kFtlBarColors[i]);
-            if (_st.ftlLabels[i][0]) {
-                tft.setTextFont(1);
-                tft.setTextColor(TFT_BLACK, kFtlBarColors[i]);
-                tft.setTextDatum(MC_DATUM);
-                tft.drawString(_st.ftlLabels[i], x0 + TTXT_FTL_BTN_W / 2,
-                               TTXT_BAR_Y0 + TTXT_BAR_H / 2, 1);
-                tft.setTextDatum(TL_DATUM);
-            }
-        }
-        // Fill the 3-pixel gap at x=272..274 not reached by any button (4*68=272)
-        tft.fillRect(4 * TTXT_FTL_BTN_W, TTXT_BAR_Y0,
-                     TTXT_STRIP_X + TTXT_STRIP_W - 4 * TTXT_FTL_BTN_W, TTXT_BAR_H, 0x0000);
-    }
+    void _draw();
+    void _drawGrid();
+    void _drawStrip();
+    void _drawBar();
 
     // ── Arrow glyph helpers (fillTriangle) ───────────────────────────────────
-    void _drawTriUp(int cx, int tip_y, int h, uint16_t col) {
-        int base_y = tip_y + h;
-        int half_w = h / 2;
-        tft.fillTriangle(cx, tip_y, cx - half_w, base_y, cx + half_w, base_y, col);
-    }
-    void _drawTriDown(int cx, int tip_y, int h, uint16_t col) {
-        int base_y = tip_y - h;
-        int half_w = h / 2;
-        tft.fillTriangle(cx, tip_y, cx - half_w, base_y, cx + half_w, base_y, col);
-    }
-    void _drawTriLeft(int cx, int cy, int h, uint16_t col) {
-        int half_w = h / 2;
-        tft.fillTriangle(cx - half_w, cy, cx + half_w, cy - half_w, cx + half_w, cy + half_w, col);
-    }
-    void _drawTriRight(int cx, int cy, int h, uint16_t col) {
-        int half_w = h / 2;
-        tft.fillTriangle(cx + half_w, cy, cx - half_w, cy - half_w, cx - half_w, cy + half_w, col);
-    }
+    void _drawTriUp(int cx, int tip_y, int h, uint16_t col);
+    void _drawTriDown(int cx, int tip_y, int h, uint16_t col);
+    void _drawTriLeft(int cx, int cy, int h, uint16_t col);
+    void _drawTriRight(int cx, int cy, int h, uint16_t col);
 };
