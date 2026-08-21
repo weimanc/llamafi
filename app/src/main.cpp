@@ -634,20 +634,11 @@ static void cmdPlayerCycle(const char *);   // body stays in this file
 // (M-SRCLAYOUT Stage E / TASK-471) — that file's own translation unit now
 // owns their definitions.
 #include "debug/serialConsole/cmdMisc.h"
-void cmdSdProbe(const char *);
-void cmdSdCycle(const char *);
-void cmdSdMem(const char *);
-void cmdSdMount(const char *);
-void cmdSdUmount(const char *);
-void cmdSdClean(const char *);
-void cmdSdWrite(const char *);
-void cmdSdLs(const char *);
-void cmdSdOpenDir(const char *);
-void cmdSdSlots(const char *);
-void cmdSdRead(const char *);
-void cmdSdMbr(const char *);
-void cmdSdMkdir(const char *);
-void cmdSdPut(const char *);
+// cmdSdProbe/cmdSdCycle/cmdSdMem/cmdSdMount/cmdSdUmount/cmdSdClean/cmdSdWrite/
+// cmdSdLs/cmdSdOpenDir/cmdSdSlots/cmdSdRead/cmdSdMbr/cmdSdMkdir/cmdSdPut
+// declared by cmdSd.h (M-SRCLAYOUT Stage E / TASK-471) — that file's own
+// translation unit now owns their definitions.
+#include "debug/serialConsole/cmdSd.h"
 // cmdHelp/cmdReboot/cmdAdvance declared by cmdSystem.h (M-SRCLAYOUT Stage E /
 // TASK-471) — that file's own translation unit now owns their definitions.
 #include "debug/serialConsole/cmdSystem.h"
@@ -939,9 +930,8 @@ void prepareForReboot() {
 // defined in cmdGet.cpp, cmdSet now defined in cmdSet.cpp (M-SRCLAYOUT
 // Stage E / TASK-471) — all declared above.
 // cmdSwitchApp/cmdInfo/cmdScreenDump/cmdColorProbe now defined in
-// cmdMisc.cpp (M-SRCLAYOUT Stage E / TASK-471) — declared above.
-// SERIAL_DEBUG) — see the block just above the SERIAL_DEBUG command section below.
-#include "debug/serialConsole/cmdSd.h"
+// cmdMisc.cpp, and the whole cmdSd* SD-probe surface now defined in
+// cmdSd.cpp (M-SRCLAYOUT Stage E / TASK-471) — both declared above.
 // cmdReboot/cmdAdvance/cmdHelp now defined in cmdSystem.cpp (M-SRCLAYOUT
 // Stage E / TASK-471) — declared above, ahead of kCmds[].
 #endif // SERIAL_DEBUG
