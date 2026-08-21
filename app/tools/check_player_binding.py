@@ -56,7 +56,7 @@ SRC = os.path.join(ROOT, "app", "src")
 # this gate exists to prevent.
 EXPECTED_CALLERS = {
     "main.cpp": (2, "production taskbar dispatch + cmdPlayerCycle (ADR-059 D6, M-TESTBASE §8)"),
-    "debug/serialConsole/cmdTouch.h": (1, "SERIAL_DEBUG tap injection (harness path)"),
+    "debug/serialConsole/cmdTouch.cpp": (1, "SERIAL_DEBUG tap injection (harness path) — moved from cmdTouch.h, TASK-471"),
 }
 
 failures: list[str] = []

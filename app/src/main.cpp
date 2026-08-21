@@ -619,10 +619,10 @@ bool s_bareRelease = false;
 // debug/serialConsole/*.cpp now (M-SRCLAYOUT Stage E) — a static forward
 // declaration would bind this TU's kCmds[] entry to a DIFFERENT (internal,
 // never-defined) symbol than the one the split file actually provides.
-void cmdTap(const char *);
-void cmdDrag(const char *);
-void cmdRelease(const char *);
-void cmdTick(const char *);
+// cmdTap/cmdDrag/cmdRelease/cmdTick declared by cmdTouch.h (M-SRCLAYOUT
+// Stage E / TASK-471) — that file's own translation unit now owns their
+// definitions.
+#include "debug/serialConsole/cmdTouch.h"
 void cmdGet(const char *);
 void cmdSet(const char *);
 static void cmdPlayerCycle(const char *);   // body stays in this file
@@ -931,8 +931,8 @@ void prepareForReboot() {
 // Each emits exactly one '\n'-terminated JSON object (ADR-021 invariant),
 // except `get snapshot` which may emit two via multi-part protocol.
 #ifdef SERIAL_DEBUG
-
-#include "debug/serialConsole/cmdTouch.h"
+// cmdTap/cmdDrag/cmdRelease/cmdTick now defined in cmdTouch.cpp
+// (M-SRCLAYOUT Stage E / TASK-471) — declared above.
 
 #include "debug/serialConsole/cmdGet.h"
 
