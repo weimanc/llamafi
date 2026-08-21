@@ -60,6 +60,55 @@ unchanged to within a few bytes (measured via `firmware.map`, well under the
 project's 256 B per-component exception threshold) on both the production and
 debug builds. No DUT access from this session — build/gate-verified only.
 
+## PATCH-SPOTIFYLOGIC-1 — `spotify`/`songStartMillis`/etc. moved from definitions to extern declarations
+
+**Files:** `spotifyLogic.h` (+ new `spotifyLogic.cpp`) · **Task:** TASK-471 (M-SRCLAYOUT Stage E) ·
+**Added:** 2026-08-21
+
+### Symptom
+
+Linking failed with `multiple definition of 'spotify_server_cert'` /
+`'spotify_image_server_cert'` (from `app/lib/SpotifyArduino/src/SpotifyArduinoCert.h`,
+see PATCH-CERT-1 in that library's own patch record) once `spotifyLogic.h` was made
+declarations-only and its new `spotifyLogic.cpp` included it.
+
+### Cause
+
+Same class of problem as PATCH-TOUCHSCREEN-1 above: `spotifyLogic.h` defined a real
+`SpotifyArduino spotify(client, NULL, NULL);` instance, several other globals
+(`songStartMillis`, `songDuration`, `g_lastRenderMs`, `lastTrackUri`,
+`lastTrackContextUri`, plus a few genuinely private ones), and every function body
+(`spotifySetup`, `spotifyRefreshToken`, `updateProgressBar`, `updateCurrentlyPlaying`,
+and three helpers only ever called from within this file), all at file scope with no
+`#pragma once`. Safe only while `app/src/main.cpp` was its sole includer.
+`apps/spotifyApp.h`'s Stage E conversion needed these symbols directly (rather than
+picking them up silently via main.cpp's include order, the exact SF.11 gap Stage E
+exists to close), making `apps/spotifyApp.cpp` a second includer.
+
+### Fix
+
+Same shape as PATCH-TOUCHSCREEN-1: real `extern` declarations (functions kept
+declaration-only) in the header, one definition each in the new `spotifyLogic.cpp`.
+The three helper functions genuinely private to this file (`isSameTrack`, `setTrackUri`,
+`setTrackContextUri`) and `handleCurrentlyPlaying` (dead code — confirmed uncalled
+anywhere in the tree; `updateCurrentlyPlaying` duplicates its logic against the
+`spotifyTask::Snapshot` API instead) stay `static` in the .cpp, not declared in the
+header at all — nothing outside this file ever named them.
+
+Also needed: `app/src` on the include path for library compilation units. `spotifyLogic.h`
+`#include`s three `app/src` headers (`logDecode.h`, `logHeartbeat.h`, `logSink.h`) plus
+`spotifyTask.h` — quoted-includes that resolved for free while this header was only ever
+textually pasted into `main.cpp.o` (which gets `src_dir` on its own include path), but not
+for a `.cpp` living under `app/lib/`. Added `-Isrc` to `platformio.ini`'s shared
+`build_flags` (`[common_cyd]`) rather than duplicating `app/src` paths by hand in this one
+library.
+
+Verified on five envs: `cyd2usb_winamp`, `_debug`, `_webradio`, `_player`, and
+`_winamp_debug_noSpotify` all build clean. `.dram0.bss`/`.data` byte-identical on both
+`cyd2usb_winamp` and `cyd2usb_winamp_debug` (measured via `firmware.map`). No behaviour
+change: same objects, same construction order, just declared in the header and defined
+once in the .cpp. No DUT access from this session — build/gate-verified only.
+
 ### Note for the next platform bump
 
 If this directory is ever re-vendored wholesale from upstream (unlike

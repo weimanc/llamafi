@@ -262,6 +262,26 @@ null guards — this patch brings `currently_playing_type` in line with the same
 
 Filed as a crash on DUT 2026-05-22 during M-CONN validation. Fixed same session.
 
+### 12. `#pragma once` + `static` linkage — `src/SpotifyArduinoCert.h`
+
+Added `#pragma once` (the file had none) and changed both certificate globals
+(`spotify_server_cert`, `spotify_image_server_cert`) from plain `const char*`
+definitions to `static const char*`.
+
+### Reason (SpotifyArduinoCert.h linkage)
+
+Task: TASK-471 (M-SRCLAYOUT Stage E), added 2026-08-21. `const char *x = "...";` is a
+**non-const pointer** to const data — external linkage by default in C++ — so this
+header defining two of them was safe only while `app/src/main.cpp` was its sole
+includer. `app/lib/SpotifyDiyThingUpstream/spotifyLogic.cpp` (see that library's own
+`LOCAL_PATCHES.md`, PATCH-SPOTIFYLOGIC-1) is now a second one, and linking failed with
+`multiple definition of 'spotify_server_cert'`. `static` (rather than the extern +
+single-.cpp-definition pattern used for the *other* patches this same task made) is
+enough here: each translation unit gets its own copy of a small compile-time string
+literal, which is cheap and cannot diverge in value. Verified: `cyd2usb_winamp`,
+`_debug`, `_webradio`, `_player`, and `_winamp_debug_noSpotify` all build clean, byte-
+identical `.dram0.bss`/`.data`.
+
 ---
 
 ### Strategy decision (open)

@@ -1,5 +1,14 @@
+// PATCH-CERT-1 (M-SRCLAYOUT Stage E / TASK-471, LOCAL_PATCHES.md): added
+// #pragma once and `static` linkage — this header had neither, safe only
+// while it had exactly one includer. app/lib/SpotifyDiyThingUpstream/
+// spotifyLogic.cpp is now a second one. `static` (rather than extern +
+// single .cpp definition, the pattern used elsewhere in this stage) is
+// enough here: each TU gets its own copy of a small compile-time string
+// literal, which is cheap and cannot diverge in value.
+#pragma once
+
 // DigiCert Global Root CA Cert - as of 01/10/2023
-const char *spotify_server_cert = "-----BEGIN CERTIFICATE-----\n"
+static const char *spotify_server_cert = "-----BEGIN CERTIFICATE-----\n"
                                   "MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n"
                                   "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n"
                                   "d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\n"
@@ -23,7 +32,7 @@ const char *spotify_server_cert = "-----BEGIN CERTIFICATE-----\n"
                                   "-----END CERTIFICATE-----\n";
 
 // DigiCert Global Root G2 Cert - as of 01/10/2023
-const char *spotify_image_server_cert = "-----BEGIN CERTIFICATE-----\n"
+static const char *spotify_image_server_cert = "-----BEGIN CERTIFICATE-----\n"
                                         "MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n"
                                         "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n"
                                         "d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\n"
