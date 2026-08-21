@@ -166,7 +166,9 @@ def main() -> int:
           "not re-derive the cycle (ADR-059 D6 amendment)")
 
     # ── 4. the binding observable still exists ───────────────────────────────
-    cmdget = read("debug/serialConsole/cmdGet.h")
+    # cmdGet's body moved to cmdGet.cpp (M-SRCLAYOUT Stage E / TASK-471) —
+    # cmdGet.h now holds only the declaration.
+    cmdget = read("debug/serialConsole/cmdGet.cpp")
     check('strcmp(args, "playerBind")' in cmdget,
           "`get playerBind` is gone — it is the ONE place the gesture->operation binding "
           "is stated, and T_PMT_00 reads it to locate the live surface")

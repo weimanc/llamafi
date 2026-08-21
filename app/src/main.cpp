@@ -623,7 +623,9 @@ bool s_bareRelease = false;
 // Stage E / TASK-471) — that file's own translation unit now owns their
 // definitions.
 #include "debug/serialConsole/cmdTouch.h"
-void cmdGet(const char *);
+// cmdGet declared by cmdGet.h (M-SRCLAYOUT Stage E / TASK-471) — that file's
+// own translation unit now owns its definition.
+#include "debug/serialConsole/cmdGet.h"
 void cmdSet(const char *);
 static void cmdPlayerCycle(const char *);   // body stays in this file
 // cmdSwitchApp/cmdInfo/cmdScreenDump/cmdColorProbe declared by cmdMisc.h
@@ -931,10 +933,8 @@ void prepareForReboot() {
 // Each emits exactly one '\n'-terminated JSON object (ADR-021 invariant),
 // except `get snapshot` which may emit two via multi-part protocol.
 #ifdef SERIAL_DEBUG
-// cmdTap/cmdDrag/cmdRelease/cmdTick now defined in cmdTouch.cpp
-// (M-SRCLAYOUT Stage E / TASK-471) — declared above.
-
-#include "debug/serialConsole/cmdGet.h"
+// cmdTap/cmdDrag/cmdRelease/cmdTick now defined in cmdTouch.cpp, cmdGet now
+// defined in cmdGet.cpp (M-SRCLAYOUT Stage E / TASK-471) — both declared above.
 
 #include "debug/serialConsole/cmdSet.h"
 // cmdSwitchApp/cmdInfo/cmdScreenDump/cmdColorProbe now defined in

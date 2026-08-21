@@ -19,8 +19,8 @@ Rows implemented (the two T0-static ones — no device, no build):
   A6  debug surface  NEW-APP-CHECKLIST item 3.
                      The app object must be observable from the serial console:
                      >= 1 `get` key that statically resolves to the app INSTANCE
-                     (g_<Name>App), via its own dbgGet() in cmdGet.h's delegation
-                     chain, or via a cmdGet.h branch that calls the instance.
+                     (g_<Name>App), via its own dbgGet() in cmdGet.cpp's delegation
+                     chain, or via a cmdGet.cpp branch that calls the instance.
 
 Both rows are asserted STATICALLY over app/src — grep/parse only, tier T0.
 
@@ -44,7 +44,7 @@ REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "app" / "src"
 TOOLS = Path(__file__).resolve().parent
 LEDGER = REPO / "docs" / "verification" / "app_conformance_exceptions.md"
-CMDGET = SRC / "debug" / "serialConsole" / "cmdGet.h"
+CMDGET = SRC / "debug" / "serialConsole" / "cmdGet.cpp"  # body moved here, TASK-471
 
 sys.path.insert(0, str(TOOLS))
 from app_ids_gen import APP_ORDER  # noqa: E402  (generated; never typed here)
@@ -360,7 +360,7 @@ def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
     cg = clean[cmdget_rel]
     owner = owning_app_file(srcs)
 
-    # M1 — cmdGet.h delegates to a shim that forwards to g_<Name>App.dbgGet().
+    # M1 — cmdGet.cpp delegates to a shim that forwards to g_<Name>App.dbgGet().
     shims = {}   # shim name -> app
     for rel, c in clean.items():
         for m in re.finditer(r"\b(\w+)\s*\([^)]*\)\s*\{[^}]*\bg_(\w+)App\s*\.\s*dbgGet\s*\(", c):
@@ -372,7 +372,7 @@ def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
     for app in APP_ORDER:
         keys: list[str] = []
         how = None
-        # M1: own dbgGet(), reached through a shim cmdGet.h actually calls.
+        # M1: own dbgGet(), reached through a shim cmdGet.cpp actually calls.
         # The definition is either in-class in the owning file (`bool
         # dbgGet(...) {`) or out-of-line, anywhere, qualified with the app's
         # own class (`bool XApp::dbgGet(...) {` — M-SRCLAYOUT Stage E moves
@@ -401,8 +401,8 @@ def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
                              for sh, a in shims.items() if a == app)
                 if body_keys and called:
                     keys += body_keys
-                    how = f"own dbgGet() in {rel}, reached via cmdGet.h's delegation chain"
-        # M2: a cmdGet.h branch body that calls the app INSTANCE directly.
+                    how = f"own dbgGet() in {rel}, reached via cmdGet.cpp's delegation chain"
+        # M2: a cmdGet.cpp branch body that calls the app INSTANCE directly.
         if not keys:
             direct = []
             for m in _CMDGET_KEY.finditer(cg):
@@ -413,7 +413,7 @@ def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
                     direct.append(m.group(1))
             if direct:
                 keys += direct
-                how = "cmdGet.h branch(es) calling g_%sApp directly" % app
+                how = "cmdGet.cpp branch(es) calling g_%sApp directly" % app
         out[app] = {"ok": bool(keys), "keys": sorted(set(keys)),
                     "how": how or "no `get` key resolves to g_%sApp" % app}
     return out

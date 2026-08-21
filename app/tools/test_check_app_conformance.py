@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import check_app_conformance as C  # noqa: E402
 
 DATA = "app/src/dataTaskStorage.cpp"
-CMDGET = "app/src/debug/serialConsole/cmdGet.h"
+CMDGET = "app/src/debug/serialConsole/cmdGet.cpp"  # body moved here, TASK-471
 LEDGER_ROW = {"why": "test fixture", "owner": "TASK-483",
               "since": "2026-08-18", "line": 0}
 
