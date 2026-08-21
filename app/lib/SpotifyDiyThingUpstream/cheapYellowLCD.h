@@ -1,10 +1,16 @@
 #pragma once
+// PATCH-TOUCHSCREEN-1 (M-SRCLAYOUT Stage E / TASK-471,
+// app/lib/SpotifyDiyThingUpstream/LOCAL_PATCHES.md): `tft` used to be defined
+// here directly, safe only while this header had exactly one includer.
+// Definition moved to cheapYellowLCD.cpp now that app/src component
+// conversions include this header (via winamp/winampDisplay.h) from more
+// than one translation unit.
 #include "spotifyDisplay.h"
 
 #include "touchScreen.h"
 
 #include <TFT_eSPI.h>
-TFT_eSPI tft = TFT_eSPI();
+extern TFT_eSPI tft;
 
 #ifndef WINAMP_DISPLAY
 #include <JPEGDEC.h>

@@ -1,6 +1,16 @@
+// PATCH-TOUCHSCREEN-1 (M-SRCLAYOUT Stage E / TASK-471, app/lib/SpotifyDiyThingUpstream/LOCAL_PATCHES.md):
+// this file used to define `ts`/previousTrackStatus/nextTrackStatus/spotify_touch
+// and the two function bodies directly, with no #pragma once — safe only while
+// cheapYellowLCD.h (its sole includer) was itself only ever included from one
+// translation unit. Now that app/src component conversions put cheapYellowLCD.h
+// (via winamp/winampDisplay.h) into more than one .cpp, every definition below
+// had to move to touchScreen.cpp with this header holding only declarations.
+#pragma once
+
 //#include <XPT2046_Touchscreen.h>
 #include "CYD28_TouchscreenR.h"
 #include <SPI.h>
+#include <SpotifyArduino.h>
 
 //#define XPT2046_IRQ 36
 //#define XPT2046_MOSI 32
@@ -11,49 +21,15 @@
 #define CYD28_DISPLAY_HOR_RES_MAX 320
 #define CYD28_DISPLAY_VER_RES_MAX 240
 
-bool previousTrackStatus = false;
-bool nextTrackStatus = false;
+extern bool previousTrackStatus;
+extern bool nextTrackStatus;
 
 //SPIClass mySpi = SPIClass(HSPI);
 //
 //XPT2046_Touchscreen ts(XPT2046_CS, XPT2046_IRQ);  // Param 2 - Touch IRQ Pin - interrupt enabled polling
-CYD28_TouchR ts(CYD28_DISPLAY_HOR_RES_MAX, CYD28_DISPLAY_VER_RES_MAX);
+extern CYD28_TouchR ts;
 
-SpotifyArduino *spotify_touch;
+extern SpotifyArduino *spotify_touch;
 
-void touchSetup(SpotifyArduino *spotifyObj) {
-//  mySpi.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
-//  ts.begin(mySpi);
-  ts.begin();
-  ts.setRotation(1);
-  spotify_touch = spotifyObj;
-}
-
-bool handleTouched() {
-  previousTrackStatus = false;
-  nextTrackStatus = false;
-  //if (ts.tirqTouched() && ts.touched()) {
-  if (ts.touched()) {
-    CYD28_TS_Point p = ts.getPointScaled();
-    Serial.print("Pressure = ");
-    Serial.print(p.z);
-    Serial.print(", x = ");
-    Serial.print(p.x);
-    Serial.print(", y = ");
-    Serial.print(p.y);
-    delay(30);
-    Serial.println();
-    if (p.x < 120) {
-      previousTrackStatus = true;
-      //spotify_touch->previousTrack();
-      return true;
-    } else if (p.x > 200) {
-      nextTrackStatus = true;
-      //spotify_touch->nextTrack();
-      return true;
-    }
-  }
-
-  return false;
-
-}
+void touchSetup(SpotifyArduino *spotifyObj);
+bool handleTouched();
