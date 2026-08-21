@@ -347,7 +347,8 @@ class A5:
 
 # ── A6: debug surface ─────────────────────────────────────────────────────────
 
-_DBGGET_DEF = re.compile(r"\bbool\s+dbgGet\s*\([^)]*\)\s*(?:const\s*)?(?:override\s*)?\{")
+_DBGGET_DEF = re.compile(
+    r"\bbool\s+(?:(\w+)::)?dbgGet\s*\([^)]*\)\s*(?:const\s*)?(?:override\s*)?\{")
 _STRCMP_KEY = re.compile(r'strcmp\(\s*\w+\s*,\s*"([A-Za-z0-9_]+)"')
 _CMDGET_KEY = re.compile(r'strn?cmp\(\s*args\s*,\s*"([A-Za-z0-9_]+)"')
 
@@ -372,20 +373,30 @@ def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
         keys: list[str] = []
         how = None
         # M1: own dbgGet(), reached through a shim cmdGet.h actually calls.
-        rel = owner.get(app)
-        if rel:
-            for m in _DBGGET_DEF.finditer(clean[rel]):
-                brace = clean[rel].index("{", m.end() - 1)
+        # The definition is either in-class in the owning file (`bool
+        # dbgGet(...) {`) or out-of-line, anywhere, qualified with the app's
+        # own class (`bool XApp::dbgGet(...) {` — M-SRCLAYOUT Stage E moves
+        # method bodies out of the header into a companion .cpp).
+        owner_rel = owner.get(app)
+        for rel, text in clean.items():
+            for m in _DBGGET_DEF.finditer(text):
+                qualifier = m.group(1)
+                if qualifier is None:
+                    if rel != owner_rel:
+                        continue
+                elif qualifier != app + "App":
+                    continue
+                brace = text.index("{", m.end() - 1)
                 depth, j = 0, brace
-                while j < len(clean[rel]):
-                    if clean[rel][j] == "{":
+                while j < len(text):
+                    if text[j] == "{":
                         depth += 1
-                    elif clean[rel][j] == "}":
+                    elif text[j] == "}":
                         depth -= 1
                         if depth == 0:
                             break
                     j += 1
-                body_keys = _STRCMP_KEY.findall(clean[rel][brace:j])
+                body_keys = _STRCMP_KEY.findall(text[brace:j])
                 called = any(re.search(r"\b" + re.escape(sh) + r"\s*\(", cg)
                              for sh, a in shims.items() if a == app)
                 if body_keys and called:

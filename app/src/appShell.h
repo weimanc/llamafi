@@ -33,36 +33,8 @@ void persistPlayerMode(uint8_t mode);
 // CryptoAppState moved into apps/cryptoApp.h (M-SRCLAYOUT Stage E / TASK-471).
 // MatrixAppState moved into apps/matrixApp.h (M-SRCLAYOUT Stage E / TASK-471).
 // LifeAppState moved into apps/lifeApp.h (M-SRCLAYOUT Stage E / TASK-471).
-
-enum class StockSubView : uint8_t { List = 0, ChartDetail = 1, HeatmapDetail = 2 };
-enum class StockRange   : uint8_t { D1 = 0, D5 = 1, Mo1 = 2, Ytd = 3 };
-
-struct HeatmapTile { int16_t x, y, w, h; uint8_t tickerIdx; };
-
-struct StockAppState {
-    char          tickers[8][8];
-    StockSubView  subView;
-    float         prices[8];
-    float         changePct[8];
-    unsigned long lastQuoteFetch;
-    uint8_t       chartTickerIdx;
-    StockRange    chartRange;
-    float         chartPoints[110];
-    uint8_t       chartLen;
-    float         chartLo, chartHi;
-    unsigned long lastChartFetch;
-    bool          fetchFailed;
-    int           fetchErrorCode;
-    uint16_t      fetchErrCount;   // cumulative JSON parse errors since boot (-91..-95); never auto-clears
-    uint16_t      fetchOkCount;    // cumulative successful chart fetches since boot; never auto-clears
-    uint16_t      quoteOkCount;    // cumulative successful quote fetches since boot; never auto-clears
-    StockSubView  prevSubView;
-    unsigned long lastHeatmapFetch;
-    dataTask::HeatmapQuoteResult heatmapData;
-    HeatmapTile   heatmapLayout[20];
-    bool          heatmapLayoutDirty;
-    char          chartSymbol[8];  // symbol for heatmap drill-through chart
-};
+// StockSubView/StockRange/HeatmapTile/StockAppState moved into apps/stockApp.h
+// (M-SRCLAYOUT Stage E / TASK-471).
 
 // First-launch tracking moved into ShellState::launched[] — see
 // shell/shellState.h (M-SRCLAYOUT D3 / TASK-456).
