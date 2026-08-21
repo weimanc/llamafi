@@ -209,7 +209,7 @@ navigation has **not** been run. **Nothing in this board should land until this 
 | TASK-471 | P3 | **IN PROGRESS** — 15 commits landed (`2a2f83e`..`4577afe`), correctly sequenced after 455/456 | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0). Every app class converted + `audioEngine`/`appTable` split; `debug/serialConsole/cmd*.h` still `.h`-only (externs prepped `4577afe`, `.h`/`.cpp` split itself not started) |
 | TASK-472 | P3 | BLOCKED on 471 | Stage F — `stock/` → 3 components, `sd/sdMount`, levelization audit |
 | TASK-457 | P3 | OPEN | hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
-| TASK-464 | P2 | **UNBLOCKED** (454 verified; fold TASK-503 in) | documentation-reference sweep — 308 `main.cpp:NNN` cites across 49 files + 44 in `feature_inventory.yaml`; pay **once**, at end of Stage B |
+| TASK-464 | — | **LANDED** (`f8bae91`) — 331 `main.cpp:NNN` cites across 57 files converted to symbol references (scope was larger than filed: 308/49); TASK-503 folded in; `run/check --docs-only` PASS | documentation-reference sweep, paid once at end of Stage B |
 
 ## M-CODEQUAL — duplication and abstraction ([design](../architecture/designs/M-CODEQUAL-duplication-and-abstraction.md))
 
