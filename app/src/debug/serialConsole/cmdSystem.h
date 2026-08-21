@@ -4,7 +4,7 @@
 // included from inside main.cpp's `#ifdef SERIAL_DEBUG` block, so this
 // file is never reached in a production build.
 
-static void cmdReboot(const char *) {
+void cmdReboot(const char *) {
   prepareForReboot();   // TASK-429/451, see the helper
   Serial.println("{\"ok\":true,\"cmd\":\"reboot\"}");
   Serial.flush();
@@ -17,7 +17,7 @@ static void cmdReboot(const char *) {
 // mode being on screen" contract as `get plCount`/`get plOrder` above, since
 // this is what makes T_PLR_20-24 runnable in seconds instead of hours of
 // real playback.
-static void cmdAdvance(const char *args) {
+void cmdAdvance(const char *args) {
   const bool next = (strcmp(args, "prev") != 0);   // anything but "prev" == next
   if (strcmp(args, "next") != 0 && strcmp(args, "prev") != 0) {
     Serial.println("{\"ok\":false,\"cmd\":\"advance\",\"error\":\"usage: advance <next|prev>\"}");
@@ -32,7 +32,7 @@ static void cmdAdvance(const char *args) {
                 (unsigned)row, reshuffled ? "true" : "false");
 }
 
-static void cmdHelp(const char *) {
+void cmdHelp(const char *) {
   // Single JSON line — iterate kCmds[]; table is the single source of truth.
   Serial.print("{\"ok\":true,\"cmd\":\"help\",\"commands\":[");
   for (int i = 0; i < kNumCmds; ++i) {

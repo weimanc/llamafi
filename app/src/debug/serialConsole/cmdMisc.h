@@ -4,7 +4,7 @@
 // included from inside main.cpp's `#ifdef SERIAL_DEBUG` block, so this
 // file is never reached in a production build.
 
-static void cmdSwitchApp(const char *args) {
+void cmdSwitchApp(const char *args) {
   int id = -1;
   if (sscanf(args, "%d", &id) != 1 || id < 0 || id >= (int)AppId::COUNT) {
     Serial.printf("{\"ok\":false,\"cmd\":\"switchApp\","
@@ -15,7 +15,7 @@ static void cmdSwitchApp(const char *args) {
   Serial.printf("{\"ok\":true,\"cmd\":\"switchApp\",\"id\":%d}\n", id);
 }
 
-static void cmdInfo(const char *) {
+void cmdInfo(const char *) {
   spotifyTask::Snapshot snap;
   spotifyTask::copySnapshot(&snap);
   const esp_app_desc_t *d = esp_ota_get_app_description();
@@ -51,7 +51,7 @@ static void cmdInfo(const char *) {
 // and streams it out as base64 RGB565 bands. Lets a host tool pull an exact
 // screenshot instead of
 // a human eyeballing the DUT — see app/tools/screendump.py.
-static void cmdScreenDump(const char *args) {
+void cmdScreenDump(const char *args) {
   int x = 0, y = 0, w = 320, h = 240;
   sscanf(args, "%d %d %d %d", &x, &y, &w, &h);
   if (x < 0) x = 0;
@@ -131,7 +131,7 @@ static void cmdScreenDump(const char *args) {
 // byte swap) — deliberately not pre-corrected, so the transform can be
 // derived from this data rather than assumed. See docs/project/tasks.md
 // TASK-340 for findings.
-static void cmdColorProbe(const char *) {
+void cmdColorProbe(const char *) {
   static const uint16_t kFillSweep[] = {
     0xF800, 0x07E0, 0x001F, 0xFFFF, 0x0000, 0xF81F, 0x07FF, 0xFFE0,
     0x8000, 0x0400, 0x0010, 0x7800, 0x03E0, 0x000F, 0x4208, 0x9492,

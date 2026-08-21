@@ -25,7 +25,7 @@ static const char *sdCardTypeName(sdcard_type_t t) {
 // failing. This separates them — it prints the exact contiguous block SD.begin() will
 // ask for at each max_files setting, then actually tries to calloc that block and
 // reports which sizes the live heap can still serve.
-static void cmdSdMem(const char *) {
+void cmdSdMem(const char *) {
   // MALLOC_CAP_INTERNAL alone over-reports what a plain calloc() can be served: it
   // counts the 32-bit-only D/IRAM region, which is not byte-addressable. The number
   // that actually gates the mount is the INTERNAL|8BIT largest free block.
@@ -82,7 +82,7 @@ static void cmdSdMem(const char *) {
 
 // Live mount attempt from the serial-command context, i.e. with spotifyTask/dataTask
 // alive — the exact path that was reported as failing.
-static void cmdSdMount(const char *args) {
+void cmdSdMount(const char *args) {
   int maxFiles = kSdMaxFiles;
   unsigned freqHz = 0;
   sscanf(args, "%d %u", &maxFiles, &freqHz);
@@ -102,7 +102,7 @@ static void cmdSdMount(const char *args) {
 // measurement: a mount-cost delta taken across SD.begin() during boot is polluted by
 // WiFi/NTP/task-start allocations landing in the same window, but the free() side of
 // an idle unmount is not.
-static void cmdSdUmount(const char *) {
+void cmdSdUmount(const char *) {
   if (!s_sdReady) {
     Serial.println("{\"ok\":false,\"cmd\":\"sdumount\",\"error\":\"not mounted\"}");
     return;
@@ -127,7 +127,7 @@ static void cmdSdUmount(const char *) {
 // serial-command execution context as sdprobe (concurrent tasks alive) — reuses the
 // already-good boot-established path rather than a fresh live mount (which is exactly
 // what's broken; see sdProbeBootMount()'s comment). Leaves SD mounted on return.
-static void cmdSdCycle(const char *args) {
+void cmdSdCycle(const char *args) {
   int cycles = 20;
   sscanf(args, "%d", &cycles);
   if (cycles < 1) cycles = 1;
@@ -173,7 +173,7 @@ static void cmdSdCycle(const char *args) {
 //
 // The 160-byte serial line buffer sets the chunk size: ~120 base64 characters, so
 // 90 bytes per call. app/tools/sd_put.py drives it.
-static void cmdSdMkdir(const char *args) {
+void cmdSdMkdir(const char *args) {
   if (!s_sdReady) { Serial.println("{\"ok\":false,\"cmd\":\"sdmkdir\",\"error\":\"not mounted\"}"); return; }
   if (!args || !*args) { Serial.println("{\"ok\":false,\"cmd\":\"sdmkdir\",\"error\":\"usage: sdmkdir <path>\"}"); return; }
   const bool existed = SD.exists(args);
@@ -182,7 +182,7 @@ static void cmdSdMkdir(const char *args) {
                 ok ? "true" : "false", args, existed ? "true" : "false");
 }
 
-static void cmdSdPut(const char *args) {
+void cmdSdPut(const char *args) {
   if (!s_sdReady) { Serial.println("{\"ok\":false,\"cmd\":\"sdput\",\"error\":\"not mounted\"}"); return; }
   char op = 0;
   char b64[144];
@@ -225,7 +225,7 @@ static void cmdSdPut(const char *args) {
 // Raw sector reader, below the FatFs layer, so a card that initialises over SPI but
 // carries no mountable volume can still be identified. Answers the only question a
 // "no valid FAT volume" mount failure leaves open: what IS on the card.
-static void cmdSdMbr(const char *) {
+void cmdSdMbr(const char *) {
   if (s_sdReady) {
     Serial.println("{\"ok\":false,\"cmd\":\"sdmbr\",\"error\":\"unmount first (sdumount)\"}");
     return;
@@ -336,7 +336,7 @@ static void cmdSdMbr(const char *) {
 // The trailing malloc ladder prices the exact allocation vfs_fat_opendir makes
 // (~700 B: FF_DIR + FILINFO + struct dirent + the DIR header) against what the
 // heap can actually serve at that instant.
-static void cmdSdOpenDir(const char *args) {
+void cmdSdOpenDir(const char *args) {
   char path[96] = "/";
   if (args && args[0]) strlcpy(path, args, sizeof(path));
   // Strip a trailing slash exactly as fileBrowser::open() does, so this probe
@@ -406,7 +406,7 @@ static void cmdSdOpenDir(const char *args) {
 // until the VFS refuses, then closes them all. If this reports >=1 free slot at
 // the same instant that opendir() fails, the "the handle table is full" story
 // is dead — measured, not argued.
-static void cmdSdSlots(const char *args) {
+void cmdSdSlots(const char *args) {
   if (!s_sdReady) {
     Serial.println("{\"ok\":false,\"cmd\":\"sdslots\",\"error\":\"not mounted\"}");
     return;
@@ -434,7 +434,7 @@ static void cmdSdSlots(const char *args) {
 
 // Plain directory listing with sizes — needed to pick a pre-existing, cleanly
 // written file to benchmark reads against.
-static void cmdSdLs(const char *args) {
+void cmdSdLs(const char *args) {
   // `sdls <dir> q` suppresses the per-entry lines: at 115200 baud the Serial writes
   // dominate the walk, so the timing is only meaningful with them off.
   char dir[64] = "/", flag[8] = {0};
@@ -480,7 +480,7 @@ static void cmdSdLs(const char *args) {
 // Read-only sustained benchmark against a caller-chosen path. Same measurement as
 // sdprobe's bench phase, but it never writes, so it can be pointed at a file the
 // card already carried rather than one this probe created.
-static void cmdSdRead(const char *args) {
+void cmdSdRead(const char *args) {
   // Read count FIRST, then the rest of the line as the path: real filenames on this
   // card contain spaces, so the path has to be the unbounded trailing field.
   char path[96] = {0};
@@ -567,7 +567,7 @@ static void cmdSdRead(const char *args) {
 
 // Isolated sequential write: nothing but open / write x N / close, so a write-path
 // fault can be separated from anything the earlier sdprobe phases leave behind.
-static void cmdSdWrite(const char *args) {
+void cmdSdWrite(const char *args) {
   int chunks = 64, checkEvery = 0, append = 0;
   sscanf(args, "%d %d %d", &chunks, &checkEvery, &append);
   if (chunks < 1) chunks = 1;
@@ -620,7 +620,7 @@ static void cmdSdWrite(const char *args) {
 // Removes the sdprobe fixtures. A watchdog reboot during the bench-file write leaves
 // a half-written file behind, and a re-run then measures whatever that left on the
 // card rather than a clean sequential file.
-static void cmdSdClean(const char *) {
+void cmdSdClean(const char *) {
   if (!s_sdReady) {
     Serial.println("{\"ok\":false,\"cmd\":\"sdclean\",\"error\":\"not mounted\"}");
     return;
@@ -638,7 +638,7 @@ static void cmdSdClean(const char *) {
                 removed, rmdirOk ? "true" : "false");
 }
 
-static void cmdSdProbe(const char *args) {
+void cmdSdProbe(const char *args) {
   int reads = 5000, skipWrites = 0;
   sscanf(args, "%d %d", &reads, &skipWrites);
   if (reads < 100) reads = 100;

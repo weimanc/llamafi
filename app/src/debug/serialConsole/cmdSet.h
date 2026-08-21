@@ -4,7 +4,7 @@
 // included from inside main.cpp's `#ifdef SERIAL_DEBUG` block, so this
 // file is never reached in a production build.
 
-static void cmdSet(const char *args) {
+void cmdSet(const char *args) {
   char var[32], val[128];  // val widened to 128 to accommodate wrUrl (104-byte station URLs)
 
   // TASK-325 (M-SERIALDBG, VE-PRL-1 blocker): KeyboardWidget injection.

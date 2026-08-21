@@ -81,8 +81,16 @@ def main() -> int:
     strict = "--strict" in sys.argv
 
     # ── 1. resolvePlayerTap exists and is defined exactly once ───────────────
+    # M-SRCLAYOUT Stage E (TASK-471): resolvePlayerTap dropped `static` — it's
+    # externally-linked now so shell/shellDispatch.h can declare it for the
+    # debug console files, which became their own translation units and can no
+    # longer reach it by being textually downstream of main.cpp. The `static`
+    # keyword was never what this check cared about (a definition existing
+    # exactly once, in main.cpp, still is), so the regex accepts it optionally
+    # rather than requiring it.
     main_cpp = read("main.cpp")
-    defs = re.findall(r"^static\s+AppId\s+resolvePlayerTap\s*\(", main_cpp, re.M)
+    defs = re.findall(r"^(?:static\s+)?AppId\s+resolvePlayerTap\s*\([^;]*\)\s*\{",
+                       main_cpp, re.M)
     check(len(defs) == 1,
           f"resolvePlayerTap must be defined exactly once in main.cpp, found {len(defs)}")
 
@@ -105,9 +113,19 @@ def main() -> int:
             # in this codebase a grep-derived count is a hypothesis.)
             stripped = re.sub(r"//[^\n]*", "", body)
             stripped = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', stripped)
-            n = len(re.findall(r"\bresolvePlayerTap\s*\(", stripped))
-            if rel == "main.cpp":
-                n -= len(defs)          # the definition is not a call
+            # M-SRCLAYOUT Stage E (TASK-471): a pure prototype — declared, not
+            # defined, e.g. shell/shellDispatch.h's `AppId resolvePlayerTap(AppId
+            # tapped, bool playerAlreadyActive);` — is not a call either, same
+            # reasoning as the definition exclusion below. Distinguished from a
+            # real call by shape: a declaration's parameter list is typed
+            # (`Type name, Type name`) and the whole statement ends at `;` with
+            # no `{`; a call passes value expressions and sits inside a larger
+            # statement. Strip whole declaration/definition statements first,
+            # then count what's left.
+            declshaped = re.sub(
+                r"\b(?:static\s+)?AppId\s+resolvePlayerTap\s*\([^;{]*\)\s*[;{]",
+                "", stripped)
+            n = len(re.findall(r"\bresolvePlayerTap\s*\(", declshaped))
             if n > 0:
                 found[rel] = n
 

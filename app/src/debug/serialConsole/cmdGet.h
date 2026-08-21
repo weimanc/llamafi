@@ -4,7 +4,7 @@
 // included from inside main.cpp's `#ifdef SERIAL_DEBUG` block, so this
 // file is never reached in a production build.
 
-static void cmdGet(const char *args) {
+void cmdGet(const char *args) {
   // TASK-401: widened 256 -> 512. `get wifiSaved` (5 entries x up to a
   // 32-char ssid + 10-digit lastUsedMs) needs up to ~390 B; 256 silently
   // truncated it. Every other dbgGet-chain caller below stays well under

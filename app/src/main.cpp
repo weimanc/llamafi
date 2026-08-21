@@ -157,6 +157,7 @@ char clientSecret[200];
 // ----------------------------
 #include "appShell.h"
 #include "shell/shellState.h"   // ShellState + shell::state() (M-SRCLAYOUT D3)
+#include "shell/shellDispatch.h"   // resolvePlayerTap/isPlayerModeApp/shell::setBusy (M-SRCLAYOUT Stage E)
 #include "taskbar/taskbar.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
@@ -274,9 +275,9 @@ static inline AppId appIdForPlayerMode(uint8_t mode) {
     default:                   return AppId::Spotify;
   }
 }
-static inline bool isPlayerModeApp(AppId id) {
-  return id == AppId::Spotify || id == AppId::WebRadio || id == AppId::LocalPlayer;
-}
+// isPlayerModeApp() moved to shell/shellDispatch.h (M-SRCLAYOUT Stage E /
+// TASK-471) — the debug console files need it too, now that they're their
+// own translation units.
 
 // TASK-259/260/413: the taskbar "player" slot (AppId::Spotify) restores whichever
 // player mode (Spotify | WebRadio | Player) was last active — read from the
@@ -305,7 +306,7 @@ void persistPlayerMode(uint8_t mode) {
 // (shellTbRelease() below, and cmdTap()'s SERIAL_DEBUG "tap" injection) guard
 // same-app differently — so this decision lives in ONE shared helper called from
 // both, not duplicated into either. Non-player-slot taps pass through unchanged.
-static AppId resolvePlayerTap(AppId tapped, bool playerAlreadyActive) {
+AppId resolvePlayerTap(AppId tapped, bool playerAlreadyActive) {
   if (tapped != AppId::Spotify) return tapped;
   if (!playerAlreadyActive) return resolvePlayerSlot(tapped);
   // TASK-422: iterate the compiled-in set, not a hardcoded 0->1->2. On a
@@ -586,68 +587,69 @@ static void cmdReconnect(const char *) {
   Serial.println("{\"ok\":true,\"cmd\":\"reconnect\"}");
 }
 
-// 4-field struct; help + args iterated by cmdHelp (TASK-056i).
-typedef void (*cmd_fn)(const char *args);
-struct SerialCmd {
-  const char *name;
-  cmd_fn      fn;
-  const char *help;
-  const char *args;
-};
+// SerialCmd/cmd_fn moved to debug/serialConsole/consoleShared.h (M-SRCLAYOUT
+// Stage E / TASK-471) — cmdHelp (cmdSystem.h) needs kCmds[]/kNumCmds directly
+// now that it's its own translation unit.
+#include "debug/serialConsole/consoleShared.h"
 
 // TASK-056e: touch-injection ring buffer (SERIAL_DEBUG only).
 // drainInjectionQueue() pops one step per loop() iteration — no delay().
 // cmdDrag fills the queue and returns; JSON response emitted on release step.
+// Definitions only (declared in consoleShared.h) — cmdTouch.h's cmdDrag/
+// cmdRelease/cmdTap write these, now from a different translation unit.
 #ifdef SERIAL_DEBUG
-struct InjectionStep { int sx, sy; bool release; };
-static InjectionStep s_injectQueue[64];
-static int s_injectHead = 0, s_injectTail = 0;
-static bool s_dragPending = false;
-static bool s_injectIsFirst = false;  // first non-release item → Press, rest → Move
-static int s_pendingDragX1, s_pendingDragY1,
-           s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps;
-static int s_injectTotal = 0;  // total steps for LOG_D %d/%d
+InjectionStep s_injectQueue[64];
+int s_injectHead = 0, s_injectTail = 0;
+bool s_dragPending = false;
+bool s_injectIsFirst = false;  // first non-release item → Press, rest → Move
+int s_pendingDragX1, s_pendingDragY1,
+    s_pendingDragX2, s_pendingDragY2, s_pendingDragSteps;
+int s_injectTotal = 0;  // total steps for LOG_D %d/%d
 // TASK-277 (VE-1-1/DEV-1-2): the release step dispatches at the LAST sample's
 // coordinates, not (0,0) — otherwise a drag's Release lands outside every
 // hit-test region and gesture-end logic sees garbage geometry.
-static int s_lastInjectX = 0, s_lastInjectY = 0;
+int s_lastInjectX = 0, s_lastInjectY = 0;
 // TASK-277 (VE-1-3): bare `release` command marks its sentinel so the drain
 // emits {"cmd":"release"} instead of the drag JSON.
-static bool s_bareRelease = false;
+bool s_bareRelease = false;
 
 // Forward declarations so kCmds[] can reference the handlers before they
-// are defined (they must appear after kCmds[] to see kNumCmds).
-static void cmdTap(const char *);
-static void cmdDrag(const char *);
-static void cmdRelease(const char *);
-static void cmdTick(const char *);
-static void cmdGet(const char *);
-static void cmdSet(const char *);
-static void cmdSwitchApp(const char *);
-static void cmdPlayerCycle(const char *);
-static void cmdInfo(const char *);
-static void cmdScreenDump(const char *);
-static void cmdColorProbe(const char *);
-static void cmdSdProbe(const char *);
-static void cmdSdCycle(const char *);
-static void cmdSdMem(const char *);
-static void cmdSdMount(const char *);
-static void cmdSdUmount(const char *);
-static void cmdSdClean(const char *);
-static void cmdSdWrite(const char *);
-static void cmdSdLs(const char *);
-static void cmdSdOpenDir(const char *);
-static void cmdSdSlots(const char *);
-static void cmdSdRead(const char *);
-static void cmdSdMbr(const char *);
-static void cmdSdMkdir(const char *);
-static void cmdSdPut(const char *);
-static void cmdHelp(const char *);
-static void cmdReboot(const char *);
-static void cmdAdvance(const char *);
+// are defined (they must appear after kCmds[] to see kNumCmds). Non-static:
+// every one of these except cmdPlayerCycle is defined in its own
+// debug/serialConsole/*.cpp now (M-SRCLAYOUT Stage E) — a static forward
+// declaration would bind this TU's kCmds[] entry to a DIFFERENT (internal,
+// never-defined) symbol than the one the split file actually provides.
+void cmdTap(const char *);
+void cmdDrag(const char *);
+void cmdRelease(const char *);
+void cmdTick(const char *);
+void cmdGet(const char *);
+void cmdSet(const char *);
+void cmdSwitchApp(const char *);
+static void cmdPlayerCycle(const char *);   // body stays in this file
+void cmdInfo(const char *);
+void cmdScreenDump(const char *);
+void cmdColorProbe(const char *);
+void cmdSdProbe(const char *);
+void cmdSdCycle(const char *);
+void cmdSdMem(const char *);
+void cmdSdMount(const char *);
+void cmdSdUmount(const char *);
+void cmdSdClean(const char *);
+void cmdSdWrite(const char *);
+void cmdSdLs(const char *);
+void cmdSdOpenDir(const char *);
+void cmdSdSlots(const char *);
+void cmdSdRead(const char *);
+void cmdSdMbr(const char *);
+void cmdSdMkdir(const char *);
+void cmdSdPut(const char *);
+void cmdHelp(const char *);
+void cmdReboot(const char *);
+void cmdAdvance(const char *);
 #endif
 
-static const SerialCmd kCmds[] = {
+const SerialCmd kCmds[] = {
   { "reconnect", cmdReconnect, "TLS reset + force poll", "" },
 #ifdef SERIAL_DEBUG
   { "tap",  cmdTap,  "inject touch point",              "<x> <y>"                            },
@@ -680,7 +682,7 @@ static const SerialCmd kCmds[] = {
   { "advance", cmdAdvance, "TASK-418: step the play-order engine, no audio (ADR-059 D12)", "<next|prev>" },
 #endif
 };
-static constexpr int kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
+const int kNumCmds = sizeof(kCmds) / sizeof(kCmds[0]);
 
 // TASK-056e: drain one injection step per loop() iteration.
 static inline void drainInjectionQueue() {
@@ -814,16 +816,16 @@ static void handleSerialCommands() {
 // `sdclean`, `sdprobe` (the full T_SD_01–09 sweep) — stay SERIAL_DEBUG-only and
 // reference the statics/functions defined here.
 #ifdef SD_BOOT_MOUNT
-static const int kSdCsPin = 5;
-static const int kSdSckPin = 18;
-static const int kSdMisoPin = 19;
-static const int kSdMosiPin = 23;
+const int kSdCsPin = 5;
+const int kSdSckPin = 18;
+const int kSdMisoPin = 19;
+const int kSdMosiPin = 23;
 // SPI clock for data transfers (card identification always runs at 400 kHz inside
 // ff_sd_initialize, and the library caps this at 25 MHz). 20 MHz, not the 4 MHz the
 // M-SDFS bring-up plan suggested: on the SDHC card, 4 MHz reproducibly panics inside
 // FatFs mid-read (2/2 runs; `validate()` sees obj->fs == NULL after ff_req_grant())
 // while 20 MHz is clean (3/3) and 40x faster. Runtime-settable via `sdmount`.
-static uint32_t s_sdFreqHz = 20000000;
+uint32_t s_sdFreqHz = 20000000;
 
 // Open-file slots requested of SD.begin(). This is the single dominant term in the
 // mount's memory cost, not a throughput knob: esp_vfs_fat_register() allocates
@@ -850,17 +852,17 @@ static uint32_t s_sdFreqHz = 20000000;
 // constant, not `#ifdef`'d per variant — TASK-425/427/431 already established
 // that mount-size tuning is not the lever that matters once Spotify's TLS
 // working set is out of the picture.
-static const uint8_t kSdMaxFiles = 3;
+const uint8_t kSdMaxFiles = 3;
 
-static SPIClass s_sdSPI(VSPI);
-static bool s_sdReady = false;
-static bool s_sdSpiUp = false;
-static size_t s_sdBootFreeIntBefore = 0, s_sdBootFreeIntAfter = 0;
-static size_t s_sdBootLfbIntBefore = 0, s_sdBootLfbIntAfter = 0;
+SPIClass s_sdSPI(VSPI);
+bool s_sdReady = false;
+bool s_sdSpiUp = false;
+size_t s_sdBootFreeIntBefore = 0, s_sdBootFreeIntAfter = 0;
+size_t s_sdBootLfbIntBefore = 0, s_sdBootLfbIntAfter = 0;
 
 // One mount attempt with full before/after heap accounting, usable from setup()
 // and from a live serial command. `tag` names the call site in the JSON line.
-static bool sdMountAttempt(const char *tag, uint8_t maxFiles) {
+bool sdMountAttempt(const char *tag, uint8_t maxFiles) {
   size_t freeBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
   size_t lfbBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
   size_t lfb8Before = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);

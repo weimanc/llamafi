@@ -4,7 +4,7 @@
 // included from inside main.cpp's `#ifdef SERIAL_DEBUG` block, so this
 // file is never reached in a production build.
 
-static void cmdTap(const char *args) {
+void cmdTap(const char *args) {
   int x, y;
   if (sscanf(args, "%d %d", &x, &y) != 2) {
     Serial.println("{\"ok\":false,\"cmd\":\"tap\",\"error\":\"bad args — tap <x> <y>\"}");
@@ -173,7 +173,7 @@ static void cmdTap(const char *args) {
 #endif
 }
 
-static void cmdDrag(const char *args) {
+void cmdDrag(const char *args) {
   int x1, y1, x2, y2, steps;
   char tail[8] = {0};
   int n = sscanf(args, "%d %d %d %d %d %7s", &x1, &y1, &x2, &y2, &steps, tail);
@@ -217,13 +217,13 @@ static void cmdDrag(const char *args) {
 
 // TASK-277 (VE-1-3): end a held gesture — enqueue a release step dispatched at
 // the last injected sample's coordinates.
-static void cmdRelease(const char *) {
+void cmdRelease(const char *) {
   s_bareRelease = true;
   s_injectQueue[s_injectTail++ % 64] = { 0, 0, true };
   // JSON response emitted by drainInjectionQueue() when the step pops.
 }
 
-static void cmdTick(const char *args) {
+void cmdTick(const char *args) {
   int n = 1, dtMs = 20;
   sscanf(args, "%d %d", &n, &dtMs);
   if (n < 1)    n    = 1;
