@@ -40,16 +40,7 @@ struct CryptoAppState {
     unsigned long lastCryptoFetch;
 };
 
-struct MatrixAppState {
-    struct Column {
-        int   x;
-        float y;
-        float speed;
-        int   length;
-        char  lastChar;
-    } rain[14];
-    bool initialised;
-};
+// MatrixAppState moved into apps/matrixApp.h (M-SRCLAYOUT Stage E / TASK-471).
 
 struct LifeAppState {
     uint8_t  grid[55][48];
