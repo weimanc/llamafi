@@ -206,7 +206,7 @@ navigation has **not** been run. **Nothing in this board should land until this 
 | TASK-454 | — | **LANDED, VERIFIED 2026-08-16** | Stage B — SERIAL_DEBUG console → `debug/serialConsole/*.h` (`b36f184`) |
 | TASK-455 | P3 | **UNBLOCKED** (488 closed) | Stage C — `setup()` (621 lines) → `boot/boot.{h,cpp}`, verbatim (D1a) |
 | TASK-456 | P3 | BLOCKED on 455 | Stage D — `shell/appTable.{h,cpp}` composition root + `ShellState` (D2/D3/D4) |
-| TASK-471 | P3 | BLOCKED on 456 | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0) |
+| TASK-471 | P3 | **IN PROGRESS** — 15 commits landed (`2a2f83e`..`4577afe`), status vs. 455/456 blocking unreconciled | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0). Every app class converted + `audioEngine`/`appTable` split; `debug/serialConsole/cmd*.h` still `.h`-only (externs prepped `4577afe`, `.h`/`.cpp` split itself not started) |
 | TASK-472 | P3 | BLOCKED on 471 | Stage F — `stock/` → 3 components, `sd/sdMount`, levelization audit |
 | TASK-457 | P3 | OPEN | hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
 | TASK-464 | P2 | **UNBLOCKED** (454 verified; fold TASK-503 in) | documentation-reference sweep — 308 `main.cpp:NNN` cites across 49 files + 44 in `feature_inventory.yaml`; pay **once**, at end of Stage B |
