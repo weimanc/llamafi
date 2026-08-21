@@ -48,17 +48,17 @@ by ADR-060 D0's measure they created **zero components**, so Stages C–F remain
 |---|---|---|---|
 | **TASK-488, 497** | **P1/P2** | **DONE 2026-08-16** (`64bf839`) | three refactor commits verified + 3-run DUT baseline taken |
 | TASK-453/454 | — | LANDED, VERIFIED | Stage A/B — app classes and debug console out of `main.cpp` |
-| TASK-455/456/471/472 | P2 | **455 UNBLOCKED**, rest chained | Stages C–F — `boot/`, composition root, component conversion, `stock/` split |
-| TASK-457, 464 | P2/P3 | OPEN | shell hygiene; documentation-reference sweep (308 cites / 49 files) |
+| TASK-456/471/472 | P2 | 456 DONE; **471 IN PROGRESS** (15 commits landed); 472 not started | Stages D–F — composition root, component conversion, `stock/` split (455 has its own row below) |
+| TASK-457 | P3 | OPEN | shell hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
 | **TASK-458** | **P2** | OPEN | RAII scope guards — fixes a bug class with a proven instance (TASK-222) |
 | TASK-459/460/461/462/463 | P2/P3 | MIXED | fetch-skeleton consolidation, canvas constants, table dispatch, palette |
-| TASK-465…470 | P2/P3 | OPEN | ADR-061 — debug convention, build-matrix gate, decommission, `display/tft` |
+| TASK-465, 468, 469, 470 | P2/P3 | OPEN | ADR-061 — debug convention, `display/tft` (466/467 landed, see note below) |
 | TASK-473 | P2 | OPEN | concurrency contract gaps — WiFi arbiter, assert I2/I3 |
 | **TASK-475**, 474 | P2/P3 | **475 PHASE 1 DONE** (`b0d0202`) | `run/check-docs` gate shipped as counted gate 12 (C5 + C1-delta blocking); 474 PM/QM doc-lifecycle process still open |
 | **TASK-478** | P2 | **DONE-superseded** (`989c1ea`) | `tools/lib/dut.py` landed as M-TESTBASE **P1**, re-scoped: `Dut` already existed with 16 importers, so this was an extraction + `resolve_port()` + one timeout policy, not a build. Runner 10 229 → 9 705 lines |
 | TASK-479/481/482 | P3 | OPEN | migrate the 16 importers off the compat shim; directory move + taxonomy; spike retirement |
 | **TASK-480** | P3 | **BLOCKED-behind-P1-remainder** | split the runner. Must follow the importer migration (TASK-479) — 16 tools still reach through the shim, several for private names |
-| TASK-476/477 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); header-comment fix |
+| TASK-476 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); 477 (header-comment fix) landed, see note below |
 | TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
 | TASK-489…494 | P2/P3 | MIXED | handoff debt — X065 + test-id reservations (done), X015 fix, `architecture.md` sync |
 | **TASK-521** | **P1** | **ROOT-CAUSED; capability fix deferred to TASK-522** | `opendir()` fails during playback. **Proven cause: byte-addressable DRAM exhaustion** (`MALLOC_CAP_INTERNAL\|8BIT`, == DMA on this no-PSRAM board), not handles, not contention, not directory size. Playback costs ~72 KB (arena 24576 + wrpump stack 8192 + ~39 KB Audio/InBuff/I2S); with the browser's 5120 B arrays claimed, `free8=284 largest8=140` and `vfs_fat_opendir()`'s ~700 B malloc returns **ENOMEM (errno 12)**. Shipped: honest `OpenErr` reporting through `set fbOpen`/`get fbState`, two permanent probes (`sdopendir`, `sdslots`), a low-memory-safe `Serial.write()` reply path, and the corrected test message + a BP-068 negative test |

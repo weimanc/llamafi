@@ -227,8 +227,8 @@ navigation has **not** been run. **Nothing in this board should land until this 
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-465 | P3 | OPEN | D1–D5 — debug/production convention across `app/src`; propose to QM as a BP |
-| TASK-466 | **P2** | OPEN | D6+D7 — full-matrix build gate (66 s measured) + three name-consistency checks |
-| TASK-467 | P2 | OPEN | D8 — decommission: `cyd2usb`→base, `matrixDisplay.h`, `SPIKE_MODE`, ceefax leftovers, 10 libdeps orphans, doc corrections |
+| TASK-466 | — | **LANDED** (`dff3263`) | D6+D7 — full-matrix build gate (66 s measured) + three name-consistency checks |
+| TASK-467 | — | **LANDED** (`0b1d13e`) | D8 — decommission: `cyd2usb`→base, `matrixDisplay.h`, `SPIKE_MODE`, ceefax leftovers, 10 libdeps orphans, doc corrections |
 | TASK-468 | P2 | OPEN | D9 step 1 — `display/tft.{h,cpp}` component; rehome the 797-call-site global |
 | TASK-469 | P3 | BLOCKED on 468 | D9 step 2 — flatten `WinampDisplay` onto `SpotifyDisplay` |
 | TASK-470 | P3 | BLOCKED on 469 | D9 step 3 — delete `cheapYellowLCD.h` and `[cyd2usb_base]` |
@@ -251,9 +251,9 @@ navigation has **not** been run. **Nothing in this board should land until this 
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-478 | **P2** | OPEN | `tools/lib/dut.py` — one DUT session helper, delegating to `run/port`. **Do first**; its absence caused F2–F4 |
-| TASK-479 | P3 | BLOCKED on 478 | migrate 33 port-resolution copies + 29 send/expect loops onto it |
-| TASK-480 | P2 | BLOCKED on 478 | split `run_serialdbg_tests.py` (10 229 lines, 128 tests) into `suite/serialdbg/`, mirroring the VE taxonomy. **≥3 baseline runs owed first** |
+| TASK-478 | — | **LANDED** (`989c1ea`) | `tools/lib/dut.py` — one DUT session helper, delegating to `run/port`. Re-scoped in landing: `Dut` already existed with 16 importers, so this was an extraction + `resolve_port()` + one timeout policy, not a build |
+| TASK-479 | P3 | OPEN (478 landed) | migrate 33 port-resolution copies + 29 send/expect loops onto it |
+| TASK-480 | P2 | OPEN (478 landed; still behind 479) | split `run_serialdbg_tests.py` (10 229 lines, 128 tests) into `suite/serialdbg/`, mirroring the VE taxonomy. **≥3 baseline runs owed first** |
 | TASK-481 | P3 | BLOCKED on 480 | directory + naming taxonomy; pair with TASK-464 (breaks doc paths) |
 | TASK-482 | P3 | BLOCKED on 475 | spike retirement rule — a `task<NNN>_*` whose task is archived fails `run/check-docs`. All 6 current spikes fail immediately |
 
@@ -262,7 +262,7 @@ navigation has **not** been run. **Nothing in this board should land until this 
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-476 | P3 | OPEN | relocate `mb_arena` → `app/src/mem/arena`. **Blocked on an unanswered question**: can a PlatformIO `lib/` dir include from `src/`? Answer that first |
-| TASK-477 | P3 | OPEN | fix `mb_arena.h`'s header comment — it claims production is "byte-clean"; `platformio.ini:93` defines `MEMBUDGET_PHASE1` in `[env:cyd2usb_winamp]` |
+| TASK-477 | — | **LANDED** (`f2730cc`) | fix `mb_arena.h`'s header comment — it claims production is "byte-clean"; `platformio.ini:93` defines `MEMBUDGET_PHASE1` in `[env:cyd2usb_winamp]` |
 
 ## Skeletons — problems with a home, not yet designed
 
@@ -286,7 +286,7 @@ the rule. Filed 2026-08-16 after a second sweep for uncaptured items.
 |---|---|---|---|
 | TASK-489 | P2 | **DONE 2026-08-16** | reserve X065 in `cross_feature_matrix.yaml` — Developer completes |
 | TASK-490 | P2 | **DONE 2026-08-16** | reserve `T_CC_`/`T_SRC_`/`T_CQ_` families in `test_plan.md` — VE completes |
-| TASK-491 | P3 | OPEN | correct X015 — it claims `dataTask` runs on Core 0; it pins to `APP_CPU_NUM` |
+| TASK-491 | — | **LANDED** (`e2f70db`) | correct X015 — it claims `dataTask` runs on Core 0; it pins to `APP_CPU_NUM` |
 | TASK-492 | P3 | OPEN | retire `handleVolumeGesturePublic()` — M-AUDIO-ENGINE OQ2's surviving half |
 | TASK-493 | P2 | OPEN | sync `architecture.md` — its diagram still shows `loop()` as the app shell |
 | TASK-494 | P3 | OPEN | `feature_inventory.files:` → `components:` once components exist |
@@ -332,7 +332,7 @@ Stages A/B landed. Pointing it at components instead of files makes it survive m
 | task | pri | status | title |
 |---|---|---|---|
 | **TASK-495** | P3 | **PARKED 2026-08-16 — decided, not implemented** | `fetchCrypto` moves its `tlsResume()` to after its JSON parse, matching `fetchWeather`. Decision made (E-02, resume-AFTER); the two-line change is deliberately not scheduled. **Read the ordering note below before touching TASK-458 or TASK-460.** |
-| TASK-496 | P2 | OPEN | `appRegistry.h` has no conditional-compilation column; 3 of 13 apps are `#ifdef WINAMP_DISPLAY` |
+| TASK-496 | — | **LANDED** (`33b3003`) | `appRegistry.h` has no conditional-compilation column; 3 of 13 apps are `#ifdef WINAMP_DISPLAY` |
 
 > ### ⚠ PARKED 2026-08-16 — read this before starting TASK-458 or TASK-460
 >
