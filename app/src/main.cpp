@@ -644,9 +644,9 @@ void cmdSdRead(const char *);
 void cmdSdMbr(const char *);
 void cmdSdMkdir(const char *);
 void cmdSdPut(const char *);
-void cmdHelp(const char *);
-void cmdReboot(const char *);
-void cmdAdvance(const char *);
+// cmdHelp/cmdReboot/cmdAdvance declared by cmdSystem.h (M-SRCLAYOUT Stage E /
+// TASK-471) — that file's own translation unit now owns their definitions.
+#include "debug/serialConsole/cmdSystem.h"
 #endif
 
 const SerialCmd kCmds[] = {
@@ -941,8 +941,8 @@ void prepareForReboot() {
 #include "debug/serialConsole/cmdMisc.h"
 // SERIAL_DEBUG) — see the block just above the SERIAL_DEBUG command section below.
 #include "debug/serialConsole/cmdSd.h"
-
-#include "debug/serialConsole/cmdSystem.h"
+// cmdReboot/cmdAdvance/cmdHelp now defined in cmdSystem.cpp (M-SRCLAYOUT
+// Stage E / TASK-471) — declared above, ahead of kCmds[].
 #endif // SERIAL_DEBUG
 
 void loop()
