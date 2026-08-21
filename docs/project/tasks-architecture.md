@@ -204,9 +204,9 @@ navigation has **not** been run. **Nothing in this board should land until this 
 |---|---|---|---|
 | TASK-453 | — | **LANDED, VERIFIED 2026-08-16** | Stage A — 7 app classes → `apps/*.h` (`78caa95`) |
 | TASK-454 | — | **LANDED, VERIFIED 2026-08-16** | Stage B — SERIAL_DEBUG console → `debug/serialConsole/*.h` (`b36f184`) |
-| TASK-455 | P3 | **UNBLOCKED** (488 closed) | Stage C — `setup()` (621 lines) → `boot/boot.{h,cpp}`, verbatim (D1a) |
-| TASK-456 | P3 | BLOCKED on 455 | Stage D — `shell/appTable.{h,cpp}` composition root + `ShellState` (D2/D3/D4) |
-| TASK-471 | P3 | **IN PROGRESS** — 15 commits landed (`2a2f83e`..`4577afe`), status vs. 455/456 blocking unreconciled | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0). Every app class converted + `audioEngine`/`appTable` split; `debug/serialConsole/cmd*.h` still `.h`-only (externs prepped `4577afe`, `.h`/`.cpp` split itself not started) |
+| TASK-455 | — | **LANDED** (`8cb5578`) — pure move proven by symbol identity, per design doc §5 | Stage C — `setup()` (621 lines) → `boot/boot.h`, verbatim (D1a) |
+| TASK-456 | — | **LANDED, DUT-VERIFIED** (`825da41` part 1, `63aad48` part 2, `ca74819`) | Stage D — `shell/appTable.h` composition root + `ShellState` (D2/D3/D4) |
+| TASK-471 | P3 | **IN PROGRESS** — 15 commits landed (`2a2f83e`..`4577afe`), correctly sequenced after 455/456 | Stage E — component conversion; real `.h`/`.cpp` pairs, self-contained (D0). Every app class converted + `audioEngine`/`appTable` split; `debug/serialConsole/cmd*.h` still `.h`-only (externs prepped `4577afe`, `.h`/`.cpp` split itself not started) |
 | TASK-472 | P3 | BLOCKED on 471 | Stage F — `stock/` → 3 components, `sd/sdMount`, levelization audit |
 | TASK-457 | P3 | OPEN | hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
 | TASK-464 | P2 | **UNBLOCKED** (454 verified; fold TASK-503 in) | documentation-reference sweep — 308 `main.cpp:NNN` cites across 49 files + 44 in `feature_inventory.yaml`; pay **once**, at end of Stage B |
