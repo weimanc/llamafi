@@ -44,10 +44,10 @@ static SpotifyApp g_SpotifyApp;
 static ClockApp g_ClockApp;
 
 // ── VE instrumentation statics (consumed by SERIAL_DEBUG cmdGet) ─────────────
-// s_wxDataReady/s_cxDataReady retired (TASK-471): WeatherApp/CryptoApp are now
-// separate translation units, so cmdGet.h reads g_WeatherApp.dataReady() /
-// g_CryptoApp.dataReady() directly instead of a composition-root static.
-static int  s_golAliveCount = -1;      // -1 = GoL never ticked; ≥0 = last alive count
+// s_wxDataReady/s_cxDataReady/s_golAliveCount retired (TASK-471): Weather/
+// Crypto/LifeApp are now separate translation units, so cmdGet.h reads
+// g_WeatherApp.dataReady() / g_CryptoApp.dataReady() / g_LifeApp.golAliveCount()
+// directly instead of a composition-root static.
 
 #include "apps/matrixApp.h"
 static MatrixApp g_MatrixApp;

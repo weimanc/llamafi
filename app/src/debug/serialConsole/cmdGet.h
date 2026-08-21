@@ -419,7 +419,7 @@ static void cmdGet(const char *args) {
   }
   if (strcmp(args, "golAlive") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"golAlive\","
-                  "\"count\":%d,\"last\":true}\n", s_golAliveCount);
+                  "\"count\":%d,\"last\":true}\n", g_LifeApp.golAliveCount());
     return;
   }
   if (strcmp(args, "shellBusy") == 0) {

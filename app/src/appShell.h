@@ -32,14 +32,7 @@ void persistPlayerMode(uint8_t mode);
 // WeatherAppState moved into apps/weatherApp.h (M-SRCLAYOUT Stage E / TASK-471).
 // CryptoAppState moved into apps/cryptoApp.h (M-SRCLAYOUT Stage E / TASK-471).
 // MatrixAppState moved into apps/matrixApp.h (M-SRCLAYOUT Stage E / TASK-471).
-
-struct LifeAppState {
-    uint8_t  grid[55][48];
-    uint16_t hueShift;
-    int      lastCellCount;
-    int      sameCountTimer;
-    bool     initialised;
-};
+// LifeAppState moved into apps/lifeApp.h (M-SRCLAYOUT Stage E / TASK-471).
 
 enum class StockSubView : uint8_t { List = 0, ChartDetail = 1, HeatmapDetail = 2 };
 enum class StockRange   : uint8_t { D1 = 0, D5 = 1, Mo1 = 2, Ytd = 3 };
