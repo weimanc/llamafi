@@ -384,12 +384,12 @@ static void cmdGet(const char *args) {
   }
   if (strcmp(args, "weatherReady") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\","
-                  "\"ready\":%s,\"last\":true}\n", s_wxDataReady ? "true" : "false");
+                  "\"ready\":%s,\"last\":true}\n", g_WeatherApp.dataReady() ? "true" : "false");
     return;
   }
   if (strcmp(args, "cryptoReady") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\","
-                  "\"ready\":%s,\"last\":true}\n", s_cxDataReady ? "true" : "false");
+                  "\"ready\":%s,\"last\":true}\n", g_CryptoApp.dataReady() ? "true" : "false");
     return;
   }
   if (strcmp(args, "cryptoHttpCode") == 0) {

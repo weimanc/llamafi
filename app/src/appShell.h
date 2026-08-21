@@ -29,17 +29,8 @@ void persistPlayerMode(uint8_t mode);
 
 // --- Per-app state structs (app-lifecycle.md) ---
 
-struct WeatherAppState {
-    float         cTemp, cHum, cWind;
-    unsigned long lastDataFetch;
-};
-
-struct CryptoAppState {
-    float         prices[6];
-    float         changes[6];
-    unsigned long lastCryptoFetch;
-};
-
+// WeatherAppState moved into apps/weatherApp.h (M-SRCLAYOUT Stage E / TASK-471).
+// CryptoAppState moved into apps/cryptoApp.h (M-SRCLAYOUT Stage E / TASK-471).
 // MatrixAppState moved into apps/matrixApp.h (M-SRCLAYOUT Stage E / TASK-471).
 
 struct LifeAppState {

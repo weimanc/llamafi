@@ -44,8 +44,9 @@ static SpotifyApp g_SpotifyApp;
 static ClockApp g_ClockApp;
 
 // ── VE instrumentation statics (consumed by SERIAL_DEBUG cmdGet) ─────────────
-static bool s_wxDataReady   = false;   // set true when WeatherApp receives first fetch
-static bool s_cxDataReady   = false;   // set true when CryptoApp receives first fetch
+// s_wxDataReady/s_cxDataReady retired (TASK-471): WeatherApp/CryptoApp are now
+// separate translation units, so cmdGet.h reads g_WeatherApp.dataReady() /
+// g_CryptoApp.dataReady() directly instead of a composition-root static.
 static int  s_golAliveCount = -1;      // -1 = GoL never ticked; ≥0 = last alive count
 
 #include "apps/matrixApp.h"
