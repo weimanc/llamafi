@@ -626,7 +626,9 @@ bool s_bareRelease = false;
 // cmdGet declared by cmdGet.h (M-SRCLAYOUT Stage E / TASK-471) — that file's
 // own translation unit now owns its definition.
 #include "debug/serialConsole/cmdGet.h"
-void cmdSet(const char *);
+// cmdSet declared by cmdSet.h (M-SRCLAYOUT Stage E / TASK-471) — that file's
+// own translation unit now owns its definition.
+#include "debug/serialConsole/cmdSet.h"
 static void cmdPlayerCycle(const char *);   // body stays in this file
 // cmdSwitchApp/cmdInfo/cmdScreenDump/cmdColorProbe declared by cmdMisc.h
 // (M-SRCLAYOUT Stage E / TASK-471) — that file's own translation unit now
@@ -934,9 +936,8 @@ void prepareForReboot() {
 // except `get snapshot` which may emit two via multi-part protocol.
 #ifdef SERIAL_DEBUG
 // cmdTap/cmdDrag/cmdRelease/cmdTick now defined in cmdTouch.cpp, cmdGet now
-// defined in cmdGet.cpp (M-SRCLAYOUT Stage E / TASK-471) — both declared above.
-
-#include "debug/serialConsole/cmdSet.h"
+// defined in cmdGet.cpp, cmdSet now defined in cmdSet.cpp (M-SRCLAYOUT
+// Stage E / TASK-471) — all declared above.
 // cmdSwitchApp/cmdInfo/cmdScreenDump/cmdColorProbe now defined in
 // cmdMisc.cpp (M-SRCLAYOUT Stage E / TASK-471) — declared above.
 // SERIAL_DEBUG) — see the block just above the SERIAL_DEBUG command section below.
