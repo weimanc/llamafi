@@ -625,11 +625,11 @@ void cmdRelease(const char *);
 void cmdTick(const char *);
 void cmdGet(const char *);
 void cmdSet(const char *);
-void cmdSwitchApp(const char *);
 static void cmdPlayerCycle(const char *);   // body stays in this file
-void cmdInfo(const char *);
-void cmdScreenDump(const char *);
-void cmdColorProbe(const char *);
+// cmdSwitchApp/cmdInfo/cmdScreenDump/cmdColorProbe declared by cmdMisc.h
+// (M-SRCLAYOUT Stage E / TASK-471) — that file's own translation unit now
+// owns their definitions.
+#include "debug/serialConsole/cmdMisc.h"
 void cmdSdProbe(const char *);
 void cmdSdCycle(const char *);
 void cmdSdMem(const char *);
@@ -937,8 +937,8 @@ void prepareForReboot() {
 #include "debug/serialConsole/cmdGet.h"
 
 #include "debug/serialConsole/cmdSet.h"
-
-#include "debug/serialConsole/cmdMisc.h"
+// cmdSwitchApp/cmdInfo/cmdScreenDump/cmdColorProbe now defined in
+// cmdMisc.cpp (M-SRCLAYOUT Stage E / TASK-471) — declared above.
 // SERIAL_DEBUG) — see the block just above the SERIAL_DEBUG command section below.
 #include "debug/serialConsole/cmdSd.h"
 // cmdReboot/cmdAdvance/cmdHelp now defined in cmdSystem.cpp (M-SRCLAYOUT
