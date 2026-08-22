@@ -7,7 +7,7 @@
 
 ## 1. Context & goal
 
-The "player" is **one slot with two modes — `{Spotify | WebRadio}`**. Eject toggles the mode; the taskbar
+The "player" is **one slot with three modes — `{Spotify | WebRadio | BluetoothSpeaker}`**. Eject cycles the mode; the taskbar
 player slot restores the last-active mode. The runtime half shipped in TASK-259 (`a825521`, RAM-only,
 `g_lastPlayerMode`). This design adds the two pieces the user requested:
 
@@ -127,3 +127,18 @@ should the device **cold-boot into WebRadio**?
 TASK-259 (runtime toggle, DUT-verified 2026-06-27 — `a825521`) · M-MEMBUDGET §2c/4a · `settings-001`
 (SettingsApp + SPIFFS) · `taskbar-001` (app-shell dispatch / `switchApp`) · `app-interface-001`
 (init/resume/suspend) · ADR-046 (Spotify dormant-stub bar) · NEW-APP-CHECKLIST (codegen-staleness gate).
+
+## 11. 2026-08-22 amendment — Bluetooth speaker mode
+
+The player slot now cycles through three skins:
+`Spotify → WebRadio → BluetoothSpeaker → Spotify`. BluetoothSpeaker is a
+hidden `AppId` after Settings, reuses the player taskbar slot, and persists as
+`player.mode = 2` with a separate `bluetoothVolumePct` setting.
+
+On the no-PSRAM CYD, Bluetooth is an exclusive boot profile. It releases BLE,
+starts a Classic Bluetooth A2DP sink named `LlamaFi Speaker`, keeps Wi-Fi/TLS
+and network tasks off, and sends mono audio through the existing GPIO26 DAC and
+onboard amplifier. Leaving the mode performs ordered A2DP/AVRCP teardown and
+reboots into normal Wi-Fi mode. The serial-debug image links a lightweight UI
+stub; the production and `cyd2usb_bluetooth_test` images contain the real A2DP
+stack.

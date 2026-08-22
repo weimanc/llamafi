@@ -18,7 +18,11 @@ enum class StockViewMode : uint8_t { List = 0, Chart = 1, Heatmap = 2 };
 enum class MatrixColor   : uint8_t { Green = 0, White = 1, Amber = 2 };
 enum class LifeColors    : uint8_t { Rainbow = 0, Mono = 1 };
 enum class ClockStyle    : uint8_t { Digital = 0, Flip = 1, Nixie = 2, VFD = 3 };
-enum class PlayerMode    : uint8_t { Spotify = 0, WebRadio = 1 };   // M-PLAYER-STATE / TASK-260
+enum class PlayerMode    : uint8_t {
+    Spotify = 0,
+    WebRadio = 1,
+    BluetoothSpeaker = 2,
+};
 // M-PLANERADAR / phase0-preview-ui.md Q2: tag-collision rule. (a) reference —
 // always place at the centre-side position, never nudge/drop. (b) + vertical
 // nudge (±10/±20px), place at the un-nudged position if all four still
@@ -130,10 +134,11 @@ struct AppSettings {
     uint8_t    vfdTheme;     // 0=teal 1=amber 2=blue 3=green (M-CLOCK-THEMES)
 
     // --- Player slot (M-PLAYER-STATE / TASK-260) ---
-    // The Winamp "player" slot is one slot with two mutually-exclusive modes. Persisted
+    // The Winamp player slot has three mutually-exclusive modes. Persisted
     // so the taskbar player-slot restore + Settings display + cold-boot survive a reboot.
     // Stored as uint8_t (PlayerMode). v2 (OQ-BOOT): boot enters the persisted mode.
-    uint8_t playerMode;      // PlayerMode: Spotify=0 | WebRadio=1
+    uint8_t playerMode;      // PlayerMode: Spotify=0 | WebRadio=1 | BluetoothSpeaker=2
+    uint8_t bluetoothVolumePct; // local GPIO26 output level, 0..100
 
     // --- Teletext (ADR-044) ---
     uint16_t teletextPage;        // starting page on resume (default 101)

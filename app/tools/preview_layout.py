@@ -48,7 +48,7 @@ from preview_common import (
 
 # WebRadio is eject-only (TASK-242/LL-085): it has no taskbar slot, so the
 # preview scroll list must exclude it just like firmware's TASKBAR_APP_COUNT.
-TASKBAR_ORDER = [a for a in APP_ORDER if a != "WebRadio"]
+TASKBAR_ORDER = APP_ORDER[:APP_ORDER.index("Settings") + 1]
 
 # Winamp 5×6 glyph dimensions.
 GLYPH_W = 5

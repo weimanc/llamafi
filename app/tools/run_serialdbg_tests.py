@@ -5988,11 +5988,11 @@ def t_wr_eject_01(dut: Dut):
     pass_("T_WR_EJECT_01", f"hit=EJECT action=EJECT; appId=WebRadio")
 
 
-# ── T_WR_EJECT_02 — Eject from WebRadio → Spotify ────────────────────────────
+# ── T_WR_EJECT_02 — WebRadio → Bluetooth → Spotify cycle ─────────────────────
 
 def t_wr_eject_02(dut: Dut):
-    """T_WR_EJECT_02: tap eject from WebRadio → hit=EJECT; appId switches back to Spotify."""
-    print("T_WR_EJECT_02  Eject from WebRadio → Spotify")
+    """T_WR_EJECT_02: complete the three-skin player eject cycle."""
+    print("T_WR_EJECT_02  Eject WebRadio → Bluetooth → Spotify")
     # _webradio_enter_with_stations suspends bgPoll so the station fetch completes
     # quickly. Once _pendingStations=false, the main loop clears g_shellBusy
     # (main.cpp:2604-2606) and the eject tap won't be blocked with CANVAS.
@@ -6017,11 +6017,27 @@ def t_wr_eject_02(dut: Dut):
         return
     time.sleep(0.4)
     r2 = dut.cmd("get appId", timeout=3.0)
-    if r2.get("name") != "Spotify":
-        fail("T_WR_EJECT_02", f"appId={r2.get('name')!r} after eject from WebRadio")
+    if r2.get("name") != "BluetoothSpeaker":
+        fail("T_WR_EJECT_02", f"appId={r2.get('name')!r} after WebRadio eject "
+                              "(expected BluetoothSpeaker)")
         _restore_spotify(dut)
         return
-    pass_("T_WR_EJECT_02", "hit=EJECT action=EJECT; appId=Spotify")
+
+    # SERIAL_DEBUG links the lightweight Bluetooth UI stub, allowing the
+    # lifecycle/eject route to be covered without fitting Bluedroid in DRAM.
+    dut.set_cooldown_zero()
+    r3 = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
+    if r3.get("hit") != "EJECT" or r3.get("action") != "EJECT":
+        fail("T_WR_EJECT_02", f"Bluetooth eject response unexpected: {r3}")
+        _restore_spotify(dut)
+        return
+    time.sleep(0.4)
+    r4 = dut.cmd("get appId", timeout=3.0)
+    if r4.get("name") != "Spotify":
+        fail("T_WR_EJECT_02", f"appId={r4.get('name')!r} after Bluetooth eject")
+        _restore_spotify(dut)
+        return
+    pass_("T_WR_EJECT_02", "player cycle WebRadio → BluetoothSpeaker → Spotify")
 
 
 # ── T_WR_ERR_* common helper ─────────────────────────────────────────────────

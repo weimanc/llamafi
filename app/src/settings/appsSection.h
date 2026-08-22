@@ -447,19 +447,19 @@ private:
     }
 
     // M-PLAYER-STATE / TASK-260: the player slot (AppId::Spotify, shown as "Winamp")
-    // hosts two modes — Spotify | WebRadio. One "Mode" row toggles the persisted
+    // hosts Spotify, WebRadio, and Bluetooth modes. One row cycles the persisted
     // g_settings.playerMode. The change applies on next entry to the player slot (the
     // settings screen is a different app, so no live app-switch is forced from here).
     void _repaintPlayer() {
-        bool radio = settings().playerMode == (uint8_t)PlayerMode::WebRadio;
-        drawRow(S_CONTENT_Y, { "Mode", radio ? "WebRadio" : "Spotify", S_LABEL, S_VALUE });
+        static const char* kMode[] = { "Spotify", "WebRadio", "Bluetooth" };
+        uint8_t mode = settings().playerMode;
+        if (mode > (uint8_t)PlayerMode::BluetoothSpeaker) mode = 0;
+        drawRow(S_CONTENT_Y, { "Mode", kMode[mode], S_LABEL, S_VALUE });
     }
 
     void _cyclePlayer(int row) {
         if (row != 0) return;
-        settings().playerMode = (settings().playerMode == (uint8_t)PlayerMode::WebRadio)
-                              ? (uint8_t)PlayerMode::Spotify
-                              : (uint8_t)PlayerMode::WebRadio;
+        settings().playerMode = (uint8_t)((settings().playerMode + 1) % 3);
         saveSettings();
         repaint();
     }

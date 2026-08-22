@@ -125,10 +125,23 @@ char clientSecret[200];
 #include "dataTask.h"
 #include "settingsStorage.h"
 
+// Arduino's initArduino() releases all controller memory before setup() unless
+// btInUse() resolves true. LlamaFi decides after loading persisted PlayerMode
+// whether to keep Classic BT or release BTDM, so defer that one-way decision
+// to btSpeaker::configureBootMemory() in setup(). This strong definition also
+// prevents the core archive's weak false fallback from winning at link time.
+extern "C" bool btInUse() {
+#ifdef SERIAL_DEBUG
+  return false;  // debug links the lightweight UI stub, not the A2DP stack
+#else
+  return true;
+#endif
+}
+
 AppId currentAppId = AppId::Spotify;
 static AppId g_previousAppId = AppId::Spotify;
-// TASK-259/260: the "player" is one slot with two modes {Spotify | WebRadio}. Eject
-// toggles the mode; returning to the player from the taskbar restores the last-active
+// The "player" is one slot with three modes {Spotify | WebRadio | Bluetooth}.
+// Eject cycles the mode; returning from the taskbar restores the last-active
 // one instead of always landing on Spotify. The mode is the persisted single source of
 // truth g_settings.playerMode (TASK-260) — written by the eject toggles + Settings UI,
 // read by resolvePlayerSlot. v2 boot (OQ-BOOT): cold-boot enters the persisted mode (see
@@ -1867,6 +1880,12 @@ static bool planeRadarDbgSet(const char* v, const char* val) { return g_PlaneRad
 static WebRadioApp g_WebRadioApp;
 static bool webRadioDbgGet(const char* v, char* b, int l) { return g_WebRadioApp.dbgGet(v, b, l); }
 static bool webRadioDbgSet(const char* v, const char* val) { return g_WebRadioApp.dbgSet(v, val); }
+
+#include "bluetoothSpeakerApp.h"
+static BluetoothSpeakerApp g_BluetoothSpeakerApp;
+static bool bluetoothSpeakerDbgGet(const char* v, char* b, int l) {
+  return g_BluetoothSpeakerApp.dbgGet(v, b, l);
+}
 #endif
 
 #ifdef SERIAL_DEBUG
@@ -1919,14 +1938,16 @@ void setBusy(bool busy) {
 }
 }
 
-// TASK-259/260: the taskbar "player" slot (AppId::Spotify) restores whichever player
-// mode (Spotify | WebRadio) was last active — read from the persisted setting. WebRadio
-// is eject-only / excluded from the taskbar, so a taskbar tap only ever surfaces
-// AppId::Spotify here; we redirect to WebRadio when that's the persisted mode.
+// The taskbar player slot restores whichever mode was last active. WebRadio
+// and BluetoothSpeaker are hidden alternatives, so the visible Spotify slot
+// redirects from this single persisted source of truth.
 static AppId resolvePlayerSlot(AppId tapped) {
   if (tapped != AppId::Spotify) return tapped;
-  return (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio) ? AppId::WebRadio
-                                                                  : AppId::Spotify;
+  if (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio)
+    return AppId::WebRadio;
+  if (g_settings.playerMode == (uint8_t)PlayerMode::BluetoothSpeaker)
+    return AppId::BluetoothSpeaker;
+  return AppId::Spotify;
 }
 
 // TASK-260 §4: persist the player mode, immediate-save with an unchanged-value skip
@@ -2012,6 +2033,20 @@ static void shellTbRelease(int releaseY) {
 
 void switchApp(AppId next) {
   if (next == currentAppId) return;
+  // Bluetooth speaker is an exclusive no-Wi-Fi boot profile. Navigating to
+  // any regular app must return through a normal boot; otherwise those apps
+  // inherit no spotifyTask/dataTask/Wi-Fi and can block on missing services.
+#ifndef SERIAL_DEBUG
+  if (currentAppId == AppId::BluetoothSpeaker) {
+    persistPlayerMode((uint8_t)PlayerMode::Spotify);
+    if (g_apps[(int)currentAppId]) g_apps[(int)currentAppId]->suspend();
+    Serial.printf("[bt] exit target=%d; rebooting into normal mode\n", (int)next);
+    Serial.flush();
+    delay(80);
+    ESP.restart();
+    return;
+  }
+#endif
   const unsigned long t0 = millis();  // TASK-279 (L-d): per-phase instrumentation
 #ifdef SERIAL_DEBUG
   Serial.printf("[shell] leaving %d  heap=%lu maxAlloc=%lu minFree=%lu\n",
@@ -2034,7 +2069,8 @@ void switchApp(AppId next) {
   // TASK-264 (Q3-a): drop Spotify TLS when WebRadio is active (reclaims ~50 K arena).
   // Non-blocking — setWebRadioActive() only sets flags, never calls tlsYield().
 #ifndef DISABLE_SPOTIFY
-  spotifyTask::setWebRadioActive(next == AppId::WebRadio);
+  spotifyTask::setWebRadioActive(next == AppId::WebRadio ||
+                                 next == AppId::BluetoothSpeaker);
 #endif
   if (g_apps[(int)next]) {
     if (!g_appLaunched[(int)next]) {
@@ -2222,6 +2258,12 @@ void setup()
   // tft.init() (inside displaySetup above) uses digitalWrite(TFT_BL, HIGH) —
   // no LEDC channel is configured. Take over GPIO21 now so ledcWrite() works.
   SettingsStorage::load();
+#ifdef BLUETOOTH_TEST_BOOT
+  // Hardware-spike environment: enter A2DP without mutating settings.json.
+  g_settings.playerMode = (uint8_t)PlayerMode::BluetoothSpeaker;
+#endif
+  btSpeaker::configureBootMemory(
+      g_settings.playerMode == (uint8_t)PlayerMode::BluetoothSpeaker);
   TouchCalStorage::load();
   if (g_calData.valid)
     ts.setCalibration(g_calData.xMin, g_calData.xMax, g_calData.yMin, g_calData.yMax);
@@ -2252,6 +2294,21 @@ void setup()
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
   winampDisplay.setTitle("STARTING UP...");
+#endif
+
+  // Bluetooth speaker mode is a deliberately exclusive boot profile on the
+  // no-PSRAM CYD. Start it before Wi-Fi, Spotify/TLS, the HTTP log server, or
+  // dataTask reserve memory and fragment the internal heap. A2DP owns the
+  // radio for this boot; ejecting persists Spotify mode and restarts.
+#ifndef SERIAL_DEBUG
+  if (g_settings.playerMode == (uint8_t)PlayerMode::BluetoothSpeaker) {
+    Serial.printf("[boot] exclusive=bluetooth heap=%u max=%u\n",
+                  (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+    switchApp(AppId::BluetoothSpeaker);
+    mb_heap_probe("post-init-bluetooth");
+    buildMathLUT();
+    return;
+  }
 #endif
 
   refreshToken[0] = '\0';
@@ -2499,7 +2556,14 @@ void setup()
   // preference, and that visible app must still be allowed to connect once
   // WiFi comes up via the background supervisor; seeding from raw
   // playerMode would silently strand it idle.
-  bool bootIntoWebRadio = wifiConnected && (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio);
+  bool bootIntoWebRadio = wifiConnected &&
+      (g_settings.playerMode == (uint8_t)PlayerMode::WebRadio);
+  bool bootIntoBluetooth = false;
+#ifndef SERIAL_DEBUG
+  bootIntoBluetooth =
+      (g_settings.playerMode == (uint8_t)PlayerMode::BluetoothSpeaker);
+#endif
+  bool bootIntoExternalPlayer = bootIntoWebRadio || bootIntoBluetooth;
 
   // TASK-363 companion 1 (Finding 2/3): under bootIntoWebRadio, skip the
   // eager network-calling refreshAccessToken() leg — it opens a real TLS
@@ -2510,9 +2574,10 @@ void setup()
   // design only happens after an explicit toggle-to-Spotify. The
   // forceRefreshToken/launchRefreshTokenFlow() credential-bootstrap path
   // above is unaffected — stays unconditional.
-  if (bootIntoWebRadio) {
+  if (bootIntoExternalPlayer) {
     spotify.setRefreshToken(refreshToken);
-    Serial.println("[boot] spotify=idle (playerMode=webradio) — refresh deferred to first toggle");
+    Serial.printf("[boot] spotify=idle (playerMode=%s) -- refresh deferred\n",
+                  bootIntoBluetooth ? "bluetooth" : "webradio");
   } else {
     spotifyRefreshToken(refreshToken);
   }
@@ -2529,7 +2594,13 @@ void setup()
   // closes the boot race where setWebRadioActive(true) (from the
   // switchApp(WebRadio) call below) arrived too late to stop the first
   // self-issued ACT_POLL from connecting TLS ~5s after begin().
-  spotifyTask::begin(&spotify, bootIntoWebRadio);
+  if (!bootIntoBluetooth) {
+    spotifyTask::begin(&spotify, bootIntoExternalPlayer);
+  } else {
+    // Bluetooth is an exclusive audio boot on this no-PSRAM board. Do not
+    // reserve the Spotify task stack/TLS session while Bluedroid is active.
+    Serial.println("[boot] spotify=off (bluetooth mode)");
+  }
 #else
   // TASK-255 (M-WEBRADIO-NOPSRAM): the SOLE functional guard. Skipping begin()
   // means reqQueue / s_tlsYieldedSem stay null, so tlsYield()/tlsResume() (and
@@ -2569,6 +2640,15 @@ void setup()
   // the idle flag was already seeded before spotifyTask::begin() ran.
   else if (bootIntoWebRadio) {
     switchApp(AppId::WebRadio);
+  }
+  else if (bootIntoBluetooth) {
+    // A2DP and Wi-Fi share the ESP32's 2.4 GHz radio. Bluetooth speaker mode
+    // does not need Wi-Fi; disabling it removes coexistence jitter and keeps
+    // the audio path deterministic. Stored credentials are retained.
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(false);
+    WiFi.mode(WIFI_OFF);
+    switchApp(AppId::BluetoothSpeaker);
   }
   mb_heap_probe("post-init-idle");    // TASK-261 Phase 0 milestone M4 (steady idle)
   buildMathLUT();
@@ -2865,6 +2945,16 @@ static void cmdTap(const char *args) {
       Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
                     "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":%s}\n",
                     x, y, wr.region, wr.action, wr.skipped ? "true" : "false");
+    } else if (currentAppId == AppId::BluetoothSpeaker &&
+               g_apps[(int)AppId::BluetoothSpeaker]) {
+      bool eject = winampDisplay.hitTestEject(x, y);
+      g_apps[(int)AppId::BluetoothSpeaker]->handleInput(TouchPhase::Press, x, y);
+      bool consumed = g_apps[(int)AppId::BluetoothSpeaker]->handleInput(
+          TouchPhase::Release, x, y);
+      Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
+                    "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":false}\n",
+                    x, y, eject ? "EJECT" : "BLUETOOTH",
+                    (eject && consumed) ? "EJECT" : (consumed ? "CONSUMED" : "NONE"));
     } else if (currentAppId == AppId::Clock && g_apps[(int)AppId::Clock]) {
       // M-CLOCK-TAP-CYCLE (TASK-346): clock now has real canvas interaction
       // (face/theme cycle zones) — no async, so no setBusy propagation.
@@ -3310,6 +3400,10 @@ static void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
+  if (bluetoothSpeakerDbgGet(args, buf, sizeof(buf))) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
+    return;
+  }
 #endif
   if (strcmp(args, "clockStyle") == 0) {
     static const char* kSN[] = {"digital","flip","nixie","vfd"};
@@ -3333,10 +3427,12 @@ static void cmdGet(const char *args) {
     return;
   }
   if (strcmp(args, "playerMode") == 0) {   // TASK-260 (VE: agent-driven persist/settings tests)
-    uint8_t pm = g_settings.playerMode ? 1 : 0;
+    static const char* kPlayerModeNames[] = { "Spotify", "WebRadio", "Bluetooth" };
+    uint8_t pm = g_settings.playerMode;
+    if (pm > (uint8_t)PlayerMode::BluetoothSpeaker) pm = 0;
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\","
                   "\"val\":%d,\"name\":\"%s\",\"last\":true}\n",
-                  pm, pm ? "WebRadio" : "Spotify");
+                  pm, kPlayerModeNames[pm]);
     return;
   }
   if (strcmp(args, "kb") == 0) {
@@ -3804,10 +3900,11 @@ static void cmdSet(const char *args) {
     int idx = -1;
     if      (strcasecmp(val, "spotify")  == 0) idx = 0;
     else if (strcasecmp(val, "webradio") == 0) idx = 1;
-    else if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 1) idx = -1;
+    else if (strcasecmp(val, "bluetooth") == 0 || strcasecmp(val, "bt") == 0) idx = 2;
+    else if (sscanf(val, "%d", &idx) != 1 || idx < 0 || idx > 2) idx = -1;
     if (idx < 0) {
       Serial.printf("{\"ok\":false,\"cmd\":\"set\","
-                    "\"error\":\"bad val — use 0/1 or spotify/webradio\"}\n");
+                    "\"error\":\"bad val -- use 0/1/2 or spotify/webradio/bluetooth\"}\n");
       return;
     }
     // Pure persist (no app switch): sets + saves the mode so a reboot exercises the v2
@@ -3815,7 +3912,7 @@ static void cmdSet(const char *args) {
     persistPlayerMode((uint8_t)idx);
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"playerMode\",\"val\":%d,\"name\":\"%s\"}\n",
-                  idx, idx ? "WebRadio" : "Spotify");
+                  idx, idx == 0 ? "Spotify" : (idx == 1 ? "WebRadio" : "Bluetooth"));
     return;
   }
   if (strcmp(var, "prloc") == 0) {
@@ -4086,7 +4183,9 @@ void loop()
   // TASK-283: link supervisor — re-kick a wedged link (all builds). Suppressed
   // while Settings is foreground: WifiSection's scan flow owns the radio and
   // deliberately runs with auto-reconnect off.
-  if (currentAppId != AppId::Settings) wifiDiag::superviseTick();
+  if (currentAppId != AppId::Settings &&
+      g_settings.playerMode != (uint8_t)PlayerMode::BluetoothSpeaker)
+    wifiDiag::superviseTick();
 #ifdef WINAMP_DISPLAY
   // M-BOOT-UI §6 (TASK-364, ADR-055 decision 5): whole-session background
   // WiFi-reconnect status on the title marquee. Self-contained edge-trigger
@@ -4096,7 +4195,8 @@ void loop()
   // condition as, superviseTick() above (X042, load-bearing per §6 Q4):
   // Settings already owns and repaints this whole screen region, so an
   // ungated override would blit stray marquee text over the Settings UI.
-  if (currentAppId != AppId::Settings) {
+  if (currentAppId != AppId::Settings &&
+      g_settings.playerMode != (uint8_t)PlayerMode::BluetoothSpeaker) {
     static uint32_t s_wifiDownSinceMs = 0;
     // OQ5: proposed starting point, not DUT-pinned — VE/DUT to tune, a
     // single adjustable constant.

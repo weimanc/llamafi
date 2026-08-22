@@ -41,7 +41,8 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent))
 import app_ids_gen
 
-APPS = [name.lower() for name in app_ids_gen.APP_ORDER if name != "WebRadio"]
+APPS = [name.lower() for name in app_ids_gen.APP_ORDER
+        if app_ids_gen.APP_SLOT[name] <= app_ids_gen.APP_SLOT["Settings"]]
 
 # ---------------------------------------------------------------------------
 # Defaults (may be overridden by --icon-size or parsed from shell_layout.h)

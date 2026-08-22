@@ -95,6 +95,7 @@ static void applyDefaults() {
 
     // Player slot (M-PLAYER-STATE / TASK-260)
     g_settings.playerMode = (uint8_t)PlayerMode::Spotify;
+    g_settings.bluetoothVolumePct = 35;
 
     // Teletext
     g_settings.teletextPage        = 101;
@@ -283,10 +284,13 @@ void SettingsStorage::load() {
     }
 
     // Player slot (M-PLAYER-STATE / TASK-260): top-level object — the mode spans both
-    // Spotify and WebRadio, so it is not nested under "webRadio". Clamp to {0,1}.
+    // Shared by all player skins, so it is not nested under "webRadio".
     if (doc.containsKey("player")) {
         uint8_t pm = doc["player"]["mode"] | 0;
-        g_settings.playerMode = (pm > (uint8_t)PlayerMode::WebRadio) ? (uint8_t)PlayerMode::Spotify : pm;
+        g_settings.playerMode = (pm > (uint8_t)PlayerMode::BluetoothSpeaker)
+                              ? (uint8_t)PlayerMode::Spotify : pm;
+        g_settings.bluetoothVolumePct = (uint8_t)constrain(
+            (int)(doc["player"]["bluetoothVolumePct"] | 35), 0, 100);
     }
 
     // Teletext
@@ -486,7 +490,9 @@ void SettingsStorage::save() {
     ck["vfdTheme"]   = g_settings.vfdTheme;
 
     // Player slot (M-PLAYER-STATE / TASK-260)
-    doc.createNestedObject("player")["mode"] = g_settings.playerMode;
+    auto player = doc.createNestedObject("player");
+    player["mode"] = g_settings.playerMode;
+    player["bluetoothVolumePct"] = g_settings.bluetoothVolumePct;
 
     auto tt = doc.createNestedObject("teletext");
     tt["page"]        = g_settings.teletextPage;

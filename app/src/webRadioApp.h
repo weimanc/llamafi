@@ -1,7 +1,7 @@
 #pragma once
 // webRadioApp.h — International Web Radio app (M-WEBRADIO).
 // Streams MP3 from radio-browser.info via ESP32-audioI2S on internal DAC GPIO26.
-// Entered via Winamp eject button; exits back to Spotify via the same button.
+// Entered via Winamp eject; eject advances to Bluetooth speaker mode.
 
 #include <Arduino.h>
 #include <TFT_eSPI.h>
@@ -1253,11 +1253,11 @@ public:
             return true;
         }
 
-        // Eject → back to Spotify
+        // Eject → Bluetooth speaker (third player skin)
         if (winampDisplay.hitTestEject(x, y)) {
             _stopAudio();
-            persistPlayerMode((uint8_t)PlayerMode::Spotify);   // TASK-260
-            switchApp(AppId::Spotify);
+            persistPlayerMode((uint8_t)PlayerMode::BluetoothSpeaker);
+            switchApp(AppId::BluetoothSpeaker);
             return true;
         }
 
@@ -1567,8 +1567,8 @@ public:
         // T_WR_EJECT_02: serial-inject eject action
         if (strcmp(var, "wrEject") == 0) {
             _stopAudio();
-            persistPlayerMode((uint8_t)PlayerMode::Spotify);   // TASK-260
-            switchApp(AppId::Spotify);
+            persistPlayerMode((uint8_t)PlayerMode::BluetoothSpeaker);
+            switchApp(AppId::BluetoothSpeaker);
             return true;
         }
         if (strcmp(var, "wrPlay") == 0) {

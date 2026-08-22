@@ -227,6 +227,13 @@ public:
   // the WebRadio-only entry into the same self-guarded drawTimeDigits().
   void updateTimeDigits(int seconds) { drawTimeDigits(seconds); }
 
+  // Player alternatives own their playback state but reuse the Winamp
+  // play/pause/stop lamp. Cache it so a later full chrome repaint preserves it.
+  void setStatusIndicator(SkinUV uv) {
+    currentStatusUv = uv;
+    drawStatusIndicator(currentStatusUv);
+  }
+
   // TASK-252 — set the marquee title (shared: Spotify track + WebRadio station/
   // state). Redraws only on change; resets scroll + holds before scrolling. The
   // baked SKIN_GLYPH folds lowercase→uppercase, so callers needn't uppercase.

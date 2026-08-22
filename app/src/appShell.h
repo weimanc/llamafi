@@ -62,9 +62,8 @@ void appTick(AppId id);
 void appHandleInput(AppId id);
 void switchApp(AppId next);
 
-// M-PLAYER-STATE / TASK-260: persist the player slot's mode (Spotify=0 | WebRadio=1)
-// to settings, immediate-save with an unchanged-value skip (§4). Called from the eject
-// toggles in both directions. Implemented in main.cpp. Arg is PlayerMode-as-uint8_t.
+// Persist the hidden player-slot mode (Spotify=0 | WebRadio=1 | Bluetooth=2)
+// with an unchanged-value skip. Implemented in main.cpp.
 void persistPlayerMode(uint8_t mode);
 
 // --- Per-app state structs (app-lifecycle.md) ---
