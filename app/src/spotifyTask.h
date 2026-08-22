@@ -198,6 +198,24 @@ bool tlsTryYield(uint32_t timeoutMs);
 // tens of seconds means the station fetch is parked waiting for the ack.
 uint8_t tlsYieldCount();
 bool    tlsStoppedFlag();
+
+// TASK-458 (M-CODEQUAL C2): RAII wrapper around tlsYield()/tlsResume(). Replaces
+// hand-tracked resume-on-every-exit-path bookkeeping (BP-031) with automatic
+// release on scope exit — the discipline BP-031 asks for, enforced by the
+// compiler instead of by review (TASK-222 found two places review missed it).
+class TlsYieldGuard {
+public:
+    TlsYieldGuard() { tlsYield(); ok_ = true; }
+    // TASK-430 bounded variant: on failure, no yield was granted, so the
+    // destructor must not resume — ok_ encodes tlsTryYield()'s contract.
+    explicit TlsYieldGuard(uint32_t timeoutMs) { ok_ = tlsTryYield(timeoutMs); }
+    ~TlsYieldGuard() { if (ok_) tlsResume(); }
+    TlsYieldGuard(const TlsYieldGuard&) = delete;
+    TlsYieldGuard& operator=(const TlsYieldGuard&) = delete;
+    bool ok() const { return ok_; }
+private:
+    bool ok_;
+};
 // Loop-position marker: -1 not started, 0 queue-wait, 1 yield-spin,
 // 2 wr-idle, 3 dispatching (doPoll / API call / token refresh).
 int8_t   taskActivity();

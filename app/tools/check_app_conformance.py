@@ -193,6 +193,15 @@ _TLS_SITE = re.compile(r"(?<!extern )\bWiFiClientSecure\s+(\w+)\s*;"
 
 _YIELD = re.compile(r"\btls(?:Try)?Yield\s*\(")
 _RESUME = re.compile(r"\btlsResume\s*\(")
+# TASK-458 (M-CODEQUAL C2): a TlsYieldGuard local is an RAII bracket — its
+# destructor calls tlsResume() on every exit path by construction (early
+# return, fall-through, exception), so a guard declared before the session
+# site needs no manual per-path resume scan. Matches both the default ctor
+# (`TlsYieldGuard tlsGuard;`) and the bounded-timeout ctor
+# (`TlsYieldGuard g(2000);`). Functions that still use the manual
+# tlsYield()/tlsResume() pair (e.g. fetchPlaneRadar()) are unaffected — this
+# is checked in ADDITION to, not instead of, the existing _brackets scan.
+_GUARD = re.compile(r"\bTlsYieldGuard\s+\w+\s*[;(]")
 
 # FetchType tags -> the app that owns the fetch, derived by matching the tag
 # against APP_ORDER (uppercased) rather than a typed table.
@@ -251,6 +260,15 @@ class A5:
         """
         name, s, e = fn
         body = self.clean[rel]
+        # TASK-458: an RAII TlsYieldGuard declared before this session site
+        # brackets it unconditionally — the destructor fires on every exit
+        # path (early return, fall-through), which is exactly what the
+        # manual scan below exists to verify for the old pattern. See
+        # test_check_app_conformance.py's case_a5_guard_* for the mutation
+        # coverage (both "guard present -> PASS" and, on a still-manual
+        # function, "guard absent, manual resume missing -> still FAILS").
+        if _GUARD.search(body[s:off]):
+            return True
         ys = [m.end() for m in _YIELD.finditer(body, s, off)]
         if not ys:
             return False

@@ -263,7 +263,7 @@ static void fetchWeather() {
     // concurrent open sessions, not response size (LL-071/T272). Matches crypto
     // below. Was previously omitted here despite BP-031 citing weather as
     // conforming — fixed 2026-06-21 (TASK-222).
-    spotifyTask::tlsYield();
+    spotifyTask::TlsYieldGuard tlsGuard;
     LOG_HEAP("dataTask.weather");
     WiFiClientSecure tls;
     tls.setCACert(consumeCertBreak(DATA_FETCH_WEATHER)
@@ -273,7 +273,6 @@ static void fetchWeather() {
     if (!http.begin(tls, url)) {
         LOG_W("dataTask.weather", "http.begin failed");
         s_weatherFetchPhase = -1;
-        spotifyTask::tlsResume();  // BP-031: every exit path
         return;
     }
     s_weatherFetchPhase = 1;  // GET in flight
@@ -308,7 +307,6 @@ static void fetchWeather() {
         }
     }
     s_weatherFetchPhase = -1;
-    spotifyTask::tlsResume();  // BP-031: release Spotify task to reconnect
 }
 
 static void fetchCrypto() {
@@ -316,7 +314,7 @@ static void fetchCrypto() {
     // fragmenting the heap enough that DynamicJsonDocument(2048) hits NoMemory.
     // Pause Spotify TLS first (same mechanism as heatmap) to give the alloc clean
     // contiguous heap. HTTP/1.0 ensures http.end() frees TLS before JSON parse.
-    spotifyTask::tlsYield();
+    spotifyTask::TlsYieldGuard tlsGuard;
 
     char ids[6][16];
     char ccy[4];
@@ -345,7 +343,6 @@ static void fetchCrypto() {
     if (!http.begin(tls, cryptoUrl)) {
         LOG_W("dataTask.crypto", "http.begin failed");
         s_cryptoFetchPhase = -1;
-        spotifyTask::tlsResume();
         return;
     }
     s_cryptoFetchPhase = 1;  // GET in flight
@@ -384,11 +381,10 @@ static void fetchCrypto() {
         }
     }
     s_cryptoFetchPhase = -1;
-    spotifyTask::tlsResume();
 }
 
 static void fetchStockQuote() {
-    spotifyTask::tlsYield();      // free Spotify TLS before the Yahoo handshake
+    spotifyTask::TlsYieldGuard tlsGuard;      // free Spotify TLS before the Yahoo handshake
     LOG_HEAP("dataTask.stock");
     char tickers[8][8];
     portENTER_CRITICAL_SAFE(&s_stockTickersMux);
@@ -463,7 +459,6 @@ static void fetchStockQuote() {
     portEXIT_CRITICAL_SAFE(&s_stockQuoteMux);
     if (r.ok) LOG_D("dataTask.stock", "spark ok aapl=%.2f msft=%.2f", r.prices[0], r.prices[1]);
     LOG_HEAP("dataTask.stock");
-    spotifyTask::tlsResume();
 }
 
 // Single GET+parse attempt, shared by the by-ticker-index and by-symbol chart
@@ -543,7 +538,7 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
 // shared-result publish) around fetchStockChartOnce() — the by-ticker-index
 // and by-symbol entry points below both delegate here.
 static void fetchStockChartWithRetry(const char* symbol, uint8_t rangeIdx, FetchType certTag) {
-    spotifyTask::tlsYield();
+    spotifyTask::TlsYieldGuard tlsGuard;
     LOG_D("dataTask.stock", "chart START sym=%s range=%s heap free=%uk maxBlk=%uk",
           symbol, STOCK_RANGE_STR[rangeIdx],
           (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
@@ -577,7 +572,6 @@ static void fetchStockChartWithRetry(const char* symbol, uint8_t rangeIdx, Fetch
     s_stockChartNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
     LOG_HEAP("dataTask.stock");
-    spotifyTask::tlsResume();
 }
 
 static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
@@ -623,7 +617,7 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
     // T272 confirmed TLS heap contention: spotifyTask holds ~40k at steady state,
     // leaving maxAlloc<50k — insufficient for a new TLS handshake. Same fix as
     // fetchCrypto/fetchStockQuote/fetchHeatmapQuote. Supersedes ADR-044 item 9.
-    spotifyTask::tlsYield();
+    spotifyTask::TlsYieldGuard tlsGuard;
     LOG_HEAP("dataTask.teletext");
     WiFiClientSecure tls;
     HTTPClient http;
@@ -637,7 +631,6 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
         portENTER_CRITICAL_SAFE(&s_teletextMux);
         s_teletextState.lastHttpCode = -1;
         portEXIT_CRITICAL_SAFE(&s_teletextMux);
-        spotifyTask::tlsResume();
         return;
     }
     LOG_D("dataTask.teletext", "GET page=%u %d elapsed=%lums", page, code, (unsigned long)(millis() - t0));
@@ -645,7 +638,6 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
     if (code == 200) body = http.getString();
     else             LOG_W("dataTask.teletext", "http %d page=%u", code, page);
     http.end();
-    spotifyTask::tlsResume();
     LOG_HEAP("dataTask.teletext");
 
     TeletextState st = {};
@@ -729,7 +721,6 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
         portENTER_CRITICAL_SAFE(&s_teletextMux);
         s_teletextState.lastHttpCode = code;
         portEXIT_CRITICAL_SAFE(&s_teletextMux);
-        spotifyTask::tlsResume();
         return;
     }
     int contentStart = preStart + 5;
@@ -898,7 +889,7 @@ static void fetchHeatmapQuote() {
     // maxAlloc ≈ 39 k — not enough for a new Yahoo Finance TLS handshake
     // (~50–70 k). tlsYield() blocks until the spotify task has called
     // client.stop(); tlsResume() (below) releases it to reconnect.
-    spotifyTask::tlsYield();
+    spotifyTask::TlsYieldGuard tlsGuard;
     LOG_HEAP("dataTask.stock");   // after Spotify TLS freed — expect maxBlk ≥ 50k
 
     WiFiClientSecure tls;
@@ -911,8 +902,6 @@ static void fetchHeatmapQuote() {
         portENTER_CRITICAL_SAFE(&s_heatmapMux);
         s_heatmapResult = r; s_heatmapNew = true;
         portEXIT_CRITICAL_SAFE(&s_heatmapMux);
-        spotifyTask::tlsResume();  // BP-031: resume on the early-return path too,
-                                   // else a begin() failure leaves Spotify paused
         return;
     }
     // Screener endpoint requires a browser-like User-Agent; without it the
@@ -979,7 +968,6 @@ static void fetchHeatmapQuote() {
         s_heatmapNew    = true;
     }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
-    spotifyTask::tlsResume();  // release Spotify task to reconnect
     LOG_HEAP("dataTask.stock");   // after heatmap TLS freed
 }
 
@@ -1462,7 +1450,7 @@ static void fetchGeocode() {
     seq = s_geoSeq;
     portEXIT_CRITICAL_SAFE(&s_pendingGeoMux);
 
-    spotifyTask::tlsYield();   // BP-031: free Spotify TLS before our own handshake
+    spotifyTask::TlsYieldGuard tlsGuard;   // BP-031: free Spotify TLS before our own handshake
     LOG_HEAP("dataTask.geocode");
 
     char encPost[40];
@@ -1512,7 +1500,6 @@ static void fetchGeocode() {
     s_geocodeNew    = true;
     portEXIT_CRITICAL_SAFE(&s_geocodeMux);
     LOG_HEAP("dataTask.geocode");
-    spotifyTask::tlsResume();
 }
 
 static void fetchWebRadioStations() {
@@ -1534,7 +1521,7 @@ static void fetchWebRadioStations() {
     // session is freed (~50 KB), giving the local WiFiClientSecure below
     // enough contiguous heap for its own handshake.
     s_dbgWrPhase = 0; s_dbgWrPhaseMs = millis();   // TASK-299: entering tlsYield
-    spotifyTask::tlsYield();
+    spotifyTask::TlsYieldGuard tlsGuard;
     s_dbgWrPhase = 1; s_dbgWrPhaseMs = millis();   // TASK-299: yield acked, fetching
     LOG_HEAP("dataTask.webradio");
 
@@ -1633,7 +1620,6 @@ static void fetchWebRadioStations() {
     s_webRadioNew = true;
     portEXIT_CRITICAL_SAFE(&s_webRadioMux);
 
-    spotifyTask::tlsResume();
     s_dbgWrPhase = 2; s_dbgWrPhaseMs = millis();   // TASK-299: fetch pass complete
     LOG_HEAP("dataTask.webradio");
 }

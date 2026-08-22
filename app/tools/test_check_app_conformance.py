@@ -64,10 +64,12 @@ def has(res, frag) -> bool:
 
 # ── cases ─────────────────────────────────────────────────────────────────────
 
-def case_a5_yield_removed():
-    """A5: drop the tlsYield() that brackets the Teletext fetch."""
+def case_a5_guard_removed():
+    """A5 (TASK-458): Teletext was converted to spotifyTask::TlsYieldGuard —
+    dropping the guard declaration must still surface an unbracketed FAIL,
+    the same as dropping a literal tlsYield() did for the old pattern."""
     s = edit(base_srcs(), DATA,
-             'spotifyTask::tlsYield();\n    LOG_HEAP("dataTask.teletext");',
+             'spotifyTask::TlsYieldGuard tlsGuard;\n    LOG_HEAP("dataTask.teletext");',
              'LOG_HEAP("dataTask.teletext");')
     r = findings(s)
     assert has(r, "A5/Teletext"), r["failures"]
@@ -76,14 +78,21 @@ def case_a5_yield_removed():
     assert not has(findings(base_srcs()), "A5/Teletext")
 
 
-def case_a5_resume_removed():
-    """A5: drop the tlsResume() at the end of the Weather fetch."""
-    s = edit(base_srcs(), DATA,
-             "s_weatherFetchPhase = -1;\n    spotifyTask::tlsResume();",
-             "s_weatherFetchPhase = -1;")
-    r = findings(s)
-    assert has(r, "A5/Weather"), r["failures"]
-    assert r["a5_cells"]["Weather"] == "FAIL", r["a5_cells"]
+def case_a5_guard_covers_every_exit():
+    """A5 (TASK-458): the 5 fetchers converted to TlsYieldGuard (Weather,
+    Crypto, Stock's two sites, Teletext, WebRadio) must PASS on the
+    unmutated corpus WITHOUT needing a manual per-exit-path resume scan —
+    the RAII destructor is the bracket. This is the positive-control
+    replacement for the old "delete only the final resume" mutation
+    (case_a5_resume_removed): that bug shape is now impossible by
+    construction for these functions, so there is nothing left to delete —
+    the guard IS the fix. See case_manual_pattern_still_catches_missing_resume
+    below for proof the OLD per-path scan logic is still live for functions
+    that keep the manual pattern (e.g. fetchPlaneRadar())."""
+    r = findings(base_srcs())
+    for app in ("Weather", "Crypto", "Stock", "Teletext", "WebRadio"):
+        assert r["a5_cells"][app] == "PASS", (app, r["a5_cells"])
+        assert not has(r, f"A5/{app}"), (app, r["failures"])
 
 
 def case_a5_caller_bracket_removed():
@@ -97,6 +106,60 @@ def case_a5_caller_bracket_removed():
     r = findings(s)
     assert has(r, "A5/PlaneRadar"), r["failures"]
     assert r["a5_cells"]["PlaneRadar"] == "FAIL", r["a5_cells"]
+
+
+# Synthetic fixture (TASK-458): fetchPlaneRadar() — the one remaining
+# manual-pattern function in dataTaskStorage.cpp — has no early `return` at
+# all (single fall-through resume), so it can't reproduce the exact
+# TASK-222 bug shape ("resume covers one exit path, not another") via a
+# real-source anchor mutation the way fetchWeather() used to. The manual
+# per-exit-path scan in check_app_conformance.py's A5._brackets() is
+# otherwise UNCHANGED by the TlsYieldGuard addition (the guard check is a
+# short-circuit ahead of it, see check_app_conformance.py's _GUARD), so this
+# fixture proves that scan still works on any function that keeps writing
+# the old pattern, without needing the specific line-anchor a real function
+# would require (and without touching a real source file). Attributed to a
+# throwaway "Fixture" app via the same APP_ORDER-override mechanism N5
+# already uses, so it can never collide with a real app's A5 cell.
+_MANUAL_FIXTURE_REL = "app/src/_fixture_manualTls.cpp"
+_MANUAL_FIXTURE_GOOD = (
+    "static void fetchFixtureManual() {\n"
+    "    spotifyTask::tlsYield();\n"
+    "    WiFiClientSecure tls;\n"
+    "    if (someCondition) {\n"
+    "        spotifyTask::tlsResume();\n"
+    "        return;\n"
+    "    }\n"
+    "    spotifyTask::tlsResume();\n"
+    "}\n"
+)
+
+
+def _manual_fixture_srcs():
+    s = base_srcs()
+    s[_MANUAL_FIXTURE_REL] = _MANUAL_FIXTURE_GOOD
+    return s
+
+
+def case_manual_pattern_still_catches_missing_resume():
+    """A5: on a synthetic function still using the manual tlsYield()/
+    tlsResume() pattern, deleting ONLY the fall-through resume (leaving the
+    early-return path's resume intact) must still be caught — proving the
+    per-exit-path scan is not satisfied by "a resume appears somewhere in
+    the function", the exact distinction BP-031 depends on and the exact
+    check TASK-222 needed. See the module docstring above _MANUAL_FIXTURE_GOOD."""
+    apps = list(C.APP_ORDER) + ["Fixture"]
+    good = _manual_fixture_srcs()
+    r_good = findings(good, apps=apps)
+    assert r_good["a5_cells"]["Fixture"] == "PASS", r_good["a5_cells"]
+    assert not has(r_good, "A5/Fixture"), r_good["failures"]
+
+    bad = edit(_manual_fixture_srcs(), _MANUAL_FIXTURE_REL,
+               "    }\n    spotifyTask::tlsResume();\n}\n",
+               "    }\n}\n")
+    r_bad = findings(bad, apps=apps)
+    assert has(r_bad, "A5/Fixture"), r_bad["failures"]
+    assert r_bad["a5_cells"]["Fixture"] == "FAIL", r_bad["a5_cells"]
 
 
 def case_a6_defined_but_unwired():
@@ -180,9 +243,11 @@ def case_app_list_is_never_typed():
 
 
 CASES = [
-    ("N1 A5 yield removed",            case_a5_yield_removed),
-    ("N2 A5 resume removed",           case_a5_resume_removed),
+    ("N1 A5 guard removed",            case_a5_guard_removed),
+    ("N2 A5 guard covers every exit",  case_a5_guard_covers_every_exit),
     ("N3 A5 caller bracket removed",   case_a5_caller_bracket_removed),
+    ("N3b A5 manual pattern still catches missing resume",
+                                        case_manual_pattern_still_catches_missing_resume),
     ("N4 A6 defined but unwired",      case_a6_defined_but_unwired),
     ("N5 A6 new app visible not absent", case_a6_new_app_is_visible_not_absent),
     ("N6 stale A6 ledger row",         case_stale_ledger_row),
