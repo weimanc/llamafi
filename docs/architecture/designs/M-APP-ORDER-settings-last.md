@@ -14,17 +14,16 @@ Settings is a utility, not a destination app — it should always occupy the
 not a one-time move: future apps insert *before* Settings, and the build fails
 if anyone appends behind it.
 
-## Hard constraint — WebRadio stays the final registry row
+## Hard constraint — hidden player modes stay after Settings
 
 `taskbar.h` derives the taskbar roster as
-`TASKBAR_APP_COUNT = (int)AppId::WebRadio` and static_asserts
-`WebRadio == COUNT - 1` (TASK-242: WebRadio is eject-only; if it gains a slot
-it crashes in `pushImage(nullptr)` — LL-085). Therefore "Settings last" means:
+`TASKBAR_APP_COUNT = (int)AppId::Settings + 1`. WebRadio and
+BluetoothSpeaker are hidden player alternatives after Settings and reuse the
+Spotify slot. Therefore "Settings last" means:
 
-- **Settings = last taskbar slot = second-to-last registry row** (index
-  `COUNT - 2`, directly before WebRadio).
-- WebRadio remains the final row. Any design that puts Settings after WebRadio
-  is wrong by construction.
+- **Settings is the final visible registry row.**
+- Hidden player modes follow it in the enforced order
+  `WebRadio, BluetoothSpeaker`; new visible apps still insert before Settings.
 
 ## The change
 
@@ -45,12 +44,10 @@ Settings 6→10. Spotify..Life and WebRadio unchanged.
    `taskbar.h`):
    `static_assert((int)AppId::Settings == (int)AppId::WebRadio - 1, ...)` —
    message points at this doc and NEW-APP-CHECKLIST.
-2. **Codegen check**: `gen_app_registry.py` errors out if Settings is not the
-   last row before WebRadio (belt-and-braces — catches it at codegen time,
-   before a compile).
-3. **NEW-APP-CHECKLIST.md**: add "insert new APP_X rows BEFORE Settings
-   (Settings and WebRadio are pinned as the last two rows — build enforces
-   both)".
+2. **Codegen check**: `gen_app_registry.py` errors out unless the tail is
+   `Settings, WebRadio, BluetoothSpeaker` (caught before compile).
+3. **NEW-APP-CHECKLIST.md**: new visible `APP_X` rows go before Settings;
+   hidden player alternatives remain after it.
 
 ## Consumer audit (verified against code, 2026-07-18)
 

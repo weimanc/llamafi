@@ -25,24 +25,20 @@
 // per OQ1). Firmware-only constant, same golden-hash rule as TASKBAR_BUSY_COLOR.
 #define TASKBAR_PRESSED_BG 0x4208
 
-// TASK-242: number of apps the taskbar cycles through. WebRadio (the last AppId)
-// is entered ONLY via the Winamp eject button — it has NO taskbar slot
-// (M-WEBRADIO design §Eject button toggle). The taskbar must therefore iterate
-// the apps BEFORE WebRadio, not all AppId::COUNT, or WebRadio leaks into the
-// scroll cycle and (with no baked icon) crashes in pushImage(nullptr).
-static_assert((int)AppId::WebRadio == (int)AppId::COUNT - 1,
-              "WebRadio must remain the last AppId (eject-only, excluded from taskbar). "
-              "A new app added after it would re-leak it into the taskbar — see "
-              "docs/architecture/designs/NEW-APP-CHECKLIST.md.");
-static constexpr int TASKBAR_APP_COUNT = (int)AppId::WebRadio;
+// Player alternatives live after Settings and reuse Spotify's visible slot.
+// The taskbar must stop at Settings or a hidden mode can leak into its cycle.
+static_assert((int)AppId::WebRadio == (int)AppId::COUNT - 2,
+              "WebRadio must remain the first hidden player AppId.");
+static_assert((int)AppId::BluetoothSpeaker == (int)AppId::COUNT - 1,
+              "BluetoothSpeaker must remain the final hidden player AppId.");
+static constexpr int TASKBAR_APP_COUNT = (int)AppId::Settings + 1;
 
-// TASK-347: Settings is a utility, not a destination app — pinned as the last
-// visible taskbar slot, i.e. the second-to-last registry row (directly before
-// the eject-only WebRadio). Future apps insert BEFORE Settings; see
+// Settings is pinned as the final visible taskbar row. New visible apps insert
+// before Settings; hidden player alternatives stay after it. See
 // docs/architecture/designs/M-APP-ORDER-settings-last.md and NEW-APP-CHECKLIST.md.
 static_assert((int)AppId::Settings == (int)AppId::WebRadio - 1,
-              "Settings must remain the last taskbar slot (second-to-last AppId, "
-              "directly before WebRadio). Insert new apps BEFORE Settings — see "
+              "Settings must remain the last taskbar slot directly before hidden "
+              "player modes. Insert new visible apps BEFORE Settings — see "
               "docs/architecture/designs/M-APP-ORDER-settings-last.md.");
 
 // Compile-time gate (TASK-242): every taskbar app must have a baked icon. The
@@ -64,8 +60,10 @@ static_assert(TASKBAR_ICON_COUNT == TASKBAR_APP_COUNT,
 // pass the resolved AppId down — renderTaskbarSlot needs the original value to
 // compute webRadioSkin itself.
 inline bool isWebRadioSkin(AppId activeApp) { return activeApp == AppId::WebRadio; }
+inline bool isBluetoothSkin(AppId activeApp) { return activeApp == AppId::BluetoothSpeaker; }
 inline AppId resolveTaskbarSlotApp(AppId activeApp) {
-    return isWebRadioSkin(activeApp) ? AppId::Spotify : activeApp;
+    return (isWebRadioSkin(activeApp) || isBluetoothSkin(activeApp))
+         ? AppId::Spotify : activeApp;
 }
 
 // Recolours orange-ish RGB565 pixels to red via an HSV hue rotation, leaving
@@ -83,8 +81,8 @@ inline AppId resolveTaskbarSlotApp(AppId activeApp) {
 // rotation catches both by construction, and preserves the source art's
 // tonal design (the highlight stays a lighter tint of the body colour)
 // instead of an ad-hoc per-channel patch.
-inline void recolorOrangeToRed(const uint16_t* src, uint16_t* dst, int count) {
-    constexpr float kHueShiftDeg = -30.0f;
+inline void recolorOrangeHue(const uint16_t* src, uint16_t* dst, int count,
+                             float hueShiftDeg) {
     constexpr float kHueLo = 20.0f, kHueHi = 50.0f, kSatMin = 0.35f;
     for (int i = 0; i < count; ++i) {
         uint16_t px = src[i];
@@ -104,7 +102,7 @@ inline void recolorOrangeToRed(const uint16_t* src, uint16_t* dst, int count) {
         else                h = 60.0f * ((r - g) / delta + 4.0f);
         if (h < kHueLo || h > kHueHi) { dst[i] = px; continue; }
 
-        h = fmodf(h + kHueShiftDeg + 360.0f, 360.0f);
+        h = fmodf(h + hueShiftDeg + 360.0f, 360.0f);
         float v = maxc;
         float c = v * s;
         float x = c * (1.0f - fabsf(fmodf(h / 60.0f, 2.0f) - 1.0f));
@@ -123,6 +121,10 @@ inline void recolorOrangeToRed(const uint16_t* src, uint16_t* dst, int count) {
         uint8_t b5n = (uint8_t)lroundf(b2 * 31.0f);
         dst[i] = ((uint16_t)r5n << 11) | ((uint16_t)g6n << 5) | b5n;
     }
+}
+
+inline void recolorOrangeToRed(const uint16_t* src, uint16_t* dst, int count) {
+    recolorOrangeHue(src, dst, count, -30.0f);
 }
 
 // Repaints only the 3 px active indicator for the slot showing activeApp.
@@ -159,6 +161,7 @@ inline void renderTaskbarSlot(TFT_eSPI& tft, int slot, AppId activeApp,
     static constexpr int iconOffY = (TASKBAR_SLOT_H - TASKBAR_ICON_BAKED_H) / 2;
 
     bool webRadioSkin = isWebRadioSkin(activeApp);
+    bool bluetoothSkin = isBluetoothSkin(activeApp);
     activeApp = resolveTaskbarSlotApp(activeApp);
 
     int appIdx = (scrollOffset + slot) % totalApps;
@@ -177,10 +180,11 @@ inline void renderTaskbarSlot(TFT_eSPI& tft, int slot, AppId activeApp,
         : nullptr;
     // M-WEBRADIO-ICON: WebRadio reuses this (Spotify/player) slot's active icon,
     // recoloured orange->red at render time — see recolorOrangeToRed() above.
-    if (icon && isActive && webRadioSkin) {
-        static uint16_t s_webRadioIcon[TASKBAR_ICON_BAKED_PX];
-        recolorOrangeToRed(icon, s_webRadioIcon, TASKBAR_ICON_BAKED_PX);
-        icon = s_webRadioIcon;
+    if (icon && isActive && (webRadioSkin || bluetoothSkin)) {
+        static uint16_t s_playerAltIcon[TASKBAR_ICON_BAKED_PX];
+        recolorOrangeHue(icon, s_playerAltIcon, TASKBAR_ICON_BAKED_PX,
+                         bluetoothSkin ? 175.0f : -30.0f);
+        icon = s_playerAltIcon;
     }
     // Null-safe: an un-baked icon (kTaskbarIcons entry never regenerated for a
     // newly-added app) must render as a blank slot, never deref nullptr in

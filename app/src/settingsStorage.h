@@ -18,7 +18,11 @@ enum class StockViewMode : uint8_t { List = 0, Chart = 1, Heatmap = 2 };
 enum class MatrixColor   : uint8_t { Green = 0, White = 1, Amber = 2 };
 enum class LifeColors    : uint8_t { Rainbow = 0, Mono = 1 };
 enum class ClockStyle    : uint8_t { Digital = 0, Flip = 1, Nixie = 2, VFD = 3 };
-enum class PlayerMode    : uint8_t { Spotify = 0, WebRadio = 1 };   // M-PLAYER-STATE / TASK-260
+enum class PlayerMode    : uint8_t {
+    Spotify = 0,
+    WebRadio = 1,
+    BluetoothSpeaker = 2,
+};
 // M-PLANERADAR / phase0-preview-ui.md Q2: tag-collision rule. (a) reference —
 // always place at the centre-side position, never nudge/drop. (b) + vertical
 // nudge (±10/±20px), place at the un-nudged position if all four still
@@ -60,6 +64,20 @@ static constexpr float PR_DEFAULT_LON = 4.9041f;
 static constexpr uint8_t PR_POLL_MIN_SEC     = 1;
 static constexpr uint8_t PR_POLL_MAX_SEC     = 30;
 static constexpr uint8_t PR_POLL_DEFAULT_SEC = 10;
+
+// WebRadio EQ bounds/defaults for the stock CYD 8-bit mono DAC + SC8002B
+// amplifier path. Keep the low/high bands cut-only: boosting either end on
+// this hardware mostly adds speaker distortion or audible DAC/amp noise.
+// The mid band permits a small speech-presence lift.
+static constexpr int8_t WR_EQ_BASS_MIN_DB       = -12;
+static constexpr int8_t WR_EQ_BASS_MAX_DB       =   0;
+static constexpr int8_t WR_EQ_MID_MIN_DB        =  -6;
+static constexpr int8_t WR_EQ_MID_MAX_DB        =   3;
+static constexpr int8_t WR_EQ_TREBLE_MIN_DB     = -12;
+static constexpr int8_t WR_EQ_TREBLE_MAX_DB     =   0;
+static constexpr int8_t WR_EQ_BASS_DEFAULT_DB   =  -6;
+static constexpr int8_t WR_EQ_MID_DEFAULT_DB    =   0;
+static constexpr int8_t WR_EQ_TREBLE_DEFAULT_DB =  -2;
 
 // ---- Settings struct -------------------------------------------------------
 
@@ -116,10 +134,11 @@ struct AppSettings {
     uint8_t    vfdTheme;     // 0=teal 1=amber 2=blue 3=green (M-CLOCK-THEMES)
 
     // --- Player slot (M-PLAYER-STATE / TASK-260) ---
-    // The Winamp "player" slot is one slot with two mutually-exclusive modes. Persisted
+    // The Winamp player slot has three mutually-exclusive modes. Persisted
     // so the taskbar player-slot restore + Settings display + cold-boot survive a reboot.
     // Stored as uint8_t (PlayerMode). v2 (OQ-BOOT): boot enters the persisted mode.
-    uint8_t playerMode;      // PlayerMode: Spotify=0 | WebRadio=1
+    uint8_t playerMode;      // PlayerMode: Spotify=0 | WebRadio=1 | BluetoothSpeaker=2
+    uint8_t bluetoothVolumePct; // local GPIO26 output level, 0..100
 
     // --- Teletext (ADR-044) ---
     uint16_t teletextPage;        // starting page on resume (default 101)
@@ -131,12 +150,18 @@ struct AppSettings {
     bool    webRadioAutoplay;     // reconnect last station on resume (default false)
     uint8_t webRadioBitrateCap;   // 0=off / 64 / 96 / 128 / 192 kbps. Applied as the radio-browser bitrateMax query filter (TASK-221)
     bool    webRadioAutoSkip;     // TASK-234/ADR-045: retry-once-then-advance past dead stations on ERROR_STALL/ERROR_UNREACHABLE, bounded to one list pass. Default ON (no-PSRAM decode failures are common; see TASK-233)
-    bool    webRadioHwMod;        // SC8002B gain-reduction mod installed (M-WEBRADIO §HW Mod). Gates the anti-clipping ceiling: enforced by webRadioApp::wrEffectiveVolume() (TASK-209) — false → soft-cap 12, true → full 1–21
-    uint8_t webRadioMaxVolume;    // 1–21 configured ceiling → setVolume(), clamped by wrEffectiveVolume() (TASK-209: stock soft-cap 12 / mod full range). Default 10 stock / 18 with HW mod. Exact stock clip point still needs DUT+ears calibration (T_WR_VOL_01/02)
+    bool    webRadioHwMod;        // Legacy name/storage key for the explicit output-drive override. false = anti-clipping soft-cap 12; true = expose full PCM drive 1–21. Does not change amp supply voltage or DAC DC bias.
+    uint8_t webRadioMaxVolume;    // 1–21 configured PCM-amplitude ceiling → setVolume(), clamped by wrEffectiveVolume() (safe range 12 / full range 21). Default 10.
     uint8_t webRadioLastStation;  // persisted last station index (default 0)
     uint8_t webRadioVolumePct;    // TASK-352: Winamp slider session volume, 0-100, scales *within* the
                                    // webRadioMaxVolume/wrEffectiveVolume() ceiling (default 100 = today's
                                    // full-ceiling behaviour). Coalesced-save on suspend (ADR-050 rule 3).
+    // Three-band speaker EQ in dB. ESP32-audioI2S maps these to a 500 Hz low
+    // shelf, 3 kHz presence band and 6 kHz high shelf. Defaults are the stock
+    // CYD "Small" preset; Settings > WebRadio > Audio EQ persists edits.
+    int8_t webRadioEqBassDb;
+    int8_t webRadioEqMidDb;
+    int8_t webRadioEqTrebleDb;
     // TASK-389/TASK-388: per-mode vis-cycle enable/disable (Settings >
     // WebRadio > Vis modes). Default true (all five on) = today's 6-stop
     // tap-cycle, unchanged for existing users until they opt to trim it.
