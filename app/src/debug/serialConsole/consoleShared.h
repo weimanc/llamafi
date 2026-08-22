@@ -4,8 +4,8 @@
 // here used to be reachable by the command files only because they were
 // textually pasted into main.cpp at a fixed point downstream of these
 // definitions — declarations only; the one definition of each stays in
-// main.cpp, its original and natural home (drainInjectionQueue()/
-// sdMountAttempt()/etc. all still live there too).
+// main.cpp (drainInjectionQueue()/etc.), except the SD boot mount, which has
+// its own component (sd/sdMount.h/.cpp) below.
 
 // ── serial command dispatch table (serialdbg-001, TASK-056c) ──────────────
 // 4-field struct; help + args iterated by cmdHelp (TASK-056i).
@@ -42,22 +42,7 @@ extern bool s_bareRelease;
 #endif
 
 // ── SD boot mount (TASK-408, SD_BOOT_MOUNT only) ───────────────────────────
-#ifdef SD_BOOT_MOUNT
-#include <SD.h>
-#include <SPI.h>
-extern const int kSdCsPin;
-extern const int kSdSckPin;
-extern const int kSdMisoPin;
-extern const int kSdMosiPin;
-extern uint32_t s_sdFreqHz;
-extern const uint8_t kSdMaxFiles;
-extern SPIClass s_sdSPI;
-extern bool s_sdReady;
-extern bool s_sdSpiUp;
-extern size_t s_sdBootFreeIntBefore, s_sdBootFreeIntAfter;
-extern size_t s_sdBootLfbIntBefore, s_sdBootLfbIntAfter;
-
-// One mount attempt with full before/after heap accounting, usable from setup()
-// and from a live serial command. `tag` names the call site in the JSON line.
-bool sdMountAttempt(const char *tag, uint8_t maxFiles);
-#endif
+// kSdCsPin/s_sdFreqHz/s_sdReady/sdMountAttempt()/etc. now declared by
+// sd/sdMount.h, their own component (M-SRCLAYOUT Stage E / TASK-471) — that
+// header already self-guards on SD_BOOT_MOUNT.
+#include "sd/sdMount.h"

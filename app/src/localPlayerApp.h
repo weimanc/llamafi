@@ -40,7 +40,7 @@
 
 extern TFT_eSPI tft;
 extern WinampDisplay winampDisplay;
-extern bool sdReady();   // main.cpp — the boot mount's outcome (TASK-408)
+extern bool sdReady();   // sd/sdMount.cpp — the boot mount's outcome (TASK-408)
 
 // TASK-417 / ADR-059 D8/D9 — winampDisplay's shuffle/repeat commit seams
 // (setShuffleSink()/setRepeatSink()/setSeekSink(), mirrors TASK-352's

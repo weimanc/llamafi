@@ -41,7 +41,7 @@
 #include "settings/settingsWidgets.h"
 #include "touchPhase.h"
 
-extern bool sdReady();   // main.cpp — the boot mount's outcome (TASK-408/427)
+extern bool sdReady();   // sd/sdMount.cpp — the boot mount's outcome (TASK-408/427)
 
 namespace player {
 

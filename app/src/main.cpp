@@ -564,10 +564,10 @@ void appTick(AppId id) {
   if (g_apps[(int)id]) g_apps[(int)id]->tick();
 }
 
-#ifdef SD_BOOT_MOUNT
-static void sdProbeBootMount();  // TASK-408: defined ahead of the SERIAL_DEBUG command
-                                  // block (TASK-427), called from setup()
-#endif
+// sdProbeBootMount()/sdMountAttempt()/sdReady() now defined in sd/sdMount.cpp
+// (M-SRCLAYOUT Stage E / TASK-471) — included ahead of boot/boot.h, which
+// calls sdProbeBootMount() from bootSequence().
+#include "sd/sdMount.h"
 
 #include "boot/boot.h"   // setup() — moved verbatim, M-SRCLAYOUT Stage C (TASK-455)
 
@@ -791,118 +791,9 @@ static void handleSerialCommands() {
   }
 }
 
-// TASK-408 (M-SDFS phase-0): own VSPI bus — SCK18/MISO19/MOSI23/CS5 — entirely free of
-// the HSPI TFT bus and the touch controller's own SPI (see M-SDFS-sd-card-exploration.md
-// §2). The mount is established once in setup() and held — see sdProbeBootMount()'s call
-// site for why a lazy per-mode-entry mount cannot be relied on here.
-//
-// TASK-427: this block — the statics, `sdMountAttempt()`, `sdProbeBootMount()`, and
-// `sdReady()` — is gated on SD_BOOT_MOUNT, not SERIAL_DEBUG, so it compiles into any
-// variant that wants the boot mount without pulling in the rest of the SERIAL_DEBUG
-// command surface (`cyd2usb_player`). `cyd2usb_winamp_debug` defines both, so every
-// existing T_PLR/T_SD gate is unaffected. `cyd2usb_winamp` (production) defines
-// neither — no mount, sdReady() stubs to false, Player mode degrades to "No SD card".
-// That remains deliberate: an unconditional boot mount costs ~13 KB of permanently-held
-// contiguous internal heap (FATFS window + max_files × FIL), which TASK-425 measured
-// does not fit alongside the Spotify TLS working set and the Helix arena — see
-// TASK-431. The interactive bring-up probes below this SERIAL_DEBUG gate — `sdmem`,
-// `sdmount`/`sdumount` (live commands), `sdcycle`, `sdls`, `sdread`, `sdwrite`,
-// `sdclean`, `sdprobe` (the full T_SD_01–09 sweep) — stay SERIAL_DEBUG-only and
-// reference the statics/functions defined here.
-#ifdef SD_BOOT_MOUNT
-const int kSdCsPin = 5;
-const int kSdSckPin = 18;
-const int kSdMisoPin = 19;
-const int kSdMosiPin = 23;
-// SPI clock for data transfers (card identification always runs at 400 kHz inside
-// ff_sd_initialize, and the library caps this at 25 MHz). 20 MHz, not the 4 MHz the
-// M-SDFS bring-up plan suggested: on the SDHC card, 4 MHz reproducibly panics inside
-// FatFs mid-read (2/2 runs; `validate()` sees obj->fs == NULL after ff_req_grant())
-// while 20 MHz is clean (3/3) and 40x faster. Runtime-settable via `sdmount`.
-uint32_t s_sdFreqHz = 20000000;
-
-// Open-file slots requested of SD.begin(). This is the single dominant term in the
-// mount's memory cost, not a throughput knob: esp_vfs_fat_register() allocates
-// `sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)` as ONE contiguous internal
-// block, and this IDF build has FF_MAX_SS=4096 (CONFIG_WL_SECTOR_SIZE) with
-// FF_FS_TINY=0 (CONFIG_FATFS_PER_FILE_CACHE=1) — so FATFS carries a 4 KB window
-// buffer and every FIL carries its own 4 KB sector cache. The Arduino default of
-// 5 therefore asks for ~25 KB in one piece. See `sdmem`.
-//
-// TASK-416: bumped 2 -> 3. m3u::PlaylistIndex keeps the playlist File open for
-// the session (audio decoder + playlist = 2, TASK-415's own accounting), and
-// fileBrowser.h now holds a THIRD handle open across ticks — the directory
-// SD.open() plus the File openNextFile() returns. TASK-425 measured this
-// exact bump on this exact DUT (2026-08-11, cyd2usb_winamp_debug, mount-first):
-// `sdmount 3` mounts cleanly (heapDelta 19 252 B, sdumount reclaimedB 19 252 B,
-// exact agreement) leaving lfb8=12 788 B — enough to browse (no arena
-// contention: TASK-431 already confines all Player-mode PLAYBACK to
-// cyd2usb_player, where Spotify's ~39 KB TLS working set is compiled out
-// entirely and isn't resident to compete for it; browsing-only headroom on
-// this debug build was never the constraint). On cyd2usb_player itself the
-// margin is not remotely close: TASK-427's DUT evidence shows free
-// heap/largest-block in the ~50-120 KB range around a play attempt, so this
-// one extra ~4 KB FIL slot is nowhere near the constraint there either. Single
-// constant, not `#ifdef`'d per variant — TASK-425/427/431 already established
-// that mount-size tuning is not the lever that matters once Spotify's TLS
-// working set is out of the picture.
-const uint8_t kSdMaxFiles = 3;
-
-SPIClass s_sdSPI(VSPI);
-bool s_sdReady = false;
-bool s_sdSpiUp = false;
-size_t s_sdBootFreeIntBefore = 0, s_sdBootFreeIntAfter = 0;
-size_t s_sdBootLfbIntBefore = 0, s_sdBootLfbIntAfter = 0;
-
-// One mount attempt with full before/after heap accounting, usable from setup()
-// and from a live serial command. `tag` names the call site in the JSON line.
-bool sdMountAttempt(const char *tag, uint8_t maxFiles) {
-  size_t freeBefore = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-  size_t lfbBefore = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  size_t lfb8Before = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!s_sdSpiUp) {
-    s_sdSPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
-    s_sdSpiUp = true;
-  }
-  unsigned long t0 = millis();
-  bool ok = SD.begin(kSdCsPin, s_sdSPI, s_sdFreqHz, "/sd", maxFiles);
-  unsigned long elapsedMs = millis() - t0;
-  size_t freeAfter = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
-  size_t lfbAfter = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
-  Serial.printf("{\"probe\":\"sdmount\",\"tag\":\"%s\",\"maxFiles\":%u,\"mounted\":%s,"
-                "\"elapsedMs\":%lu,\"heapDeltaB\":%ld,"
-                "\"freeIntBefore\":%u,\"freeIntAfter\":%u,"
-                "\"lfbIntBefore\":%u,\"lfbIntAfter\":%u,\"lfb8Before\":%u,\"lfb8After\":%u}\n",
-                tag, (unsigned)maxFiles, ok ? "true" : "false", elapsedMs,
-                (long)freeBefore - (long)freeAfter,
-                (unsigned)freeBefore, (unsigned)freeAfter,
-                (unsigned)lfbBefore, (unsigned)lfbAfter,
-                (unsigned)lfb8Before,
-                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-  s_sdBootFreeIntBefore = freeBefore;
-  s_sdBootFreeIntAfter = freeAfter;
-  s_sdBootLfbIntBefore = lfbBefore;
-  s_sdBootLfbIntAfter = lfbAfter;
-  return ok;
-}
-
-static void sdProbeBootMount() {
-  s_sdReady = sdMountAttempt("boot", kSdMaxFiles);
-  if (!s_sdReady && s_sdSpiUp) { s_sdSPI.end(); s_sdSpiUp = false; }
-}
-
-// TASK-415: the boot mount's outcome, for code outside this file (LocalPlayerApp
-// must degrade to "No SD card" rather than opening files against a dead mount).
-// A function, not an extern on s_sdReady, so the mount state stays owned here.
-bool sdReady() { return s_sdReady; }
-
-
-
-#else  // !SD_BOOT_MOUNT
-// TASK-427: builds without SD_BOOT_MOUNT (today: cyd2usb_winamp production) compile no
-// SD mount at all. Same symbol, honest answer — LocalPlayerApp degrades to "No SD card".
-bool sdReady() { return false; }
-#endif // SD_BOOT_MOUNT
+// The SD boot mount (sdMountAttempt/sdProbeBootMount/sdReady, TASK-408/427)
+// moved to sd/sdMount.cpp (M-SRCLAYOUT Stage E / TASK-471) — production code,
+// deliberately not under debug/ despite sitting here historically.
 
 // TASK-451: an intentional reboot must not eat a deferred settings write.
 // `tickDeferredSave(force)` only skips the retry INTERVAL — it cannot conjure
