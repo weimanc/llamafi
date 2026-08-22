@@ -34,7 +34,8 @@ inline bool activeConnecting() {
 // ── Taskbar tap feedback (M-TASKBAR-FEEDBACK / TASK-279) ──────────────────
 // Shared between main.cpp's production touch path (appHandleInput) and the
 // debug console's injection drain (debug/serialConsole/console.cpp) — same
-// "Defined once in main.cpp" convention as setBusy()/resolvePlayerTap() above.
+// "Defined once in appShell.cpp" convention as resolvePlayerTap() below
+// (setBusy() above is still defined in main.cpp).
 void shellTbPress(int y);
 void shellTbCancel();
 void shellTbRelease(int releaseY);
@@ -43,8 +44,9 @@ void shellTbRelease(int releaseY);
 // second meaning no other slot has — restore the persisted mode when tapped
 // from another app, but CYCLE (Spotify -> WebRadio -> Player -> Spotify) and
 // persist when tapped while the player is already active. Defined once in
-// main.cpp, called from both dispatch sites (shellTbRelease() there, and
-// cmdTap()/cmdPlayerCycle() here) so the decision cannot drift between them.
+// appShell.cpp (M-SRCLAYOUT Stage E / TASK-471), called from both dispatch
+// sites (shellTbRelease() there, and cmdTap()/cmdPlayerCycle() here) so the
+// decision cannot drift between them.
 AppId resolvePlayerTap(AppId tapped, bool playerAlreadyActive);
 
 // TASK-413: the three player-mode AppIds are the only ones this returns true

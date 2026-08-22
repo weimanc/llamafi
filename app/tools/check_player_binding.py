@@ -55,7 +55,8 @@ SRC = os.path.join(ROOT, "app", "src")
 # be added inside main.cpp undetected — which is precisely the TASK-413 failure
 # this gate exists to prevent.
 EXPECTED_CALLERS = {
-    "main.cpp": (1, "production taskbar dispatch (ADR-059 D6, M-TESTBASE §8)"),
+    "appShell.cpp": (1, "production taskbar dispatch — shellTbRelease(), moved from main.cpp "
+                        "(M-SRCLAYOUT Stage E / TASK-471) (ADR-059 D6, M-TESTBASE §8)"),
     "debug/serialConsole/cmdTouch.cpp": (1, "SERIAL_DEBUG tap injection (harness path) — moved from cmdTouch.h, TASK-471"),
     "debug/serialConsole/console.cpp": (1, "cmdPlayerCycle (M-TESTBASE §8) — moved from main.cpp, TASK-471"),
 }
@@ -87,13 +88,15 @@ def main() -> int:
     # debug console files, which became their own translation units and can no
     # longer reach it by being textually downstream of main.cpp. The `static`
     # keyword was never what this check cared about (a definition existing
-    # exactly once, in main.cpp, still is), so the regex accepts it optionally
-    # rather than requiring it.
-    main_cpp = read("main.cpp")
+    # exactly once still is), so the regex accepts it optionally rather than
+    # requiring it. The definition itself later moved from main.cpp to
+    # appShell.cpp (same stage, later commit) alongside switchApp/appHandleInput/
+    # appTick/the shellTb* group — see appShell.cpp's header comment.
+    app_shell_cpp = read("appShell.cpp")
     defs = re.findall(r"^(?:static\s+)?AppId\s+resolvePlayerTap\s*\([^;]*\)\s*\{",
-                       main_cpp, re.M)
+                       app_shell_cpp, re.M)
     check(len(defs) == 1,
-          f"resolvePlayerTap must be defined exactly once in main.cpp, found {len(defs)}")
+          f"resolvePlayerTap must be defined exactly once in appShell.cpp, found {len(defs)}")
 
     # ── 2. its callers are exactly the documented set ────────────────────────
     found: dict[str, int] = {}
