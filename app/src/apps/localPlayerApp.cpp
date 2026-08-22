@@ -1,5 +1,5 @@
 // localPlayerApp.cpp — LocalPlayerApp method bodies, out-of-line (M-SRCLAYOUT Stage E).
-#include "localPlayerApp.h"
+#include "apps/localPlayerApp.h"
 
 // TASK-418: the toggle/state booleans and the active-instance pointer stay
 // file-scope, private to this TU (never referenced outside localPlayerApp.h/

@@ -25,7 +25,7 @@
 extern SpotifyApp g_SpotifyApp;
 
 // ── ClockApp (M-CLOCK-STYLES) ─────────────────────────────────────────
-#include "clockApp.h"
+#include "apps/clockApp.h"
 extern ClockApp g_ClockApp;
 
 #include "apps/matrixApp.h"
@@ -58,22 +58,22 @@ bool stockDbgSet(const char* v, const char* val);
 #include "aquarium/aquariumApp.h"
 extern AquariumApp g_AquariumApp;
 
-#include "teletextApp.h"
+#include "apps/teletextApp.h"
 extern TeletextApp g_TeletextApp;
 bool teletextDbgGet(const char* v, char* b, int l);
 bool teletextDbgSet(const char* v, const char* val);
 
-#include "planeRadarApp.h"
+#include "apps/planeRadarApp.h"
 extern PlaneRadarApp g_PlaneRadarApp;
 bool planeRadarDbgGet(const char* v, char* b, int l);
 bool planeRadarDbgSet(const char* v, const char* val);
 
-#include "webRadioApp.h"
+#include "apps/webRadioApp.h"
 extern WebRadioApp g_WebRadioApp;
 bool webRadioDbgGet(const char* v, char* b, int l);
 bool webRadioDbgSet(const char* v, const char* val);
 
-#include "localPlayerApp.h"
+#include "apps/localPlayerApp.h"
 extern LocalPlayerApp g_LocalPlayerApp;   // TASK-413: placeholder, real UI is TASK-415+
 
 #ifdef SERIAL_DEBUG

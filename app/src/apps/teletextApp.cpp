@@ -1,6 +1,6 @@
 // teletextApp.cpp — TeletextApp/NosTeletextSource method bodies, out-of-line
 // (M-SRCLAYOUT Stage E).
-#include "teletextApp.h"
+#include "apps/teletextApp.h"
 
 // ── RGB565 teletext colour palette ────────────────────────────────────────────
 static const uint16_t kTTColors[8] = {

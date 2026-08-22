@@ -1,5 +1,5 @@
 // clockApp.cpp — ClockApp method bodies, out-of-line (M-SRCLAYOUT Stage E).
-#include "clockApp.h"
+#include "apps/clockApp.h"
 
 // Out-of-class definitions for the static constexpr theme tables — required
 // pre-C++17 (this project targets gnu++11) whenever a static constexpr array
