@@ -172,10 +172,9 @@ AppId currentAppId = AppId::Spotify;
 // (OQ-BOOT): cold-boot enters the persisted mode (see the boot-into-mode redirect at
 // the end of setup()); auto-play is the webRadioAutoplay knob (WebRadio only).
 
-#ifdef TOUCH_DEBUG_OVERLAY
+// g_touchDebug now defined in touchDebugOverlay.cpp (M-SRCLAYOUT Stage E /
+// TASK-471) — header is self-guarded, no need to double-gate the include.
 #include "debug/touchDebugOverlay.h"
-TouchDebugOverlay g_touchDebug;
-#endif
 
 // ----------------------------
 // Display Handling Code
