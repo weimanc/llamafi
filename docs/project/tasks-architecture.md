@@ -60,22 +60,26 @@
 
 ## ▶ EXECUTION SEQUENCE — start here
 
-Current as of 2026-08-16 end-of-session. Derived from @PM's review, adjusted for what has since
-landed. **Do these in order**; everything not listed stays filed and unscheduled.
+**Updated 2026-08-22** — the 2026-08-16 version of this table was stale (still listed TASK-478 and
+the 455/456/471/472 decision as pending; both are long done). Corrected against `git log` and each
+task's own row rather than carried forward. **Do these in order**; everything not listed stays
+filed and unscheduled.
 
 | # | Do | Why this position |
 |---|---|---|
 | ~~**1**~~ **DONE 2026-08-16** | ~~**TASK-488 + TASK-497 — one DUT block**~~ | Three refactor commits sit on master unreviewed with no baseline. Everything in M-SRCLAYOUT is gated on this, and **the cost of delay compounds**: each further commit on top widens the blame surface from one to four. Same hardware session covers both — 488's byte-identity/`.map` review and 497's retrospective ≥3-run baseline. |
 | ~~**1a**~~ **DONE** | *(prerequisite, ~15 lines)* ~~**write TASK-488's pass criteria first**~~ | Its DUT procedure is currently one sentence — *"a pass over app switching, taskbar cycling, eject and Settings navigation"* — with no id, steps, iteration count or fail condition. Compare `T_AE_04`, which specifies ×10 and a 100 ms bound. **Running 488 without criteria is closing against a proxy (BP-061)**: nothing visibly breaks, it gets called verified. |
-| **2** | **Decide 455/456/471/472 on what 488 finds** | **488 found nothing wrong — continuation, not rework.** Do not pre-schedule. They may need rework rather than continuation. Note ADR-060 authorises **A+B only** — C–F need a new ADR regardless. |
-| **3** | **TASK-475** — `run/check-docs` | Unblocked, cheap, self-correcting from then on. C5 blocking day one, C1 in `delta` mode. |
-| **4** | **TASK-478** — `tools/lib/dut.py` | Unblocked, cheap; its absence caused three of M-TOOLING's five findings. Unblocks 479/480. |
-| **5** | **TASK-458** — RAII guards — **with TASK-495 as its first commit** | Real bug class with a proven instance (TASK-222). 495 is parked but **must land in front of this** — see its ordering note. |
-| **6** | **M-WINAMP-PLAYER** | Still paused, 12 entries. @PM would put **TASK-424** (SD write panic, card-independent) ahead of most of this board if DUT time is scarce. |
+| ~~**2**~~ **DONE 2026-08-22** | ~~**Decide 455/456/471/472 on what 488 finds**~~ | **488 found nothing wrong — continuation, not rework.** TASK-471 (Stage E, every component conversion) and TASK-472 (Stage F, `stock/` split + levelization audit) both landed and are DUT-verified (**TASK-529**). `main.cpp` 1042 → 357 lines. TASK-530 (the audit's own follow-up — 5 apps that never moved into `apps/`) also done. See these four tasks' own rows for the full record. |
+| ~~**3**~~ **PHASE 1 DONE** — phases 2–5 open | **TASK-475** — `run/check-docs` | Phase 1 shipped (`b0d0202`): C5 + C1-`delta` blocking, counted gate 12. **Phase 2 is cheap** — a one-line promotion, C2 already reads 0. Phase 3 needs ADR-061 D8; phase 4 needs TASK-508 (still OPEN). Read TASK-475's own row in full — it records two independent reviews (@Architect, @VE) that each found real defects in the phase-1 landing; don't assume the remaining phases are as trivial as phase 2 without re-reading what those reviews found. |
+| ~~**4**~~ **DONE** | ~~**TASK-478** — `tools/lib/dut.py`~~ | Landed (`989c1ea`). Unblocked 479/480, both still OPEN. |
+| **5 — START HERE** | **TASK-458** — RAII guards — **with TASK-495 as its first commit** | Real bug class with a proven instance (TASK-222). Highest value on this board per its own row. TASK-495 is parked but **must land in front of this, as its own commit** — read TASK-495's row and ordering note in full before touching 458. |
+| **6** | **M-WINAMP-PLAYER** | Still paused, 12 entries in `tasks-winamp-player.md`. @PM would put **TASK-424** (SD write panic, card-independent) ahead of most of this board if DUT time is scarce. |
 
-**Already done, do not re-schedule:** TASK-466 (build gate, 3 → 11 envs), 467, 477, 491, 496 — all
-landed 2026-08-16, `run/check` 11/11 — plus **TASK-488 and TASK-497**, closed 2026-08-16 in one DUT
-block. **Next in sequence is now #3 (TASK-475).** New follow-ups from the verification: 503–506.
+**Already done, do not re-schedule:** TASK-466 (build gate, 3 → 11 envs), 467, 477, 491, 496, 488,
+497 (all 2026-08-16) — plus **TASK-471, 472, 478, 529, 530** (2026-08-21/22, this session).
+**Next in sequence is now #5 (TASK-458, with TASK-495 first).** TASK-475 phases 2–5 are also
+available and cheap if DUT time is the constraint instead. New follow-ups from the TASK-488
+verification: 503–506 (503 already DONE, see its own row).
 
 **Not scheduled by design:** the four skeletons (483–486), the M-CODEQUAL remainder (459–463), the
 ADR-061 decommission tail (465, 468–470), M-TOOLING 479–482, and the handoff/registry debt (489–494,

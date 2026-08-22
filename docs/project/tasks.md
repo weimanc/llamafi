@@ -86,7 +86,8 @@ never starts, naming the vacuum, so it cannot go green without a real acquire. *
 | **TASK-518** | P2 | **DONE** (after Stage D, as sequenced) | **P4** — `hasInFlightOp()`/`get idle`. Collides with M-SRCLAYOUT Stage D (`ShellState`/`appTable` own `g_shellBusy`/`g_apps[]`); and per review B3 it is an `App`-interface change across 13 implementations, not a debug key |
 | **TASK-519** | P3 | **DONE** | `run/player-gate` — two legs at one commit, pass set in `regression_suite/player-gate-baseline.md`, condition (a) enforced (refuses a leg with no cross-mode cell, rc=2, zero pio), `--selftest` for the comparator. First real run **correctly returned GATE FAIL** on a regressed cell |
 | **TASK-520** | P2 | **DONE** | `lib/flaky.py` + `lib/results.py`; undeclared `flake()` = FAIL, expired `review_by` = FAIL, retry-once with both outcomes, unreadable set fails closed. 22 host tests in `test_flaky_policy.py` |
-| TASK-503…506 | P2/P3 | OPEN | from the TASK-488 verification — stale `*AppState` docs, `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
+| TASK-503 | — | **DONE**, via TASK-464 (`f8bae91`) | stale `*AppState` docs — see full row in tasks-architecture.md |
+| TASK-504…506 | P2/P3 | OPEN | from the TASK-488 verification — `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
 
 > **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**
 > — start there, not with this table. **Steps 1/1a are done (488 + 497, `64bf839`); the chain was
