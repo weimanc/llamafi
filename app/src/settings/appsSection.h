@@ -10,16 +10,6 @@
 #include "cities.h"      // M-HOME-LOCATION H-4: divergence-hint reference coords (kCities lookup by name)
 
 const char* cgIdToDisplay(const char* id);
-// Implemented by webRadioApp.h later in main.cpp's single translation unit.
-// No-op when WebRadio has no live Audio session; otherwise applies the three
-// persisted EQ bands through the audio-pump mutex.
-#ifdef WINAMP_DISPLAY
-void webRadioApplyEqSettings();
-void webRadioApplyVolumeSettings();
-#else
-static inline void webRadioApplyEqSettings() {}
-static inline void webRadioApplyVolumeSettings() {}
-#endif
 
 class AppsSection : public SettingsSection {
 public:
@@ -118,31 +108,24 @@ public:
         // but this section is Release-only below — forward all phases to the
         // Max-volume slider while the WebRadio submenu is showing (the keyboard
         // capture above is the precedent for piercing the Release-only gate;
-        // DisplaySection's Level row is the routing idiom). Since WebRadio can
-        // play behind Settings, each changed step is also applied immediately.
+        // DisplaySection's Level row is the routing idiom). Settings owns
+        // persistence only; WebRadio applies the value on its next resume.
         if (_wrRowSub() && !g_keyboard.active()) {
             const int volRowY = S_CONTENT_Y + 4 * S_ROW_H;   // row 4 = Max volume
             if (phase == TouchPhase::Press) {
                 _wrVolSlider.onPress(x, y, volRowY);
             } else if (phase == TouchPhase::Move && _wrVolSlider.isDragging()) {
                 _wrVolSlider.onMove(x);
-                uint8_t value = (uint8_t)_wrVolSlider.value();
-                if (settings().webRadioMaxVolume != value) {
-                    settings().webRadioMaxVolume = value;
-                    webRadioApplyVolumeSettings();
-                }
                 _wrVolSlider.renderDynamic(volRowY, "Max vol");
             } else if (phase == TouchPhase::Release && _wrVolSlider.isDragging()) {
                 settings().webRadioMaxVolume = (uint8_t)_wrVolSlider.onRelease(x);
-                webRadioApplyVolumeSettings();
                 saveSettings();
                 repaint();   // refresh row + the TASK-209 cap hint
                 return SectionResult::Continue;   // captured — no row dispatch
             }
         }
-        // WebRadio Audio-EQ sub-view: three persistent sliders. Each discrete
-        // value change previews through the pump mutex when WebRadio is playing
-        // behind Settings; release persists, and no-session use remains a no-op.
+        // WebRadio Audio-EQ sub-view: three persistent sliders. Live preview
+        // belongs to WebRadio's in-app EQ panel; Settings applies on resume.
         if (_wrEqActive && _handleWrEqSliderInput(phase, x, y))
             return SectionResult::Continue;
 
@@ -771,10 +754,8 @@ private:
             settings().webRadioEqBassDb   = kBass[next];
             settings().webRadioEqMidDb    = kMid[next];
             settings().webRadioEqTrebleDb = kTreble[next];
-            webRadioApplyEqSettings();
         } else if (row == 4) {
             settings().webRadioHwMod = !settings().webRadioHwMod;
-            webRadioApplyVolumeSettings();
         } else {
             return;  // rows 1..3 belong to the phase-forwarded sliders
         }
@@ -807,13 +788,9 @@ private:
         if (phase == TouchPhase::Move) {
             slider->onMove(x);
             int8_t value = (int8_t)slider->value();
-            bool changed = (row == 1 && settings().webRadioEqBassDb != value) ||
-                           (row == 2 && settings().webRadioEqMidDb != value) ||
-                           (row == 3 && settings().webRadioEqTrebleDb != value);
             if (row == 1) settings().webRadioEqBassDb = value;
             if (row == 2) settings().webRadioEqMidDb = value;
             if (row == 3) settings().webRadioEqTrebleDb = value;
-            if (changed) webRadioApplyEqSettings();
             slider->renderDynamic(rowY, label);
             return true;
         }
@@ -822,7 +799,6 @@ private:
         if (row == 1) settings().webRadioEqBassDb = value;
         if (row == 2) settings().webRadioEqMidDb = value;
         if (row == 3) settings().webRadioEqTrebleDb = value;
-        webRadioApplyEqSettings();
         saveSettings();
         repaint();
         return true;

@@ -1865,10 +1865,6 @@ static bool planeRadarDbgSet(const char* v, const char* val) { return g_PlaneRad
 #ifdef WINAMP_DISPLAY
 #include "webRadioApp.h"
 static WebRadioApp g_WebRadioApp;
-// True only while a settled WebRadio PLAYING session is intentionally parked
-// behind Settings. The shell uses this to keep Spotify TLS yielded and to
-// perform a full WebRadio teardown if Settings exits to any other app.
-static bool s_webRadioBackgroundedForSettings = false;
 static bool webRadioDbgGet(const char* v, char* b, int l) { return g_WebRadioApp.dbgGet(v, b, l); }
 static bool webRadioDbgSet(const char* v, const char* val) { return g_WebRadioApp.dbgSet(v, val); }
 #endif
@@ -2016,18 +2012,6 @@ static void shellTbRelease(int releaseY) {
 
 void switchApp(AppId next) {
   if (next == currentAppId) return;
-  const AppId from = currentAppId;
-#ifdef WINAMP_DISPLAY
-  const bool parkWebRadioForSettings =
-      from == AppId::WebRadio && next == AppId::Settings &&
-      g_WebRadioApp.canBackgroundForSettings();
-  const bool leaveBackgroundForAnotherApp =
-      from == AppId::Settings && s_webRadioBackgroundedForSettings &&
-      next != AppId::WebRadio;
-  const bool returnToBackgroundedWebRadio =
-      from == AppId::Settings && s_webRadioBackgroundedForSettings &&
-      next == AppId::WebRadio;
-#endif
   const unsigned long t0 = millis();  // TASK-279 (L-d): per-phase instrumentation
 #ifdef SERIAL_DEBUG
   Serial.printf("[shell] leaving %d  heap=%lu maxAlloc=%lu minFree=%lu\n",
@@ -2037,27 +2021,7 @@ void switchApp(AppId next) {
     (unsigned long)ESP.getMinFreeHeap());
   const int fromApp = (int)currentAppId;
 #endif
-#ifdef WINAMP_DISPLAY
-  if (parkWebRadioForSettings) {
-    g_WebRadioApp.backgroundForSettings();
-    s_webRadioBackgroundedForSettings = true;
-  } else {
-    if (g_apps[(int)currentAppId]) g_apps[(int)currentAppId]->suspend();
-    // Settings may be left through the taskbar rather than its own Back/Cancel
-    // path. In that case the hidden WebRadio session must not leak behind the
-    // newly selected app.
-    if (leaveBackgroundForAnotherApp) {
-      g_WebRadioApp.suspend();
-      s_webRadioBackgroundedForSettings = false;
-    } else if (returnToBackgroundedWebRadio) {
-      // Keep the retained Audio object; normal resume() below re-applies EQ and
-      // handles any country/bitrate diff made in Settings.
-      s_webRadioBackgroundedForSettings = false;
-    }
-  }
-#else
   if (g_apps[(int)currentAppId]) g_apps[(int)currentAppId]->suspend();
-#endif
   shell::setBusy(false);   // clear before new taskbar paint (TASK-115e)
   const unsigned long tSuspend = millis();
   tft.fillRect(0, 0, TASKBAR_X, 240, TFT_BLACK);
@@ -2070,11 +2034,7 @@ void switchApp(AppId next) {
   // TASK-264 (Q3-a): drop Spotify TLS when WebRadio is active (reclaims ~50 K arena).
   // Non-blocking — setWebRadioActive() only sets flags, never calls tlsYield().
 #ifndef DISABLE_SPOTIFY
-  bool webRadioOwnsAudio = next == AppId::WebRadio;
-#ifdef WINAMP_DISPLAY
-  webRadioOwnsAudio = webRadioOwnsAudio || s_webRadioBackgroundedForSettings;
-#endif
-  spotifyTask::setWebRadioActive(webRadioOwnsAudio);
+  spotifyTask::setWebRadioActive(next == AppId::WebRadio);
 #endif
   if (g_apps[(int)next]) {
     if (!g_appLaunched[(int)next]) {
