@@ -225,20 +225,46 @@ Lakos's second requirement after components is **levelization**: the dependency 
 so components can be built, tested and reasoned about bottom-up.
 
 ```
-level 3   apps/*                    (may depend on 2, 1, 0)
-level 2   shell/, boot/, debug/     (may depend on 1, 0)
-level 1   audio/, player/, winamp/, settings/, taskbar/
+level 3   apps/*, stock/, aquarium/  (may depend on 2, 1, 0)
+level 2   shell/, boot/, debug/, sd/ (may depend on 1, 0 — one exception, below)
+level 1   audio/, player/, winamp/, settings/
 level 0   util/, gen/, touch/, app.h
 ```
+
+`taskbar/` moved into `shell/taskbar.h` (M-SRCLAYOUT Stage E / TASK-471, `871134d`) — level 2, not 1,
+since it's now one of `shell/`'s own owned components rather than a standalone directory.
 
 Two rules with teeth:
 
 - **An app never includes another app.** Shared behaviour moves down a level.
 - **No level-0 or level-1 component includes anything from `apps/` or `shell/`.**
 
+**One necessary exception, confirmed by audit (TASK-472, 2026-08-22):** `shell/appTable.h` — the
+composition root — includes all thirteen apps (level 3). This is required, not a violation: its
+entire job is constructing every app instance, so it must reach into all of them. It is the *only*
+level-2 file that reaches into level 3; every other `shell/`/`boot/`/`debug/`/`sd/` file holds the
+rule.
+
+**Full audit result (TASK-472, 2026-08-22):** zero app-to-app includes (the only level-3→level-3
+edges are `stock/`'s own internal structure — `stockChart`/`stockHeatmap` reaching their parent
+`stockApp.h` via a back-reference, one app's internal decomposition, not a cross-app violation);
+zero level-0/1 files include `apps/` or `shell/`, either direction, across the whole tree. The one
+violation flagged below (`winampDisplay.h` reaching back into player-mode concepts) is confirmed
+**closed**, not just "accepted" — see the note at that paragraph's end. Real, non-violating gap
+found: five apps (`clockApp`, `teletextApp`, `planeRadarApp`, `webRadioApp`, `localPlayerApp`) never
+moved into `apps/` despite D1's target tree placing them there — filed as TASK-530, not urgent since
+it causes no actual dependency problem.
+
 The one known violation to fix on the way: `apps/spotifyApp.h` and `webRadioApp.h` both reach into
 `winamp/winampDisplay.h`, which reaches back into player-mode concepts. ADR-059's capability mask is
 the accepted fix for that direction.
+
+**CLOSED, confirmed by audit (TASK-472, 2026-08-22).** Read `winampDisplay.h` directly rather than
+trusting "accepted": it no longer references `AppId`, `currentAppId`, or any player-mode/app-instance
+global. The reach-back is gone, replaced by a `_playerCaps` capability bitmask
+(`CAP_TRANSPORT`/`CAP_SEEK`/`CAP_SHUFFLE`/`CAP_REPEAT`) that the app layer sets via
+`setPlayerCaps()` — `winampDisplay.h` only ever reads the mask, never asks which app or mode is
+active. ADR-059's fix genuinely landed.
 
 ### D1 — Target tree
 
