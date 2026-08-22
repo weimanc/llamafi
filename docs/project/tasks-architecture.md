@@ -72,14 +72,15 @@ filed and unscheduled.
 | ~~**2**~~ **DONE 2026-08-22** | ~~**Decide 455/456/471/472 on what 488 finds**~~ | **488 found nothing wrong — continuation, not rework.** TASK-471 (Stage E, every component conversion) and TASK-472 (Stage F, `stock/` split + levelization audit) both landed and are DUT-verified (**TASK-529**). `main.cpp` 1042 → 357 lines. TASK-530 (the audit's own follow-up — 5 apps that never moved into `apps/`) also done. See these four tasks' own rows for the full record. |
 | ~~**3**~~ **PHASE 1 DONE** — phases 2–5 open | **TASK-475** — `run/check-docs` | Phase 1 shipped (`b0d0202`): C5 + C1-`delta` blocking, counted gate 12. **Phase 2 is cheap** — a one-line promotion, C2 already reads 0. Phase 3 needs ADR-061 D8; phase 4 needs TASK-508 (still OPEN). Read TASK-475's own row in full — it records two independent reviews (@Architect, @VE) that each found real defects in the phase-1 landing; don't assume the remaining phases are as trivial as phase 2 without re-reading what those reviews found. |
 | ~~**4**~~ **DONE** | ~~**TASK-478** — `tools/lib/dut.py`~~ | Landed (`989c1ea`). Unblocked 479/480, both still OPEN. |
-| **5 — START HERE** | **TASK-458** — RAII guards — **with TASK-495 as its first commit** | Real bug class with a proven instance (TASK-222). Highest value on this board per its own row. TASK-495 is parked but **must land in front of this, as its own commit** — read TASK-495's row and ordering note in full before touching 458. |
+| ~~**5**~~ **DONE 2026-08-22** | ~~**TASK-458** — RAII guards — **with TASK-495 as its first commit**~~ | Real bug class with a proven instance (TASK-222). Both landed as two commits: TASK-495 (`1df8b33`) then TASK-458 (`15d3c55`). See their own rows for the full record, including a live double-`tlsResume()` defect found and fixed as a side effect. |
 | **6** | **M-WINAMP-PLAYER** | Still paused, 12 entries in `tasks-winamp-player.md`. @PM would put **TASK-424** (SD write panic, card-independent) ahead of most of this board if DUT time is scarce. |
 
 **Already done, do not re-schedule:** TASK-466 (build gate, 3 → 11 envs), 467, 477, 491, 496, 488,
-497 (all 2026-08-16) — plus **TASK-471, 472, 478, 529, 530** (2026-08-21/22, this session).
-**Next in sequence is now #5 (TASK-458, with TASK-495 first).** TASK-475 phases 2–5 are also
-available and cheap if DUT time is the constraint instead. New follow-ups from the TASK-488
-verification: 503–506 (503 already DONE, see its own row).
+497 (all 2026-08-16) — plus **TASK-471, 472, 478, 529, 530, 495, 458** (2026-08-21/22, this
+session). **Next in sequence is #6, M-WINAMP-PLAYER (still paused) or TASK-424 if DUT time is
+scarce.** TASK-459/460 (C2b, C1) are now unblocked behind 458 but not yet scheduled. TASK-475
+phases 2–5 are also available and cheap if DUT time is the constraint instead. New follow-ups from
+the TASK-488 verification: 503–506 (503 already DONE, see its own row).
 
 **Not scheduled by design:** the four skeletons (483–486), the M-CODEQUAL remainder (459–463), the
 ADR-061 decommission tail (465, 468–470), M-TOOLING 479–482, and the handoff/registry debt (489–494,
@@ -122,9 +123,10 @@ are registered canonically in `docs/verification/test_plan.md`, not here.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-458 | **P2** | **UNBLOCKED** — but see the TASK-495 ordering note | C2 — `TlsYieldGuard` / `HttpSession` RAII guards. **Highest value in this board**: fixes a bug class with a proven production instance (TASK-222). *@PM: the table said OPEN while this file's own prose said "gates TASK-458" — corrected. **Fold TASK-495 in as 458's first step**, not a separate schedulable item; it is a 30-minute decision, not a build.* |
-| TASK-459 | P3 | BLOCKED on 458 | C2b — migrate `s_aeSpotifyYielded` to a transferable guard. Touches audio teardown ordering (`T_AE_04`) |
-| TASK-460 | P2 | BLOCKED on 458 | C1 — consolidate the nine `fetch*()` functions onto one skeleton |
+| TASK-458 | **P2** | **DONE 2026-08-22** (`15d3c55`, after TASK-495's `1df8b33`) | C2 — `TlsYieldGuard` RAII guard. **Scope note (orchestrator decision, not the design doc's literal scope):** the `HttpSession` half of C2 was deliberately deferred — `http.begin()`/`http.end()` pairing in `dataTaskStorage.cpp` was already correctly balanced on every path (no proven bug, unlike tlsYield/tlsResume), so converting it would have added real risk across several different control-flow shapes (streaming parse, mirror-loop retries) for a DRY win only. Filed as follow-up below, not silently dropped. Added `spotifyTask::TlsYieldGuard` (`spotifyTask.h`) and converted all 8 functions in `dataTaskStorage.cpp` that owned a `tlsYield()`/`tlsResume()` pair (`fetchWeather`, `fetchCrypto`, `fetchStockQuote`, `fetchStockChartWithRetry`, `fetchTeletext`, `fetchHeatmapQuote`, `fetchGeocode`, `fetchWebRadioStations`); `fetchPlaneRadar()` intentionally left on the manual pattern (not one of the 8, out of scope). **Live defect found and fixed as a side effect**: `fetchTeletext()` called `spotifyTask::tlsResume()` *twice* on its "no `<pre>` block" path — once unconditionally right after `http.end()`, again in the early-return branch. Harmless today only because `tlsResume()`'s decrement is guarded at 0 (`spotifyTaskStorage.cpp:782-790`), but a genuine extra release; the guard conversion collapses it to exactly one release, structurally. Also extended `app/tools/check_app_conformance.py`'s A5 (TLS bracket) check to recognize a `TlsYieldGuard` local as an unconditional bracket, alongside the existing per-exit-path scan for the manual pattern (kept fully intact, still the live check for `fetchPlaneRadar()`); updated `test_check_app_conformance.py`'s mutation suite to match, including a synthetic fixture preserving regression coverage for the original TASK-222 bug shape now that no real function can reproduce it. Verified independently by the orchestrator, not just the subagent's report: diff read in full, `test_check_app_conformance.py` re-run (11/11), `run/check` re-run (12/12, including PlaneRadar's A5 PASS proving the manual-pattern scan is untouched), `cyd2usb_winamp_debug` rebuilt (`dram0_0_seg`/`_bss_end` delta confirmed 0 B — matches the reported 116604 B baseline exactly), DUT confirmed healthy post-restore (fresh uptime on `spotify-mon`, matching the reflash timestamp). DUT fetch-cycle check (`get dataq`, 5 apps) showed no stranded `tlsYieldCount` on any exit path including error paths. |
+| TASK-459 | P3 | **UNBLOCKED** (458 DONE) | C2b — migrate `s_aeSpotifyYielded` to a transferable guard. Touches audio teardown ordering (`T_AE_04`) |
+| TASK-460 | P2 | **UNBLOCKED** (458 DONE) | C1 — consolidate the nine `fetch*()` functions onto one skeleton |
+| TASK-512 | P3 | OPEN — new, filed 2026-08-22 | C2 remainder — `HttpSession` RAII guard for `http.begin()`/`http.end()` in `dataTaskStorage.cpp`. Deliberately deferred out of TASK-458 (see its row): the pairing is already correctly balanced on every exit path today, so this is a DRY/consistency win, not a bug fix — lower urgency and higher control-flow risk (streaming parse, mirror-loop retries in `fetchOneMirror`/`fetchStockChartOnce`) than the TlsYieldGuard half was. |
 | TASK-461 | P2 | OPEN | C5 — one canonical canvas/window constant across firmware, bake and previews. 275 has **six names in three layers** |
 | TASK-462 | P3 | **UNBLOCKED** (454 verified) | C3 — table-driven `cmdGet`/`cmdSet` (1 308 lines → a table) |
 | TASK-463 | P3 | OPEN | C4 debug-code convention + C6 shared UI palette |
@@ -238,7 +240,7 @@ Stages A/B landed. Pointing it at components instead of files makes it survive m
 
 | task | pri | status | title |
 |---|---|---|---|
-| **TASK-495** | P3 | **PARKED 2026-08-16 — decided, not implemented** | `fetchCrypto` moves its `tlsResume()` to after its JSON parse, matching `fetchWeather`. Decision made (E-02, resume-AFTER); the two-line change is deliberately not scheduled. **Read the ordering note below before touching TASK-458 or TASK-460.** |
+| **TASK-495** | P3 | **DONE 2026-08-22** (`1df8b33`) | `fetchCrypto` moves its `tlsResume()` to after its JSON parse, matching `fetchWeather`. Decision made (E-02, resume-AFTER); landed as TASK-458's first commit, exactly as the ordering note below required. |
 | TASK-496 | — | **LANDED** (`33b3003`) | `appRegistry.h` has no conditional-compilation column; 3 of 13 apps are `#ifdef WINAMP_DISPLAY` |
 
 > ### ⚠ PARKED 2026-08-16 — read this before starting TASK-458 or TASK-460
