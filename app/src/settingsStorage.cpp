@@ -107,12 +107,14 @@ static void applyDefaults() {
     g_settings.webRadioBitrateCap    = 128;  // M-WEBRADIO-SETTINGS OQ1 (2026-07-16): decode-safety midpoint; keep in sync with load()'s fallback below
     g_settings.webRadioAutoSkip      = true;   // TASK-234/ADR-045: default ON
     g_settings.webRadioHwMod         = false;
-    // TASK-209 / §HW Mod: stock default 10 (soft-capped to 12 at playback); the
-    // HW-mod default of 18 is applied in load() when hwMod is set with no explicit
-    // maxVolume. webRadioApp::wrEffectiveVolume() enforces the hardware ceiling.
+    // TASK-209: default 10, with the anti-clipping safe range capped at 12.
+    // The legacy hwMod key now also represents the explicit full-drive override.
     g_settings.webRadioMaxVolume     = 10;
     g_settings.webRadioLastStation   = 0;
     g_settings.webRadioVolumePct     = 100;  // TASK-352: full ceiling, matches pre-slider behaviour
+    g_settings.webRadioEqBassDb      = WR_EQ_BASS_DEFAULT_DB;
+    g_settings.webRadioEqMidDb       = WR_EQ_MID_DEFAULT_DB;
+    g_settings.webRadioEqTrebleDb    = WR_EQ_TREBLE_DEFAULT_DB;
     g_settings.webRadioVisAtlas      = true;  // TASK-389: default full cycle
     g_settings.webRadioVisWaveAtlas  = true;
     g_settings.webRadioVisVU         = true;
@@ -303,12 +305,17 @@ void SettingsStorage::load() {
         if (wr.containsKey("bitrateCap"))  g_settings.webRadioBitrateCap  = wr["bitrateCap"]  | 128;  // keep in sync with applyDefaults() (M-WEBRADIO-SETTINGS OQ1)
         if (wr.containsKey("autoSkip"))    g_settings.webRadioAutoSkip    = wr["autoSkip"]    | true;
         if (wr.containsKey("hwMod"))       g_settings.webRadioHwMod       = wr["hwMod"]       | false;
-        // TASK-209 / §HW Mod: explicit maxVolume wins; otherwise default 18 with the
-        // HW mod, 10 stock (hwMod is parsed just above, so it's current here). The
-        // playback clamp (wrEffectiveVolume) still bounds whatever value lands.
+        // Explicit maxVolume wins; retain the legacy 18 fallback when an existing
+        // configuration already opted into hwMod/full-drive mode.
         g_settings.webRadioMaxVolume = wr["maxVolume"] | (uint8_t)(g_settings.webRadioHwMod ? 18 : 10);
         if (wr.containsKey("lastStation")) g_settings.webRadioLastStation = wr["lastStation"] | 0;
         if (wr.containsKey("volumePct"))   g_settings.webRadioVolumePct   = wr["volumePct"]   | 100;
+        if (wr.containsKey("eqBassDb"))
+            g_settings.webRadioEqBassDb = (int8_t)(wr["eqBassDb"] | (int)WR_EQ_BASS_DEFAULT_DB);
+        if (wr.containsKey("eqMidDb"))
+            g_settings.webRadioEqMidDb = (int8_t)(wr["eqMidDb"] | (int)WR_EQ_MID_DEFAULT_DB);
+        if (wr.containsKey("eqTrebleDb"))
+            g_settings.webRadioEqTrebleDb = (int8_t)(wr["eqTrebleDb"] | (int)WR_EQ_TREBLE_DEFAULT_DB);
         // TASK-389: per-mode vis-cycle toggles (Settings > WebRadio > Vis modes)
         if (wr.containsKey("visAtlas"))     g_settings.webRadioVisAtlas     = wr["visAtlas"]     | true;
         if (wr.containsKey("visWaveAtlas")) g_settings.webRadioVisWaveAtlas = wr["visWaveAtlas"] | true;
@@ -316,6 +323,13 @@ void SettingsStorage::load() {
         if (wr.containsKey("visSpectrum"))  g_settings.webRadioVisSpectrum  = wr["visSpectrum"]  | true;
         if (wr.containsKey("visWave"))      g_settings.webRadioVisWave      = wr["visWave"]      | true;
     }
+    // Corrupt/hand-edited-file guard. The UI itself cannot leave these ranges.
+    g_settings.webRadioEqBassDb = (int8_t)constrain((int)g_settings.webRadioEqBassDb,
+        (int)WR_EQ_BASS_MIN_DB, (int)WR_EQ_BASS_MAX_DB);
+    g_settings.webRadioEqMidDb = (int8_t)constrain((int)g_settings.webRadioEqMidDb,
+        (int)WR_EQ_MID_MIN_DB, (int)WR_EQ_MID_MAX_DB);
+    g_settings.webRadioEqTrebleDb = (int8_t)constrain((int)g_settings.webRadioEqTrebleDb,
+        (int)WR_EQ_TREBLE_MIN_DB, (int)WR_EQ_TREBLE_MAX_DB);
 
     // Plane Radar
     if (doc.containsKey("planeRadar")) {
@@ -488,6 +502,9 @@ void SettingsStorage::save() {
     wr["maxVolume"]   = g_settings.webRadioMaxVolume;
     wr["lastStation"] = g_settings.webRadioLastStation;
     wr["volumePct"]   = g_settings.webRadioVolumePct;
+    wr["eqBassDb"]    = g_settings.webRadioEqBassDb;
+    wr["eqMidDb"]     = g_settings.webRadioEqMidDb;
+    wr["eqTrebleDb"]  = g_settings.webRadioEqTrebleDb;
     wr["visAtlas"]     = g_settings.webRadioVisAtlas;
     wr["visWaveAtlas"] = g_settings.webRadioVisWaveAtlas;
     wr["visVU"]        = g_settings.webRadioVisVU;
