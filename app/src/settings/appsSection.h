@@ -16,6 +16,7 @@ public:
     const char* title() const override {
         if (_sub < 0) return "Applications";
         if (_prLocActive) return _prLocTitle();
+        if (_wrEqActive) return "Audio EQ";
         if (_wrVisActive) return "Vis modes";
         return kConfigurableApps[_sub].display;
     }
@@ -27,11 +28,12 @@ public:
     // Read by `get prloc` via SettingsApp.
     int prDivKm() const { return _prDivKm; }
 
-    void enter() override { _sub = -1; _prLocActive = false; _wrVisActive = false; repaint(); }
+    void enter() override { _sub = -1; _prLocActive = false; _wrEqActive = false; _wrVisActive = false; repaint(); }
     void leave() override {
         if ((_prLocActive || _wrSub()) && g_keyboard.active()) g_keyboard.hide();
         if (g_countryPicker.active()) g_countryPicker.hide();   // M-COUNTRY-PICKER
         _prLocActive = false;
+        _wrEqActive = false;
         _wrVisActive = false;
         _sub = -1;
     }
@@ -48,6 +50,7 @@ public:
         clearContent();
         if (_sub < 0)          _repaintAppList();
         else if (_prLocActive) _repaintPrLoc();
+        else if (_wrEqActive)  _repaintWrEq();
         else if (_wrVisActive) _repaintWrVis();
         else                   _repaintAppRows();
     }
@@ -105,8 +108,8 @@ public:
         // but this section is Release-only below — forward all phases to the
         // Max-volume slider while the WebRadio submenu is showing (the keyboard
         // capture above is the precedent for piercing the Release-only gate;
-        // DisplaySection's Level row is the routing idiom). Live volume apply
-        // is NOT needed — the radio is never running while Settings is open.
+        // DisplaySection's Level row is the routing idiom). Settings owns
+        // persistence only; WebRadio applies the value on its next resume.
         if (_wrRowSub() && !g_keyboard.active()) {
             const int volRowY = S_CONTENT_Y + 4 * S_ROW_H;   // row 4 = Max volume
             if (phase == TouchPhase::Press) {
@@ -121,6 +124,11 @@ public:
                 return SectionResult::Continue;   // captured — no row dispatch
             }
         }
+        // WebRadio Audio-EQ sub-view: three persistent sliders. Live preview
+        // belongs to WebRadio's in-app EQ panel; Settings applies on resume.
+        if (_wrEqActive && _handleWrEqSliderInput(phase, x, y))
+            return SectionResult::Continue;
+
         // TASK-355 (M-PR-MOTION Item A): poll-interval slider on the
         // PlaneRadar row view — the WR-3 forwarding idiom above, verbatim.
         // Gated on the ROW view only (_prRowSub() excludes the Locations
@@ -146,6 +154,7 @@ public:
         if (phase != TouchPhase::Release) return SectionResult::Continue;
         if (isBackTap(x, y)) {
             if (_prLocActive) { _handlePrLocBack(); return SectionResult::Continue; }
+            if (_wrEqActive) { _wrEqActive = false; repaint(); return SectionResult::Continue; }
             if (_wrVisActive) { _wrVisActive = false; repaint(); return SectionResult::Continue; }
             if (_sub >= 0) { _sub = -1; repaint(); return SectionResult::Continue; }
             return SectionResult::GoBack;
@@ -156,6 +165,8 @@ public:
             if (row >= 0 && row < CONFIGURABLE_APP_COUNT) { _sub = (int8_t)row; repaint(); }
         } else if (_prLocActive) {
             _handlePrLocTap(x, y);
+        } else if (_wrEqActive) {
+            _handleWrEqTap(tapToRow(y));
         } else if (_wrVisActive) {
             _handleWrVisTap(tapToRow(y));
         } else {
@@ -186,6 +197,7 @@ private:
     };
 
     bool          _prLocActive       = false;   // gates the whole sub-view (PlaneRadar row view otherwise)
+    bool          _wrEqActive        = false;   // WebRadio Audio-EQ preset + slider sub-view
     bool          _wrVisActive       = false;   // TASK-389: gates the WebRadio "Vis modes" sub-view
     PrLocView     _prLocState        = PrLocView::SlotList;
     uint8_t       _prEditSlot        = 0;
@@ -208,6 +220,9 @@ private:
     // M-WEBRADIO-SETTINGS D2 row 4: Max-volume slider (1..21). Phase routing
     // lives in handleInput()'s WR-3 forwarding hook, not here.
     SliderWidget  _wrVolSlider;
+    SliderWidget  _wrEqBassSlider;
+    SliderWidget  _wrEqMidSlider;
+    SliderWidget  _wrEqTrebleSlider;
 
     // TASK-355 (M-PR-MOTION Item A) PlaneRadar row 6: poll-interval slider
     // (PR_POLL_MIN_SEC..PR_POLL_MAX_SEC = 1..30 s). Same WR-3 routing idiom.
@@ -546,13 +561,12 @@ private:
     }
 
     // ==== M-WEBRADIO-SETTINGS: WebRadio row view (D2) ========================
-    // 6 rows: Country (picker, WR-2 reset on select), Autoplay (toggle),
+    // 7 rows: Country (picker, WR-2 reset on select), Autoplay (toggle),
     // Bitrate cap (cycle — the wipe-trap fix row, WR-2 reset on change),
     // Auto-skip (toggle), Max volume (slider — WR-3 phases forwarded in
-    // handleInput), HW mod (greyed read-only: a statement about installed
-    // hardware, not a preference — stays serial/spiffs-only, Teletext
-    // Country posture). Change propagation is the radio app's job (D3
-    // resume-diff); this section only edits + saves.
+    // handleInput), Audio EQ (preset + slider sub-view), and Vis modes.
+    // HW-mod state remains visible inside Audio EQ. Change propagation is the
+    // radio app's job; this section only edits + saves.
 
     bool _wrSub() const {
         return _sub >= 0 && kConfigurableApps[_sub].id == AppId::WebRadio;
@@ -561,7 +575,7 @@ private:
     // TASK-389: WebRadio ROW view showing (not the Vis-modes sub-view) —
     // gates the Max-volume slider phase forwarding, same role as
     // _prRowSub() below plays for PlaneRadar's poll slider vs. Locations.
-    bool _wrRowSub() const { return _wrSub() && !_wrVisActive; }
+    bool _wrRowSub() const { return _wrSub() && !_wrEqActive && !_wrVisActive; }
 
     // TASK-355: PlaneRadar ROW view showing (not the Locations sub-view) —
     // gates the Poll-slider phase forwarding, same role as _wrSub() for WR-3.
@@ -597,8 +611,13 @@ private:
             _wrVolSlider.init(1, 21, settings().webRadioMaxVolume);
         _wrVolSlider.render(y, "Max vol");
         y += S_ROW_H;
-        drawRow(y, { "HW mod", settings().webRadioHwMod ? "yes" : "no",
-                     S_LABEL, S_VALUE_OFF });   // greyed read-only
+        // Fold the old read-only HW-mod row into the Audio-EQ sub-view so this
+        // already-full seven-row page can expose controls that change sound.
+        drawChevronRow(y, "Audio EQ");
+        tft.setTextDatum(MR_DATUM);
+        tft.setTextColor(S_VALUE);
+        tft.drawString(_wrEqPresetName(), S_COL_VALUE - 14, y + S_ROW_H / 2, 2);
+        tft.setTextDatum(TL_DATUM);
         y += S_ROW_H;
         // TASK-389/388: Vis modes row 6 — chevron into the 5-toggle sub-view
         // (Atlas/WaveAtlas/VU/Wave/Spectrum; Blank always available, no
@@ -615,14 +634,14 @@ private:
             tft.setTextDatum(TL_DATUM);
         }
         y += S_ROW_H;
-        // TASK-209 clamp made visible (D2 value-label intent): stock hardware
-        // soft-caps effective volume at 12 (wrEffectiveVolume() semantics).
+        // TASK-209 clamp made visible (D2 value-label intent): the default
+        // safe range soft-caps effective volume at 12.
         // Rendered as a footer hint — the slider's fixed value zone is too
         // narrow for a composite "N (cap 12)" label.
         if (!settings().webRadioHwMod && settings().webRadioMaxVolume > 12) {
             tft.setTextDatum(MC_DATUM);
             tft.setTextColor(S_VALUE_OFF);
-            tft.drawString("volume capped at 12 (no HW mod)",
+            tft.drawString("capped at 12 - Audio EQ > Drive range",
                            S_CANVAS_W / 2, y + 10, 2);
             tft.setTextDatum(TL_DATUM);
         }
@@ -655,6 +674,10 @@ private:
             settings().webRadioLastStation = 0;
         } else if (row == 3) {
             settings().webRadioAutoSkip = !settings().webRadioAutoSkip;
+        } else if (row == 5) {
+            _wrEqActive = true;
+            repaint();
+            return;
         } else if (row == 6) {
             // Vis modes row: tap opens the 4-toggle sub-view (TASK-389).
             // Nothing changed yet, so skip the saveSettings()+repaint() below
@@ -663,11 +686,122 @@ private:
             repaint();
             return;
         } else {
-            // row 4 (Max volume) is phase-forwarded to the slider in
-            // handleInput(); row 5 (HW mod) is read-only — inert.
+            // row 4 (Max volume) is phase-forwarded to the slider.
             return;
         }
         saveSettings(); repaint();
+    }
+
+    // ==== WebRadio Audio EQ ==================================================
+
+    // Presets are inferred from the actual band values, so manual slider edits
+    // need no separate persisted "custom" flag and cannot drift from the UI.
+    int8_t _wrEqPresetIndex() {
+        if (settings().webRadioEqBassDb == -6 && settings().webRadioEqMidDb == 0 &&
+            settings().webRadioEqTrebleDb == -2) return 0;  // Small
+        if (settings().webRadioEqBassDb == -4 && settings().webRadioEqMidDb == 0 &&
+            settings().webRadioEqTrebleDb == -1) return 1;  // Gentle
+        if (settings().webRadioEqBassDb == 0 && settings().webRadioEqMidDb == 0 &&
+            settings().webRadioEqTrebleDb == 0) return 2;   // Flat
+        return -1;
+    }
+
+    const char* _wrEqPresetName() {
+        static const char* kNames[] = { "Small", "Gentle", "Flat" };
+        int8_t p = _wrEqPresetIndex();
+        return p >= 0 ? kNames[p] : "Custom";
+    }
+
+    void _repaintWrEq() {
+        int y = S_CONTENT_Y;
+        drawRow(y, { "Preset", _wrEqPresetName(), S_LABEL, S_VALUE });
+        y += S_ROW_H;
+
+        if (!_wrEqBassSlider.isDragging())
+            _wrEqBassSlider.init(WR_EQ_BASS_MIN_DB, WR_EQ_BASS_MAX_DB,
+                                 settings().webRadioEqBassDb);
+        _wrEqBassSlider.render(y, "Bass"); y += S_ROW_H;
+
+        if (!_wrEqMidSlider.isDragging())
+            _wrEqMidSlider.init(WR_EQ_MID_MIN_DB, WR_EQ_MID_MAX_DB,
+                                settings().webRadioEqMidDb);
+        _wrEqMidSlider.render(y, "Mid"); y += S_ROW_H;
+
+        if (!_wrEqTrebleSlider.isDragging())
+            _wrEqTrebleSlider.init(WR_EQ_TREBLE_MIN_DB, WR_EQ_TREBLE_MAX_DB,
+                                   settings().webRadioEqTrebleDb);
+        _wrEqTrebleSlider.render(y, "Treble"); y += S_ROW_H;
+
+        // Legacy storage calls this `webRadioHwMod`; in the UI it is an
+        // explicit software drive-range override. It changes PCM signal
+        // amplitude only, never USB/amp supply voltage or the DAC DC midpoint.
+        drawRow(y, { "Drive range", settings().webRadioHwMod ? "full 21" : "safe 12",
+                     S_LABEL, settings().webRadioHwMod ? S_SUBHDR : S_VALUE });
+        y += S_ROW_H;
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(S_VALUE_OFF);
+        tft.drawString("live signal level - not supply voltage", S_CANVAS_W / 2, y + 10, 2);
+        tft.setTextDatum(TL_DATUM);
+    }
+
+    void _handleWrEqTap(int row) {
+        if (row == 0) {
+            int8_t next = _wrEqPresetIndex();
+            next = (next < 0) ? 0 : (int8_t)((next + 1) % 3);
+            static const int8_t kBass[]   = { -6, -4, 0 };
+            static const int8_t kMid[]    = {  0,  0, 0 };
+            static const int8_t kTreble[] = { -2, -1, 0 };
+            settings().webRadioEqBassDb   = kBass[next];
+            settings().webRadioEqMidDb    = kMid[next];
+            settings().webRadioEqTrebleDb = kTreble[next];
+        } else if (row == 4) {
+            settings().webRadioHwMod = !settings().webRadioHwMod;
+        } else {
+            return;  // rows 1..3 belong to the phase-forwarded sliders
+        }
+        saveSettings();
+        repaint();
+    }
+
+    bool _handleWrEqSliderInput(TouchPhase phase, int x, int y) {
+        SliderWidget* slider = nullptr;
+        int row = -1;
+        const char* label = nullptr;
+
+        if (phase == TouchPhase::Press) {
+            int hit = tapToRow(y);
+            if (hit == 1) { slider = &_wrEqBassSlider; row = 1; label = "Bass"; }
+            if (hit == 2) { slider = &_wrEqMidSlider; row = 2; label = "Mid"; }
+            if (hit == 3) { slider = &_wrEqTrebleSlider; row = 3; label = "Treble"; }
+        } else if (_wrEqBassSlider.isDragging()) {
+            slider = &_wrEqBassSlider; row = 1; label = "Bass";
+        } else if (_wrEqMidSlider.isDragging()) {
+            slider = &_wrEqMidSlider; row = 2; label = "Mid";
+        } else if (_wrEqTrebleSlider.isDragging()) {
+            slider = &_wrEqTrebleSlider; row = 3; label = "Treble";
+        }
+        if (!slider) return false;
+
+        int rowY = S_CONTENT_Y + row * S_ROW_H;
+        if (phase == TouchPhase::Press)
+            return slider->onPress(x, y, rowY);
+        if (phase == TouchPhase::Move) {
+            slider->onMove(x);
+            int8_t value = (int8_t)slider->value();
+            if (row == 1) settings().webRadioEqBassDb = value;
+            if (row == 2) settings().webRadioEqMidDb = value;
+            if (row == 3) settings().webRadioEqTrebleDb = value;
+            slider->renderDynamic(rowY, label);
+            return true;
+        }
+
+        int8_t value = (int8_t)slider->onRelease(x);
+        if (row == 1) settings().webRadioEqBassDb = value;
+        if (row == 2) settings().webRadioEqMidDb = value;
+        if (row == 3) settings().webRadioEqTrebleDb = value;
+        saveSettings();
+        repaint();
+        return true;
     }
 
     // TASK-389/388: Vis modes sub-view — 5 independent tap-to-toggle rows,

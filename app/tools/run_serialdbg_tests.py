@@ -9,7 +9,8 @@ T-BUSY-01/01b/02/03/05, T-CDWN-01/02/03,
 T149–T154 (touch-capture-001),
 T162–T166 (taskbar-scroll-001),
 T_WR_EJECT_01/02, T_WR_ERR_01–04, T_WR_COEX_01/02/04,
-T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO),
+T_WR_HEAP_01–04, T_WR_VOL_03, T_WR_AUDIO_PANEL,
+T_WR_TLS_01, T_WR_SPOTIFY_RESUME_01 (M-WEBRADIO),
 T_WR_VIS_01–03 (vu-002 / X043, M-WEBRADIO-REAL-VIS),
 T_WR_VIS_04/05 (vu-003 / X044, TASK-387, M-WEBRADIO-REAL-VIS-SPECTRUM),
 T_PR_01–06 (M-PLANERADAR, TASK-307)
@@ -6406,8 +6407,151 @@ def t_wr_vol_clamp(dut: Dut):
         _restore_spotify(dut)
 
 
-# ── T237 — auto-skip terminal bound on an all-dead list (TASK-237) ───────────
+# ── T_WR_AUDIO_PANEL — foreground live tuning + teardown ─────────────────────
 
+def t_wr_audio_panel(dut: Dut):
+    """Live tuning stays in WebRadio and a real app switch tears audio down."""
+    tid = "T_WR_AUDIO_PANEL"
+    print(f"{tid}  foreground live tuning + suspend teardown")
+
+    count = _webradio_enter_with_stations(dut, tid, fetch_timeout=180.0)
+    if count == 0:
+        skip(tid, "station list unavailable (network or fetch failure)")
+        return
+    dut.cmd("set wrPlay 0", timeout=3.0)
+    if not _wait_wr_state(dut, target=2, timeout=30.0):
+        skip(tid, "could not reach PLAYING")
+        return
+
+    # A prior interrupted run can leave this RAM-only view open. Normalize to
+    # the station list before taking baselines so the next tap always means open.
+    panel_state = dut.cmd("get wrEq", timeout=3.0)
+    if panel_state.get("panel"):
+        dut.cmd("tap 229 64", timeout=3.0)
+        time.sleep(0.2)
+
+    original_eq = dut.cmd("get wrEq", timeout=3.0)
+    original_vol = dut.cmd("get wrEffectiveVol", timeout=3.0)
+    original_pct = dut.cmd("get wrVolPct", timeout=3.0)
+    arena_before = dut.cmd("get arenaStats", timeout=3.0)
+    pump_before = dut.cmd("get wrPump", timeout=3.0)
+    save_before = dut.cmd("get settingsSaveCount", timeout=3.0).get("count", -1)
+    required = (original_eq, original_vol, original_pct, arena_before, pump_before)
+    if not all(r.get("ok") for r in required):
+        fail(tid, f"missing baseline debug data: {required}")
+        return
+
+    def restore_ram():
+        dut.cmd(f"set wrEqBass {original_eq['bass']}", timeout=3.0)
+        dut.cmd(f"set wrEqMid {original_eq['mid']}", timeout=3.0)
+        dut.cmd(f"set wrEqTreble {original_eq['treble']}", timeout=3.0)
+        dut.cmd(f"set wrMaxVol {original_vol['maxVol']}", timeout=3.0)
+        dut.cmd(f"set wrHwMod {1 if original_vol['hwMod'] else 0}", timeout=3.0)
+        dut.cmd(f"set wrVolPct {original_pct['pct']}", timeout=3.0)
+
+    failure = None
+    try:
+        # Known RAM-only baseline; original values are restored before save.
+        dut.cmd("set wrVolPct 100", timeout=3.0)
+        dut.cmd("set wrMaxVol 11", timeout=3.0)
+        dut.cmd("set wrHwMod 0", timeout=3.0)
+        time.sleep(0.4)
+
+        # Open via the authentic EQ button already present in Winamp chrome.
+        dut.cmd("tap 229 64", timeout=3.0)
+        eq_open = dut.cmd("get wrEq", timeout=3.0)
+        if not eq_open.get("panel"):
+            failure = f"EQ button did not open panel: {eq_open}"
+
+        # Row 1 plus: configured/effective/applied volume moves 11 -> 12.
+        if failure is None:
+            dut.cmd("tap 233 155", timeout=3.0)
+            time.sleep(0.4)
+            v = dut.cmd("get wrEffectiveVol", timeout=3.0)
+            av = dut.cmd("get wrAppliedVol", timeout=3.0)
+            if v.get("maxVol") != 12 or v.get("eff") != 12 or av.get("applied") != 12:
+                failure = f"panel Max volume did not apply 11->12: cfg={v}, audio={av}"
+
+        # Row 2 +/- changes Bass by one step and marks the panel dirty.
+        bass_delta = 1 if original_eq["bass"] < 0 else -1
+        bass_x = 233 if bass_delta > 0 else 186
+        if failure is None:
+            dut.cmd(f"set wrEqBass {original_eq['bass']}", timeout=3.0)
+            dut.cmd(f"tap {bass_x} 168", timeout=3.0)
+            time.sleep(0.3)
+            eq_changed = dut.cmd("get wrEq", timeout=3.0)
+            if (eq_changed.get("bass") != original_eq["bass"] + bass_delta or
+                    not eq_changed.get("panel") or not eq_changed.get("dirty")):
+                failure = f"panel Bass step/dirty state incorrect: {eq_changed}"
+
+        # FULL 21 removes the safe-12 cap and updates the live Audio volume.
+        if failure is None:
+            dut.cmd("set wrMaxVol 13", timeout=3.0)
+            dut.cmd("set wrHwMod 0", timeout=3.0)
+            time.sleep(0.2)
+            dut.cmd("tap 95 218", timeout=3.0)
+            time.sleep(0.4)
+            v = dut.cmd("get wrEffectiveVol", timeout=3.0)
+            av = dut.cmd("get wrAppliedVol", timeout=3.0)
+            if not v.get("hwMod") or v.get("eff") != 13 or av.get("applied") != 13:
+                failure = f"FULL 21 did not apply live: cfg={v}, audio={av}"
+
+        pump_after = dut.cmd("get wrPump", timeout=3.0)
+        state_after = dut.cmd("get wrState", timeout=3.0)
+        if failure is None and (not pump_after.get("alive") or
+                                pump_after.get("cycles", 0) <= pump_before.get("cycles", 0) or
+                                state_after.get("state") != 2):
+            failure = (f"playback did not remain live in panel: before={pump_before}, "
+                       f"after={pump_after}, state={state_after}")
+
+        # Restore first, then close. Persistence is intentionally deferred until
+        # suspend(), after Audio/arena teardown makes JSON allocation safe.
+        restore_ram()
+        dut.cmd("tap 229 64", timeout=3.0)
+        time.sleep(0.4)
+        eq_closed = dut.cmd("get wrEq", timeout=3.0)
+        save_at_close = dut.cmd("get settingsSaveCount", timeout=3.0).get("count", -1)
+        if failure is None and (eq_closed.get("panel") or not eq_closed.get("dirty")):
+            failure = f"close did not preserve deferred dirty state: {eq_closed}"
+        if failure is None and save_before >= 0 and save_at_close != save_before:
+            failure = f"live panel close wrote flash, count {save_before}->{save_at_close}"
+
+        # Architectural regression gate: Settings switch must fully suspend WR.
+        dut.cmd(f"switchApp {APP_SLOT['Settings']}", timeout=12.0)
+        time.sleep(0.5)
+        app_after = dut.cmd("get appId", timeout=3.0)
+        arena_after = dut.cmd("get arenaStats", timeout=3.0)
+        dead_pump = dut.cmd("get wrPump", timeout=3.0)
+        eq_after = dut.cmd("get wrEq", timeout=3.0)
+        save_after = dut.cmd("get settingsSaveCount", timeout=3.0).get("count", -1)
+        released = arena_after.get("releases", -1) - arena_before.get("releases", -1)
+        if failure is None and (app_after.get("name") != "Settings" or
+                                arena_after.get("active") != 0 or released != 1 or
+                                dead_pump.get("alive") or eq_after.get("dirty") or
+                                (save_before >= 0 and save_after != save_before + 1)):
+            failure = (f"suspend teardown failed: app={app_after}, arena before/after="
+                       f"{arena_before}/{arena_after}, pump={dead_pump}, eq={eq_after}, "
+                       f"saves={save_before}->{save_after}")
+    finally:
+        # On an early failure, still restore and leave through the real suspend
+        # path. On success we are already in Settings and must not re-dirty the
+        # WebRadio session-volume flag with redundant debug writes.
+        app_now = dut.cmd("get appId", timeout=3.0)
+        if app_now.get("name") == "WebRadio":
+            restore_ram()
+            panel_now = dut.cmd("get wrEq", timeout=3.0)
+            if panel_now.get("panel"):
+                dut.cmd("tap 229 64", timeout=3.0)
+            dut.cmd(f"switchApp {APP_SLOT['Settings']}", timeout=12.0)
+
+    if failure:
+        fail(tid, failure)
+    else:
+        pass_(tid, "live Max/EQ/drive applied; pump stayed live in panel; close wrote "
+                   "nothing; Settings switch released pump + mb_arena then saved once")
+
+
+# ── T237 — auto-skip terminal bound on an all-dead list (TASK-237) ───────────
 def _wr_skip_tried(dut: Dut) -> int:
     r = dut.cmd("get wrSkip", timeout=3.0)
     return int(r.get("tried", -1)) if r.get("ok") else -1
@@ -7874,6 +8018,7 @@ ALL_TESTS = {
     "T_WR_HEAP_04":  t_wr_heap_04,
     "T_WR_VOL_03":   t_wr_vol_03,
     "T_WR_VOL_CLAMP": t_wr_vol_clamp,
+    "T_WR_AUDIO_PANEL": t_wr_audio_panel,
     "T237":          t237,   # TASK-237: auto-skip terminal bound (dead-URL hook)
     "T276":          t276,   # TASK-276/395: terminal-retry re-arm actually fires
     # M-WEBRADIO TLS path + Spotify coexistence (TASK-214)

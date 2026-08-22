@@ -120,14 +120,14 @@ static constexpr uint8_t       WR_POSBAR_MAX_STEP_PER_TICK = 2;
 static constexpr uint8_t       WR_POSBAR_FREEZE_ENTER_PCT  = 90;
 static constexpr uint8_t       WR_POSBAR_FREEZE_EXIT_PCT   = 80;
 
-// TASK-209 / M-WEBRADIO §HW Mod: without the SC8002B gain-reduction mod the 8-bit
-// internal-DAC output overloads and clips above ~12/21, so stock hardware is
-// soft-capped here. With the mod installed the full 1–21 range is usable.
+// TASK-209: the stock 8-bit DAC/amplifier path often clips above ~12/21, so the
+// default drive range is soft-capped here. Settings can explicitly expose the
+// full 1–21 PCM-amplitude range for listening tests.
 static constexpr uint8_t WR_VOLUME_SOFT_CAP_STOCK = 12;
 
 // The volume actually fed to audio.setVolume(): the user's configured ceiling
-// (webRadioMaxVolume) clamped to the hardware-safe range — soft cap on stock,
-// full range with the HW mod. Single source of truth for all production setVolume
+// (webRadioMaxVolume) clamped to the selected range — safe 12 or full 21.
+// Single source of truth for all production setVolume
 // sites (the wrVol debug setter stays unclamped so calibration can reach the clip
 // point). Free function so settingsStorage's g_settings is the only dependency.
 static inline uint8_t wrEffectiveVolume() {
@@ -291,11 +291,23 @@ static inline void wrApplyConnectTimeout(Audio* a) {
     a->setConnectionTimeout(WR_CONNECT_TIMEOUT_MS, WR_CONNECT_TIMEOUT_MS_SSL);
 }
 
+// Persistent small-speaker voicing for the stock CYD analogue path. setTone()
+// stores these gains immediately; the library recalculates its 500 Hz low
+// shelf, 3 kHz peak band and 6 kHz high shelf after the stream sample rate
+// becomes known. Bounds/defaults live with AppSettings so the Settings sliders,
+// JSON guards and runtime always share one definition.
+static inline void wrApplySpeakerEq(Audio* a) {
+    a->setTone(g_settings.webRadioEqBassDb,
+               g_settings.webRadioEqMidDb,
+               g_settings.webRadioEqTrebleDb);
+}
+
 static Audio& wrAudio() {
     if (!s_wr_audio) {
         s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
         wrApplyInBufTrial(s_wr_audio);
         wrApplyConnectTimeout(s_wr_audio);
+        wrApplySpeakerEq(s_wr_audio);
     }
     return *s_wr_audio;
 }
@@ -364,6 +376,15 @@ constexpr TickType_t  WR_PUMP_READ_TIMEOUT_TICKS = pdMS_TO_TICKS(50); // per-tic
 // DEV-2-1) — this starting value is a placeholder, not yet DUT-measured. ***
 constexpr uint32_t WR_PUMP_ACK_TIMEOUT_MS = 10000;
 
+// Queue live settings to the pump task instead of racing Audio::loop() for its
+// mutex. Task notifications live in the existing FreeRTOS TCB (no added DRAM)
+// and eSetBits coalesces rapid slider moves while guaranteeing the final state
+// is consumed after any long decoder/network pass releases the mutex.
+static void wrQueueLiveAudioSettings() {
+    if (!s_wr_audio || !s_wrPumpTask) return;
+    xTaskNotify(s_wrPumpTask, 1u, eSetBits);
+}
+
 // Pump observability (BP-036, VE-2-2) — single-producer (pump task) volatiles,
 // read by dbgGet("wrPump") / "get stacks" on the loop task. Same accepted
 // pattern as spotifyTask's volatile counters (no torn 32-bit reads on Xtensa).
@@ -383,21 +404,15 @@ static bool    s_wrVolPctDirty = false;
 static uint8_t s_wrVolPctSaved = 100;
 
 // winampDisplay's volume-drag seam target (setVolumeSink()). Applies the
-// pct-scaled volume via the sanctioned short-timeout control-call idiom — a
-// drag must never block the UI task behind a busy pump (skip the step; the
-// debounced next commit lands it, same degrade-gracefully rule as every
-// other per-tick pump touchpoint). No live session yet (DEV-2-4 precedent,
-// same as the wrVol debug setter): clamp-store only, nothing to apply.
+// pct-scaled volume through the pump notification. Rapid drag steps coalesce,
+// the final value is not lost behind a busy decode/network pass, and the UI
+// task never blocks. With no live session this remains clamp-store-only.
 static void wrVolumeSink(int pct) {
     if (pct < 0) pct = 0;
     if (pct > 100) pct = 100;
     g_settings.webRadioVolumePct = (uint8_t)pct;
     s_wrVolPctDirty = true;
-    if (!s_wr_audio) return;
-    if (xSemaphoreTake(s_wrAudioMutex, WR_PUMP_READ_TIMEOUT_TICKS) == pdTRUE) {
-        s_wr_audio->setVolume(wrScaledVolume());
-        xSemaphoreGive(s_wrAudioMutex);
-    }
+    wrQueueLiveAudioSettings();
 }
 
 static size_t wrPumpStackSizeBytes() {
@@ -508,6 +523,12 @@ static void wrPumpTaskBody(void*) {
             uint32_t waitMs = millis() - tWait;
             if (waitMs > s_wrPumpMaxMutexWaitMs) s_wrPumpMaxMutexWaitMs = waitMs;
 
+            // Coalesced in-app panel/player-volume update. Read the final RAM
+            // values only after owning Audio, then service the decoder.
+            if (ulTaskNotifyTake(pdTRUE, 0) && s_wr_audio) {
+                wrApplySpeakerEq(s_wr_audio);
+                s_wr_audio->setVolume(wrScaledVolume());
+            }
             uint32_t tPump = millis();
             if (s_wr_audio) s_wr_audio->loop();  // no-ops fast internally when !m_f_running
             uint32_t pumpMs = millis() - tPump;
@@ -578,6 +599,8 @@ public:
         // TASK-352: same idiom for the volume-slider session pct.
         s_wrVolPctSaved   = g_settings.webRadioVolumePct;
         s_wrVolPctDirty   = false;
+        _audioPanelActive = false;
+        _audioPanelDirty  = false;
         _dirty           = true;
         _icyTitle[0]     = '\0';
         _bufPct          = 0;
@@ -623,7 +646,6 @@ public:
         // WebRadio for the duration of this session; SpotifyApp::resume()
         // restores the default (ACT_VOLUME) seam on eject-back.
         winampDisplay.setVolumeSink(wrVolumeSink);
-
         // M-WEBRADIO-SETTINGS D3: pull-on-resume config diff (StockApp
         // ticker-diff precedent). A Settings edit of country or bitrate cap
         // voids the station-list identity: abort any in-flight fetch (WR-1 —
@@ -677,15 +699,7 @@ public:
         // TASK-277 [DEV-1-4]: cancel any live gesture (precedent:
         // SpotifyApp::suspend() → resetDragState()) — serial switchApp /
         // set wrEject can fire mid-gesture.
-        _wrs            = WRS_IDLE;
-        _scrollAccum    = 0.0f;
-        _scrollVelocity = 0.0f;
-        _pleditDirty    = false;
-        // TASK-352: a live volume drag is shared winampDisplay state (same
-        // precedent) — must not leave dragState==D_VOLUME_DRAG stuck across
-        // an eject mid-drag.
-        winampDisplay.resetDragState();
-
+        _cancelUiGestures();
         _stopAudio();
 #ifdef MEMBUDGET_PHASE1
         if (_state == WRPlayState::CONNECTING) {
@@ -727,20 +741,7 @@ public:
         // touches both doesn't cost two flash writes. Auto-skip/drag churn
         // costs zero flash writes otherwise, and eject also funnels through
         // suspend() so it is covered.
-        bool needSave = false;
-        if (_lastStationDirty) {
-            if (g_settings.webRadioLastStation != _lastStationSaved) needSave = true;
-            _lastStationDirty = false;
-        }
-        if (s_wrVolPctDirty) {
-            if (g_settings.webRadioVolumePct != s_wrVolPctSaved) needSave = true;
-            s_wrVolPctDirty = false;
-        }
-        if (needSave) {
-            SettingsStorage::save();
-            _lastStationSaved = g_settings.webRadioLastStation;
-            s_wrVolPctSaved   = g_settings.webRadioVolumePct;
-        }
+        _flushSessionSettings();
     }
 
     void tick() override {
@@ -842,7 +843,7 @@ public:
         // (§Gesture spec). A pending full repaint covers it anyway.
         if (_pleditDirty) {
             _pleditDirty = false;
-            if (!_dirty) _drawPledit();
+            if (!_dirty && !_audioPanelActive) _drawPledit();
         }
 
         // TASK-234 (ADR-045): process a deferred retry / auto-skip from a prior
@@ -1171,6 +1172,11 @@ public:
         // captures can never compete for the same touch.
         if (winampDisplay.handleVolumeGesturePublic(phase, x, y)) return true;
 
+        // Live speaker tuning is owned by WebRadio and occupies only the
+        // PLEDIT area. Main-window transport and session-volume controls stay
+        // usable while audio pumps under the normal foreground lifecycle.
+        if (_audioPanelActive && _handleAudioPanelInput(phase, x, y)) return true;
+
         // TASK-277 (M-WR-PLEDIT-SCROLL): captured gesture — while a drag is
         // live, Move updates it and Release is consumed by drag-end BEFORE any
         // eject/transport hit-test [DEV-1-1 blocker]. Mirrors the donor
@@ -1208,6 +1214,18 @@ public:
         }
 
         if (phase != TouchPhase::Release) return false;
+
+        // The authentic main-window EQ button toggles a foreground-owned
+        // panel: no app switch, overlay allocation or arena-lease extension.
+        if (_hitAudioPanelButton(x, y)) {
+            if (_audioPanelActive) {
+                _closeAudioPanel();
+            } else {
+                _audioPanelActive = true;
+                _drawAudioPanel();
+            }
+            return true;
+        }
 
         // No-anchor Release [VE-1-2]: no prior Press (exactly how cmdTap
         // drives the T_WR_* tap surface) — today's tap-at-(x,y) path,
@@ -1352,6 +1370,28 @@ public:
             snprintf(buf, len,
                      "\"var\":\"wrVolPct\",\"pct\":%u,\"scaled\":%u,\"last\":true",
                      (unsigned)g_settings.webRadioVolumePct, (unsigned)wrScaledVolume());
+            return true;
+        }
+        if (strcmp(var, "wrAppliedVol") == 0) {
+            int applied = -1;
+            if (s_wr_audio && s_wrAudioMutex &&
+                xSemaphoreTake(s_wrAudioMutex, pdMS_TO_TICKS(3000)) == pdTRUE) {
+                applied = (int)s_wr_audio->getVolume();
+                xSemaphoreGive(s_wrAudioMutex);
+            }
+            snprintf(buf, len,
+                     "\"var\":\"wrAppliedVol\",\"applied\":%d,\"last\":true",
+                     applied);
+            return true;
+        }
+        if (strcmp(var, "wrEq") == 0) {
+            snprintf(buf, len,
+                     "\"var\":\"wrEq\",\"bass\":%d,\"mid\":%d,\"treble\":%d,"
+                     "\"panel\":%u,\"dirty\":%u,\"last\":true",
+                     (int)g_settings.webRadioEqBassDb,
+                     (int)g_settings.webRadioEqMidDb,
+                     (int)g_settings.webRadioEqTrebleDb,
+                     (unsigned)_audioPanelActive, (unsigned)_audioPanelDirty);
             return true;
         }
         // TASK-349: T_WRUI_02 surface — raw seconds + the wrapped/displayed value.
@@ -1656,6 +1696,11 @@ public:
             g_settings.webRadioAutoSkip = val && strcmp(val, "0") != 0;
             return true;
         }
+        if (strcmp(var, "wrVolPct") == 0) {
+            int pct = atoi(val);
+            if (pct >= 0 && pct <= 100) wrVolumeSink(pct);
+            return true;
+        }
         // T_WR_VOL_01–02 (TASK-209): runtime volume setter for *subjective* clip-point
         // calibration — intentionally UNCLAMPED so a human can drive past the soft cap
         // to find the clipping level. Production playback uses wrEffectiveVolume().
@@ -1743,11 +1788,39 @@ public:
         // (wrEffectiveVolume / T_WR_VOL_03) is verifiable on DUT without a speaker.
         if (strcmp(var, "wrHwMod") == 0) {
             g_settings.webRadioHwMod = val && strcmp(val, "0") != 0;
+            wrQueueLiveAudioSettings();
             return true;
         }
         if (strcmp(var, "wrMaxVol") == 0) {
             int v = atoi(val);
-            if (v >= 0 && v <= (int)WR_VOLUME_MAX) g_settings.webRadioMaxVolume = (uint8_t)v;
+            if (v >= 0 && v <= (int)WR_VOLUME_MAX) {
+                g_settings.webRadioMaxVolume = (uint8_t)v;
+                wrQueueLiveAudioSettings();
+            }
+            return true;
+        }
+        if (strcmp(var, "wrEqBass") == 0) {
+            int v = atoi(val);
+            if (v >= WR_EQ_BASS_MIN_DB && v <= WR_EQ_BASS_MAX_DB) {
+                g_settings.webRadioEqBassDb = (int8_t)v;
+                wrQueueLiveAudioSettings();
+            }
+            return true;
+        }
+        if (strcmp(var, "wrEqMid") == 0) {
+            int v = atoi(val);
+            if (v >= WR_EQ_MID_MIN_DB && v <= WR_EQ_MID_MAX_DB) {
+                g_settings.webRadioEqMidDb = (int8_t)v;
+                wrQueueLiveAudioSettings();
+            }
+            return true;
+        }
+        if (strcmp(var, "wrEqTreble") == 0) {
+            int v = atoi(val);
+            if (v >= WR_EQ_TREBLE_MIN_DB && v <= WR_EQ_TREBLE_MAX_DB) {
+                g_settings.webRadioEqTrebleDb = (int8_t)v;
+                wrQueueLiveAudioSettings();
+            }
             return true;
         }
         return false;
@@ -1755,7 +1828,274 @@ public:
 
 private:
 
+    void _cancelUiGestures() {
+        _wrs            = WRS_IDLE;
+        _scrollAccum    = 0.0f;
+        _scrollVelocity = 0.0f;
+        _pleditDirty    = false;
+        _audioPanelActive = false;
+        // Shared Winamp drag state must not leak into Settings or another app.
+        winampDisplay.resetDragState();
+    }
+
+    // ADR-050 rule 3: last-station, session-volume and in-app audio-panel
+    // changes share one write when the app is suspended.
+    void _flushSessionSettings() {
+        bool needSave = false;
+        if (_lastStationDirty) {
+            if (g_settings.webRadioLastStation != _lastStationSaved) needSave = true;
+            _lastStationDirty = false;
+        }
+        if (s_wrVolPctDirty) {
+            if (g_settings.webRadioVolumePct != s_wrVolPctSaved) needSave = true;
+            s_wrVolPctDirty = false;
+        }
+        if (_audioPanelDirty) {
+            needSave = true;
+            _audioPanelDirty = false;
+        }
+        if (needSave) {
+            SettingsStorage::save();
+            _lastStationSaved = g_settings.webRadioLastStation;
+            s_wrVolPctSaved   = g_settings.webRadioVolumePct;
+        }
+    }
+
     // ── State ──────────────────────────────────────────────────────────────
+
+    // -- Foreground-owned live audio panel ----------------------------------
+    // The panel replaces only the PLEDIT region. It deliberately stays inside
+    // WebRadio rather than switching to Settings, so the existing foreground
+    // arena ownership and suspend teardown contract remain intact.
+
+    // The authentic EQ-off control is already baked into MAIN_BG from
+    // SHUFREP.BMP. Make that existing Winamp control the panel toggle.
+    // The invisible hit target adds a few pixels around the 23x12 artwork so
+    // the tiny authentic control remains practical on a resistive touchscreen.
+    static constexpr int WR_AUDIO_BTN_X = 214;
+    static constexpr int WR_AUDIO_BTN_Y = 54;
+    static constexpr int WR_AUDIO_BTN_W = 27;
+    static constexpr int WR_AUDIO_BTN_H = 20;
+    static constexpr int WR_AUDIO_SLIDER_X = 178;
+    static constexpr int WR_AUDIO_SLIDER_W = VOLUME_W;
+    static constexpr int WR_AUDIO_MODE_Y = PLEDIT_BOTTOM_Y + 8;
+    static constexpr int WR_AUDIO_MODE_W = 53;
+    static constexpr int WR_AUDIO_MODE_H = 18;
+    static constexpr int WR_AUDIO_SAFE_X = 12;
+    static constexpr int WR_AUDIO_FULL_X = 69;
+
+    bool _hitAudioPanelButton(int x, int y) const {
+        return x >= WR_AUDIO_BTN_X && x < WR_AUDIO_BTN_X + WR_AUDIO_BTN_W &&
+               y >= WR_AUDIO_BTN_Y && y < WR_AUDIO_BTN_Y + WR_AUDIO_BTN_H;
+    }
+
+    int8_t _audioEqPresetIndex() const {
+        if (g_settings.webRadioEqBassDb == -6 &&
+            g_settings.webRadioEqMidDb == 0 &&
+            g_settings.webRadioEqTrebleDb == -2) return 0;  // Small
+        if (g_settings.webRadioEqBassDb == -4 &&
+            g_settings.webRadioEqMidDb == 0 &&
+            g_settings.webRadioEqTrebleDb == -1) return 1;  // Gentle
+        if (g_settings.webRadioEqBassDb == 0 &&
+            g_settings.webRadioEqMidDb == 0 &&
+            g_settings.webRadioEqTrebleDb == 0) return 2;   // Flat
+        return -1;
+    }
+
+    const char* _audioEqPresetName() const {
+        static const char* kNames[] = { "Small", "Gentle", "Flat" };
+        int8_t p = _audioEqPresetIndex();
+        return p >= 0 ? kNames[p] : "Custom";
+    }
+
+    void _audioPanelChanged() {
+        _audioPanelDirty = true;
+        // One notification applies both EQ and effective volume after the pump
+        // owns Audio. Rapid taps coalesce without blocking the UI task.
+        wrQueueLiveAudioSettings();
+        _drawAudioPanel();
+    }
+
+    void _cycleAudioPreset() {
+        int8_t next = _audioEqPresetIndex();
+        next = next < 0 ? 0 : (int8_t)((next + 1) % 3);
+        static const int8_t kBass[]   = { -6, -4, 0 };
+        static const int8_t kMid[]    = {  0,  0, 0 };
+        static const int8_t kTreble[] = { -2, -1, 0 };
+        g_settings.webRadioEqBassDb   = kBass[next];
+        g_settings.webRadioEqMidDb    = kMid[next];
+        g_settings.webRadioEqTrebleDb = kTreble[next];
+        _audioPanelChanged();
+    }
+
+    void _adjustAudioPanelRow(int row, int delta) {
+        if (delta == 0) return;
+        bool changed = false;
+        if (row == 1) {
+            int v = constrain((int)g_settings.webRadioMaxVolume + delta,
+                              1, (int)WR_VOLUME_MAX);
+            changed = v != g_settings.webRadioMaxVolume;
+            g_settings.webRadioMaxVolume = (uint8_t)v;
+        } else if (row == 2) {
+            int v = constrain((int)g_settings.webRadioEqBassDb + delta,
+                              (int)WR_EQ_BASS_MIN_DB, (int)WR_EQ_BASS_MAX_DB);
+            changed = v != g_settings.webRadioEqBassDb;
+            g_settings.webRadioEqBassDb = (int8_t)v;
+        } else if (row == 3) {
+            int v = constrain((int)g_settings.webRadioEqMidDb + delta,
+                              (int)WR_EQ_MID_MIN_DB, (int)WR_EQ_MID_MAX_DB);
+            changed = v != g_settings.webRadioEqMidDb;
+            g_settings.webRadioEqMidDb = (int8_t)v;
+        } else if (row == 4) {
+            int v = constrain((int)g_settings.webRadioEqTrebleDb + delta,
+                              (int)WR_EQ_TREBLE_MIN_DB, (int)WR_EQ_TREBLE_MAX_DB);
+            changed = v != g_settings.webRadioEqTrebleDb;
+            g_settings.webRadioEqTrebleDb = (int8_t)v;
+        }
+        if (changed) _audioPanelChanged();
+    }
+
+    void _setAudioDriveRange(bool full) {
+        if (g_settings.webRadioHwMod == full) return;
+        g_settings.webRadioHwMod = full;
+        _audioPanelChanged();
+    }
+
+    void _closeAudioPanel() {
+        // Keep edits in RAM while Audio owns the decoder arena. A live save can
+        // fail DynamicJsonDocument allocation under decode pressure; suspend()
+        // tears audio down first, then _flushSessionSettings() coalesces one
+        // safe write with last-station/session-volume changes.
+        _audioPanelActive = false;
+        _drawPledit();
+    }
+
+    bool _handleAudioPanelInput(TouchPhase phase, int x, int y) {
+        if (y < PLEDIT_Y || y >= PLEDIT_Y + PLEDIT_H) return false;
+        // The panel owns all phases in its region. It uses release actions
+        // rather than drag capture, matching the playlist's compact row pitch.
+        if (phase != TouchPhase::Release) return true;
+
+        if (_hitAudioPanelButton(x, y)) {
+            _closeAudioPanel();
+            return true;
+        }
+        if (y >= PLEDIT_ROWS_Y && y < PLEDIT_BOTTOM_Y) {
+            int row = (y - PLEDIT_ROWS_Y) / PLEDIT_ROW_H;
+            if (row == 0) {
+                _cycleAudioPreset();
+            } else if (x >= 166 && x < PLEDIT_CONTENT_X + PLEDIT_CONTENT_W) {
+                _adjustAudioPanelRow(row, x < 211 ? -1 : 1);
+            }
+            return true;
+        }
+        if (y >= WR_AUDIO_MODE_Y && y < WR_AUDIO_MODE_Y + WR_AUDIO_MODE_H) {
+            if (x >= WR_AUDIO_SAFE_X && x < WR_AUDIO_SAFE_X + WR_AUDIO_MODE_W)
+                _setAudioDriveRange(false);
+            else if (x >= WR_AUDIO_FULL_X && x < WR_AUDIO_FULL_X + WR_AUDIO_MODE_W)
+                _setAudioDriveRange(true);
+        }
+        return true;
+    }
+
+    void _drawClassicToggle(int x, const char* label, bool active) {
+        // Raised/depressed Winamp 2.x button language, using the PLEDIT palette
+        // rather than a flat application-style fill. Kept as one reusable
+        // primitive so future WebRadio panel actions share the same chrome.
+        const uint16_t face = 0x8410U;
+        const uint16_t hi   = 0xC618U;
+        const uint16_t mid  = 0x4208U;
+        const uint16_t dark = 0x2104U;
+        const int y = WR_AUDIO_MODE_Y;
+        tft.fillRect(x, y, WR_AUDIO_MODE_W, WR_AUDIO_MODE_H, face);
+        tft.drawFastHLine(x, y, WR_AUDIO_MODE_W, active ? dark : hi);
+        tft.drawFastVLine(x, y, WR_AUDIO_MODE_H, active ? dark : hi);
+        tft.drawFastHLine(x, y + WR_AUDIO_MODE_H - 1,
+                          WR_AUDIO_MODE_W, active ? hi : dark);
+        tft.drawFastVLine(x + WR_AUDIO_MODE_W - 1, y,
+                          WR_AUDIO_MODE_H, active ? hi : dark);
+        tft.drawRect(x + 1, y + 1, WR_AUDIO_MODE_W - 2,
+                     WR_AUDIO_MODE_H - 2, active ? mid : face);
+        tft.setTextDatum(MC_DATUM);
+        tft.setTextColor(active ? PLEDIT_FG_NORMAL : TFT_BLACK, face);
+        tft.drawString(label, x + WR_AUDIO_MODE_W / 2 + (active ? 1 : 0),
+                       y + WR_AUDIO_MODE_H / 2 + (active ? 1 : 0), 1);
+        tft.setTextDatum(TL_DATUM);
+    }
+
+    void _drawAudioAdjustRow(int row, const char* label, const char* value,
+                             int sliderPct) {
+        int y = PLEDIT_ROWS_Y + row * PLEDIT_ROW_H;
+        tft.fillRect(PLEDIT_CONTENT_X, y, PLEDIT_CONTENT_W,
+                     PLEDIT_ROW_H, TFT_BLACK);
+        tft.setTextDatum(ML_DATUM);
+        tft.setTextColor(PLEDIT_FG_NORMAL, TFT_BLACK);
+        tft.drawString(label, PLEDIT_CONTENT_X + 3, y + PLEDIT_ROW_H / 2, 1);
+        tft.setTextDatum(MR_DATUM);
+        tft.setTextColor(TFT_WHITE, TFT_BLACK);
+        tft.drawString(value, WR_AUDIO_SLIDER_X - 8,
+                       y + PLEDIT_ROW_H / 2, 1);
+        winampDisplay.drawVolumeSliderAt(WR_AUDIO_SLIDER_X, y, sliderPct);
+        tft.setTextDatum(ML_DATUM);
+        tft.setTextColor(PLEDIT_FG_NORMAL, TFT_BLACK);
+        tft.drawString("-", WR_AUDIO_SLIDER_X - 7,
+                       y + PLEDIT_ROW_H / 2, 1);
+        tft.drawString("+", WR_AUDIO_SLIDER_X + WR_AUDIO_SLIDER_W + 2,
+                       y + PLEDIT_ROW_H / 2, 1);
+        tft.setTextDatum(TL_DATUM);
+    }
+
+    void _drawAudioPanel() {
+        winampDisplay.drawPleditFrame(0, 0);
+        winampDisplay.drawEqPanelState(true);
+
+        tft.setTextDatum(MC_DATUM);
+        tft.fillRect(91, PLEDIT_Y + 5, 93, 10, PLEDIT_BODY_BG);
+        tft.setTextColor(PLEDIT_FG_NORMAL, PLEDIT_BODY_BG);
+        tft.drawString("WEBRADIO EQ", 137, PLEDIT_Y + 10, 1);
+
+        // A selected-blue row is native PLEDIT language. Tapping it cycles the
+        // presets without adding another bespoke button.
+        int y = PLEDIT_ROWS_Y;
+        tft.fillRect(PLEDIT_CONTENT_X, y, PLEDIT_CONTENT_W,
+                     PLEDIT_ROW_H, PLEDIT_BG_SELECTED);
+        tft.setTextDatum(ML_DATUM);
+        tft.setTextColor(TFT_WHITE, PLEDIT_BG_SELECTED);
+        tft.drawString("PRESET", PLEDIT_CONTENT_X + 3,
+                       y + PLEDIT_ROW_H / 2, 1);
+        tft.setTextDatum(MR_DATUM);
+        char preset[16];
+        snprintf(preset, sizeof(preset), "%s  >", _audioEqPresetName());
+        tft.drawString(preset, PLEDIT_CONTENT_X + PLEDIT_CONTENT_W - 3,
+                       y + PLEDIT_ROW_H / 2, 1);
+
+        char value[12];
+        uint8_t effective = wrEffectiveVolume();
+        if (effective != g_settings.webRadioMaxVolume)
+            snprintf(value, sizeof(value), "%u>%u",
+                     (unsigned)g_settings.webRadioMaxVolume, (unsigned)effective);
+        else
+            snprintf(value, sizeof(value), "%u", (unsigned)effective);
+        _drawAudioAdjustRow(1, "MAX VOL", value,
+                            (int)g_settings.webRadioMaxVolume * 100 / WR_VOLUME_MAX);
+        snprintf(value, sizeof(value), "%+d dB", (int)g_settings.webRadioEqBassDb);
+        _drawAudioAdjustRow(2, "BASS", value,
+                            ((int)g_settings.webRadioEqBassDb - WR_EQ_BASS_MIN_DB) * 100 /
+                            (WR_EQ_BASS_MAX_DB - WR_EQ_BASS_MIN_DB));
+        snprintf(value, sizeof(value), "%+d dB", (int)g_settings.webRadioEqMidDb);
+        _drawAudioAdjustRow(3, "MID", value,
+                            ((int)g_settings.webRadioEqMidDb - WR_EQ_MID_MIN_DB) * 100 /
+                            (WR_EQ_MID_MAX_DB - WR_EQ_MID_MIN_DB));
+        snprintf(value, sizeof(value), "%+d dB", (int)g_settings.webRadioEqTrebleDb);
+        _drawAudioAdjustRow(4, "TREBLE", value,
+                            ((int)g_settings.webRadioEqTrebleDb - WR_EQ_TREBLE_MIN_DB) * 100 /
+                            (WR_EQ_TREBLE_MAX_DB - WR_EQ_TREBLE_MIN_DB));
+
+        bool full = g_settings.webRadioHwMod;
+        _drawClassicToggle(WR_AUDIO_SAFE_X, "SAFE", !full);
+        _drawClassicToggle(WR_AUDIO_FULL_X, "FULL", full);
+        winampDisplay.drawPleditOverlayText(full ? "FULL 21" : "SAFE 12");
+    }
 
     WRPlayState _state          = WRPlayState::STOPPED;
     uint8_t     _stationCount   = 0;
@@ -1792,6 +2132,8 @@ private:
     // never allocates concurrently with the fetch's TLS session.
     bool        _deferredInject  = false;
     bool        _dirty           = false;
+    bool        _audioPanelActive = false;
+    bool        _audioPanelDirty  = false;
     uint8_t     _bufPct          = 0;
     uint8_t     _bufPctDrawn     = 0;       // TASK-220: last buffer % painted (hysteresis)
     // TASK-402: EMA-filtered value feeds the redraw gate + the actual draw;
@@ -2079,6 +2421,7 @@ private:
             s_wr_audio = new Audio(/*internalDAC=*/true, /*channel=*/I2S_DAC_CHANNEL_LEFT_EN);
             wrApplyInBufTrial(s_wr_audio);   // EXP-012: before connecttohost (InBuff not yet alloc'd)
             wrApplyConnectTimeout(s_wr_audio);  // TASK-392
+            wrApplySpeakerEq(s_wr_audio);
         }
         // TASK-278: lazily create the pump task — AFTER mb_arena_acquire() above
         // [DEV-2-3], idempotent across churn within a session (persists until
@@ -2322,6 +2665,10 @@ private:
     }
 
     void _drawPledit() {
+        if (_audioPanelActive) {
+            _drawAudioPanel();
+            return;
+        }
         // TASK-225: reuse the real Winamp PLEDIT sprite chrome (frame border,
         // scrollbar thumb, bottom bar) instead of the old flat fillRect panel,
         // so WebRadio's station list matches Spotify's playlist in the same skin.
@@ -2330,6 +2677,7 @@ private:
         // WebRadio (M-WEBRADIO-SETTINGS), not an overlay), so the old
         // "N stations — country" header is dropped here too.
         winampDisplay.drawPleditFrame(_scrollOffset, (int)_stationCount);
+        winampDisplay.drawEqPanelState(false);
 
         // TASK-348: country code in the same PLEDIT bottom-bar overlay slot
         // Spotify uses for its total-playlist-time readout — replaces the old

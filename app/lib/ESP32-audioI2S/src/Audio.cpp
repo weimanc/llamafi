@@ -186,19 +186,27 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
     m_i2s_config.intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1; // interrupt priority
     // PATCH-MEMBUDGET-4 (TASK-261 Phase 2): under MEMBUDGET_PHASE1 the 24K arena
     // reservation reduces lfbDma to ~36K. Stock config (16×512×4B stereo=32K DMA)
-    // leaves only 4K slack, which the SSL handshake for the radio-browser fetch
-    // consumes, leaving nothing for i2s_realloc_dma_buffer. Halve the DMA footprint
-    // (8×256×4B = 8K) so there's ample room. This is experiment-only — production
-    // (cyd2usb_winamp without MEMBUDGET_PHASE1) keeps the original 16/512 settings.
+    // leaves only 4K slack, which is insufficient for the radio-browser TLS path.
+    // A 16K DMA footprint leaves about 20K allocation headroom while providing a
+    // longer playback window than the original 8K memory-budget configuration.
 #ifdef MEMBUDGET_PHASE1
     m_i2s_config.dma_buf_count        = 8;
-    m_i2s_config.dma_buf_len          = 256;
+    // 16K DMA window: enough headroom for brief WebRadio decoder/network stalls
+    // while retaining substantially more free DMA-capable heap than stock 32K.
+    m_i2s_config.dma_buf_len          = 512;
 #else
     m_i2s_config.dma_buf_count        = 16;
     m_i2s_config.dma_buf_len          = 512;
 #endif
     m_i2s_config.use_apll             = APLL_DISABLE; // must be disabled in V2.0.1-RC1
-    m_i2s_config.tx_desc_auto_clear   = true;   // new in V1.0.1
+    // The external-I2S zero value is silence, so auto-clear remains desirable
+    // there. The ESP32 built-in DAC consumes unsigned PCM, where silence is
+    // 0x8000; auto-clearing an underrun to literal zero drives the DAC to its
+    // rail and produces a full-scale DC pop. Retain the last descriptor for
+    // internal-DAC gaps instead. With volume 0 that descriptor is true silence;
+    // at audible volume a long network gap can briefly repeat audio rather than
+    // generating the much louder rail transition.
+    m_i2s_config.tx_desc_auto_clear   = !internalDAC;
     m_i2s_config.fixed_mclk           = I2S_PIN_NO_CHANGE;
 
 
@@ -242,8 +250,6 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
         m_f_forceMono = false;
     }
 
-    i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
-
     for(int i = 0; i <3; i++) {
         m_filter[i].a0  = 1;
         m_filter[i].a1  = 0;
@@ -251,6 +257,13 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
         m_filter[i].b1  = 0;
         m_filter[i].b2  = 0;
     }
+
+    // Literal zero is the negative rail, not silence, for the ESP32 built-in
+    // unsigned DAC. Prime every DMA descriptor with filtered zero samples;
+    // playSample() converts those to the DAC midpoint (0x8000). External I2S
+    // devices retain the driver's normal zero-fill behaviour.
+    if(m_f_internalDAC) playI2Sremains();
+    else                i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
 }
 //---------------------------------------------------------------------------------------------------------------------
 void Audio::setBufsize(int rambuf_sz, int psrambuf_sz) {
@@ -2351,7 +2364,8 @@ uint32_t Audio::stopSong() {
     }
 #endif                                           // AUDIO_NO_SD_FS
     memset(m_outBuff, 0, sizeof(m_outBuff));     //Clear OutputBuffer
-    i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
+    if(m_f_internalDAC) playI2Sremains();
+    else                i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
     return pos;
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -2361,11 +2375,20 @@ void Audio::playI2Sremains() { // returns true if all dma_buffs flushed
     if(getBitsPerSample() > 8) memset(m_outBuff,   0, sizeof(m_outBuff));     //Clear OutputBuffer (signed)
     else                       memset(m_outBuff, 128, sizeof(m_outBuff));     //Clear OutputBuffer (unsigned, PCM 8u)
 
-    m_validSamples = m_i2s_config.dma_buf_len * m_i2s_config.dma_buf_count;
-    while(m_validSamples) {
-        playChunk();
+    // m_validSamples counts decoded frames. A 16-bit stereo frame occupies two
+    // int16_t entries in m_outBuff, so a large DMA setup may exceed one output
+    // buffer. Fill the DMA in bounded chunks instead of reading past m_outBuff.
+    size_t outputFrames = sizeof(m_outBuff) / sizeof(m_outBuff[0]);
+    if(getBitsPerSample() == 16 && getChannels() == 2) outputFrames /= 2;
+
+    size_t dmaFramesRemaining = m_i2s_config.dma_buf_len * m_i2s_config.dma_buf_count;
+    while(dmaFramesRemaining) {
+        const size_t chunkFrames = min(dmaFramesRemaining, outputFrames);
+        m_validSamples = (int16_t)chunkFrames;
+        while(m_validSamples) playChunk();
+        dmaFramesRemaining -= chunkFrames;
     }
-    i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
+    if(!m_f_internalDAC) i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
     return;
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -2376,7 +2399,8 @@ bool Audio::pauseResume() {
         retVal = true;
         if(!m_f_running) {
             memset(m_outBuff, 0, sizeof(m_outBuff));               //Clear OutputBuffer
-            i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
+            if(m_f_internalDAC) playI2Sremains();
+            else                i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
         }
     }
     return retVal;
@@ -4161,7 +4185,11 @@ int Audio::sendBytes(uint8_t* data, size_t len) {
     }
     if(ret < 0) { // Error, skip the frame...
         if(m_f_Log) if(m_codec == CODEC_M4A){log_i("begin not found"); return 1;}
-        i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
+        // Built-in-DAC PCM silence is unsigned midscale (playSample adds
+        // 0x80008000). Clearing its DMA to literal zero on a recoverable decode
+        // error creates a large DC step and an audible speaker pop. Preserve the
+        // queued DAC audio; retain the upstream clear for external I2S devices.
+        if(!m_f_internalDAC) i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
         if(!getChannels() && (ret == -2)) {
              ; // suppress errorcode MAINDATA_UNDERFLOW
         }
