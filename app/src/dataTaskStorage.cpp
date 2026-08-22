@@ -357,7 +357,6 @@ static void fetchCrypto() {
     if (code == 200) body = http.getString();
     else             LOG_W("dataTask.crypto", "http %d", code);
     http.end();             // TLS freed here (HTTP/1.0 close)
-    spotifyTask::tlsResume();
     LOG_HEAP("dataTask.crypto");
     if (code == 200) {
         s_cryptoFetchPhase = 2;  // JSON parse
@@ -385,6 +384,7 @@ static void fetchCrypto() {
         }
     }
     s_cryptoFetchPhase = -1;
+    spotifyTask::tlsResume();
 }
 
 static void fetchStockQuote() {
