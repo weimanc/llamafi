@@ -48,26 +48,12 @@ bool writeContextToNfc = true;
 #include <WiFiClientSecure.h>
 #include <esp_wifi.h>   // TASK-282: esp_wifi_set_ps (wifiPs A/B toggle)
 
-// TASK-426 A/B control for the boot cascade's per-candidate retry. The thing
-// under test only happens during setup(), so a plain serial toggle cannot reach
-// it — the flag has to survive the reset that starts the run, which RTC slow
-// memory does (across a SOFTWARE reset; an EN/RTS reset clears the RTC domain
-// and was what silently made both arms run the control on the first attempt).
-//
-// Debug builds only, and cookie-guarded: RTC_NOINIT starts as garbage, so
-// without the cookie a cold boot could disable the retry by accident — in a
-// production build that would be a real, randomly-appearing regression. Prod
-// compiles this to a constant false and always retries.
-#ifdef SERIAL_DEBUG
-static constexpr uint32_t kCasRetryCookie = 0x426AB1FEu;
-RTC_NOINIT_ATTR uint32_t g_casRetryCookie;
-RTC_NOINIT_ATTR uint32_t g_casRetryOff;
-static inline bool casRetryDisabled() {
-  return g_casRetryCookie == kCasRetryCookie && g_casRetryOff != 0;
-}
-#else
-static inline bool casRetryDisabled() { return false; }
-#endif
+// TASK-426 A/B control for the boot cascade's per-candidate retry
+// (casRetryDisabled(), g_casRetryCookie, g_casRetryOff) moved into boot.cpp
+// (M-SRCLAYOUT Stage E / TASK-471) — used exclusively by setup()'s WiFi
+// cascade. cmdSet.cpp's `extern uint32_t g_casRetryCookie/g_casRetryOff`
+// still resolve to the same externally-linked RTC_NOINIT_ATTR globals,
+// wherever they're defined.
 
 #include <FS.h>
 #include "SPIFFS.h"
@@ -75,7 +61,6 @@ static inline bool casRetryDisabled() { return false; }
 #include <esp_ota_ops.h>  // esp_ota_get_app_description() for serialdbg-001 boot banner (Arduino-ESP32 2.0.x; esp-idf 5.x renames this to <esp_app_desc.h>)
 #include <esp_log.h>      // esp_log_level_set() for ADR-042 E1 HTTPClient log suppression
 #include <esp_task_wdt.h> // esp_task_wdt_init() — extended timeout for dataTask TLS
-#include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split heap probes (TASK-261 Phase 0)
 #include <mbedtls/base64.h> // SERIAL_DEBUG `screendump` command — TFT readback encoding
 // TASK-427: SD.h/SPI.h now also needed by SD_BOOT_MOUNT builds (cyd2usb_player) that
 // don't define SERIAL_DEBUG — the boot mount itself moved out of the SERIAL_DEBUG gate.
@@ -206,29 +191,9 @@ SpotifyDisplay *spotifyDisplay = &matrixDisplay;
 #include "nfc.h"
 #endif
 
-// ── TASK-261/267 A-lite heap probes (caps-split diagnostic) ──
-// The mb_arena itself ships in production (TASK-262 promotion — MEMBUDGET_PHASE1 now in
-// cyd2usb_winamp; arena acquired JIT in WebRadioApp::_play(), released in ::suspend()).
-// These verbose boot/CP probes are pure diagnostics, so they are SERIAL_DEBUG-gated —
-// they do NOT ship in production (the call sites become no-ops, zero runtime cost).
-//
-// Arena size (TASK-261 Phase 2 DUT finding): 24 K covers Helix-only (9 structs,
-// 23,216 B aligned) with 1.4 K slack; 40 K exhausted the DMA pool on first
-// connecttohost(). InBuff (6.4 K) uses regular calloc (allocated once/session, no churn).
-#if defined(MEMBUDGET_PHASE1) && defined(SERIAL_DEBUG)
-// T_MB_PROBE_00: caps-split heap probe — fires at boot milestones so the DUT log
-// captures them without needing a serial command.
-static void mb_heap_probe(const char *tag) {
-    Serial.printf("[membudget] %s freeInt=%u lfbInt=%u freeDma=%u lfbDma=%u\n",
-        tag,
-        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
-        (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA),
-        (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
-}
-#else
-static inline void mb_heap_probe(const char *) {}   // no-op (production / non-debug)
-#endif
+// mb_heap_probe() (T_MB_PROBE_00 caps-split heap probe) moved into boot.cpp
+// (M-SRCLAYOUT Stage E / TASK-471) — used exclusively from setup()'s boot
+// milestones. Same SERIAL_DEBUG/MEMBUDGET_PHASE1-gated no-op contract.
 
 // ── App dispatch (M-MULTIAPP, TASK-087c/d) ─────────────────────────────
 
@@ -267,7 +232,11 @@ void setBusy(bool busy) {
 // calls sdProbeBootMount() from bootSequence().
 #include "sd/sdMount.h"
 
-#include "boot/boot.h"   // setup() — moved verbatim, M-SRCLAYOUT Stage C (TASK-455)
+// setup() now lives in boot/boot.cpp, its own translation unit
+// (M-SRCLAYOUT Stage E / TASK-471). It keeps its exact name/signature —
+// the Arduino/ESP-IDF runtime finds it by symbol at link time, it doesn't
+// need to be textually present here. boot/boot.h (a bare `void setup();`
+// declaration) is kept for discoverability but nothing includes it.
 
 // cmdReconnect/kCmds[]/kNumCmds/the injection ring/drainInjectionQueue()/
 // handleSerialCommands() all moved to debug/serialConsole/console.cpp
