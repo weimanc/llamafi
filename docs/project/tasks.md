@@ -48,10 +48,10 @@ by ADR-060 D0's measure they created **zero components**, so Stages C–F remain
 |---|---|---|---|
 | **TASK-488, 497** | **P1/P2** | **DONE 2026-08-16** (`64bf839`) | three refactor commits verified + 3-run DUT baseline taken |
 | TASK-453/454 | — | LANDED, VERIFIED | Stage A/B — app classes and debug console out of `main.cpp` |
-| TASK-456/471/472 | P2 | 456 DONE; **471 IN PROGRESS** (15 commits landed); 472 not started | Stages D–F — composition root, component conversion, `stock/` split (455 has its own row below) |
+| TASK-456/471/472 | P2 | **all DONE** (471/472 2026-08-22, TASK-529/530) | Stages D–F — composition root, component conversion, `stock/` split. `main.cpp` 1042 → 357 lines across the two sessions (455 has its own row below) |
 | TASK-457 | P3 | OPEN | shell hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
-| **TASK-458** | **P2** | OPEN | RAII scope guards — fixes a bug class with a proven instance (TASK-222) |
-| TASK-459/460/461/462/463 | P2/P3 | MIXED | fetch-skeleton consolidation, canvas constants, table dispatch, palette |
+| **TASK-458, 495** | **P2/P3** | **DONE 2026-08-22** (`1df8b33`, `15d3c55`) | RAII scope guard (`TlsYieldGuard`) — fixes a bug class with a proven instance (TASK-222); found and fixed a live double-`tlsResume()` defect in `fetchTeletext()` as a side effect. Unblocks TASK-459/460. `HttpSession` (the other half of C2) deliberately deferred, filed as TASK-512 |
+| TASK-459/460/461/462/463 | P2/P3 | **459/460 UNBLOCKED** (458 done); 461/463 OPEN | fetch-skeleton consolidation, canvas constants, table dispatch, palette |
 | TASK-465, 468, 469, 470 | P2/P3 | OPEN | ADR-061 — debug convention, `display/tft` (466/467 landed, see note below) |
 | TASK-473 | P2 | OPEN | concurrency contract gaps — WiFi arbiter, assert I2/I3 |
 | **TASK-475**, 474 | P2/P3 | **475 PHASE 1 DONE** (`b0d0202`) | `run/check-docs` gate shipped as counted gate 12 (C5 + C1-delta blocking); 474 PM/QM doc-lifecycle process still open |
@@ -90,10 +90,12 @@ never starts, naming the vacuum, so it cannot go green without a real acquire. *
 | TASK-504…506 | P2/P3 | OPEN | from the TASK-488 verification — `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
 
 > **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**
-> — start there, not with this table. **Steps 1/1a are done (488 + 497, `64bf839`); the chain was
-> continued, not reworked.** Next is 475 → 478 → 458 (with 495 in front), then M-WINAMP-PLAYER.
+> — start there, not with this table. **Steps 1–5 are all done** (488+497, 471+472+529+530,
+> 475 phase 1, 478, 458+495, in that order). **Next is M-WINAMP-PLAYER** (still paused, 12 entries
+> in `tasks-winamp-player.md`) or TASK-424 (SD write panic) if DUT time is scarce.
 >
-> **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496, **488, 497**.
+> **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496, 488, 497. **Landed
+> 2026-08-21/22:** TASK-471, 472, 478, 529, 530, 495, 458.
 
 > **Drift warning:** hand-maintained, same as the player board. The split file is the entry; this is
 > a label. If they disagree, the split file wins.
