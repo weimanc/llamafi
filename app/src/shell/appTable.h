@@ -50,7 +50,7 @@ extern SPickerList g_countryPicker;   // M-COUNTRY-PICKER: shared modal country 
 bool settingsDbgGet(const char* v, char* b, int l);
 #endif
 
-#include "apps/stockApp.h"
+#include "stock/stockApp.h"
 extern StockApp g_StockApp;
 bool stockDbgGet(const char* v, char* b, int l);
 bool stockDbgSet(const char* v, const char* val);
