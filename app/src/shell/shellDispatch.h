@@ -8,14 +8,36 @@
 // main.cpp's own globals, which stopped being true the moment those files
 // became their own translation units.
 
-#include "appShell.h"   // AppId
+#include "appShell.h"     // AppId
+#include "shell/appTable.h"   // g_apps[]
 
 namespace shell {
 // Sets busy flag and immediately repaints only the active-slot indicator.
 // Defined once in main.cpp (needs renderActiveIndicator + winampDisplay,
 // both already reachable there).
 void setBusy(bool busy);
+
+// TASK-245 / ADR-046: error state of the currently-active app — drives the red
+// active-bar (precedence error > busy/connecting > idle). Owned by the app
+// instance, so it survives app switch and is re-read on every repaint.
+// Trivial and stateless — inline, same reasoning as isPlayerModeApp() below.
+inline bool activeError() {
+    return g_apps[(int)currentAppId] && g_apps[(int)currentAppId]->hasError();
 }
+// TASK-245 amendment / ADR-046: connecting state of the active app — amber bar
+// until the app's first data result resolves (boot reads amber, not green).
+inline bool activeConnecting() {
+    return g_apps[(int)currentAppId] && g_apps[(int)currentAppId]->isConnecting();
+}
+}
+
+// ── Taskbar tap feedback (M-TASKBAR-FEEDBACK / TASK-279) ──────────────────
+// Shared between main.cpp's production touch path (appHandleInput) and the
+// debug console's injection drain (debug/serialConsole/console.cpp) — same
+// "Defined once in main.cpp" convention as setBusy()/resolvePlayerTap() above.
+void shellTbPress(int y);
+void shellTbCancel();
+void shellTbRelease(int releaseY);
 
 // TASK-413 / ADR-059 D6 (amended DEV-1): the player slot's taskbar tap has a
 // second meaning no other slot has — restore the persisted mode when tapped

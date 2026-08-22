@@ -55,8 +55,9 @@ SRC = os.path.join(ROOT, "app", "src")
 # be added inside main.cpp undetected — which is precisely the TASK-413 failure
 # this gate exists to prevent.
 EXPECTED_CALLERS = {
-    "main.cpp": (2, "production taskbar dispatch + cmdPlayerCycle (ADR-059 D6, M-TESTBASE §8)"),
+    "main.cpp": (1, "production taskbar dispatch (ADR-059 D6, M-TESTBASE §8)"),
     "debug/serialConsole/cmdTouch.cpp": (1, "SERIAL_DEBUG tap injection (harness path) — moved from cmdTouch.h, TASK-471"),
+    "debug/serialConsole/console.cpp": (1, "cmdPlayerCycle (M-TESTBASE §8) — moved from main.cpp, TASK-471"),
 }
 
 failures: list[str] = []
@@ -155,13 +156,16 @@ def main() -> int:
             f"        If the binding moved, T_PMT_00 and `get playerBind` must move with it.")
 
     # ── 3. the surface-independent operation still exists ────────────────────
-    check("cmdPlayerCycle" in main_cpp,
+    # cmdPlayerCycle and kCmds[] both moved to debug/serialConsole/console.cpp
+    # (M-SRCLAYOUT Stage E / TASK-471) — same file now, not main.cpp.
+    console_cpp = read("debug/serialConsole/console.cpp")
+    check("cmdPlayerCycle" in console_cpp,
           "cmdPlayerCycle is gone — T_PMT_01-03 drive the OPERATION through it; "
           "without it they assert nothing")
-    check(re.search(r'\{\s*"playerCycle"\s*,\s*cmdPlayerCycle', main_cpp) is not None,
+    check(re.search(r'\{\s*"playerCycle"\s*,\s*cmdPlayerCycle', console_cpp) is not None,
           'playerCycle is not registered in kCmds[] — the command is unreachable from the shell')
-    check(re.search(r"resolvePlayerTap\s*\(", main_cpp[main_cpp.find("cmdPlayerCycle"):]
-                    if "cmdPlayerCycle" in main_cpp else "") is not None,
+    check(re.search(r"resolvePlayerTap\s*\(", console_cpp[console_cpp.find("cmdPlayerCycle"):]
+                    if "cmdPlayerCycle" in console_cpp else "") is not None,
           "cmdPlayerCycle does not call resolvePlayerTap — it must reuse the shared helper, "
           "not re-derive the cycle (ADR-059 D6 amendment)")
 
