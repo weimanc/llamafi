@@ -1215,11 +1215,15 @@ public:
 
         if (phase != TouchPhase::Release) return false;
 
-        // The title-bar EQ button opens a foreground-owned panel: no app
-        // switch, overlay allocation or extension of the arena lease.
+        // The authentic main-window EQ button toggles a foreground-owned
+        // panel: no app switch, overlay allocation or arena-lease extension.
         if (_hitAudioPanelButton(x, y)) {
-            _audioPanelActive = true;
-            _drawAudioPanel();
+            if (_audioPanelActive) {
+                _closeAudioPanel();
+            } else {
+                _audioPanelActive = true;
+                _drawAudioPanel();
+            }
             return true;
         }
 
@@ -1864,10 +1868,21 @@ private:
     // WebRadio rather than switching to Settings, so the existing foreground
     // arena ownership and suspend teardown contract remain intact.
 
-    static constexpr int WR_AUDIO_BTN_X = PLEDIT_W - 43;
-    static constexpr int WR_AUDIO_BTN_Y = PLEDIT_Y + 2;
-    static constexpr int WR_AUDIO_BTN_W = 39;
-    static constexpr int WR_AUDIO_BTN_H = PLEDIT_TITLE_H - 4;
+    // The authentic EQ-off control is already baked into MAIN_BG from
+    // SHUFREP.BMP. Make that existing Winamp control the panel toggle.
+    // The invisible hit target adds a few pixels around the 23x12 artwork so
+    // the tiny authentic control remains practical on a resistive touchscreen.
+    static constexpr int WR_AUDIO_BTN_X = 214;
+    static constexpr int WR_AUDIO_BTN_Y = 54;
+    static constexpr int WR_AUDIO_BTN_W = 27;
+    static constexpr int WR_AUDIO_BTN_H = 20;
+    static constexpr int WR_AUDIO_SLIDER_X = 178;
+    static constexpr int WR_AUDIO_SLIDER_W = VOLUME_W;
+    static constexpr int WR_AUDIO_MODE_Y = PLEDIT_BOTTOM_Y + 8;
+    static constexpr int WR_AUDIO_MODE_W = 53;
+    static constexpr int WR_AUDIO_MODE_H = 18;
+    static constexpr int WR_AUDIO_SAFE_X = 12;
+    static constexpr int WR_AUDIO_FULL_X = 69;
 
     bool _hitAudioPanelButton(int x, int y) const {
         return x >= WR_AUDIO_BTN_X && x < WR_AUDIO_BTN_X + WR_AUDIO_BTN_W &&
@@ -1974,26 +1989,42 @@ private:
             }
             return true;
         }
-        if (y >= PLEDIT_BOTTOM_Y + 5 && y < PLEDIT_Y + PLEDIT_H - 5) {
-            if (x >= 12 && x < 132) _setAudioDriveRange(false);
-            else if (x >= 143 && x < 263) _setAudioDriveRange(true);
+        if (y >= WR_AUDIO_MODE_Y && y < WR_AUDIO_MODE_Y + WR_AUDIO_MODE_H) {
+            if (x >= WR_AUDIO_SAFE_X && x < WR_AUDIO_SAFE_X + WR_AUDIO_MODE_W)
+                _setAudioDriveRange(false);
+            else if (x >= WR_AUDIO_FULL_X && x < WR_AUDIO_FULL_X + WR_AUDIO_MODE_W)
+                _setAudioDriveRange(true);
         }
         return true;
     }
 
-    void _drawAudioPanelButton() {
-        tft.fillRect(WR_AUDIO_BTN_X, WR_AUDIO_BTN_Y,
-                     WR_AUDIO_BTN_W, WR_AUDIO_BTN_H, 0x18E5U);
-        tft.drawRect(WR_AUDIO_BTN_X, WR_AUDIO_BTN_Y,
-                     WR_AUDIO_BTN_W, WR_AUDIO_BTN_H, PLEDIT_FG_NORMAL);
+    void _drawClassicToggle(int x, const char* label, bool active) {
+        // Raised/depressed Winamp 2.x button language, using the PLEDIT palette
+        // rather than a flat application-style fill. Kept as one reusable
+        // primitive so future WebRadio panel actions share the same chrome.
+        const uint16_t face = 0x8410U;
+        const uint16_t hi   = 0xC618U;
+        const uint16_t mid  = 0x4208U;
+        const uint16_t dark = 0x2104U;
+        const int y = WR_AUDIO_MODE_Y;
+        tft.fillRect(x, y, WR_AUDIO_MODE_W, WR_AUDIO_MODE_H, face);
+        tft.drawFastHLine(x, y, WR_AUDIO_MODE_W, active ? dark : hi);
+        tft.drawFastVLine(x, y, WR_AUDIO_MODE_H, active ? dark : hi);
+        tft.drawFastHLine(x, y + WR_AUDIO_MODE_H - 1,
+                          WR_AUDIO_MODE_W, active ? hi : dark);
+        tft.drawFastVLine(x + WR_AUDIO_MODE_W - 1, y,
+                          WR_AUDIO_MODE_H, active ? hi : dark);
+        tft.drawRect(x + 1, y + 1, WR_AUDIO_MODE_W - 2,
+                     WR_AUDIO_MODE_H - 2, active ? mid : face);
         tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(PLEDIT_FG_NORMAL, 0x18E5U);
-        tft.drawString("EQ", WR_AUDIO_BTN_X + WR_AUDIO_BTN_W / 2,
-                      WR_AUDIO_BTN_Y + WR_AUDIO_BTN_H / 2, 1);
+        tft.setTextColor(active ? PLEDIT_FG_NORMAL : TFT_BLACK, face);
+        tft.drawString(label, x + WR_AUDIO_MODE_W / 2 + (active ? 1 : 0),
+                       y + WR_AUDIO_MODE_H / 2 + (active ? 1 : 0), 1);
         tft.setTextDatum(TL_DATUM);
     }
 
-    void _drawAudioAdjustRow(int row, const char* label, const char* value) {
+    void _drawAudioAdjustRow(int row, const char* label, const char* value,
+                             int sliderPct) {
         int y = PLEDIT_ROWS_Y + row * PLEDIT_ROW_H;
         tft.fillRect(PLEDIT_CONTENT_X, y, PLEDIT_CONTENT_W,
                      PLEDIT_ROW_H, TFT_BLACK);
@@ -2002,41 +2033,41 @@ private:
         tft.drawString(label, PLEDIT_CONTENT_X + 3, y + PLEDIT_ROW_H / 2, 1);
         tft.setTextDatum(MR_DATUM);
         tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.drawString(value, 161, y + PLEDIT_ROW_H / 2, 1);
-        tft.fillRect(166, y + 1, 41, PLEDIT_ROW_H - 2, 0x18E5U);
-        tft.fillRect(211, y + 1, 45, PLEDIT_ROW_H - 2, 0x18E5U);
-        tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(PLEDIT_FG_NORMAL, 0x18E5U);
-        tft.drawString("-", 186, y + PLEDIT_ROW_H / 2, 1);
-        tft.drawString("+", 233, y + PLEDIT_ROW_H / 2, 1);
+        tft.drawString(value, WR_AUDIO_SLIDER_X - 8,
+                       y + PLEDIT_ROW_H / 2, 1);
+        winampDisplay.drawVolumeSliderAt(WR_AUDIO_SLIDER_X, y, sliderPct);
+        tft.setTextDatum(ML_DATUM);
+        tft.setTextColor(PLEDIT_FG_NORMAL, TFT_BLACK);
+        tft.drawString("-", WR_AUDIO_SLIDER_X - 7,
+                       y + PLEDIT_ROW_H / 2, 1);
+        tft.drawString("+", WR_AUDIO_SLIDER_X + WR_AUDIO_SLIDER_W + 2,
+                       y + PLEDIT_ROW_H / 2, 1);
         tft.setTextDatum(TL_DATUM);
     }
 
     void _drawAudioPanel() {
         winampDisplay.drawPleditFrame(0, 0);
+        winampDisplay.drawEqPanelState(true);
 
-        tft.setTextDatum(ML_DATUM);
-        tft.setTextColor(PLEDIT_FG_NORMAL);
-        tft.drawString("AUDIO TUNE", PLEDIT_CONTENT_X + 3,
-                      PLEDIT_Y + PLEDIT_TITLE_H / 2, 1);
-        _drawAudioPanelButton();  // same hit zone becomes the close button
         tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(TFT_WHITE, 0x18E5U);
-        tft.drawString("X", WR_AUDIO_BTN_X + WR_AUDIO_BTN_W / 2,
-                      WR_AUDIO_BTN_Y + WR_AUDIO_BTN_H / 2, 1);
+        tft.fillRect(91, PLEDIT_Y + 5, 93, 10, PLEDIT_BODY_BG);
+        tft.setTextColor(PLEDIT_FG_NORMAL, PLEDIT_BODY_BG);
+        tft.drawString("WEBRADIO EQ", 137, PLEDIT_Y + 10, 1);
 
-        // Preset row has no +/- controls: tapping it cycles Small/Gentle/Flat.
+        // A selected-blue row is native PLEDIT language. Tapping it cycles the
+        // presets without adding another bespoke button.
         int y = PLEDIT_ROWS_Y;
         tft.fillRect(PLEDIT_CONTENT_X, y, PLEDIT_CONTENT_W,
-                     PLEDIT_ROW_H, TFT_BLACK);
+                     PLEDIT_ROW_H, PLEDIT_BG_SELECTED);
         tft.setTextDatum(ML_DATUM);
-        tft.setTextColor(PLEDIT_FG_NORMAL, TFT_BLACK);
-        tft.drawString("Preset (tap)", PLEDIT_CONTENT_X + 3,
-                      y + PLEDIT_ROW_H / 2, 1);
+        tft.setTextColor(TFT_WHITE, PLEDIT_BG_SELECTED);
+        tft.drawString("PRESET", PLEDIT_CONTENT_X + 3,
+                       y + PLEDIT_ROW_H / 2, 1);
         tft.setTextDatum(MR_DATUM);
-        tft.setTextColor(TFT_WHITE, TFT_BLACK);
-        tft.drawString(_audioEqPresetName(), PLEDIT_CONTENT_X + PLEDIT_CONTENT_W - 3,
-                      y + PLEDIT_ROW_H / 2, 1);
+        char preset[16];
+        snprintf(preset, sizeof(preset), "%s  >", _audioEqPresetName());
+        tft.drawString(preset, PLEDIT_CONTENT_X + PLEDIT_CONTENT_W - 3,
+                       y + PLEDIT_ROW_H / 2, 1);
 
         char value[12];
         uint8_t effective = wrEffectiveVolume();
@@ -2045,29 +2076,25 @@ private:
                      (unsigned)g_settings.webRadioMaxVolume, (unsigned)effective);
         else
             snprintf(value, sizeof(value), "%u", (unsigned)effective);
-        _drawAudioAdjustRow(1, "Max volume", value);
+        _drawAudioAdjustRow(1, "MAX VOL", value,
+                            (int)g_settings.webRadioMaxVolume * 100 / WR_VOLUME_MAX);
         snprintf(value, sizeof(value), "%+d dB", (int)g_settings.webRadioEqBassDb);
-        _drawAudioAdjustRow(2, "Bass", value);
+        _drawAudioAdjustRow(2, "BASS", value,
+                            ((int)g_settings.webRadioEqBassDb - WR_EQ_BASS_MIN_DB) * 100 /
+                            (WR_EQ_BASS_MAX_DB - WR_EQ_BASS_MIN_DB));
         snprintf(value, sizeof(value), "%+d dB", (int)g_settings.webRadioEqMidDb);
-        _drawAudioAdjustRow(3, "Mid", value);
+        _drawAudioAdjustRow(3, "MID", value,
+                            ((int)g_settings.webRadioEqMidDb - WR_EQ_MID_MIN_DB) * 100 /
+                            (WR_EQ_MID_MAX_DB - WR_EQ_MID_MIN_DB));
         snprintf(value, sizeof(value), "%+d dB", (int)g_settings.webRadioEqTrebleDb);
-        _drawAudioAdjustRow(4, "Treble", value);
+        _drawAudioAdjustRow(4, "TREBLE", value,
+                            ((int)g_settings.webRadioEqTrebleDb - WR_EQ_TREBLE_MIN_DB) * 100 /
+                            (WR_EQ_TREBLE_MAX_DB - WR_EQ_TREBLE_MIN_DB));
 
-        const uint16_t activeBg = PLEDIT_FG_NORMAL;
-        const uint16_t idleBg   = 0x18E5U;
-        const uint16_t activeFg = TFT_BLACK;
-        const uint16_t idleFg   = TFT_WHITE;
         bool full = g_settings.webRadioHwMod;
-        tft.fillRect(12, PLEDIT_BOTTOM_Y + 5, 120, 28,
-                     full ? idleBg : activeBg);
-        tft.fillRect(143, PLEDIT_BOTTOM_Y + 5, 120, 28,
-                     full ? activeBg : idleBg);
-        tft.setTextDatum(MC_DATUM);
-        tft.setTextColor(full ? idleFg : activeFg, full ? idleBg : activeBg);
-        tft.drawString("SAFE 12", 72, PLEDIT_BOTTOM_Y + 19, 1);
-        tft.setTextColor(full ? activeFg : idleFg, full ? activeBg : idleBg);
-        tft.drawString("FULL 21", 203, PLEDIT_BOTTOM_Y + 19, 1);
-        tft.setTextDatum(TL_DATUM);
+        _drawClassicToggle(WR_AUDIO_SAFE_X, "SAFE", !full);
+        _drawClassicToggle(WR_AUDIO_FULL_X, "FULL", full);
+        winampDisplay.drawPleditOverlayText(full ? "FULL 21" : "SAFE 12");
     }
 
     WRPlayState _state          = WRPlayState::STOPPED;
@@ -2650,7 +2677,7 @@ private:
         // WebRadio (M-WEBRADIO-SETTINGS), not an overlay), so the old
         // "N stations — country" header is dropped here too.
         winampDisplay.drawPleditFrame(_scrollOffset, (int)_stationCount);
-        _drawAudioPanelButton();
+        winampDisplay.drawEqPanelState(false);
 
         // TASK-348: country code in the same PLEDIT bottom-bar overlay slot
         // Spotify uses for its total-playlist-time readout — replaces the old

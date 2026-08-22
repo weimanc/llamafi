@@ -6427,7 +6427,7 @@ def t_wr_audio_panel(dut: Dut):
     # the station list before taking baselines so the next tap always means open.
     panel_state = dut.cmd("get wrEq", timeout=3.0)
     if panel_state.get("panel"):
-        dut.cmd("tap 250 126", timeout=3.0)
+        dut.cmd("tap 229 64", timeout=3.0)
         time.sleep(0.2)
 
     original_eq = dut.cmd("get wrEq", timeout=3.0)
@@ -6457,8 +6457,8 @@ def t_wr_audio_panel(dut: Dut):
         dut.cmd("set wrHwMod 0", timeout=3.0)
         time.sleep(0.4)
 
-        # Open via the PLEDIT title-bar EQ button.
-        dut.cmd("tap 250 126", timeout=3.0)
+        # Open via the authentic EQ button already present in Winamp chrome.
+        dut.cmd("tap 229 64", timeout=3.0)
         eq_open = dut.cmd("get wrEq", timeout=3.0)
         if not eq_open.get("panel"):
             failure = f"EQ button did not open panel: {eq_open}"
@@ -6489,7 +6489,7 @@ def t_wr_audio_panel(dut: Dut):
             dut.cmd("set wrMaxVol 13", timeout=3.0)
             dut.cmd("set wrHwMod 0", timeout=3.0)
             time.sleep(0.2)
-            dut.cmd("tap 203 220", timeout=3.0)
+            dut.cmd("tap 95 218", timeout=3.0)
             time.sleep(0.4)
             v = dut.cmd("get wrEffectiveVol", timeout=3.0)
             av = dut.cmd("get wrAppliedVol", timeout=3.0)
@@ -6507,7 +6507,7 @@ def t_wr_audio_panel(dut: Dut):
         # Restore first, then close. Persistence is intentionally deferred until
         # suspend(), after Audio/arena teardown makes JSON allocation safe.
         restore_ram()
-        dut.cmd("tap 250 126", timeout=3.0)
+        dut.cmd("tap 229 64", timeout=3.0)
         time.sleep(0.4)
         eq_closed = dut.cmd("get wrEq", timeout=3.0)
         save_at_close = dut.cmd("get settingsSaveCount", timeout=3.0).get("count", -1)
@@ -6541,7 +6541,7 @@ def t_wr_audio_panel(dut: Dut):
             restore_ram()
             panel_now = dut.cmd("get wrEq", timeout=3.0)
             if panel_now.get("panel"):
-                dut.cmd("tap 250 126", timeout=3.0)
+                dut.cmd("tap 229 64", timeout=3.0)
             dut.cmd(f"switchApp {APP_SLOT['Settings']}", timeout=12.0)
 
     if failure:

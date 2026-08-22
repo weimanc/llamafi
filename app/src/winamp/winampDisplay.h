@@ -1350,6 +1350,36 @@ public:
     }
   }
 
+  // Reuse the main Winamp 68x13 VOLUME.BMP control inside compact PLEDIT
+  // rows. Coordinates are screen-local and percent is normalized to 0..100.
+  // This intentionally does not update the main-window volume render cache.
+  void drawVolumeSliderAt(int x, int y, int percent) {
+    const int clamped = constrain(percent, 0, 100);
+    const SkinUV frame = pickKeyframe(clamped);
+    const SkinUV knob  = { 0, 0, VOLUME_KNOB_W, VOLUME_KNOB_H };
+    const int knobTravel = VOLUME_W - VOLUME_KNOB_W;
+    const int knobX = x + (clamped * knobTravel) / 100;
+    const int knobY = y + (VOLUME_H - VOLUME_KNOB_H) / 2;
+    tft.startWrite();
+    blitSprite(x, y, SKIN_VOLUME, SKIN_VOLUME_W, frame);
+    blitSprite(knobX, knobY, SKIN_VOLUME_KNOB, VOLUME_KNOB_W, knob);
+    tft.endWrite();
+  }
+
+  // MAIN_BG already contains the authentic SHUFREP.BMP EQ-off control at
+  // (218,58). Restore it exactly, then add a one-pixel Winamp-green status
+  // lamp only while WebRadio's equalizer panel is open.
+  void drawEqPanelState(bool active) {
+    const SkinUV eqOff = { 218, 58, 23, 12 };
+    tft.startWrite();
+    blitSprite(originX + eqOff.u, originY + eqOff.v,
+               SKIN_MAIN_BG, SKIN_MAIN_BG_W, eqOff);
+    if (active)
+      tft.fillRect(originX + eqOff.u + 2, originY + eqOff.v + 10,
+                   eqOff.w - 4, 1, PLEDIT_FG_NORMAL);
+    tft.endWrite();
+  }
+
   // ADR-018 TASK-047c — Winamp PLEDIT playlist editor chrome.
   // Call unconditionally from the main loop; returns immediately if the
   // snapshot seqno hasn't changed.
