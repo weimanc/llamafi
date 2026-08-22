@@ -158,7 +158,7 @@ char clientSecret[200];
 #include "appShell.h"
 #include "shell/shellState.h"   // ShellState + shell::state() (M-SRCLAYOUT D3)
 #include "shell/shellDispatch.h"   // resolvePlayerTap/isPlayerModeApp/shell::setBusy (M-SRCLAYOUT Stage E)
-#include "taskbar/taskbar.h"
+#include "shell/taskbar.h"
 #include "dataTask.h"
 #include "settingsStorage.h"
 

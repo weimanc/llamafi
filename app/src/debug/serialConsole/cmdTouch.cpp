@@ -12,7 +12,7 @@
 #include "shell/shellDispatch.h"         // setBusy, resolvePlayerTap, isPlayerModeApp
 #include "shell/shellState.h"            // shell::state()
 #include "debug/serialConsole/consoleShared.h"  // injection ring buffer
-#include "taskbar/taskbar.h"             // TASKBAR_APP_COUNT
+#include "shell/taskbar.h"                // TASKBAR_APP_COUNT
 #include "winamp/winampDisplay.h"
 #include "winamp/vuMeter.h"
 

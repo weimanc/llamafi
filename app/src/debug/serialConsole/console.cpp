@@ -13,7 +13,7 @@
 #include "shell/appTable.h"               // g_apps[]
 #include "shell/shellDispatch.h"          // resolvePlayerTap/isPlayerModeApp/shell::*
 #include "shell/shellState.h"             // shell::state()
-#include "taskbar/taskbar.h"              // TASKBAR_APP_COUNT, renderTaskbar
+#include "shell/taskbar.h"                 // TASKBAR_APP_COUNT, renderTaskbar
 #include "settingsStorage.h"              // g_settings
 #include "spotifyTask.h"
 #include "logSink.h"                      // LOG_D
