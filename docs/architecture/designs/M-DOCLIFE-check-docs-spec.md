@@ -197,16 +197,31 @@ different artifacts, not errors.
 >
 > **Consequence for the rollout:** phase 4's precondition is a content migration across ~100–200
 > document headers, not a scoping tweak. It needs its own task plus three Architect rulings, which are
-> now TASK-508's first deliverable, not TASK-475's problem: (a) how landed work is spelled — the only
-> doc using `partially landed` today is `M-SRCLAYOUT-main-decomposition.md:4`; (b) whether C4 matches
-> on **prefix** or **exact**, which is worth ~100 failures on its own; (c) whether `Status:` is read
-> header-only or anywhere in the file. **C4 stays advisory until that task lands.**
+> now TASK-508's first deliverable, not TASK-475's problem: (a) ~~how landed work is spelled — the only
+> doc using `partially landed` today is `M-SRCLAYOUT-main-decomposition.md:4`~~ **RESOLVED 2026-08-23,
+> human ruling — see below**; (b) whether C4 matches on **prefix** or **exact**, which is worth ~100
+> failures on its own; (c) whether `Status:` is read header-only or anywhere in the file. **C4 stays
+> advisory until (b) and (c) also land.**
+>
+> **(a) RESOLVED 2026-08-23 (human ruling).** Drop `partially landed` — a novel term with exactly one
+> real-corpus user, which is also stale today (`M-SRCLAYOUT-main-decomposition.md:4` still says
+> "Stages C and D remain proposed"; both landed in TASK-455/456 weeks ago). Migrating ~100–200
+> headers onto an invented term nobody writes naturally costs more than it buys. **Adopt the
+> vocabulary already organically in use instead**, case-insensitive, trailing punctuation stripped
+> (the period after "CLOSED." observed in the corpus is not part of the token): `done`, `implemented`,
+> `resolved`, `closed`, `applied`, `retired`. These sit alongside `proposed`/`accepted`/`rejected`/
+> `superseded`, unchanged. Two more live-corpus terms noted at [A3] above but not in the human's list —
+> `planned` and `updated` — are provisionally folded the same way `draft` is (`planned` → `proposed`,
+> being a clear synonym; `updated` is too vague to stand alone as a status and needs a per-doc read
+> rather than a blanket rule) — **flag if either should be treated differently.**
 
 Closed vocabulary for architecture documents:
-`proposed` | `accepted` | `partially landed` | `superseded` | `rejected`
+`proposed` | `accepted` | `done` | `implemented` | `resolved` | `closed` | `applied` | `retired` |
+`superseded` | `rejected`
 
-`draft` is currently used by design docs and should be **folded into `proposed`** — M-NOART sat at
-`draft` for three months while half of it shipped, which is precisely the ambiguity to remove.
+`draft` and `planned` are currently used by design docs and should be **folded into `proposed`** —
+M-NOART sat at `draft` for three months while half of it shipped, which is precisely the ambiguity
+to remove.
 
 ### C5 — link integrity
 Relative `.md` links, anchors stripped. **Zero failures today, so this one goes blocking on day one**
