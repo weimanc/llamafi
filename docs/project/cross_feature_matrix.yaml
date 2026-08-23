@@ -240,19 +240,31 @@ interactions:
     feature_b: serialdbg (Core 1 serial handler)
     interaction_type: shared_state
     description: |
+      TASK-500 (2026-08-23, Architect ruling): this is a same-core preemption race, not a
+      cross-core one — `serialdbg` is not its own task, `handleSerialCommands()` runs
+      inline from `loop()` (`main.cpp:269`), i.e. it *is* `loopTask`. IFC-002
+      (`docs/architecture/interfaces/IFC-002.md`) already tabulates `loopTask` and
+      `dataTask` as both pinned to core 1, with core 0 running only WiFi/lwIP, and
+      states this plainly for the whole system: "there is no true parallelism between
+      them... every race here is a preemption race." X015 is one instance of that
+      general case, not a distinct cross-core hazard — `interaction_type: shared_state`
+      and `risk: medium` both stay correct (a preemption race is still a real race, and
+      M1's spinlock is exactly the right mitigation), only the "cross-core" framing an
+      earlier reader could infer from "Core 1" appearing twice was wrong.
+
       dataTask fetch functions (fetchStockQuote, fetchCrypto, fetchWeather,
       fetchHeatmapQuote) run on the task pinned to APP_CPU_NUM (dataTaskStorage.cpp:117,
-      `constexpr BaseType_t kPinnedCpu = APP_CPU_NUM;`) and publish committed results
-      atomically via spinlock-protected result structs. Core 1's serialdbg handler can query app-layer
-      state (quoteOkCount, fetchErrorCode, cryptoReady, etc.) but only sees the last
-      committed result — not in-progress state. If a fetch hangs mid-execution, all
-      Core 1 diagnostics reflect default/stale values with no indication of where the
-      hang occurred.
+      `constexpr BaseType_t kPinnedCpu = APP_CPU_NUM;`, i.e. core 1 — see IFC-002) and
+      publish committed results atomically via spinlock-protected result structs.
+      `loopTask`'s serialdbg handler can query app-layer state (quoteOkCount,
+      fetchErrorCode, cryptoReady, etc.) but only sees the last committed result — not
+      in-progress state. If a fetch hangs mid-execution, serialdbg diagnostics reflect
+      default/stale values with no indication of where the hang occurred.
 
       M-DATATASK-PROGRESS addresses this gap by adding volatile int8_t progress atoms
-      updated per-step in each fetch function. These are readable from Core 1 at any
+      updated per-step in each fetch function. These are readable from `loopTask` at any
       time without a lock (single-byte write, ESP32 byte writes are atomic). The pattern
-      is applicable to any multi-step Core 0 function that can take >5 s and has
+      is applicable to any multi-step `dataTask` function that can take >5 s and has
       distinct observable phases.
 
       Confirmed pain point: T170 / T188 fail in full-suite runs with fetchFailed=False,
