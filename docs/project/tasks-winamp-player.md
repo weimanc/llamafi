@@ -539,6 +539,11 @@ all, comparing `free8` at `post-init-idle`.
 **Firmware added for this measurement** (both debug-only, both to be kept — they are the instruments
 this decision needs): `get heapHist` and `set aeNoArena 0|1`.
 
+**Status:** **WITHDRAWN 2026-08-23 (Architect ruling, formalising what TASK-452's own filing already
+stated)** — superseded by **TASK-452**, which re-issues the narrower, still-live part of this task
+(retire the arena from the FILE path) with this task's falsified central hypothesis (the arena as
+the playback blocker) dropped.
+
 ### TASK-419 — real posbar seek for local files
 
 The vendored `Audio` exposes `setFilePos()`, `setTimeOffset()`, `getFilePos()`, `getFileSize()`,
@@ -860,38 +865,13 @@ three times, its central hypothesis is falsified, and it now carries more review
 should be **re-issued or withdrawn by the Architect**, not incrementally patched again. TASK-444,
 TASK-445 and TASK-424 are independent of it and stand on their own evidence.
 
-**What went right, and is worth keeping:** every fix in this milestone was gated on hardware before
-being called done; the failure paths now degrade visibly rather than resetting or hanging; and the
-three subagent reviews each caught a real error in the orchestrator's brief. The verification
-discipline held. The framing discipline did not.
-
----
-
-## PM note — what went wrong on this milestone (2026-08-15)
-
-Recorded here rather than in a retrospective nobody re-reads, because the remaining tasks in this
-file inherit it.
-
-**The design was not the problem.** ADR-059's decisions (D2 the shared engine, D6/D7 the three-way
-mode, D10 the build variants) all survived contact with the hardware. Nothing in this milestone was
-lost to a design that turned out wrong.
-
-**Three things went wrong, all downstream of design:**
-
-1. **A measurement without conditions became a premise.** TASK-427 recorded "MP3 plays" and a heap
-   figure, with nothing about the environment. Three later task write-ups reasoned from it as a
-   property of the commit. It did not reproduce on its own commit four days later. → BP-062.
-2. **A P1 was closed against a proxy path.** TASK-432 was gated on a shared code path because the
-   real one could not be tested; the real one later exposed two defects in the shipped fix. → BP-061.
-3. **A plausible mechanism became the frame, and review reinforced it.** The arena's contiguity
-   asymmetry was real, measured, and not the binding constraint. An Architect ruling, three team
-   reviews and five filed tasks were spent inside that frame while the cause — a boot TLS session on
-   a build with Spotify compiled out — sat in every capture taken during the investigation. → BP-063.
-
-**What this implies for the tasks below.** TASK-443 is the clearest casualty: it has been reframed
-three times, its central hypothesis is falsified, and it now carries more review than conclusion. It
-should be **re-issued or withdrawn by the Architect**, not incrementally patched again. TASK-444,
-TASK-445 and TASK-424 are independent of it and stand on their own evidence.
+> **Architect ruling, 2026-08-23: already withdrawn, this note just hadn't caught up.** TASK-443's
+> own section carried no closing status line, but TASK-452's own text has called it "the withdrawn
+> TASK-443" since the day it was filed (2026-08-15) — TASK-452 **is** the re-issue this note asks
+> for, scoped narrower (arena retirement from the FILE path only) with TASK-443's central hypothesis
+> (the arena as the playback blocker) explicitly dropped. Added a formal status line to TASK-443's
+> own section below so a reader doesn't have to infer this from a cross-reference in a different
+> task. Also deduplicated this PM note, which was accidentally pasted twice, verbatim, back to back.
 
 **What went right, and is worth keeping:** every fix in this milestone was gated on hardware before
 being called done; the failure paths now degrade visibly rather than resetting or hanging; and the

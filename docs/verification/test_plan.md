@@ -413,7 +413,7 @@ the last column is the honest one.
 | `X052` | `T_PLR_09` `impl`, `T_PLR_13` `impl`, `T_PMT_04` `impl`, `T_PLR_39` `resv` | **partial** — the acquire/release edge is now really covered (`T_PMT_04`, TASK-513: `acquires 0→1`, `active` back to 0 on mode exit); still short-duration only, the soak is the uncovered half |
 | `X053` | `T_SD_01`–`03`, `08` — **no bodies exist for any `T_SD_` id** | **GENUINELY UNCOVERED** |
 | `X054` | `T_PLE_01`–`06` — no bodies | **GENUINELY UNCOVERED** |
-| `X055` | `T_PLE_07`–`13`: only `T_PLE_08` realised, as `T_PLE_WR_155`–`160` `impl`; `T_PLE_14` (seqno-vs-dirty-flag) **not specified in any owned doc** | **partial**, and the seqno gap is **GENUINELY UNCOVERED** |
+| `X055` | `T_PLE_07`–`13`: only `T_PLE_08` realised, as `T_PLE_WR_155`–`160` `impl`; `T_PLE_14` (seqno-vs-dirty-flag) is fully specified at [M-PLEDIT-ABSTRACTION-playlist-source.md:238](../architecture/designs/M-PLEDIT-ABSTRACTION-playlist-source.md) (method: `get pleditRepaints` across a station-list change vs. 60s idle; pass: bumps exactly once, not otherwise) — `StationListSource::seqno()` (`webRadioApp.h:136`) and the `pleditRepaints` debug var (`winampDisplay.h:1307`) both already exist in code. **Registration gap, not a spec gap** (TASK-509, corrected 2026-08-23): `resv` this id and write the body from the existing design-doc spec | **partial**, and the seqno gap is **GENUINELY UNCOVERED** |
 | `X056` | `T_PLR_01` `impl`, `T_PLR_05` `impl` | **covered** |
 | `X057` | `T_PLR_03` `impl`; plus three `static_assert`s at T0 (`app/src/taskbar/taskbar.h:42-63`) | **covered** |
 | `X058` | `T_PLR_14` `impl`, `T_PLR_15` `impl` | **covered** |
