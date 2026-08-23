@@ -196,24 +196,42 @@ different artifacts, not errors.
 > content migration, not a rename, and it was never 67.
 >
 > **Consequence for the rollout:** phase 4's precondition is a content migration across ~100–200
-> document headers, not a scoping tweak. It needs its own task plus three Architect rulings, which are
-> now TASK-508's first deliverable, not TASK-475's problem: (a) ~~how landed work is spelled — the only
-> doc using `partially landed` today is `M-SRCLAYOUT-main-decomposition.md:4`~~ **RESOLVED 2026-08-23,
-> human ruling — see below**; (b) whether C4 matches on **prefix** or **exact**, which is worth ~100
-> failures on its own; (c) whether `Status:` is read header-only or anywhere in the file. **C4 stays
-> advisory until (b) and (c) also land.**
+> document headers, not a scoping tweak. It needed its own task plus three Architect rulings — this
+> was TASK-508's deliverable, not TASK-475's problem. **All three now resolved, 2026-08-23, human
+> rulings:**
 >
-> **(a) RESOLVED 2026-08-23 (human ruling).** Drop `partially landed` — a novel term with exactly one
-> real-corpus user, which is also stale today (`M-SRCLAYOUT-main-decomposition.md:4` still says
-> "Stages C and D remain proposed"; both landed in TASK-455/456 weeks ago). Migrating ~100–200
-> headers onto an invented term nobody writes naturally costs more than it buys. **Adopt the
-> vocabulary already organically in use instead**, case-insensitive, trailing punctuation stripped
-> (the period after "CLOSED." observed in the corpus is not part of the token): `done`, `implemented`,
-> `resolved`, `closed`, `applied`, `retired`. These sit alongside `proposed`/`accepted`/`rejected`/
-> `superseded`, unchanged. Two more live-corpus terms noted at [A3] above but not in the human's list —
-> `planned` and `updated` — are provisionally folded the same way `draft` is (`planned` → `proposed`,
-> being a clear synonym; `updated` is too vague to stand alone as a status and needs a per-doc read
-> rather than a blanket rule) — **flag if either should be treated differently.**
+> **(a) Drop `partially landed`** — a novel term with exactly one real-corpus user, which is also
+> stale today (`M-SRCLAYOUT-main-decomposition.md:4` still says "Stages C and D remain proposed";
+> both landed in TASK-455/456 weeks ago). Migrating ~100–200 headers onto an invented term nobody
+> writes naturally costs more than it buys. **Adopt the vocabulary already organically in use
+> instead**, case-insensitive, trailing punctuation stripped (the period after "CLOSED." observed in
+> the corpus is not part of the token): `done`, `implemented`, `resolved`, `closed`, `applied`,
+> `retired`. These sit alongside `proposed`/`accepted`/`rejected`/`superseded`, unchanged. Two more
+> live-corpus terms noted above but not in the human's list — `planned` and `updated` — are
+> provisionally folded the same way `draft` is (`planned` → `proposed`, a clear synonym; `updated` is
+> too vague to stand alone and needs a per-doc read) — flag if either should be treated differently.
+>
+> **(b) Exact match, not prefix.** The `Status:` field's value must equal one closed-vocabulary word,
+> nothing else on the line. **This is a bigger consequence than picking a word** — essentially every
+> real header sampled crams rationale/date/commit into the same line as the status word (`accepted
+> (2026-05-17, human sign-off)`, `partially landed; Stages A and B VERIFIED 2026-08-16 (a044f5d…) —
+> reviewed…`), and exact match fails all of them. **This is not incidental — it's what BP-065 already
+> asks for and nobody has been doing**: BP-065's rule is "status changes to `accepted`… **and names
+> the commit(s)**, with **an as-built section** recording what shipped" — i.e. the commit/rationale
+> belongs in a separate as-built section, not stuffed into the `Status:` line itself. Exact match
+> is BP-065's own structure, enforced; the migration is a real reformat (split inline detail into a
+> proper as-built section), not a word-swap, for most of the ~100–200 headers. BP-065 also needed its
+> vocabulary list updated to match (a) — done, see `best_practices.md`.
+>
+> **(c) Header-only.** Only the doc's own `Status:`/`**Status**:` header line is checked; a later
+> in-body status remark (e.g. `M-SRCLAYOUT-main-decomposition.md:482`'s separate, more current status
+> note deep in the file) is not scanned and does not count as either a pass or a violation. A stale
+> header stays a violation even if the body has a truthful update elsewhere — which is the reader-
+> facing failure mode C4 exists to catch in the first place.
+>
+> **C4 is unblocked. `run/check-docs` phase 4 may proceed** once the ~100–200-header migration
+> (vocabulary swap + as-built-section reformat per (b)) is done — that migration itself is the
+> remaining TASK-508 work, now a Developer/PM execution task rather than an Architect decision.
 
 Closed vocabulary for architecture documents:
 `proposed` | `accepted` | `done` | `implemented` | `resolved` | `closed` | `applied` | `retired` |
