@@ -105,3 +105,30 @@ read -rs LINKSYS_PW && export LINKSYS_PW     # admin password, silent
 
 If `GetWANSettings` ever shows `wanType` other than `DHCP` (e.g. `PPPoE`), the ISP
 changed the handoff and you'll need those credentials — re-capture this file then.
+
+## Writing settings: `wirelessap/SetRadioSettings` payload shape (2026-08-23)
+
+`jnap.sh` has no built-in write command (`raw` only) — this is the payload shape
+that actually works, found by trial since the JNAP API isn't publicly documented.
+
+**Wrong** (top-level `radioID`) → `_ErrorInvalidInput: "Encountered unexpected
+member \"radioID\" for element \"SetRadioSettings\""`:
+```json
+{"radioID": "RADIO_2.4GHz", "settings": {...}}
+```
+
+**Right** — wrap in a `radios` array, same shape `GetRadioInfo` returns. Only the
+radio(s) you include are touched; omit the other band's object to leave it alone:
+```sh
+./jnap.sh raw wirelessap/SetRadioSettings \
+  '{"radios":[{"radioID":"RADIO_2.4GHz","settings":{"isEnabled":true,"mode":"802.11bgnax","ssid":"<home-ssid>-2.4Ghz","broadcastSSID":true,"channelWidth":"Standard","channel":3,"security":"WPA2-Personal","wpaPersonalSettings":{"passphrase":"<passphrase>"}}}]}'
+```
+Response on success: `{"result":"OK","sideEffects":["WirelessInterruption"]}` — the
+radio briefly restarts, so expect any 2.4 GHz clients to drop and reconnect.
+
+**Event log:** 2026-08-23 — merged the two bands back onto one SSID (`<home-ssid>`
+on both radios); devices started struggling (2.4 GHz clients likely getting stuck
+trying to negotiate 5 GHz-only capabilities, or roaming badly under the shared
+name). Split back to separate SSIDs (`<home-ssid>` / `<home-ssid>-2.4Ghz`) using
+the payload above — channel (3) and width (Standard/20 MHz) on 2.4 GHz were
+unaffected by the merge, so no need to re-pin those, just the SSID.
