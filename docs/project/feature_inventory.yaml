@@ -11,7 +11,7 @@ features:
     description: End-to-end procedure to flash a blank CYD2USB unit, bake Spotify creds into SPIFFS, configure wifi, and start polling Spotify Web API. Documented in docs/first_time_run_deploy.md.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - docs/first_time_run_deploy.md
       - get_refresh_token.py
       - Spotify-Diy-Thing/platformio.ini
@@ -25,7 +25,7 @@ features:
     description: Off-device Authorization Code flow against http://127.0.0.1:8888/callback/ (Spotify's loopback-only HTTP exception). Helper script captures the refresh token; baked into SPIFFS instead of running the device's built-in flow which Spotify's redirect-URI policy now rejects.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - get_refresh_token.py
       - Spotify-Diy-Thing/SpotifyDiyThing/refreshToken.h
     cross_features: [cfg-001, time-001]
@@ -37,7 +37,7 @@ features:
     description: JSON config at /spotify_diy_config.json holding clientId, clientSecret, refreshToken. Read on every boot; written either by the captive portal's save callback or pre-baked via PlatformIO `uploadfs`.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/configFile.h
       - Spotify-Diy-Thing/data/spotify_diy_config.json
     cross_features: [wifi-001]
@@ -49,7 +49,7 @@ features:
     description: First-boot AP `SpotifyDIY` / `thing123`. Configure WiFi page also exposes Client ID / Secret / Refresh Token text fields. Double-press reset within ~10s re-enters config mode (DoubleResetDetector).
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h
     cross_features: [cfg-001, time-001]
     test_ids: []
@@ -60,7 +60,7 @@ features:
     description: Polls /v1/me/player/currently-playing periodically, decodes JPEG album art, updates display. 204 No Content handled as "nothing playing".
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
     cross_features: [disp-001, api-001]
@@ -71,7 +71,7 @@ features:
     description: TFT_eSPI-based 320x240 ILI9341 panel rendering — track + artist text, album art JPEG, progress bar.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyDisplay.h
       - Spotify-Diy-Thing/DisplayConfig/User_Setup.h
@@ -84,7 +84,7 @@ features:
     description: Tap left third → previous track, tap right third → next track. Middle band is a dead zone. No play/pause, volume, or seek.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/touchScreen.h
       - Spotify-Diy-Thing/SpotifyDiyThing/CYD28_TouchscreenR.cpp
       - Spotify-Diy-Thing/SpotifyDiyThing/CYD28_TouchscreenR.h
@@ -97,7 +97,7 @@ features:
     description: configTime() against pool.ntp.org / time.google.com / time.cloudflare.com at the end of WiFi-up in setup(), before any TLS handshake. Bounded 5 s wait until time(nullptr) > 1700000000 (2023-11-14); non-fatal on timeout. Without this, ESP32's RTC-less clock starts ~1970, mbedTLS rejects current Spotify certs whose notBefore is in the future, and accounts.spotify.com TLS fails with a generic send error (X001).
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
     cross_features: [wifi-001, auth-001]
     test_ids: [T019, T020]
@@ -108,7 +108,7 @@ features:
     description: Throwaway harness exercising every Spotify Web API call the forthcoming Winamp UI will need. Single-character serial commands fire one call each; outcomes logged as [OK]/[FAIL]/[GET]/[ERR]. Covers play, pause, next, previous, seek, setVolume, toggleShuffle, setRepeatMode (all on SpotifyArduino), plus audio-features and audio-analysis (raw makeGetRequest with filtered ArduinoJson parse, using a vendored-library getBearerToken() patch). Build env cyd2usb_spike adds -DSPIKE_MODE; default cyd2usb env unchanged.
     status: implemented
     git_ref: Spotify-Diy-Thing@6066cab + (rotation/cleanups commit pending)
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/spikeMode.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spikeRawHttp.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
@@ -130,7 +130,7 @@ features:
     description: Fix or replacement for the SpotifyArduino library's connection-reuse pattern that fails at TLS-send (mbedTLS 0x0050) for every POST/PUT after a prior GET. Candidate approaches per TASK-009; recommended is migrating affected endpoints to Arduino-ESP32 HTTPClient which manages connection lifecycle internally.
     status: planned
     git_ref: "fff0208 (2026-07-17)"
-    files: []
+    components: []
     cross_features: [api-001, poll-001]
     test_ids: []
     notes: Blocking M5 (full-skin touch controls), TASK-002, TASK-003. Architect to draft an ADR before implementation.
@@ -140,7 +140,7 @@ features:
     description: Stash progressMs + millis() on each poll, derive displayed position each frame, snap on poll. Renderer (cheapYellowLCD::displayTrackProgress) is idempotent — caches lastBarXWidth and skips redraw on identical pixel position; track-change / seek-back take a shrink-branch full repaint. Tick lowered from 500ms to 100ms.
     status: implemented
     git_ref: Spotify-Diy-Thing@f84b112
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
       - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
@@ -156,7 +156,7 @@ features:
     description: Standalone Python tool that converts a Winamp 2 .wsz skin into RGB565 atlas C arrays + a static layout header per ADR-003. Tier 1 covers main background, transport buttons (prev/play/pause/stop/next), and raw text.bmp font atlas. Pillow's BI_RLE8 BMP decoder fails on Winamp's TEXT.BMP; tool falls back to ImageMagick (`magick`) round-tripped through PNG.
     status: implemented
     git_ref: Spotify-Diy-Thing@a9682be
-    files:
+    components:
       - Spotify-Diy-Thing/skins/base-2.91.wsz
       - Spotify-Diy-Thing/tools/bake_skin.py
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
@@ -175,7 +175,7 @@ features:
     description: SpotifyDisplay backend that paints the Winamp 2 main window from the m2-001 atlas. Subclasses CheapYellowDisplay to inherit the JPEG/SPIFFS/touch plumbing; overrides showDefaultScreen/displayTrackProgress/printCurrentlyPlayingToScreen to draw via SKIN_MAIN_BG, SKIN_CBUTTONS, SKIN_GLYPH. Selected at compile time via -DWINAMP_DISPLAY (env cyd2usb_winamp).
     status: scaffold
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
       - Spotify-Diy-Thing/platformio.ini
@@ -193,7 +193,7 @@ features:
     description: Two opt-in mitigations for testing the DUT on networks that interfere with the default flow. (a) wifi_creds.h __has_include shim short-circuits WiFiManager portal with hardcoded SSID/PASS. (b) httpsDate.h plain-HTTP Date-header time bootstrap with __DATE__/__TIME__ build-epoch last resort. Both are no-op when the relevant input is absent. (dnsOverride.h / refresh_host_overrides.sh were retired in TASK-160, 2026-06-09 — dev-only hack with stale IPs, never regression-tested.)
     status: implemented
     git_ref: Spotify-Diy-Thing@bf5d5ca
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/WifiManagerHandler.h
       - Spotify-Diy-Thing/SpotifyDiyThing/httpsDate.h
     cross_features: [wifi-001, time-001]
@@ -208,7 +208,7 @@ features:
     description: ESP-IDF esp_log_set_vprintf hook fans every ESP_LOGx line to Serial + a 12 KB RAM ringbuffer (48 slots × 256 chars). Permanent post-WiFi HTTP server on WiFi.localIP() exposes GET /log[?n=N|?clear=1]. secret.h `redact()` (8-slot rotating pool) replaces the configFile.h JSON dump. logDecode.h decodes mbedtls / HTTP codes at log call sites. logHeartbeat.h emits a 30-second tag=hb INFO line with display, RSSI, heap, uptime, poll counters, last status, block_max_ms (added by io-001), build epoch.
     status: implemented
     git_ref: Spotify-Diy-Thing@2f2af07 (ADR-010 + amendments)
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/logSink.h
       - Spotify-Diy-Thing/SpotifyDiyThing/logSinkStorage.cpp
       - Spotify-Diy-Thing/SpotifyDiyThing/logServer.h
@@ -227,7 +227,7 @@ features:
     description: Renders the most-recent ringbuffer lines across the whole 320×240 panel using TFT_eSPI font 1 (6×8 px GLCD), green-on-black. Winamp chrome paints on top via WinampDisplay::repaintChrome — top strip ~7 lines visible (oldest), bottom ~7 (newest), middle ~16 hidden behind chrome. Rate-limited to 4 Hz; dirty-detection via g_head snapshot; SwapBytes saved/restored around drawString.
     status: implemented
     git_ref: Spotify-Diy-Thing@6aa0236
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/screenLog.h
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
@@ -243,7 +243,7 @@ features:
     description: Per ADR-011. Exponential backoff on consecutive Spotify-poll failures (5 s → 10 → 20 → 40 → 60 s cap, reset on success or touch). Heartbeat exposes block_max_ms — the longest synchronous getCurrentlyPlaying since the last tick, surfaces opaque blocking events.
     status: implemented
     git_ref: Spotify-Diy-Thing@e06bc40 (ADR-011)
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyLogic.h
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
@@ -259,7 +259,7 @@ features:
     description: Replaces touch-001's three-zone (prev/dead/next) mapping with proper hit-testing on the Winamp main-window chrome. Each transport sprite (PREV/PLAY/PAUSE/STOP/NEXT) is its own region; tap on the posbar groove maps to a millisecond seek position via songDuration. Optimistic UI — on touch, songStartMillis is zeroed (pause/stop/prev/next) or re-anchored (seek) so the M4 interpolator obeys the user immediately rather than waiting for a poll round-trip; re-poll deferred ~1.5 s so Spotify has time to commit before the read-back.
     status: implemented
     git_ref: Spotify-Diy-Thing@9f19f68
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
     cross_features: [m3-001, poll-002, api-002, io-001]
     test_ids: []
@@ -272,7 +272,7 @@ features:
     description: Two horizontal bars in the canonical Winamp visualization rect ((24,43,76,6)/(24,50,76,6) window-local). Synthetic envelope per ADR-009 option (e) — slow swell + per-tick noise + 120 BPM beat transient, smoothed with attack/release; LFO ±15% L/R split; decays to zero on is_playing=false. Green/yellow/red color grading by level. 20 Hz tick gate. Dirty-detection on pixel widths skips SPI when bars haven't moved. No real audio data — Spotify Web API doesn't expose it.
     status: implemented
     git_ref: Spotify-Diy-Thing@049c088
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/vuMeter.h
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
@@ -295,7 +295,7 @@ features:
       take no level argument and are unaffected.
     status: implemented
     git_ref: "6444c4c"
-    files:
+    components:
       - app/src/winamp/vuMeter.h
       - app/src/webRadioApp.h
     cross_features: [vu-001]
@@ -337,7 +337,7 @@ features:
       finding, derived empirically against a live WebRadio station on DUT.
     status: implemented
     git_ref: "(commit pending)"
-    files:
+    components:
       - app/src/winamp/vuMeter.h
       - app/src/webRadioApp.h
       - app/src/main.cpp
@@ -391,7 +391,7 @@ features:
       pre-recorded footage frames and remains untouched/non-audio-reactive.
     status: implemented
     git_ref: "(commit pending)"
-    files:
+    components:
       - app/src/winamp/vuMeter.h
       - app/src/webRadioApp.h
       - app/src/main.cpp
@@ -426,7 +426,7 @@ features:
     description: perf.h namespace with record(name, ms) / recordLoop(ms) / loopMaxMs() / worstPathName() / worstPathMs() / stackHwmBytes() / reset(). Heartbeat consumes + resets each tick, adds stack_hwm + loop_max + slow=<name>:Nms fields. .ino wraps the four top-level loop paths (screenlog.tick, display.input, spotify.poll, display.bar). Iterations > 50 ms emit a LOG_W("perf", "iter=Nms ...") line.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/perf.h
       - Spotify-Diy-Thing/SpotifyDiyThing/logHeartbeat.h
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
@@ -442,7 +442,7 @@ features:
     description: Tag holds a Spotify URI/URL; on swipe device asks Spotify to play it. Optionally writes back currently-playing context to the tag.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/nfc.h
     cross_features: []
     test_ids: []
@@ -454,7 +454,7 @@ features:
       Bakes and renders the remaining Winamp 2 main-window chrome elements from the .wsz skin. Tier 1: SHUFREP atlas (75×30 px, 4 sprites) for shuffle/repeat indicators + tap-toggle; static composite patches MAIN_BG at bake time (TITLEBAR active variant, BALANCE centred, kbps "192", kHz "44", MS_STEREO_ON, MS_MONO_OFF, eject button). Tier 2: VOLUME atlas (6 keyframes × 68×13 px + sentinel, 10 608 bytes) for a dynamic volume slider driven by device.volume_percent from /me/player. Tier 2.5: drag-to-set volume touch control with 300 ms debounce, optimistic-UI freeze (2 s), and volume knob sprite (14×11 px from BALANCE.BMP). All dynamic state sourced from spotifyTask::Snapshot (shuffleState, repeatState, volumePercent). ADR-014 (static composite), ADR-016 (volume drag).
     status: implemented
     git_ref: Spotify-Diy-Thing@2026-05-10 (TASK-025 last — 2026-05-15)
-    files:
+    components:
       - Spotify-Diy-Thing/tools/bake_skin.py
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_layout.h
@@ -477,7 +477,7 @@ features:
       Shifts the Winamp chrome to originY=0 (flush with top edge) and renders a 5-row Spotify queue strip in the freed area below (y=116..240). getQueue() added to SpotifyArduino (LOCAL_PATCHES patch #10 family) polling GET /me/player/queue. QueueSnapshot struct + g_queueMux spinlock in spotifyTask. Poll trigger: track-change detection in onCurrentlyPlaying + 60 s keepalive. drawPlaylist() in winampDisplay.h uses seqno-diff + 1 Hz rate gate. Row 0 is current track (gold highlight), rows 1-6 are queue (Winamp grey-green), TFT_eSPI Font 2. ADR-017 (Option C landscape, 7 rows). Also fixed VU meter hardcoded origin → chromeOriginX()/chromeOriginY() getters.
     status: implemented
     git_ref: Spotify-Diy-Thing@2026-05-15 (TASK-020)
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
@@ -509,7 +509,7 @@ features:
       code.
     status: implemented
     git_ref: Spotify-Diy-Thing@2026-05-16 (TASK-053a–f)
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
@@ -545,7 +545,7 @@ features:
       cmdGet/cmdSet are dumb dispatchers — frozen, never need to change as fields grow.
     status: planned
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/platformio.ini
       - Spotify-Diy-Thing/scripts/inject_git_hash.py
       - Spotify-Diy-Thing/SpotifyDiyThing/SpotifyDiyThing.ino
@@ -583,7 +583,7 @@ features:
       from T073.
     status: planned
     git_ref: "fff0208 (2026-07-17)"
-    files: []
+    components: []
     cross_features: [poll-001, poll-002, touch-002, chrome-001, playlist-001, playlist-002, io-001, serialdbg-001, log-001]
     test_ids: [T097, T098, T099, T100, T101, T102, T103, T104, T105, T106, T107, T108, T109, T110]
     notes: |
@@ -620,7 +620,7 @@ features:
       runtime.
     status: planned
     git_ref: "fff0208 (2026-07-17)"
-    files: []
+    components: []
     cross_features: [conn-001, chrome-001, io-001, log-001, sync-001]
     test_ids: [T111, T112, T113]
     notes: |
@@ -643,7 +643,7 @@ features:
       Replaces the plain-black row list (playlist-001) with a proper Winamp Playlist Editor (PLEDIT.BMP) skin. bake_skin.py extended with build_pledit_atlas(): crops PLEDIT.BMP title bar (14 px) and bottom bar (16 px), pads/tiles horizontally to 320 px, composites into SKIN_PLEDIT_BG[320×30]; crops row-highlight sprite into SKIN_PLEDIT_ROW_HIGHLIGHT[260×16]. Layout constants emitted to gen/skin_layout.h (PLEDIT_Y, PLEDIT_H, PLEDIT_TITLE_H, PLEDIT_BOTTOM_H, PLEDIT_ROWS_Y, PLEDIT_ROW_H=16, PLEDIT_ROW_COUNT=5, PLEDIT_BOTTOM_Y, PLEDIT_W). drawPlaylist() rewritten: PLEDIT title bar + 5 rows + bottom bar via pushImage; Font 1 text "Artist - Track" format; PLEDIT highlight bg for row 0; duration column (MM:SS right-aligned) from durationMs in QueueEntry; total playlist time (sum durationMs) right-aligned in bottom bar. ADR-018 (Option C, 5 rows, MM:SS duration, total time).
     status: implemented
     git_ref: Spotify-Diy-Thing@2026-05-15 (TASK-047a/b/c/d)
-    files:
+    components:
       - Spotify-Diy-Thing/tools/bake_skin.py
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_assets.c
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/skin_layout.h
@@ -676,7 +676,7 @@ features:
       bodyBuf, stopping on the terminal 0\r\n chunk (TASK-065 fix for PLEDIT empty).
     status: implemented
     git_ref: Spotify-Diy-Thing@inner-main-ab3864e (TASK-063 + TASK-065)
-    files:
+    components:
       - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.cpp
       - Spotify-Diy-Thing/lib/SpotifyArduino/src/SpotifyArduino.h
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
@@ -714,7 +714,7 @@ features:
       agent can confirm errors occurred even after fetchFailed has cleared.
     status: implemented
     git_ref: "4c3cb05 (HEAD; impl 27bd86b; tickers f704c2e+4d71798; stream fix 4c3cb05)"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/apps/stockApp.h
       - app/src/appShell.h
@@ -753,7 +753,7 @@ features:
       Serial debug: get heatmapCount.
     status: implemented
     git_ref: "483920e (area+orientation fix; impl 11eb6bb; nav fixes 40dd18c/82b6a18)"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/apps/stockApp.h
       - app/src/appShell.h
@@ -786,7 +786,7 @@ features:
       crash triggered by CDN album-art fetches during active playback.
     status: implemented
     git_ref: Spotify-Diy-Thing@inner-main-1411a3e (TASK-062)
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/cheapYellowLCD.h
       - Spotify-Diy-Thing/SpotifyDiyThing/winampDisplay.h
       - Spotify-Diy-Thing/platformio.ini
@@ -810,7 +810,7 @@ features:
       Also fixes the existing preview_vis.py:58 WINDOW_W hardcode to parse gen/skin_layout.h.
     status: planned
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - Spotify-Diy-Thing/SpotifyDiyThing/gen/shell_layout.h
       - Spotify-Diy-Thing/tools/bake_skin.py
       - Spotify-Diy-Thing/tools/preview_layout.py
@@ -841,7 +841,7 @@ features:
       gen/shell_layout.h, byte-identical round-trip incl. the ADR-051 annotations.
     status: implemented
     git_ref: "48e724d (2026-07-18)"
-    files:
+    components:
       - app/tools/preview_layout.py
       - app/tools/preview_common.py
       - app/tools/shell_layout.py
@@ -869,7 +869,7 @@ features:
       app's repaint. appTick() and appHandleInput() dispatch per currentAppId.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/taskbar/taskbar.h
       - app/src/appShell.h
       - app/src/winamp/winampDisplay.h
@@ -890,7 +890,7 @@ features:
       RSSI signal bars in bottom-right. 1 Hz tick rate.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/clockApp.h
     cross_features: [taskbar-001]
@@ -916,7 +916,7 @@ features:
         B4 (scrollOffset stale on resume) — suspend() calls resetDragState(); resume() clamps offset.
     status: implemented
     git_ref: "163ce67"
-    files:
+    components:
       - app/src/appShell.h
       - app/src/touchPhase.h
       - app/src/main.cpp
@@ -939,7 +939,7 @@ features:
       at end of each tick. Registered at g_apps[AppId::Matrix].
     status: implemented
     git_ref: "eeb8091"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/apps/matrixApp.h
       - app/src/appShell.h
@@ -960,7 +960,7 @@ features:
       ADR-027 producer rule applied. Registered at g_apps[AppId::Life].
     status: implemented
     git_ref: "8ed2385"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/apps/lifeApp.h
       - app/src/appShell.h
@@ -984,7 +984,7 @@ features:
       for results.
     status: implemented
     git_ref: "e96bb60"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/apps/weatherApp.h
       - app/src/appShell.h
@@ -1014,7 +1014,7 @@ features:
       DATA_FETCH_CRYPTO on init/resume and every ~60 s tick. Polls dataTask::pollCrypto().
     status: implemented
     git_ref: "e96bb60"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/apps/cryptoApp.h
       - app/src/appShell.h
@@ -1044,7 +1044,7 @@ features:
       Zero runtime overhead (8-byte struct; inlines compile identically to hand-rolled versions).
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/touch/hitbox.h
     cross_features: [touch-004, touch-005, app-interface-001, stock-001]
     test_ids: []
@@ -1064,7 +1064,7 @@ features:
       before painting the new active slot. Classic "sand-glass" equivalent for a touch UI.
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/gen/shell_layout.h
       - app/src/taskbar/taskbar.h
       - app/src/appShell.h
@@ -1095,7 +1095,7 @@ features:
       are checked before this gate and are unaffected. No new debounce class.
     status: proposed
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/winamp/winampDisplay.h
       - app/src/main.cpp
     cross_features: [touch-004, app-interface-001, touch-002]
@@ -1126,7 +1126,7 @@ features:
       Life). WifiSection (Phase 1) wired in (section 0). Touch-Cal and LED remain stubs.
     status: in_progress
     git_ref: "8005297, 2661e4a"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/apps/settingsApp.h
       - app/src/settingsStorage.h
@@ -1177,7 +1177,7 @@ features:
       removal of WiFiManager + DoubleResetDetector from lib_deps (retires wifi-001).
     status: in_progress
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/settings/wifiSection.h
       - docs/architecture/designs/M-MULTIAPP/wifi-settings.md
     cross_features: [settings-001, wifi-001, io-001, cfg-001]
@@ -1205,7 +1205,7 @@ features:
       via settingsStorage (ledMode, ledHue, ledSat, ledVal).
     status: implemented
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/settings/ledSection.h
       - app/src/main.cpp
       - app/src/util/mathUtil.h
@@ -1229,7 +1229,7 @@ features:
       Not yet wired to WifiSection (Phase-2 placeholder).
     status: implemented
     git_ref: ""
-    files:
+    components:
       - app/src/settings/keyboardWidget.h
       - app/src/main.cpp
     cross_features: [settings-001, settings-wifi]
@@ -1255,7 +1255,7 @@ features:
       sanity failure.
     status: implemented
     git_ref: ""
-    files:
+    components:
       - app/src/settings/calibrationFlow.h
       - app/src/settingsCalStorage.cpp
       - app/src/main.cpp
@@ -1276,7 +1276,7 @@ features:
       as step 4. Catches stale path strings in tool scripts after file moves (LL-029 / BP-009).
     status: implemented
     git_ref: "2d798b0"
-    files:
+    components:
       - app/tools/smoke_test.sh
       - check_build.sh
     cross_features: []
@@ -1295,7 +1295,7 @@ features:
       EXIT trap restores serial monitor on any failure path (TASK-163).
     status: implemented
     git_ref: "53f8b7f (TASK-161), ea1b0d7 (TASK-163 trap fix)"
-    files:
+    components:
       - run/spiffs
     cross_features: []
     test_ids:
@@ -1332,7 +1332,7 @@ features:
       WiFi.persistent(false) guards against NVS corruption if SPIFFS creds are bad (TASK-167).
     status: implemented
     git_ref: "463ba0b (M-SETUP-WIZARD implementation)"
-    files:
+    components:
       - run/setup
       - app/src/main.cpp  # SPIFFS /wifi_creds.json boot read (PATCH-003 successor; WifiManagerHandler.h deleted by M-SETTINGS WiFi Phase 2)
       - app/data/wifi_creds.json  # gitignored runtime file
@@ -1366,7 +1366,7 @@ features:
       Inactive (B&W) and active (coloured) variant per app, 24×24 px.
       Baked at host time via gen_taskbar_icons.py into app/gen/taskbar_icons.{cpp,h}.
       taskbar.h uses tft.pushImage() with kTaskbarIcons[] lookup table.
-    files:
+    components:
       - app/icons/taskbar/          # source PNGs (18 icons × 2 variants)
       - app/tools/gen_taskbar_icons.py
       - app/gen/taskbar_icons.cpp
@@ -1398,7 +1398,7 @@ features:
       Serial debug: get teletextReady/teletextPage/teletextPollSecs/teletextHttpCode/
       teletextLastAction/teletextHasSubpages/teletextSubpage; set teletextPage/
       triggerTeletextFetch/teletextPageContent (hex-encoded 2000-char blob).
-    files:
+    components:
       - app/src/teletextApp.h
       - app/src/appRegistry.h
       - app/src/dataTask.h
@@ -1466,7 +1466,7 @@ features:
       Accepted limitation (ADR-046 §4): recolours the ACTIVE app's bar only — an app's error is
       visible only while it is the active app (no persistent per-slot dot). 403 starvation
       (TASK-244) makes other apps slow not failed, so they go red only on a genuine fetch error.
-    files:
+    components:
       - app/src/appShell.h
       - app/src/taskbar/taskbar.h
       - app/src/main.cpp
@@ -1515,7 +1515,7 @@ features:
       gen/configurable_apps.h via gen_app_registry.py, add _repaintPlayer/_cyclePlayer to
       appsSection.h). Cold-boot stays on the Spotify view for v1 (boot-into-mode is deferred and
       composes with the existing webRadioAutoplay knob).
-    files:
+    components:
       - app/src/main.cpp
       - app/src/webRadioApp.h
       - app/src/settingsStorage.h
@@ -1579,7 +1579,7 @@ features:
       SERIAL DEBUG: get wrPlaying/wrState/wrIdx/wrCount/wrIcy/wrUnderruns/wrPosbar/wrHeap/
       wrLastHttp/wrSkip/wrDeadUrls/wrVol/wrEffectiveVol/wrMaxVol/wrHwMod/wrAutoSkip; set
       wrPlay/wrStop/wrNext/wrPrev/wrEject/wrVol/wrIcy/wrBufPct.
-    files:
+    components:
       - app/src/webRadioApp.h
       - app/src/appRegistry.h
       - app/src/dataTask.h
@@ -1634,7 +1634,7 @@ features:
       MUST be followed by re-running the codegen and committing the result. Invariants: WebRadio is
       the LAST AppId and configurable=0 (eject-only, taskbar-excluded — TASK-242/LL-085). New apps
       follow docs/architecture/designs/NEW-APP-CHECKLIST.md.
-    files:
+    components:
       - app/src/appRegistry.h
       - app/src/appShell.h
       - app/src/main.cpp
@@ -1671,7 +1671,7 @@ features:
       no-PSRAM the TLS heap is shared with spotifyTask: dataTask brackets each fetch with
       spotifyTask::tlsYield()/tlsResume() (BP-031, every exit path) to serialize the ~contiguous
       TLS allocation. Stack 11 KB (WEBRADIO_ONLY) / 14 KB (full build).
-    files:
+    components:
       - app/src/dataTask.h
       - app/src/dataTaskStorage.cpp
       - app/src/dataTaskCerts.h
@@ -1716,7 +1716,7 @@ features:
       BasicJsonDocument BYO-allocator (StaticRegionAllocator) — NO library fork. Safe: dataTask is
       serial + Stock/Crypto are foreground -> never concurrent; both pure scratch (result copied to
       a separate struct). Validates the overlay-sharing mechanism end-to-end.
-    files:
+    components:
       - app/mem_manifest.yaml
       - app/tools/gen_mem_layout.py
       - app/gen/mem_layout.h
@@ -1827,7 +1827,7 @@ features:
       unerased — handleInput() now does a full disc repaint on range change,
       same as fresh resume(). (d)/(e) found in a follow-up human review after
       the (a)-(c) reflash; not yet visually confirmed on-device.
-    files:
+    components:
       - app/src/planeRadarApp.h
       - app/src/appRegistry.h
       - app/src/dataTask.h
@@ -1921,7 +1921,7 @@ features:
       strip lists slot labels; tap switches location via _setActiveLoc() (mirror write,
       result-state reset, fetch-epoch bump, refetch).
     git_ref: "d40c04f (TASK-321), 912e8ce (TASK-323); TASK-322 landed 2026-07-16"
-    files:
+    components:
       - app/src/settingsStorage.h
       - app/src/settingsStorage.cpp
       - app/src/settings/appsSection.h
@@ -1954,7 +1954,7 @@ features:
       section consumes it, hand-rolled buttons become a review flag (candidate BP,
       QM to propose).
     git_ref: "TASK-328 landed 2026-07-14; API proven by TASK-321; TASK-327 migration 2026-07-16; SPickerList (M-COUNTRY-PICKER) landed 2026-07-17"
-    files:
+    components:
       - app/src/settings/settingsWidgets.h
       - app/src/settings/wifiSection.h
       - app/src/settings/ledSection.h
@@ -2037,7 +2037,7 @@ features:
       "N/5", rows reordered to match the actual tap-cycle order (Atlas,
       WaveAtlas, VU, Wave, Spectrum).
     git_ref: "fff0208 (2026-07-17); TASK-389/388 additions (commit pending)"
-    files:
+    components:
       - app/src/appRegistry.h
       - app/gen/configurable_apps.h
       - app/src/settings/appsSection.h
@@ -2083,7 +2083,7 @@ features:
       Migration is load-logic only: seed slot 0 from city iff slot 0 is still the
       untouched compile default. No settings.json schema change.
     git_ref: "dcc12bf (2026-07-17; against WIRE2 G4 1abfb32 per the §6 hard ordering)"
-    files:
+    components:
       - app/src/settingsStorage.cpp
       - app/src/settings/timeSection.h
       - app/src/settings/appsSection.h
@@ -2113,7 +2113,7 @@ features:
       baking machinery, just three colour-derivation helpers reading the
       active theme's C_ON.
     git_ref: "TASK-345 (2026-07-18)"
-    files:
+    components:
       - app/tools/bake_nixie.py
       - app/gen/nixie_glyphs.cpp
       - app/gen/nixie_glyphs.h
@@ -2152,14 +2152,14 @@ features:
       diff-render mechanisms across the app suite found no shared shape
       worth abstracting beyond this one TFT_eSPI wrapper).
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/util/tftViewportRepair.h
     cross_features: [planeradar-001]
     test_ids: []
     notes: |
       Design: docs/architecture/designs/M-DISPLAY-DELTA-COMMON.md (draft).
       Feeds ADR-052 (proposed). Matrix edge X037. Reserved 2026-07-19;
-      Developer completes/corrects this entry (git_ref, files, test_ids)
+      Developer completes/corrects this entry (git_ref, components, test_ids)
       when the PlaneRadar follow-up that consumes it is actually
       implemented — per architect.md's registry-reservation protocol, a
       design reserves, Developer completes at implementation.
@@ -2198,7 +2198,7 @@ features:
       already repaints that whole pixel region itself (full-screen canvas
       convention), so an ungated override would corrupt the Settings UI.
     git_ref: "fc39056 (TASK-364, 2026-07-25)"
-    files:
+    components:
       - app/src/main.cpp
       - app/src/winamp/winampDisplay.h
     cross_features: [chrome-001, wifi-001, time-001, wifi-diag-001]
@@ -2241,7 +2241,7 @@ features:
       100% silent on screen prior to boot-ui-001 (§6) — a [wifi-sup] serial
       log line per kick was the only observable signal.
     git_ref: "fff0208 (2026-07-17)"
-    files:
+    components:
       - app/src/wifiDiag.h
       - app/src/wifiDiag.cpp
     cross_features: [wifi-001, boot-ui-001]
@@ -2268,7 +2268,7 @@ features:
       (M-HEAP-FRAGMENTATION.md, parked) that otherwise requires a physical power cycle.
     status: implemented
     git_ref: "(commit pending)"
-    files:
+    components:
       - app/src/settings/systemSection.h
       - app/src/main.cpp
     cross_features: [settings-001]
@@ -2310,7 +2310,7 @@ features:
       /wifi_creds.json on first boot after upgrade.
     status: implemented
     git_ref: "(commit pending)"
-    files:
+    components:
       - app/src/settings/wifiSection.h
       - app/src/main.cpp
     cross_features: [settings-wifi]
@@ -2382,7 +2382,7 @@ features:
       sdcycle/sdls/sdread/sdwrite/sdclean/sdmbr).
     status: phase-0 done (gate passed with one recorded exception — TASK-408 closed 2026-08-09)
     git_ref: "380e378, 18be2b2, ce5af0e"
-    files:
+    components:
       - app/src/main.cpp            # probe surface + boot mount, all under #ifdef SERIAL_DEBUG
       - app/lib/SD/                 # vendored framework SD library (PATCH-SD-1)
       - app/lib/SD/LOCAL_PATCHES.md # SDHC type-detection fix; re-apply on platform bump
@@ -2443,7 +2443,7 @@ features:
       dropping -DAUDIO_NO_SD_FS from platformio.ini.
     status: implemented
     git_ref: "434b18d, fd129ec, f5e1332 (2026-08-10..11)"
-    files:
+    components:
       - app/src/audio/audioEngine.h
       - app/src/player/localPlayerApp.h
       - app/platformio.ini
@@ -2494,7 +2494,7 @@ features:
       Two of get player's fields are new observables, not aggregation: PlSrcKind
       (a stable enum, recorded from the source that actually drove the last PLEDIT
       draw) and PlaylistIndex::viewOrder(), which had no accessor at all.
-    files:
+    components:
       - app/src/debug/serialConsole/cmdGet.h
       - app/src/main.cpp
       - app/src/winamp/pleditView.h
@@ -2529,7 +2529,7 @@ features:
       text cache and a bounded staging arena for not-yet-written additions.
     status: implemented
     git_ref: "fd129ec (2026-08-11)"
-    files:
+    components:
       - app/src/winamp/pleditView.h
       - app/src/winamp/playlistSource.h
       - app/src/player/localPlaylist.h
@@ -2557,7 +2557,7 @@ features:
       single sequential pass. Restore discards the index and re-parses.
     status: implemented
     git_ref: "fd129ec (2026-08-11)"
-    files:
+    components:
       - app/src/player/m3u.h
     cross_features: [sdfs-001, plmodel-001, pledit-edit-001]
     test_ids: [T_PLR_08, T_PLR_10, T_PLR_12]
@@ -2582,7 +2582,7 @@ features:
       descend; tap .m3u = load as active playlist; edit-mode [+] = append to playlist.
     status: implemented
     git_ref: "c5e0e78 (2026-08-11)"
-    files:
+    components:
       - app/src/player/fileBrowser.h
     cross_features: [sdfs-001, localplay-001, plmodel-001, touch-004]
     test_ids: [T_PLR_13, T_PLR_14, T_PLR_15, T_PLR_16]
@@ -2606,7 +2606,7 @@ features:
       add = staged entry), so no file I/O until SAVE.
     status: reserved
     git_ref: ""
-    files:
+    components:
       - app/src/winamp/pleditView.h
       - app/src/player/localPlaylist.h
     cross_features: [plmodel-001, m3u-001, browse-001, touch-005]
@@ -2641,7 +2641,7 @@ features:
       vendored lib).
     status: implemented
     git_ref: "f5e1332 (2026-08-11)"
-    files:
+    components:
       - app/src/winamp/winampDisplay.h
       - app/src/player/localPlaylist.h
       - app/src/player/localPlayerApp.h

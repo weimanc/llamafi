@@ -25,7 +25,7 @@ features:
     description: ""
     status: planned | in_progress | implemented
     git_ref: ""           # branch name or commit SHA
-    files: []             # key source files involved
+    components: []        # key components (.h/.cpp pairs, D0) or files involved
     cross_features: []    # IDs of features this interacts with
     test_ids: []          # test IDs assigned by VE
     notes: ""
