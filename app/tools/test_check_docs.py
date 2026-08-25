@@ -94,16 +94,21 @@ def t_doc_01() -> None:
     check(tid, rc == 1, f"blocking C5 failure must exit 1, got {rc}")
     check(tid, "=== Doc check ===" in out, "standalone output missing banner")
     check(tid, "=== Results:" in out, "standalone output missing Results tail")
-    check(tid, "[1/1] C5" in out, "standalone output missing [n/N] progress line")
+    # TASK-475 phase 2 (2026-08-25): C2 is now blocking alongside C5, so the
+    # fixture's [n/N] counted-blocking-check count is 2, not 1.
+    check(tid, "[2/2]" in out, "standalone output missing [n/N] progress line")
 
     # Advisory-only failure must exit 0. Copy the fixture and repair the one
-    # broken link, leaving C1/C2/C3 advisory failures in place.
+    # broken link (C5) and the four broken ids (C2, now blocking too),
+    # leaving C1/C3 advisory failures in place.
     with tempfile.TemporaryDirectory() as tmp:
         alt = os.path.join(tmp, "fx")
         shutil.copytree(FIXTURE, alt)
         main = os.path.join(alt, "docs", "architecture", "designs", "M-FIX-main.md")
         text = open(main).read().replace("[missing](M-FIX-missing.md)",
                                          "[nested again](M-FIX-nested.md)")
+        text = text.replace("Broken: TASK-999, ADR-999, IFC-999, X099.",
+                             "Broken: TASK-100, ADR-001, IFC-001, X001.")
         open(main, "w").write(text)
         rc2, out2 = run_cli("--root", alt, "--no-git")
         check(tid, rc2 == 0, f"advisory-only failures must exit 0, got {rc2}")

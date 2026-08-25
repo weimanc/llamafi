@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_docs.py — documentation staleness gate (TASK-475, M-DOCLIFE phase 1).
+"""check_docs.py — documentation staleness gate (TASK-475, M-DOCLIFE phase 2).
 
 Implements the mechanically-detectable half of M-DOCLIFE (decay modes D1-D4) as
 specified in docs/architecture/designs/M-DOCLIFE-check-docs-spec.md.
@@ -8,14 +8,15 @@ Checks
 ------
   C1-full   every `file.ext:NNN` citation resolves to an existing file with >= NNN lines   (advisory)
   C1-delta  the same, restricted to citations NEWLY ADDED in a diff                        (BLOCKING)
-  C2        every TASK-/ADR-/IFC-/X0NN identifier referenced exists                        (advisory)
+  C2        every TASK-/ADR-/IFC-/X0NN identifier referenced exists                        (BLOCKING)
   C3        every `cyd2usb*` build-env name in docs exists in app/platformio.ini           (advisory)
   C4        Status: uses the closed vocabulary (decisions/designs/interfaces)  (advisory)
   C5        relative .md links resolve                                                     (BLOCKING)
   C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
 
-Phase 1 blocks on C5 and C1-delta only: both read 0 today, and a gate that fails
-on day one gets switched off.
+Phase 1 blocked on C5 and C1-delta only: both read 0 on ship day, and a gate
+that fails on day one gets switched off. Phase 2 (TASK-475, 2026-08-25) adds
+C2: it has read 0 since phase 1 and still does at promotion time.
 
 Rules that are easy to get wrong, and are therefore spelled out here:
 
@@ -217,7 +218,10 @@ def check_c1_full(c: Corpus) -> Result:
 # ── C2 ────────────────────────────────────────────────────────────────────────
 
 def check_c2(c: Corpus) -> Result:
-    r = Result("C2", blocking=False)
+    # TASK-475 phase 2: promoted advisory -> blocking, 2026-08-25. C2 has read
+    # 0 since TASK-475 phase 1 (efab524) and still reads 0 at promotion time —
+    # verified immediately before this edit, not assumed from the board note.
+    r = Result("C2", blocking=True)
     # Resolution sources. Exemptions do NOT apply here: tasks-archive.md is the
     # only home of 356 ids, and skipping it costs 1261 false failures.
     task_ids: set[str] = set()
@@ -807,7 +811,7 @@ def check_c1_delta(c: Corpus, base_spec: str) -> Result:
 def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
     c = Corpus(root)
 
-    blocking: list[Result] = [check_c5(c), check_c6(c)]
+    blocking: list[Result] = [check_c5(c), check_c6(c), check_c2(c)]
     # C6 prints its ledger arithmetic even when clean. A blocking check that is
     # invisible on the happy path cannot be distinguished from one that was
     # silently skipped — the failure mode TASK-511 hit from the other side.
@@ -826,7 +830,7 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
         advisory_extra = []
 
     advisory: list[Result] = advisory_extra + [
-        check_c1_full(c), check_c2(c), check_c3(c), check_c4(c)]
+        check_c1_full(c), check_c3(c), check_c4(c)]
 
     counted = [r for r in blocking if not r.skipped]
     total = len(counted)

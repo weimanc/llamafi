@@ -1,9 +1,15 @@
     [skip] C6: skipped (no executable registries under app/tools/)
 === Doc check ===
 
-[1/1] C5
+[1/2] C5
     docs/architecture/designs/M-FIX-main.md:76: M-FIX-missing.md -> link target does not exist
   FAIL  C5: 1 broken of 4 relative .md links
+[2/2] C2
+    docs/architecture/designs/M-FIX-main.md:58: TASK-999 -> id not found in its registry
+    docs/architecture/designs/M-FIX-main.md:58: ADR-999 -> id not found in its registry
+    docs/architecture/designs/M-FIX-main.md:58: IFC-999 -> id not found in its registry
+    docs/architecture/designs/M-FIX-main.md:58: X099 -> id not found in its registry
+  FAIL  C2: 4 unresolvable of 13 id references
 [warn] C6: skipped (no executable registries under app/tools/)
 [warn] C1-delta: skipped (--no-git)
 [warn] C1-full (advisory, not counted): 5 broken of 9 citations
@@ -12,13 +18,8 @@
     docs/architecture/designs/M-FIX-main.md:20: app/src/main.cpp:1-999 -> no file resolves with >= 999 lines
     docs/architecture/designs/M-FIX-main.md:37: app/src/ghost.cpp:7 -> no file resolves with >= 7 lines
     CLAUDE.md:7: app/src/ghost.cpp:3 -> no file resolves with >= 3 lines
-[warn] C2 (advisory, not counted): 4 unresolvable of 13 id references
-    docs/architecture/designs/M-FIX-main.md:58: TASK-999 -> id not found in its registry
-    docs/architecture/designs/M-FIX-main.md:58: ADR-999 -> id not found in its registry
-    docs/architecture/designs/M-FIX-main.md:58: IFC-999 -> id not found in its registry
-    docs/architecture/designs/M-FIX-main.md:58: X099 -> id not found in its registry
 [warn] C3 (advisory, not counted): 1 occurrences of 1 unknown env names (of 2 cyd2usb* references)
     docs/architecture/designs/M-FIX-main.md:63: cyd2usb_bogus -> no [env:cyd2usb_bogus] in app/platformio.ini
 [warn] C4 (advisory, not counted): 0 non-conforming of 2 Status: headers
 
-=== Results: 0 passed, 1 failed ===
+=== Results: 0 passed, 2 failed ===

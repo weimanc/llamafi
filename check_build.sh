@@ -108,12 +108,13 @@ rm -rf "$TMPDIR_MEM"
 # ── 11. Documentation staleness gate (TASK-475 / M-DOCLIFE phase 1) ───────────
 # Blocking: C5 (relative .md links) and C1-delta (positional citations newly
 # added in the diff) — both read 0 today, which is why they can block on day
-# one. C1-full, C2, C3, C4 print [warn] and cannot fail the build until their
+# one. TASK-475 phase 2 (2026-08-25) added C2, which has also read 0 since
+# phase 1. C1-full, C3, C4 print [warn] and cannot fail the build until their
 # own rollout phase. --quiet keeps this to one gate slot so check_build.sh's
 # "=== Results:" tail stays the only one in the log.
 echo "[11/$TOTAL] check-docs documentation gate"
 if "$PROJ_ROOT/run/check-docs" --quiet; then
-    ok "documentation gate (C5 + C1-delta + C6) clean"
+    ok "documentation gate (C5 + C1-delta + C2 + C6) clean"
 else
     fail "check-docs FAILED — see the file:line list above"
 fi
