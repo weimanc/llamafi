@@ -212,8 +212,35 @@ public:
     ~TlsYieldGuard() { if (ok_) tlsResume(); }
     TlsYieldGuard(const TlsYieldGuard&) = delete;
     TlsYieldGuard& operator=(const TlsYieldGuard&) = delete;
+    // TASK-459 (C2b): move IS defined (not deleted) for this one guard type,
+    // per M-CODEQUAL's note under C9 — a deliberate cross-scope hold (the
+    // audio engine's file-play path, ex-`s_aeSpotifyYielded`) needs to
+    // transfer ownership of an outstanding yield out of the function that
+    // acquired it and into wherever the matching release actually lives,
+    // without a second, subtly different release path. This is meant to be
+    // the *only* movable type in the codebase (C9 deletes move everywhere
+    // else, alongside copy) — don't copy this pattern onto other guards
+    // without the same cross-scope justification.
+    TlsYieldGuard(TlsYieldGuard&& other) noexcept : ok_(other.ok_) {
+        other.ok_ = false;
+    }
+    TlsYieldGuard& operator=(TlsYieldGuard&& other) noexcept {
+        if (this != &other) {
+            if (ok_) tlsResume();
+            ok_ = other.ok_;
+            other.ok_ = false;
+        }
+        return *this;
+    }
     bool ok() const { return ok_; }
+    // Constructs an already-released guard (ok_ == false): no tlsYield()/
+    // tlsTryYield() call, so it's safe as an idle/"nothing held" value —
+    // e.g. a file-static default before any acquire, or the target of a
+    // move-assignment that releases whatever the destination was holding.
+    static TlsYieldGuard none() { return TlsYieldGuard(NoYieldTag{}); }
 private:
+    struct NoYieldTag {};
+    explicit TlsYieldGuard(NoYieldTag) : ok_(false) {}
     bool ok_;
 };
 // Loop-position marker: -1 not started, 0 queue-wait, 1 yield-spin,

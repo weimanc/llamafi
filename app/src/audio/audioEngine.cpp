@@ -2,7 +2,8 @@
 // (M-SRCLAYOUT Stage E / TASK-471). See audioEngine.h for the "why now" note
 // on why these moved from internal (static) to external linkage.
 #include "audio/audioEngine.h"
-#include "spotifyTask.h"   // tlsResume()/tlsTryYield() — aeConnectFile/aeStopFile/aeDrainEof
+#include "spotifyTask.h"   // TlsYieldGuard — aeConnectFile/aeStopFile/aeDrainEof
+#include <utility>         // std::move
 
 QueueHandle_t s_icyTitleQueue = nullptr;
 
@@ -43,7 +44,21 @@ volatile bool s_aeEofPending = false;
 // aeDrainEof(), the natural "done playing" point for this single-file scope
 // (TASK-413 gets a real stop/teardown path). Not referenced outside this
 // engine, so it stays file-static here rather than in the header.
-static bool s_aeSpotifyYielded = false;
+//
+// TASK-459 (C2b): was a hand-tracked bool (`s_aeSpotifyYielded`) with three
+// release sites in three different functions, none of which performed the
+// acquire — exactly the manual pattern C2/TASK-458 replaced elsewhere, except
+// here the hold is *deliberately* cross-scope (acquired in aeConnectFile(),
+// released in whichever of aeDrainEof()/aeStopFile() actually ends the play),
+// so a plain stack-scoped TlsYieldGuard doesn't fit. Holds a
+// `TlsYieldGuard::none()` (ok()==false, no side effect) when nothing is
+// yielded, and a live guard (moved in) when one is outstanding — `.ok()`
+// is the exact same predicate `s_aeSpotifyYielded` was, and move-assigning
+// `TlsYieldGuard::none()` over a live guard performs the release (its
+// operator= resumes before overwriting) in place of the old
+// `if (flag) { tlsResume(); flag = false; }` pairs. Ordering vs. the rest of
+// teardown is unchanged: same three call sites, same order within each.
+static spotifyTask::TlsYieldGuard s_aeTlsGuard = spotifyTask::TlsYieldGuard::none();
 
 void audio_eof_mp3(const char *info) {
     (void)info;
@@ -61,10 +76,7 @@ void aeDrainEof() {
     // emitted 31 times on a DUT run where auto-advance demonstrably worked
     // (rows 0->1->2->3->4->0...). Corrected 2026-08-15.
     LOG_I("audioengine", "eof drained on loopTask");
-    if (s_aeSpotifyYielded) {
-        spotifyTask::tlsResume();
-        s_aeSpotifyYielded = false;
-    }
+    s_aeTlsGuard = spotifyTask::TlsYieldGuard::none();
 }
 
 // ── Audio singleton ──────────────────────────────────────────────────────────
@@ -421,13 +433,14 @@ void wrTeardownPumpTask() {
 
 bool aeConnectFile(const char* path) {
     if (!path || !*path) return false;
-    if (!s_aeSpotifyYielded) {
-        if (!spotifyTask::tlsTryYield(AE_CONNECT_FILE_TLS_TRYYIELD_MS)) {
+    if (!s_aeTlsGuard.ok()) {
+        spotifyTask::TlsYieldGuard g(AE_CONNECT_FILE_TLS_TRYYIELD_MS);
+        if (!g.ok()) {
             LOG_W("audioengine", "aeConnectFile: tls try-yield timed out after %ums — play FAILED, not blocking",
                   (unsigned)AE_CONNECT_FILE_TLS_TRYYIELD_MS);
             return false;
         }
-        s_aeSpotifyYielded = true;
+        s_aeTlsGuard = std::move(g);
     }
 #ifdef MEMBUDGET_PHASE1
     // TASK-443 option (a)/(e) EXPERIMENT TOGGLE — `set aeNoArena 1`, debug only.
@@ -455,10 +468,7 @@ bool aeConnectFile(const char* path) {
         // would have been a no-op in that case). This mirrors WebRadio's own
         // DMA-floor abort, which also leaves it held; aeTeardownFile() on
         // mode exit is what releases it.
-        if (s_aeSpotifyYielded) {
-            spotifyTask::tlsResume();
-            s_aeSpotifyYielded = false;
-        }
+        s_aeTlsGuard = spotifyTask::TlsYieldGuard::none();
         return false;
     }
     wrEnsurePumpTask();  // idempotent; must run AFTER mb_arena_acquire() [DEV-2-3]
@@ -484,10 +494,7 @@ void aeStopFile(bool connecting) {
         s_wr_audio->stopSong();
         xSemaphoreGive(s_wrAudioMutex);
     }
-    if (s_aeSpotifyYielded) {
-        spotifyTask::tlsResume();
-        s_aeSpotifyYielded = false;
-    }
+    s_aeTlsGuard = spotifyTask::TlsYieldGuard::none();
 }
 
 void aeTeardownFile(bool connecting) {
