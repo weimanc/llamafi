@@ -68,7 +68,9 @@ scan list, enter the password, and connect. Credentials are saved to NVS on succ
 ```sh
 ./run/build          # production firmware (cyd2usb_winamp)
 ./run/build-debug    # debug firmware (cyd2usb_winamp_debug) — required for test harness
-./run/check          # 5-gate check: prod compile, debug compile, golden hash, smoke, app registry
+./run/check          # 11-gate check: 1-6 full firmware env matrix, 7 golden hash, 8 tool
+                      #   smoke, 9 app-registry staleness, 10 mem_layout staleness+budget,
+                      #   11 check-docs (see check_build.sh header for the authoritative count)
 ```
 
 **Do not bump `platform = espressif32` above 6.9.x** — newer cores split `WiFi`/`Network` headers in a way the installed libs don't support. (CLAUDE.md)
@@ -188,6 +190,22 @@ Many new features have no harness coverage — they require physical DUT interac
 | App settings | T-APPS-01..08 | Per-app settings, persist |
 
 For manual tests: consult `docs/verification/test_plan.md` for exact steps and expected results.
+
+### 5e. Soak & gate scripts (TASK-502)
+
+Unattended long-running DUT scripts, each self-contained (flash → run →
+restore production firmware + monitor, same guarantee as `run/test`), not
+otherwise referenced by this doc:
+
+| Script | Flashes | Purpose |
+|--------|---------|---------|
+| `run/ae04` | `cyd2usb_webradio` | T_AE_04 (ADR-059) — teardown ordering under eject-mid-CONNECTING |
+| `run/wr-soak` | `cyd2usb_webradio` | TASK-271 — unattended WebRadio playback + A-lite arena-churn soak |
+| `run/wr-gate` | `cyd2usb_webradio` | TASK-238 — ADR-045 MVP exit-criterion gate, N cold-entry WebRadio cycles |
+| `run/stress` | debug | TASK-248 — unattended multi-app fetch stress/soak, latency + TLS-error report |
+| `run/pr-soak` | debug | TASK-307 exit criterion 4 — PlaneRadar + Spotify coexistence soak |
+| `run/pr-fetch-soak` | debug | TASK-361 — PlaneRadar fetch-failure-rate quantification |
+| `run/task488` | debug | TASK-488 Part B — T_488_04..11, the M-SRCLAYOUT refactor DUT verification |
 
 ---
 

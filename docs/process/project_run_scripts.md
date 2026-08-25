@@ -25,7 +25,9 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/spiffs pull [file]      # extract all files → app/data/spiffs-dump/, or single file → stdout
 ./run/spiffs push [file]      # write single file or merge app/data/ — read-modify-write, no format
 ./run/spiffs rm <file>        # remove single file from device
-./run/check                   # 5-gate build check (compile, hash, smoke, registry)
+./run/check                   # 11-gate build check (1-6 firmware env matrix, 7 golden hash,
+                               #   8 tool smoke, 9 app-registry staleness, 10 mem_layout
+                               #   staleness+budget, 11 check-docs — see check_build.sh header)
 ./run/bake-skin               # bake Winamp skin assets into app/gen/
 ./run/audit-origin            # (re)generate the origin/hit-test audit PNG (never stale)
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
@@ -96,5 +98,12 @@ PORT=/dev/ttyUSB1 ./run/test-targeted T080,T083
 | `run/test-targeted` | §5b Targeted feature validation (BP-021) |
 | `run/test-smoke` | §5b Quick smoke preset |
 | `run/test-sync` | §5b Targeted feature validation (sync suite T097-T116) |
-| `run/check` | §2 Build (5-gate check_build.sh) |
+| `run/check` | §2 Build (11-gate check_build.sh) |
+| `run/ae04` | §5e Soak & gate scripts |
+| `run/wr-soak` | §5e Soak & gate scripts |
+| `run/wr-gate` | §5e Soak & gate scripts |
+| `run/stress` | §5e Soak & gate scripts |
+| `run/pr-soak` | §5e Soak & gate scripts |
+| `run/pr-fetch-soak` | §5e Soak & gate scripts |
+| `run/task488` | §5e Soak & gate scripts |
 | `run/bake-skin` | §6 Python Tooling / skin bake |
