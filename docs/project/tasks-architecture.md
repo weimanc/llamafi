@@ -16,6 +16,45 @@
 >
 > Closed entries go to [tasks-archive.md](tasks-archive.md).
 
+> ## Row format (BP-069, 2026-08-25, human) — read before adding or closing any row
+>
+> **A row is a pointer, not a record.** It holds exactly: task id, priority, status, a one-line
+> title/summary, a link to the governing design doc (only when the task is a genuine design or
+> architectural decision — not for a mechanical or hygiene fix), and the landing commit hash(es).
+> **It does not hold the verification narrative** — no diff summaries, no byte-deltas, no DUT logs,
+> no judgment-call rationale pasted into the cell. That evidence already has two homes: the commit
+> message (which should carry it in full — write the commit message as if the row won't), and, for
+> tasks with a governing design doc, that doc's own as-built section (BP-065) — updated by the agent
+> that lands the work, in the same commit, not as a follow-up.
+>
+> **Template:**
+> ```
+> | TASK-NNN | P2 | DONE 2026-08-25 (`abc1234`) | One-line summary of what shipped. |
+> ```
+> With a design doc behind it:
+> ```
+> | TASK-NNN | P2 | DONE 2026-08-25 (`abc1234`) | One-line summary — see the governing design doc's as-built section for the shape and detail. |
+> ```
+>
+> **A real before/after**, TASK-472, this session: the original row was ~600 words of stock-split
+> mechanics, back-reference/`friend` reasoning, a full levelization-audit account and a DUT
+> verification narrative, all pasted into one table cell (still readable in full at
+> [tasks-archive.md § TASK-472](tasks-archive.md#task-472-full-record-archived-2026-08-25-from-tasks-architecturemd)
+> — none of that content was lost, it just isn't inline any more). It is now:
+> `| **TASK-472** | P3 | **DONE 2026-08-22** — DUT-verified (`7669460`/TASK-529), levelization audit
+> complete | Stage F — `stock/` → 3-component split; real gap surfaced and filed as TASK-530. [full
+> record in tasks-archive.md](tasks-archive.md#task-472-full-record-archived-2026-08-25-from-tasks-architecturemd)
+> |` — one line, everything still findable, nothing duplicated.
+>
+> **Do**: keep the row skimmable in one glance · link out for detail (design doc, commit, archive)
+> · write the commit message as the actual record, not an afterthought.
+> **Don't**: paste a diff summary, DUT log or byte-delta into the row · create a design doc for a
+> one-line hygiene fix · retroactively rewrite an old verbose row (archive passes handle that,
+> ordinarily — this convention is going-forward only, per BP-069).
+>
+> This applies to every board using this format — `tasks.md`, `tasks-architecture.md`,
+> `tasks-winamp-player.md` — not just this file.
+
 > ## ⚠ @PM verdict, 2026-08-16 — read before scheduling anything here
 >
 > **This board should lose to closing M-WINAMP-PLAYER, and the count is inflated.**

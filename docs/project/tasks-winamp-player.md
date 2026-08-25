@@ -8,6 +8,11 @@
 > out is bookkeeping, not a fix — see the PM note at the foot of this file for the honest read on
 > what went wrong and what it implies for the remaining work.
 >
+> **Row format (BP-069, 2026-08-25, human), going forward only** — this board stays paused, this is
+> a process note, not new work: id/priority/status/one-line title/design-doc link/commit hash, no
+> inline verification narrative. Full contract in
+> [tasks-architecture.md § Row format](tasks-architecture.md#row-format-bp-069-2026-08-25-human--read-before-adding-or-closing-any-row).
+>
 > Closed entries live in [tasks-archive.md](tasks-archive.md). The rest of the board is in
 > [tasks.md](tasks.md).
 

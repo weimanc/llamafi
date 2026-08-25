@@ -4,6 +4,14 @@
 
 Tasks ref feature IDs + git branches/commits for traceability. Agents report status changes to PM; keeps file current.
 
+> **Row format (BP-069, 2026-08-25, human).** A row is a pointer, not a record: id, priority,
+> status, one-line title, a design-doc link (only for genuine design/architectural work), commit
+> hash(es) — no diff summaries, DUT logs or byte-deltas pasted inline. Full template, dos/don'ts and
+> a worked before/after live in
+> [tasks-architecture.md § Row format](tasks-architecture.md#row-format-bp-069-2026-08-25-human--read-before-adding-or-closing-any-row)
+> — applies to every task board in this project, not just that file. Going-forward only; old rows
+> aren't retroactively rewritten.
+
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. **Last archive pass: 2026-08-15** — 80 closed entries / 7 561 lines swept out, and the M-WINAMP-PLAYER board split into its own file (see below). `tasks.md` went 9 787 → ~1 200 lines. Verified: 480 distinct task ids across the three files, no duplicates, none lost. Note for the next pass: result/resolution sub-sections are `###`-level in this project and must travel with their parent task — splitting on heading level alone orphans them. Prior pass: 2026-08-07 (moved 7 fully-closed milestone sections — M-CERT-ERRCODE remainder, M-APP-ORDER, M-WEBRADIO-WINAMP-UI, M-WEBRADIO-REAL-VIS, M-PR-LOCATIONS, M-MEMPLAN hygiene, M-CEEFAX — 2,513 lines — see archive file for the batch note). Prior pass: 2026-07-12 (TASK-143..313 range, 149 entries).
 
 > **PM sync 2026-07-18 (parallel session — M-CERT-ERRCODE remainder scheduled + ADR sweep)** —
