@@ -29,7 +29,8 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 
 - **M-WINAMP-PLAYER** active tasks: [tasks-winamp-player.md](tasks-winamp-player.md) — 12 entries.
 - **M-ARCH** (M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE) active tasks:
-  [tasks-architecture.md](tasks-architecture.md) — 47 entries.
+  [tasks-architecture.md](tasks-architecture.md) — 61 entries, **caught up as of 2026-08-25** (see
+  status note at the top of that section below).
 - Closed tasks (all milestones): [tasks-archive.md](tasks-archive.md).
 
 ---
@@ -37,12 +38,44 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 ## M-ARCH — placeholders (full entries in [tasks-architecture.md](tasks-architecture.md))
 
 From the 2026-08-16 Architect pass: nine design docs, ADR-060/061, IFC-002/003 (+004–006 stubs).
-Stubs only — **the entries live in the split file** and are edited there.
+Stubs only — **the entries live in the split file** and are edited there. **The detail rows below
+this point are a snapshot from before the 2026-08-25 session and are stale in places (the drift
+warning at the bottom of this section already says the split file wins on any disagreement) —
+read the status note immediately below first, then treat `tasks-architecture.md` as ground truth
+for anything this note doesn't cover.**
 
-**Read first:** three refactor commits (`a044f5d`, `78caa95`, `b36f184`) landed ahead of ADR sign-off.
-**TASK-488 closed them out on 2026-08-16 (`64bf839`): verified pure moves, nothing reverted**, with
-TASK-497's owed 3-run baseline taken in the same DUT block. The gate is lifted. What still stands:
-by ADR-060 D0's measure they created **zero components**, so Stages C–F remain the actual work.
+> **PM status, 2026-08-25 — board caught up.** Every task that was independently schedulable
+> (no open design/architecture question, not chain-blocked) has been executed and independently
+> verified this session: the original M-SRCLAYOUT chain (455/456/471/472/529/530), M-CODEQUAL
+> (458/459/460/461/462-note/463/465/492), M-DOCLIFE phases 1/2/4 of `run/check-docs` (475), the
+> C4 vocabulary migration (508), and the full ADR-061 D9 tail (468/469/470 — `display/tft`
+> rehomed, `WinampDisplay` flattened onto `SpotifyDisplay`, `cheapYellowLCD.h`/`[cyd2usb_base]`
+> deleted). A PM triage pass also corrected years of stale bookkeeping in the "not scheduled by
+> design" category — several tasks marked blocked or unscheduled were already done, one (TASK-482)
+> was blocked on a dependency that never actually existed.
+>
+> **What's genuinely still open, not just unscheduled:**
+> - The four skeletons (TASK-483–486) — real open research, correctly not touched.
+> - TASK-462 (table-driven `cmdGet`/`cmdSet`) — investigated, found a real risk (interleaved
+>   dispatch chain, naive extraction would silently change collision priority on ~128 DUT tests'
+>   debug surface), correctly left open rather than forced.
+> - TASK-479's send/expect-loop half — port-resolution half done, the riskier half (bespoke,
+>   some scripts documented destructive) deliberately deferred.
+> - TASK-480 (split `run_serialdbg_tests.py`) — baseline run 1/3 taken for real (41m31s,
+>   143p/16f/51s), stopped before runs 2/3 rather than bake this rig's live WiFi outage noise into
+>   the flaky-set the split's own design doc requires. Needs a stable rig and ~80 more minutes,
+>   then the actual split as its own session.
+> - TASK-473, 474, 476, 485 (M-LEVELS — informal progress exists via TASK-472's D0d audit, not a
+>   full answer), 498, 499, 504–506, 510, 522, 523, 525, 527, 528 — untouched this session, not
+>   claimed as caught up.
+>
+> M-WINAMP-PLAYER stays paused, per explicit human instruction this session — not re-litigated.
+
+**Read first (2026-08-16 history, kept for the record):** three refactor commits (`a044f5d`,
+`78caa95`, `b36f184`) landed ahead of ADR sign-off. **TASK-488 closed them out on 2026-08-16
+(`64bf839`): verified pure moves, nothing reverted**, with TASK-497's owed 3-run baseline taken in
+the same DUT block. The gate is lifted. By ADR-060 D0's measure they created **zero components** at
+the time — Stages C–F (now all DONE, see status note above) were the actual work that followed.
 
 | task | pri | status | title |
 |---|---|---|---|
