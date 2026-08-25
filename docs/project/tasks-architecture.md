@@ -76,17 +76,26 @@ filed and unscheduled.
 | **6** | **M-WINAMP-PLAYER** | Still paused, 12 entries in `tasks-winamp-player.md`. @PM would put **TASK-424** (SD write panic, card-independent) ahead of most of this board if DUT time is scarce. |
 
 **Already done, do not re-schedule:** TASK-466 (build gate, 3 → 11 envs), 467, 477, 491, 496, 488,
-497 (all 2026-08-16) — plus **TASK-471, 472, 478, 529, 530, 495, 458, 459, 460** (2026-08-21/25,
-this session). **Next in sequence is #6, M-WINAMP-PLAYER (still paused) or TASK-424 if DUT time is
-scarce.** TASK-475 phases 2–5 are also available and cheap if DUT time is the constraint instead.
-New follow-ups from the TASK-488 verification: 503–506 (503 already DONE, see its own row).
-TASK-535 (new, 2026-08-25) needs a live DUT run of TASK-460's four converted fetch paths once this
-rig's WiFi comes back — blocked this session by a rig-wide AP outage, A/B-confirmed unrelated to
-the code change (see TASK-460's own row).
+497 (all 2026-08-16) — plus **TASK-471, 472, 478, 529, 530, 495, 458, 459, 460, 508, 535** and
+**TASK-475 phases 2 and 4** (2026-08-21/25, this session). **Next in sequence is #6, M-WINAMP-PLAYER
+(still paused) or TASK-424 if DUT time is scarce.** TASK-475 phase 3 is left advisory by choice (C3's
+58-occurrence count isn't near zero); phase 5 is intentionally advisory-forever per the check-docs
+spec's own text. New follow-ups from the TASK-488 verification: 503–506 (503 already DONE, see its
+own row). TASK-535 (live DUT check of TASK-460's four fetch paths) is **DONE 2026-08-25** — 3/4
+clean, the fourth (T220/Crypto) A/B-confirmed as a pre-existing heap-headroom characteristic,
+unrelated to the refactor.
 
-**Not scheduled by design:** the four skeletons (483–486), the M-CODEQUAL remainder (461–463), the
-ADR-061 decommission tail (465, 468–470), M-TOOLING 479–482, and the handoff/registry debt (489–494,
-500–502).
+**Not scheduled by design — PM triage, 2026-08-25** (corrects this line's own stale contents; full
+detail on every id below is in each task's own row): the four skeletons (483–486) remain genuinely
+open research, no Developer action. TASK-489, 490, 491 and 500 were listed here but are already
+DONE/LANDED — removed from this line, left in their own rows for the record. Everything else in the
+category is **READY to schedule, not blocked on a design question** — the design/ADR work each one
+needs was already done when it was filed: TASK-461, 462, 463 (M-CODEQUAL remainder), TASK-465, 468
+(ADR-061 tail — 469/470 remain correctly chain-blocked on 468), TASK-479, 480 (M-TOOLING — 480 still
+owes its ≥3-run baseline first), TASK-492, 493 (handoff debt — both now more overdue than when
+filed), TASK-494 (was blocked on TASK-471, which has since landed — see its own row), TASK-501, 502.
+TASK-482 (M-TOOLING spike-retirement rule) has a stale blocker note — see its own row for the
+correction needed before scheduling it either way.
 
 ---
 
@@ -175,7 +184,7 @@ are registered canonically in `docs/verification/test_plan.md`, not here.
 | TASK-479 | P3 | OPEN (478 landed) | migrate 33 port-resolution copies + 29 send/expect loops onto it |
 | TASK-480 | P2 | OPEN (478 landed; still behind 479) | split `run_serialdbg_tests.py` (10 229 lines, 128 tests) into `suite/serialdbg/`, mirroring the VE taxonomy. **≥3 baseline runs owed first** |
 | TASK-481 | P3 | BLOCKED on 480 | directory + naming taxonomy; pair with TASK-464 (breaks doc paths) |
-| TASK-482 | P3 | BLOCKED on 475 | spike retirement rule — a `task<NNN>_*` whose task is archived fails `run/check-docs`. All 6 current spikes fail immediately |
+| TASK-482 | P3 | **BLOCKER STALE 2026-08-25** — see note | spike retirement rule — a `task<NNN>_*` whose task is archived fails `run/check-docs`. All 6 current spikes fail immediately. **PM triage note**: filed as "BLOCKED on 475" when 475 was one undifferentiated task; 475 now has phases 1/2/4 DONE, phase 3 advisory-by-choice, phase 5 intentionally-advisory-forever, and nothing in the check-docs spec names which phase (if any) this rule actually depends on. Needs a PM/Architect call on which phase gates it — may already be unblocked — before scheduling either way. |
 
 ## Vendoring / `app/lib` ([ADR-060 D2b](../architecture/decisions/ADR-060.md))
 
@@ -209,7 +218,7 @@ the rule. Filed 2026-08-16 after a second sweep for uncaptured items.
 | TASK-491 | — | **LANDED** (`e2f70db`) | correct X015 — it claims `dataTask` runs on Core 0; it pins to `APP_CPU_NUM` |
 | TASK-492 | P3 | OPEN | retire `handleVolumeGesturePublic()` — M-AUDIO-ENGINE OQ2's surviving half |
 | TASK-493 | P2 | OPEN | sync `architecture.md` — its diagram still shows `loop()` as the app shell |
-| TASK-494 | P3 | OPEN | `feature_inventory.files:` → `components:` once components exist |
+| TASK-494 | P3 | **READY 2026-08-25** — was BLOCKED on TASK-471, now landed | `feature_inventory.files:` → `components:`, now that components exist (TASK-471/472 both DONE 2026-08-22). No design decision left, just execution. |
 
 **TASK-489 / TASK-490 — reservations performed.** M-SRCLAYOUT's header claimed *"registers as
 X065"*; the matrix contained no such row. M-CONCURRENCY mined 24 matrix entries and registered none
