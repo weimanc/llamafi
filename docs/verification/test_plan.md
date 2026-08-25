@@ -95,6 +95,7 @@ A new family rather than `T_SRC_`/`T_CQ_`/`T_CC_`: those three are all about fir
 | `T_DOC_07` | C2 glob resolution, including a simulated board split |
 | `T_DOC_08` | C3 scoped to `cyd2usb*`; asserts `cyd` and `trinity` are **not** flagged (they are the sibling project's envs) |
 | `T_DOC_09` | C5 link integrity, including anchor stripping and URL-encoded paths |
+| `T_DOC_16` | ROWLEN task-board row length (TASK-536, M-ROWGATE) — over/under/marker-exempt |
 
 **VE notes**: (a) `T_DOC_03`/`T_DOC_04` run against a **committed fixture corpus**, never the live
 tree — the live count moved 280→282 inside a single commit and reads 286 in a clean checkout, because
@@ -110,10 +111,11 @@ TASK-480's migration list.
 also invoked by `app/tools/smoke_test.sh` (so `run/check` gate 9 covers the checker, while gate 12
 runs it against the live corpus). Host-side only: no DUT, no serial, no network.
 
-All fourteen are **passing**: `T_DOC_01..09` as of TASK-475 phase 1, `T_DOC_10..14` added with the
-C6 id-binding gate (TASK-521, M-TESTARCH §6). Delta/split scenarios build throwaway repos in
-`mktemp -d`; C6 scenarios build throwaway roots with their own `app/tools/` registry; the live tree
-is never modified by a test.
+All sixteen are **passing**: `T_DOC_01..09` as of TASK-475 phase 1, `T_DOC_10..14` added with the
+C6 id-binding gate (TASK-521, M-TESTARCH §6), `T_DOC_15` added with SPIKE retirement (TASK-482,
+M-TOOLING §4 rule 3), `T_DOC_16` added with ROWLEN task-board row length (TASK-536, M-ROWGATE).
+Delta/split scenarios build throwaway repos in `mktemp -d`; C6 scenarios build throwaway roots with
+their own `app/tools/` registry; the live tree is never modified by a test.
 
 `T_DOC_10..14` are C6's own BP-068 negative tests, and C6 is the check that requires every
 executable id to have a row here — so these five rows are the gate binding itself. That is
@@ -137,6 +139,7 @@ rule.
 | `T_DOC_13` | unit | C6 exception ledger — a gate, not an amnesty | A valid row suppresses exactly its finding and the debt stays in the summary; a **stale** row FAILS; no `TASK-` owner or no ISO date FAILS; the ledger is never scanned as a plan (else it grandfathers itself) | passing |
 | `T_DOC_14` | unit | C6 registry discovery + the exemption split | All three registry shapes (dict / `(id, fn)` pairs / function-ref list) discovered with no edit to the checker; an exempt file resolves C6.1 but cannot declare a status — **with the non-exempt control**; no registries → skip loudly, never a silent 100 % | passing |
 | `T_DOC_15` | unit | SPIKE retirement check (TASK-482, M-TOOLING §4 rule 3) | An `app/tools/**/task<NNN>_*` whose leading `TASK-NNN` is in `tasks-archive.md` is flagged; an open task's spike is **not** (positive control, same tree); only the *leading* number is checked (`task123_456_x.py`, 123 archived / 456 not, still flags); a non-spike-shaped filename (`helpers.py`) is never counted | passing |
+| `T_DOC_16` | unit | ROWLEN task-board row length (TASK-536, M-ROWGATE) | A `tasks*.md` row over `ROWLEN_THRESHOLD` (400 chars) fails; an at/under-threshold row passes; an over-threshold row carrying `IGNORE_MARKER` passes (reuses the existing mechanism); `tasks-winamp-player.md` is in-scope, `tasks-archive.md` is never scanned | passing |
 
 **Non-vacuity — mutation-tested, not assumed.** Each mechanism was deliberately broken and the suite
 re-run. Caught: inline-backtick suppression reintroduced (`T_DOC_03` ×2), recursive `docs/`

@@ -1,6 +1,6 @@
 # M-ROWGATE — a length gate for task-board rows
 
-Status: proposed
+Status: done
 
 ## 1. Problem
 
@@ -81,3 +81,39 @@ the usual regeneration this class of change always requires (see `TASK-482`'s ow
 
 Whether `400` survives contact with the real corpus is genuinely open — flagged in §3, not decided
 here. Left for whoever implements this to measure and, if needed, revise before landing.
+
+## 7. As-built (TASK-536, 2026-08-26)
+
+Measured the real distribution before picking a number, per §3/§6. Regex
+`^\|\s*\*{0,2}TASK-\d+\*{0,2}\s*\|` matches real rows in both shapes (`| TASK-492 |` and
+`| **TASK-531** |`) in `tasks.md` (28 rows) and `tasks-architecture.md` (62 rows).
+`tasks-winamp-player.md` contributes 0 — it turns out to be a narrative doc (`### TASK-407 — ...`
+headings, not `| TASK-NNN |` table rows) with no task-row table at all; it is still on the corpus
+list per §3 (any future table-shaped split inherits the check for free), it just reads 0 today.
+
+Length histogram across the 90 real rows (50-char buckets): a fairly continuous spread from ~50 to
+~750 chars, then a clean gap to a cluster of 10 outliers at 1050-3338 chars — the genuinely worst
+pre-BP-069 narrative rows the 2026-08-25 archive pass didn't reach. There is no equivalently clean
+gap near 400: manual inspection of rows in the 250-470 range shows both legitimate short
+"summary + link to `tasks-archive.md`" pointers (BP-069's intended shape, e.g. `TASK-455` at 256
+chars) and clearly-narrative rows carrying embedded judgment calls and diff detail (e.g. `TASK-527`
+at 456 chars, `TASK-475` at 456 chars) mixed together — length alone doesn't cleanly separate them
+at any single cut point, because BP-069 was only ruled the day before this task and most existing
+rows predate it.
+
+**Kept the design doc's proposed 400.** Reasons: (a) it correctly flags every one of the 10 extreme
+outliers along with a meaningful chunk of the merely-long ones, rather than only the extremes a
+higher cut (e.g. 750+) would catch while waving through rows that are already clearly narrative by
+inspection; (b) this check is advisory-only (§4) precisely because, unlike C5/C2/C4, it has no
+read-0-on-landing-day requirement — SPIKE's own precedent (six spikes, all failing on day one, "the
+correct first result") establishes that an advisory check reading a real backlog on landing is
+acceptable, even expected, when the backlog is real; (c) no measured alternative in the 300-800
+range produced a materially better split once outliers were excluded from consideration — the
+choice is a threshold, not a classifier, and 400 is a reasonable one.
+
+**Measured count at landing: 34 over-length of 90 task-board rows** (38%) — `9` in `tasks.md`, `25`
+in `tasks-architecture.md`. This is a real, expected backlog: BP-069 is one day old at landing time,
+the archive pass only moved the worst offenders, and the bulk of both boards predates the
+convention entirely. Reported here rather than adjusting the threshold to hide it, per the task's
+own instruction. No promotion to blocking is proposed by this task — per §4, that stays a separate
+PM/human call once the backlog has actually been worked down.

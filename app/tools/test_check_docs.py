@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_check_docs.py — T_DOC_01..T_DOC_15 for run/check-docs (TASK-475, TASK-521, TASK-482).
+"""test_check_docs.py — T_DOC_01..T_DOC_16 for run/check-docs (TASK-475, TASK-521, TASK-482, TASK-536).
 
 Registered in docs/verification/test_plan.md under the T_DOC_ family, reserved
 by @VE before this harness existed. Host-side only: no DUT, no serial, no
@@ -664,15 +664,65 @@ def t_doc_15() -> None:
               f"summary must count both dimensions: {r.summary}")
 
 
+# ── T_DOC_16 — ROWLEN task-board row length check (TASK-536, M-ROWGATE) ─────
+
+def t_doc_16() -> None:
+    """NEGATIVE: a tasks*.md row over ROWLEN_THRESHOLD chars must fail.
+
+    Three-case shape (positive control, threshold edge, marker exemption),
+    same as T_DOC_15's own SPIKE test: an over-threshold row must FAIL, an
+    at/under-threshold row must PASS, and an over-threshold row carrying the
+    existing IGNORE_MARKER must PASS (reusing the mechanism, not a new one).
+    Also proves tasks-winamp-player.md is in-scope and tasks-archive.md
+    (already in EXEMPT_BASENAMES) is not scanned at all, even though it is
+    not on the ROWLEN_FILES list either — belt and suspenders.
+    """
+    tid = "T_DOC_16"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = os.path.join(tmp, "rowlen")
+        over = "| TASK-900 | P3 | OPEN | " + ("x" * 400) + " |"
+        under = "| TASK-901 | P3 | OPEN | short pointer row |"
+        over_marked = ("| TASK-902 | P3 | OPEN | " + ("y" * 400) + " |"
+                       + " " + cd.IGNORE_MARKER)
+        assert len(over) > cd.ROWLEN_THRESHOLD
+        assert len(under) <= cd.ROWLEN_THRESHOLD
+        assert len(over_marked.split(cd.IGNORE_MARKER)[0].rstrip()) > cd.ROWLEN_THRESHOLD
+
+        write(root, "docs/project/tasks.md",
+              "# Board\n\n" + over + "\n" + under + "\n" + over_marked + "\n")
+        write(root, "docs/project/tasks-winamp-player.md", over + "\n")
+        write(root, "docs/project/tasks-archive.md", over + "\n")
+
+        r = cd.check_rowlen(cd.Corpus(root))
+        check(tid, "docs/project/tasks-archive.md" not in "\n".join(r.failures),
+              "tasks-archive.md must never be scanned (EXEMPT_BASENAMES)")
+        check(tid, any("tasks.md:3" in f and "> 400" in f for f in r.failures),
+              f"over-threshold row must fail, got {r.failures}")
+        check(tid, not any("tasks.md:4" in f for f in r.failures),
+              "at/under-threshold row must not fail")
+        check(tid, not any("tasks.md:5" in f for f in r.failures),
+              "over-threshold row carrying IGNORE_MARKER must not fail")
+        check(tid, any("tasks-winamp-player.md:1" in f for f in r.failures),
+              "tasks-winamp-player.md must be in the ROWLEN corpus")
+        # total counts every matched row that was actually scanned: 2 rows in
+        # tasks.md (over_marked's line is dropped by scannable_lines before
+        # ROW_RE ever sees it, same as C1/C2's own marker handling) + 1 in
+        # tasks-winamp-player.md.
+        check(tid, r.total == 3, f"expected 3 scanned task-board rows, got {r.total}")
+        check(tid, "2 over-length of 3 task-board rows" in r.summary,
+              f"summary must count both dimensions: {r.summary}")
+
+
 TESTS = [("T_DOC_01", t_doc_01), ("T_DOC_02", t_doc_02), ("T_DOC_03", t_doc_03),
          ("T_DOC_04", t_doc_04), ("T_DOC_05", t_doc_05), ("T_DOC_06", t_doc_06),
          ("T_DOC_07", t_doc_07), ("T_DOC_08", t_doc_08), ("T_DOC_09", t_doc_09),
          ("T_DOC_10", t_doc_10), ("T_DOC_11", t_doc_11), ("T_DOC_12", t_doc_12),
-         ("T_DOC_13", t_doc_13), ("T_DOC_14", t_doc_14), ("T_DOC_15", t_doc_15)]
+         ("T_DOC_13", t_doc_13), ("T_DOC_14", t_doc_14), ("T_DOC_15", t_doc_15),
+         ("T_DOC_16", t_doc_16)]
 
 
 def main() -> int:
-    print("=== test_check_docs.py — T_DOC_01..15 ===")
+    print("=== test_check_docs.py — T_DOC_01..16 ===")
     for tid, fn in TESTS:
         before = len(FAILURES)
         try:

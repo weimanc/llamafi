@@ -15,6 +15,8 @@ Checks
   C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
   SPIKE     app/tools/**/task<NNN>_* whose TASK-NNN is archived (TASK-482,
             M-TOOLING §4 rule 3 — not part of the C1-C6 M-DOCLIFE taxonomy)  (advisory)
+  ROWLEN    tasks*.md row length: a row is a pointer, not a record (TASK-536,
+            M-ROWGATE — not part of the C1-C6 M-DOCLIFE taxonomy either)     (advisory)
 
 Phase 1 blocked on C5 and C1-delta only: both read 0 on ship day, and a gate
 that fails on day one gets switched off. Phase 2 (TASK-475, 2026-08-25) added
@@ -334,6 +336,51 @@ def check_spike_retirement(c: Corpus) -> Result:
                 f"{rel}: named for TASK-{tid}, which is archived (tasks-archive.md) "
                 f"-> retire (delete or promote per M-TOOLING §4 rule 2)")
     r.summary = f"{len(r.failures)} retirement-due of {r.total} spike scripts"
+    return r
+
+
+# ── ROWLEN (TASK-536, M-ROWGATE-task-board-length-check.md) ───────────────────
+# Not part of C1-C6 either — same "named outside the taxonomy" treatment SPIKE
+# gets (module docstring above), for the same reason: this checks a task-board
+# row's own SHAPE (BP-069: a row is a pointer, not a record — id, priority,
+# status, a one-line title, a design-doc link where one applies, a commit
+# hash), not a documentation citation. It does not know whether a long row is
+# a smuggled narrative or a genuinely dense title — length is the whole
+# signal, on the theory (checked against the real corpus, see the design
+# doc's As-built note) that a genuine pointer is short and a smuggled
+# verification narrative is not.
+#
+# Corpus is an explicit filename list, not a directory rule: exactly the
+# three live task boards. tasks-archive.md is deliberately NOT here — it is
+# already in EXEMPT_BASENAMES as the historical record BP-069 moves verbose
+# content TO, and archived rows are expected to be long.
+#
+# Advisory-only per the design doc §4: unlike C5/C2/C4, this has no
+# read-0-on-landing-day guarantee (it doesn't: see the As-built note), so it
+# cannot land blocking without redding out run/check on day one.
+
+ROWLEN_FILES = ("docs/project/tasks.md", "docs/project/tasks-architecture.md",
+                "docs/project/tasks-winamp-player.md")
+ROWLEN_THRESHOLD = 400
+ROW_RE = re.compile(r"^\|\s*\*{0,2}TASK-\d+\*{0,2}\s*\|")
+
+
+def check_rowlen(c: Corpus) -> Result:
+    r = Result("ROWLEN", blocking=False)
+    for rel in ROWLEN_FILES:
+        path = c.abspath(rel)
+        if not os.path.exists(path):
+            continue
+        for lineno, line in scannable_lines(c.read(rel)):
+            if not ROW_RE.match(line):
+                continue
+            r.total += 1
+            n = len(line)
+            if n > ROWLEN_THRESHOLD:
+                r.failures.append(
+                    f"{rel}:{lineno}: row is {n} chars (> {ROWLEN_THRESHOLD}) "
+                    f"-> BP-069: a tasks*.md row is a pointer, not a record")
+    r.summary = f"{len(r.failures)} over-length of {r.total} task-board rows"
     return r
 
 
@@ -883,7 +930,7 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
         advisory_extra = []
 
     advisory: list[Result] = advisory_extra + [
-        check_c1_full(c), check_c3(c), check_spike_retirement(c)]
+        check_c1_full(c), check_c3(c), check_spike_retirement(c), check_rowlen(c)]
 
     counted = [r for r in blocking if not r.skipped]
     total = len(counted)
