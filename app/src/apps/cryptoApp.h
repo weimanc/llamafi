@@ -8,7 +8,7 @@
 #include "dataTask.h"
 #include "settingsStorage.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 #define CRYPTO_FETCH_MS   60000UL
 #define CRYPTO_COIN_COUNT 6

@@ -11,7 +11,7 @@
 #include <TFT_eSPI.h>
 #include "dataTask.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ── StockApp (stock.md) ───────────────────────────────────────────────
 #define STOCK_TICKER_COUNT      8

@@ -7,7 +7,7 @@
 #include "appShell.h"
 #include "settingsStorage.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 #define GOL_GRID_W       55
 #define GOL_GRID_H       48

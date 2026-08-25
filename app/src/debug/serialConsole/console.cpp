@@ -30,7 +30,7 @@
 extern WinampDisplay winampDisplay;       // defined in main.cpp
 #endif
 
-extern TFT_eSPI tft;                      // defined in main.cpp / display backend
+#include "display/tft.h"
 
 // TASK-056c/h: `reconnect` (TLS reset + force poll) is the one command that
 // ships in every build, not just SERIAL_DEBUG ones (ADR-021 Decision 4).

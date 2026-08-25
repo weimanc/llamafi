@@ -15,7 +15,7 @@
 #include "util/mathUtil.h"
 #include "util/timeFmt.h"   // WIRE2-G2: clockHour()
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 class AquariumApp : public App {
 public:

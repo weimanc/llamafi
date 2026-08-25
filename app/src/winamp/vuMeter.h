@@ -34,7 +34,7 @@
 #include "perf.h"
 #include "util/mathUtil.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 namespace vu {
 

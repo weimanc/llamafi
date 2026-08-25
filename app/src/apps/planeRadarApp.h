@@ -16,7 +16,7 @@
 #include "planeRadarConfig.h"
 #include "util/tftViewportRepair.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ── layout constants (phase0-preview-ui.md Results, frozen) ──────────────────
 static constexpr int PR_CX = 120, PR_CY = 120, PR_R = 118;   // disc: x:2..238, y:2..238

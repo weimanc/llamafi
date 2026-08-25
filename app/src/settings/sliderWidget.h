@@ -20,7 +20,7 @@
 #include "../touch/hitbox.h"
 #include "settingsSection.h"   // palette + geometry constants
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 class SliderWidget {
 public:

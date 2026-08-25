@@ -9,7 +9,7 @@
 #include <TFT_eSPI.h>
 #include "gen/skin_layout.h"   // SkinUV
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // Blits uv out of `atlas` (row stride `atlasW`) to (dstX, dstY). One
 // pushImage per source row — the atlas is wider than the sprite, so a single

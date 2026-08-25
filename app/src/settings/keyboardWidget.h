@@ -6,7 +6,7 @@
 #include "../touch/hitbox.h"
 #include "settingsSection.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ============================================================================
 // KeyboardWidget — modal full-canvas on-screen keyboard

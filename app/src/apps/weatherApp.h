@@ -11,7 +11,7 @@
 #include "settingsStorage.h"
 #include "util/timeFmt.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 #define WEATHER_FETCH_MS  60000UL
 #define WX_LEFT_CX   68

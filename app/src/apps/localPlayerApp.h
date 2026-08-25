@@ -38,7 +38,7 @@
 #include "settingsStorage.h"
 #include "winamp/winampDisplay.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 extern WinampDisplay winampDisplay;
 extern bool sdReady();   // sd/sdMount.cpp — the boot mount's outcome (TASK-408)
 

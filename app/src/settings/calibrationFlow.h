@@ -7,7 +7,7 @@
 #include "settingsWidgets.h"
 #include "CYD28_TouchscreenR.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ============================================================================
 // TouchCalData — runtime calibration struct

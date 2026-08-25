@@ -19,7 +19,7 @@
 #include "gen/teletext_layout.h"
 #include "logSink.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ── TeletextSource (ADR-057 item 1) ─────────────────────────────────────────
 // Ordinary strategy-pattern seam: NOS is a stateless dataTask poll, Ceefax

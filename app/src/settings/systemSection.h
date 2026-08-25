@@ -7,7 +7,7 @@ void prepareForReboot();   // main.cpp — TASK-451: teardown + flush before a r
 #include "settingsWidgets.h"
 #include "../logSink.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ============================================================================
 // SystemSection — Settings section for device-wide system controls

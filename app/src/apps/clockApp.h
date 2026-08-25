@@ -17,7 +17,7 @@
 #include <time.h>
 #include <math.h>
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ── FlipDigit state ──────────────────────────────────────────────────────────
 struct FlipDigit {

@@ -28,7 +28,7 @@
 #include "winamp/winampDisplay.h"
 #include "winamp/vuMeter.h"
 
-extern TFT_eSPI         tft;
+#include "display/tft.h"
 extern WinampDisplay    winampDisplay;
 
 // ── Play state ───────────────────────────────────────────────────────────────

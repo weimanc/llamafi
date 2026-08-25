@@ -13,7 +13,7 @@
 #include "appShell.h"      // AppId, switchApp()
 #include "spotifyTask.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 void cmdSwitchApp(const char *args) {
   int id = -1;

@@ -10,7 +10,7 @@
 #include "CYD28_TouchscreenR.h"   // CYD28_TouchR — class decl only, for the extern below
 #include "ui/palette.h"           // M-CODEQUAL C6 (TASK-463): UI_BG_COLOR/UI_SEP_COLOR
 
-extern TFT_eSPI  tft;
+#include "display/tft.h"
 extern CYD28_TouchR ts;   // defined once, in cheapYellowLCD.h's touchScreen.h chain
 
 // ── SettingsApp constants (TASK-141a) ─────────────────────────────────

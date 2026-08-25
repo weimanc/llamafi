@@ -23,7 +23,7 @@
 #include "logSink.h"
 #include "winamp/winampDisplay.h"
 
-extern TFT_eSPI tft;  // defined in cheapYellowLCD.h
+#include "display/tft.h"
 
 namespace screenlog {
 

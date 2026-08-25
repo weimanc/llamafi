@@ -87,7 +87,7 @@ extern WinampDisplay winampDisplay;   // defined in main.cpp
 #include "nfc.h"
 #endif
 
-extern TFT_eSPI tft;              // defined in main.cpp / display backend
+#include "display/tft.h"
 extern CYD28_TouchR ts;           // defined once, in cheapYellowLCD.h's touchScreen.h chain
 
 // The following are defined exactly once, directly in main.cpp's translation

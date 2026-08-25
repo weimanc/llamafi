@@ -10,7 +10,7 @@
 
 #include <TFT_eSPI.h>
 #include "gen/shell_layout.h"   // M-CODEQUAL C5 (TASK-461): APP_CANVAS_W
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 enum class DbgCursorStyle : uint8_t { Diamond, Crosshair };
 

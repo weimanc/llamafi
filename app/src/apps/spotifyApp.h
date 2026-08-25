@@ -13,7 +13,7 @@
 #include "perf.h"
 #include "logSink.h"
 
-extern TFT_eSPI      tft;
+#include "display/tft.h"
 extern WinampDisplay winampDisplay;
 
 class SpotifyApp : public App {

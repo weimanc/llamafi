@@ -37,7 +37,7 @@
 #include "touch/scrollTuning.h"  // SCROLL_DEAD_ZONE_PX, SCROLL_SPEED_K_DEFAULT, PLEDIT_TAP_*
 #include "util/textFit.h"
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 extern const uint16_t SKIN_FONT[];
 extern const SkinUV   SKIN_GLYPH[128];
 

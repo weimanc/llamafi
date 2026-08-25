@@ -8,7 +8,7 @@
 
 // LedMode is defined in settingsStorage.h (already included via settingsSection.h).
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ============================================================================
 // LedSection — Settings section for LED configuration

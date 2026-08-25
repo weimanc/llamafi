@@ -22,7 +22,7 @@
 #include "gen/shell_layout.h"   // M-CODEQUAL C5 (TASK-461): APP_CANVAS_W
 #include "ui/palette.h"         // M-CODEQUAL C6 (TASK-463): UI_BG_COLOR/UI_SEP_COLOR
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 // ============================================================================
 // Geometry — all sections share these bounds

@@ -8,7 +8,7 @@
 #include "appShell.h"
 #include "settingsStorage.h"  // g_settings, AppSpeed, MatrixColor
 
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 #define MATRIX_STREAMS    14
 #define MATRIX_STRIDE     19
