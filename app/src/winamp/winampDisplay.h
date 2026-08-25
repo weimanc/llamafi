@@ -548,13 +548,7 @@ public:
         dragState = D_IDLE;
       }
       if (dragState == D_VOLUME_DRAG) {
-        if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
-          _volumeSink((int)lastVolumeRendered);
-          _lastInputWasAsync = true;
-          lastVolumeEnqueuedPct = lastVolumeRendered;
-          Serial.printf("[D][chrome] drag-end commit pct=%d\n", (int)lastVolumeRendered);
-        }
-        dragState = D_IDLE;
+        _volumeDragRelease();   // TASK-492: shared with handleVolumeGesturePublic()
       }
       // Marquee tick on Release too (runs below for Move/Press).
       _tickMarquee();
@@ -570,20 +564,9 @@ public:
     }
     if (dragState != D_IDLE) {
       switch (dragState) {
-        case D_VOLUME_DRAG: {
-          long pct = volumeFromX(x);
-          drawVolume((int)pct);
-          unsigned long now = millis();
-          if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
-              (int8_t)pct != lastVolumeEnqueuedPct) {
-            _volumeSink((int)pct);
-            LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", pct);
-            lastVolumeEnqueuedMs = now;
-            lastVolumeEnqueuedPct = (int8_t)pct;
-          }
-          optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+        case D_VOLUME_DRAG:
+          _volumeDragContinue(x);   // TASK-492: shared with handleVolumeGesturePublic()
           break;
-        }
         case D_POSBAR_DRAG:
           _posbarDragCurrentMs = posbarFromX(x);
           updateSeekThumb(_posbarDragCurrentMs);
@@ -659,17 +642,7 @@ public:
       touchScreenCoolDownTime = millis() + 300;
       consumed = true;
     } else if (volPct >= 0) {
-      dragState = D_VOLUME_DRAG;
-      drawVolume((int)volPct);
-      unsigned long now = millis();
-      if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
-          (int8_t)volPct != lastVolumeEnqueuedPct) {
-        _volumeSink((int)volPct);
-        LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", volPct);
-        lastVolumeEnqueuedMs = now;
-        lastVolumeEnqueuedPct = (int8_t)volPct;
-      }
-      optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+      _volumeDragCapture(volPct);   // TASK-492: shared with handleVolumeGesturePublic()
       consumed = true;
     } else {
       // TASK-411: both PLEDIT zones (right strip, then rows) are hit-tested and
@@ -695,43 +668,37 @@ public:
     return consumed;
   }
 
-  // TASK-352: narrow public capture entry into the SAME D_VOLUME_DRAG state
-  // machine handleWinampInput() owns above (dragState, drawVolume(),
-  // volumeFromX(), debounce, optimistic hold, the _volumeSink seam) — for
-  // callers like WebRadio whose input path is piecemeal hitTest*Public calls,
-  // not the full handleWinampInput() dispatch (which would also hit-test
-  // Spotify-only zones — transport/posbar-seek/PLEDIT/shuffle/repeat — that
-  // WebRadio must not trigger). Deliberately NOT routed through
-  // handleWinampInput() for that reason; every field/helper it touches is
-  // shared state, so this is reuse of the machine, not a duplicate of it.
-  // Press: hit-test only, ignored (returns false) outside the slider.
-  // Move/Release: captured — consumes unconditionally once a drag is live.
-  bool handleVolumeGesturePublic(TouchPhase phase, int x, int y) {
-    if (dragState == D_VOLUME_DRAG) {
-      if (phase == TouchPhase::Release) {
-        if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
-          _volumeSink((int)lastVolumeRendered);
-          lastVolumeEnqueuedPct = lastVolumeRendered;
-        }
-        dragState = D_IDLE;
-        return true;
-      }
-      long pct = volumeFromX(x);
-      drawVolume((int)pct);
-      unsigned long now = millis();
-      if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
-          (int8_t)pct != lastVolumeEnqueuedPct) {
-        _volumeSink((int)pct);
-        LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", pct);
-        lastVolumeEnqueuedMs = now;
-        lastVolumeEnqueuedPct = (int8_t)pct;
-      }
-      optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
-      return true;
-    }
-    if (phase != TouchPhase::Press) return false;
-    long volPct = hitTestVolume(x, y);
-    if (volPct < 0) return false;
+  // TASK-492 (M-AUDIO-ENGINE OQ2's surviving half): the D_VOLUME_DRAG state
+  // machine used to be implemented TWICE — once inline in handleWinampInput()
+  // (Spotify's real-touch path) and once, nearly identically, right here in
+  // handleVolumeGesturePublic() (WebRadio's narrow capture entry, TASK-352).
+  // That duplication already cost one bug (TASK-406: a missing LOG_D line in
+  // this copy, invisible until a test grepped for it) and a second,
+  // previously-undiscovered divergence is closed here too — the Release
+  // path's drag-end diagnostics (Serial.printf + _lastInputWasAsync) were
+  // present in handleWinampInput()'s copy and absent from this one.
+  // (_lastInputWasAsync has no reader anywhere in the tree — dead code — so
+  // setting it here is a no-op either way, not a behaviour change; the log
+  // line is a real, if minor, added diagnostic for this path.) The three
+  // _volumeDrag*() helpers below are the ONE machine now; both
+  // handleWinampInput() and this function call them, so a future edit to
+  // one cannot silently diverge from the other again.
+  //
+  // Deliberately did NOT route WebRadio through the full handleWinampInput()
+  // instead, even though ADR-059 D7's capability mask (TASK-417) means it
+  // COULD now skip the Spotify-only zones — WebRadio has its own, separately
+  // maintained dispatch for transport/PLEDIT/eject/vis (webRadioApp.cpp's
+  // handleInput(), built from individual public hitTest*Public()/pledit*()
+  // calls) specifically so it never touches handleWinampInput()'s own
+  // _plView.dragging()/D_POSBAR_DRAG internals. Routing WebRadio's volume
+  // touches through the FULL handleWinampInput() would reintroduce exactly
+  // that hazard (the same _plView instance reachable via two independent
+  // dispatch paths) for no benefit over sharing just the volume sub-machine.
+  // Judgment call, not a design-doc mandate — recorded here rather than
+  // made silently.
+
+  // Press, once hit-tested valid (volPct >= 0) by the caller.
+  void _volumeDragCapture(long volPct) {
     dragState = D_VOLUME_DRAG;
     drawVolume((int)volPct);
     unsigned long now = millis();
@@ -743,6 +710,52 @@ public:
       lastVolumeEnqueuedPct = (int8_t)volPct;
     }
     optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+  }
+
+  // Move, while dragState == D_VOLUME_DRAG already.
+  void _volumeDragContinue(int x) {
+    long pct = volumeFromX(x);
+    drawVolume((int)pct);
+    unsigned long now = millis();
+    if (now - lastVolumeEnqueuedMs > VOLUME_DRAG_DEBOUNCE_MS &&
+        (int8_t)pct != lastVolumeEnqueuedPct) {
+      _volumeSink((int)pct);
+      LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", pct);
+      lastVolumeEnqueuedMs = now;
+      lastVolumeEnqueuedPct = (int8_t)pct;
+    }
+    optimisticVolumeUntilMs = now + VOLUME_OPTIMISTIC_HOLD_MS;
+  }
+
+  // Release, while dragState == D_VOLUME_DRAG. Leaves dragState == D_IDLE.
+  void _volumeDragRelease() {
+    if (lastVolumeRendered >= 0 && lastVolumeRendered != lastVolumeEnqueuedPct) {
+      _volumeSink((int)lastVolumeRendered);
+      _lastInputWasAsync = true;
+      lastVolumeEnqueuedPct = lastVolumeRendered;
+      Serial.printf("[D][chrome] drag-end commit pct=%d\n", (int)lastVolumeRendered);
+    }
+    dragState = D_IDLE;
+  }
+
+  // Public capture entry for callers like WebRadio whose input path is
+  // piecemeal hitTest*Public calls, not the full handleWinampInput()
+  // dispatch — see the design note above. Press: hit-test only, ignored
+  // (returns false) outside the slider. Move/Release: captured — consumes
+  // unconditionally once a drag is live.
+  bool handleVolumeGesturePublic(TouchPhase phase, int x, int y) {
+    if (dragState == D_VOLUME_DRAG) {
+      if (phase == TouchPhase::Release) {
+        _volumeDragRelease();
+        return true;
+      }
+      _volumeDragContinue(x);
+      return true;
+    }
+    if (phase != TouchPhase::Press) return false;
+    long volPct = hitTestVolume(x, y);
+    if (volPct < 0) return false;
+    _volumeDragCapture(volPct);
     return true;
   }
 
