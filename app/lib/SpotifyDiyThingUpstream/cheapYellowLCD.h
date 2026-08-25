@@ -2,15 +2,20 @@
 // PATCH-TOUCHSCREEN-1 (M-SRCLAYOUT Stage E / TASK-471,
 // app/lib/SpotifyDiyThingUpstream/LOCAL_PATCHES.md): `tft` used to be defined
 // here directly, safe only while this header had exactly one includer.
-// Definition moved to cheapYellowLCD.cpp now that app/src component
-// conversions include this header (via winamp/winampDisplay.h) from more
-// than one translation unit.
+// Definition moved to cheapYellowLCD.cpp, then rehomed again (ADR-061 D9
+// step 1 / TASK-468) into the owned `display/tft.{h,cpp}` component — this
+// header now just includes that declaration rather than declaring its own.
 #include "spotifyDisplay.h"
 
 #include "touchScreen.h"
 
+// Kept directly (not just via display/tft.h below) so PlatformIO's library
+// dependency finder still sees this library itself referencing TFT_eSPI.h
+// and adds its include path to this library's compile context — the same
+// discovery LDF did when this line declared `extern TFT_eSPI tft;` in
+// place, before ADR-061 D9 step 1 (TASK-468) moved that declaration out.
 #include <TFT_eSPI.h>
-extern TFT_eSPI tft;
+#include "display/tft.h"
 
 #ifndef WINAMP_DISPLAY
 #include <JPEGDEC.h>

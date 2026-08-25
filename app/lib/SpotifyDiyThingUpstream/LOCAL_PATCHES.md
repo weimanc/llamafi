@@ -116,3 +116,13 @@ If this directory is ever re-vendored wholesale from upstream (unlike
 but if one is ever added), re-apply this patch the same way PATCH-SD-1 is
 re-applied: diff the fresh upstream copy against this one and reintroduce the
 `extern`/`.cpp`-split shape.
+
+### Follow-up — TASK-468 (ADR-061 D9 step 1, 2026-08-25)
+
+`tft`'s definition moved again, out of `cheapYellowLCD.cpp` and into the new
+owned component `app/src/display/tft.{h,cpp}`. `cheapYellowLCD.h` now
+`#include`s `display/tft.h` instead of declaring its own `extern TFT_eSPI
+tft;`; `cheapYellowLCD.cpp` no longer defines `tft` at all — it keeps its
+other includes only. If this directory is ever re-vendored, the extern in
+`cheapYellowLCD.h` should be re-pointed at `display/tft.h` rather than
+reintroduced locally.
