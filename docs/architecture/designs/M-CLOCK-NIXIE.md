@@ -1,7 +1,8 @@
 # M-CLOCK-NIXIE — Nixie Tube Clock Renderer Physics
 
 > Owner: Architect  
-> Status: shipped (TASK-193, 2026-06-13 — flat single-pass renderer);
+> Status: done
+> As-built: TASK-193, 2026-06-13 — flat single-pass renderer);
 > **upgraded (TASK-336, 2026-07-18 — baked wire-glyph + hex-mesh +
 > 3-pass-bloom sprite)**; **tube geometry resynced to the concept
 > (TASK-336 follow-up, 2026-07-18)**. `ClockApp::_drawNixie()` in

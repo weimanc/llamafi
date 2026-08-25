@@ -1,7 +1,7 @@
 # Design — RGB LED Settings
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-06-04 (updated 2026-06-05 — colour picker replaces predefined swatches; HSV storage; updated 2026-06-06 — common-anode confirmed; NFC/GPIO16 conflict handling; implementation audit 2026-06-06)
 > Part of: M-MULTIAPP Settings (`led` tab)
 > See also: [settings.md](settings.md), [settingsSection.h](../../../app/src/settings/settingsSection.h)

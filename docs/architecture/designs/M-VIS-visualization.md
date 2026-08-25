@@ -1,7 +1,8 @@
 # Design — M-VIS Visualization Area
 
 > Owner: Architect
-> Status: updated (2026-05-16) — R&D pixel measurements incorporated; supersedes planned-2026-05-15 version
+> Status: done
+> As-built: 2026-05-16) — R&D pixel measurements incorporated; supersedes planned-2026-05-15 version
 > Tracked-as: TASK-050a–c
 > Deps: M6 (VU mode + envelope engine), TASK-049 (SKIN_MAIN_BG restore pattern)
 > R&D sources: M-VIS-spectrum-analysis.md, M-VIS-waveform-analysis.md (both 2026-05-16, final)

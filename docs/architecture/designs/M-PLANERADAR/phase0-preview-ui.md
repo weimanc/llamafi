@@ -1,7 +1,8 @@
 # Design — M-PLANERADAR Phase 0: preview tool + UI layout
 
 > Owner: Architect
-> Status: implemented — designer-review PASS 2026-07-10; Q1-Q6 closed, human eyeball sign-off done (see Results)
+> Status: implemented
+> As-built: designer-review PASS 2026-07-10; Q1-Q6 closed, human eyeball sign-off done (see Results)
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: OQ4 (side strip vs on-disc bezel); freezes layout + tag-collision rule before firmware

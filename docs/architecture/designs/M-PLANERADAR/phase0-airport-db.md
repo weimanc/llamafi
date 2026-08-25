@@ -1,7 +1,8 @@
 # Design — M-PLANERADAR Phase 0: airport/runway DB trial bake
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10; executed (see Results)
+> Status: proposed
+> As-built: designer-review PASS 2026-07-10; executed (see Results)
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: OQ2 (global embed vs bounding box), sizes R3 (flash growth)

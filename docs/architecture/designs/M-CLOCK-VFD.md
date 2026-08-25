@@ -1,7 +1,8 @@
 # M-CLOCK-VFD — VFD Dot-Matrix Clock Renderer Physics
 
 > Owner: Architect  
-> Status: shipped (TASK-193, 2026-06-13 — `ClockApp::_drawVFD()` in
+> Status: done
+> As-built: TASK-193, 2026-06-13 — `ClockApp::_drawVFD()` in
 > `app/src/clockApp.h`). Firmware ships a sharp-dots-only renderer (Option C
 > below) — no Gaussian bloom. See "Firmware reality" note in the Bloom
 > parameters section. **Colour theme picker shipped (TASK-345, 2026-07-18 —

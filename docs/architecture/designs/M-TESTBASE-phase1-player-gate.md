@@ -1,7 +1,8 @@
 # Design — M-TESTBASE phase 1: a base test framework, scoped to the 3-mode player
 
 > Owner: Architect + VE
-> Status: **proposed, revised after @Architect + @VE review (round 2, consensus)** — 2026-08-17
+> Status: proposed
+> As-built: revised after @Architect + @VE review (round 2, consensus) — 2026-08-17
 > Review record: §7. VE **overturned B1** and resized P0; P3 is now 3 new ids, not 15 cells.
 > Goal (human, 2026-08-16): *reduce the noise that is making M-WINAMP-PLAYER unimplementable.*
 > Parent: [M-TESTARCH](M-TESTARCH-test-architecture.md) · [M-QUALITY map](M-QUALITY-improvement-map.md) ·

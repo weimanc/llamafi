@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-WINAMP-UI: skin-native country/time/vis in radio mode
 
 > Owner: Architect
-> Status: scheduled — designed 2026-07-18 (human request, 4 items; item 5
+> Status: proposed
+> As-built: designed 2026-07-18 (human request, 4 items; item 5
 > volume slider added same day), filed as TASK-348/349/350/352 + PROP-005
 > (RnD). No ADR needed for items 1–3/5 (pure use of existing skin surfaces);
 > item 4's outcome may amend ADR-009.

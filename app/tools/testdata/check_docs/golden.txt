@@ -19,6 +19,6 @@
     docs/architecture/designs/M-FIX-main.md:58: X099 -> id not found in its registry
 [warn] C3 (advisory, not counted): 1 occurrences of 1 unknown env names (of 2 cyd2usb* references)
     docs/architecture/designs/M-FIX-main.md:63: cyd2usb_bogus -> no [env:cyd2usb_bogus] in app/platformio.ini
-[warn] C4: rule undefined pending TASK-508
+[warn] C4 (advisory, not counted): 0 non-conforming of 2 Status: headers
 
 === Results: 0 passed, 1 failed ===

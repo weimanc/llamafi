@@ -10,7 +10,7 @@ Checks
   C1-delta  the same, restricted to citations NEWLY ADDED in a diff                        (BLOCKING)
   C2        every TASK-/ADR-/IFC-/X0NN identifier referenced exists                        (advisory)
   C3        every `cyd2usb*` build-env name in docs exists in app/platformio.ini           (advisory)
-  C4        Status: uses the closed vocabulary                        (advisory, rule undefined)
+  C4        Status: uses the closed vocabulary (decisions/designs/interfaces)  (advisory)
   C5        relative .md links resolve                                                     (BLOCKING)
   C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
 
@@ -284,17 +284,73 @@ def check_c3(c: Corpus) -> Result:
 
 # ── C4 ────────────────────────────────────────────────────────────────────────
 
-def check_c4(_c: Corpus) -> Result:
-    """Present and wired, deliberately count-free.
+C4_CLOSED_VOCAB = {
+    "proposed", "accepted", "done", "implemented", "resolved", "closed",
+    "applied", "retired", "superseded", "rejected",
+}
+C4_FOLD = {"draft": "proposed", "planned": "proposed"}
+C4_SCOPE_DIRS = (
+    "docs/architecture/decisions/",
+    "docs/architecture/designs/",
+    "docs/architecture/interfaces/",
+)
+# README.md in those directories is an index, not a decision/design/interface
+# record with a lifecycle — never expected to carry a Status: field at all.
+C4_SCOPE_EXCLUDE_BASENAMES = {"README.md"}
 
-    The matching rule (exact vs prefix; header-only vs anywhere; *-review.md in
-    or out) is undefined, and the count swings 100-218 across plausible
-    readings. Two numbers have already been quoted from unstated rules (67, 91)
-    and both were wrong, so this prints no number at all until TASK-508 lands.
+STATUS_HEADER_RE = re.compile(r'^(?P<prefix>\s*>?\s*)(?P<pre>\*{0,2})Status(?P<post>\*{0,2})\s*:\s*(?P<rest>.*)$')
+
+
+def check_c4(c: Corpus) -> Result:
+    """Status: header uses the closed vocabulary (TASK-508 human rulings, 2026-08-23).
+
+    Scope: docs/architecture/{decisions,designs,interfaces}/ only (§C4 — applied
+    corpus-wide the vocabulary means something different in roadmap.md/
+    quality_manager.md/test docs, which is not what this checks). Exemptions
+    (EXEMPT_*, incl. *-review.md) still apply on top, same as every other check.
+
+    Rule (per the human rulings, all three):
+      (a) closed vocabulary is proposed/accepted/done/implemented/resolved/
+          closed/applied/retired/superseded/rejected; draft and planned fold
+          into proposed.
+      (b) EXACT match — the Status: field's value must be the bare word and
+          NOTHING else on the line (case-insensitive, trailing punctuation
+          stripped). Rationale/commit/date belongs in a separate as-built
+          section (BP-065), not on the Status: line.
+      (c) HEADER-ONLY — only the first Status:/**Status**: line in a file (the
+          doc's own header) is checked. A truthful in-body status remark
+          elsewhere does not offset a stale header, and is not scanned as a
+          second header either.
+
+    A file in scope with no Status: header at all is NOT a failure here — C4
+    checks vocabulary of an existing field, not its presence (a different,
+    unruled question; see TASK-508's own follow-up note).
     """
     r = Result("C4", blocking=False)
-    r.skipped = True
-    r.summary = "rule undefined pending TASK-508"
+    for rel in c.gated:
+        if not rel.startswith(C4_SCOPE_DIRS):
+            continue
+        if os.path.basename(rel) in C4_SCOPE_EXCLUDE_BASENAMES:
+            continue
+        lines = c.read(rel).split("\n")
+        for lineno, line in enumerate(lines[:20], start=1):
+            m = STATUS_HEADER_RE.match(line)
+            if not m:
+                continue
+            r.total += 1
+            value = m.group("rest").strip()
+            bare = value.strip("*").strip()
+            word = bare.lower().rstrip(".,;:")
+            if word in C4_FOLD:
+                r.failures.append(
+                    f"{rel}:{lineno}: Status: {value!r} -> "
+                    f"'{word}' should fold into 'proposed' (TASK-508 ruling (a))")
+            elif word not in C4_CLOSED_VOCAB:
+                r.failures.append(
+                    f"{rel}:{lineno}: Status: {value!r} -> "
+                    f"not an exact closed-vocabulary word (TASK-508 ruling (b))")
+            break  # header-only (c): first Status: line in the file only
+    r.summary = f"{len(r.failures)} non-conforming of {r.total} Status: headers"
     return r
 
 

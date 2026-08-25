@@ -1,7 +1,8 @@
 # Design — M-PR-MOTION: PlaneRadar poll-interval setting + motion-smoothing research
 
 > Owner: Architect
-> Status: scheduled — designed 2026-07-18 (human request), filed as TASK-355
+> Status: proposed
+> As-built: designed 2026-07-18 (human request), filed as TASK-355
 > (production slider) + TASK-356 / PROP-006 (RnD host study). Production
 > interpolation task is deliberately NOT filed — it waits for the study's
 > graduation proposal (AGENTS.md R&D protocol).

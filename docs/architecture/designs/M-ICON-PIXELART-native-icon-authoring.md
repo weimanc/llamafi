@@ -1,7 +1,8 @@
 # Design — Native pixel-art icon authoring at taskbar slot resolution
 
 > Owner: Architect
-> Status: decided — see ADR-051 (2026-07-18: 36×36 budget, Option B, warn-only fill check)
+> Status: accepted
+> As-built: see ADR-051 (2026-07-18: 36×36 budget, Option B, warn-only fill check)
 > Date: 2026-07-12 (decided 2026-07-18)
 > Feeds: [ADR-051](../decisions/ADR-051.md)
 > Tracked-as: roadmap M-ICON-PIXELART (PM to file implementation tasks)

@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-SETTINGS: on-device UI for the WebRadio settings block
 
 > Owner: Architect
-> Status: **accepted** (r2 2026-07-16 — panel-reviewed PASS-with-actions
+> Status: accepted
+> As-built: r2 2026-07-16 — panel-reviewed PASS-with-actions
 > [1 BLOCKER WR-1 + 3 MAJOR, all folded into D2/D3/§6], human sign-off;
 > review: `M-WEBRADIO-SETTINGS-review.md`. WR-8 registry fixes applied to
 > `settings-webradio`; WR-12: OQ2's keyboard retirement is M-COUNTRY-PICKER

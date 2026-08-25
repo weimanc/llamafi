@@ -1,7 +1,7 @@
 # Design — AquariumApp Full-Height Canvas (M-AQUARIUM-FULLHEIGHT)
 
 > Owner: Architect
-> Status: approved
+> Status: accepted
 > Date: 2026-05-29
 
 ---

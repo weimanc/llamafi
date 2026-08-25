@@ -1,7 +1,8 @@
 # Design — M7 Open Questions
 
 > Owner: Architect / PM
-> Status: resolved (2026-05-16)
+> Status: resolved
+> As-built: 2026-05-16
 > Deps: M6 and all prior milestones
 
 All four open questions from `architecture.md` are resolved below. Each either references an ADR or is closed with written rationale.

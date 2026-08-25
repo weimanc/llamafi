@@ -1,7 +1,8 @@
 # M-DATATASK-PROGRESS — Live dataTask progress indicators for long-running fetches
 
 > Owner: Architect  
-> Status: implemented — Phase 1 (TASK-173 + TASK-174, 2026-06-12) **and**
+> Status: implemented
+> As-built: Phase 1 (TASK-173 + TASK-174, 2026-06-12) and
 > Phase 2 (`weatherFetchPhase`, `cryptoFetchPhase`, `stockChartProgress`) are
 > all shipped. Confirmed in `app/src/dataTaskStorage.cpp` (progress atoms +
 > accessors) and `app/src/main.cpp` serial handler (`get weatherFetchPhase` /

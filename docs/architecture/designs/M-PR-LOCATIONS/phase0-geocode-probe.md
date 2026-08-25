@@ -1,7 +1,8 @@
 # Design — M-PR-LOCATIONS Phase 0: Nominatim geocode probe + cert evidence
 
 > Owner: Developer (TASK-315)
-> Status: **done** — probe run 2026-07-14, all checks landed on expected outcome
+> Status: done
+> As-built: probe run 2026-07-14, all checks landed on expected outcome
 > Date: 2026-07-14
 > Parent: [M-PR-LOCATIONS-location-presets.md](../M-PR-LOCATIONS-location-presets.md)
 > ("Geocode provider decision", "Geocode fetch — dataTask one-shot", "Geocode

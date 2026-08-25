@@ -1,7 +1,8 @@
 # M-MULTIAPP — Stock App Design
 
 > Owner: Architect
-> Status: POC scoped — List + Chart detail views; implementation ready
+> Status: proposed
+> As-built: scoped — List + Chart detail views; implementation ready
 > Date: 2026-05-29
 > Part of: [overview.md](overview.md)
 > See also: [app-lifecycle.md](app-lifecycle.md), [app-interface.md](app-interface.md), [crypto.md](crypto.md), [settings.md](settings.md)

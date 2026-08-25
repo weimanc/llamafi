@@ -1,7 +1,7 @@
 # M-MULTIAPP — Settings App Design
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-25 (updated 2026-06-04 — class sketch; list-row pattern; list-navigation model replacing tab bar; updated 2026-06-06 — OQ4/OQ5 resolved; C8 persistence EC added; implementation audit 2026-06-06; cancel button design added 2026-06-06)
 > Part of: [overview.md](overview.md)
 > See also: [taskbar.md](taskbar.md), [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md), [stock.md](stock.md)

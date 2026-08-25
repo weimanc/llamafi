@@ -1,7 +1,7 @@
 # Design — WiFi Settings
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-06-04 (updated 2026-06-05 — WifiSection base-class adoption; phase split; updated 2026-06-06 — implementation audit)
 > Part of: M-MULTIAPP Settings (`wifi` tab)
 > See also: [settings.md](settings.md), [keyboard-widget.md](keyboard-widget.md), ADR-040

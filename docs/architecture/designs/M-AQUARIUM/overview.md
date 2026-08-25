@@ -1,7 +1,7 @@
 # Design — Aquarium App (M-AQUARIUM)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-25
 > Source: `resource/ASCII_Aquarium/ASCII_Aquarium_CYD.ino` (v1.67, 4123 lines)
 > ADR: [ADR-031](../../decisions/ADR-031.md) — sprite viewport 275 px, 8-bit depth, Preferences dropped

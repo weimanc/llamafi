@@ -1,7 +1,8 @@
 # M-MULTIAPP — Game of Life App Design
 
 > Owner: Architect
-> Status: draft — App ABC integration pending
+> Status: proposed
+> As-built: App ABC integration pending
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
 > See also: [app-lifecycle.md](app-lifecycle.md), [app-interface.md](app-interface.md), [layout.md](layout.md)

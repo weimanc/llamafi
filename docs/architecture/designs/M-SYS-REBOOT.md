@@ -1,7 +1,8 @@
 # Design — M-SYS-REBOOT: Settings → System → Reboot (user-triggered soft reboot)
 
 > Owner: Architect
-> Status: **accepted** (2026-08-04, human sign-off)
+> Status: accepted
+> As-built: 2026-08-04, human sign-off
 > Date: 2026-08-04
 > Feeds: — (no ADR — OQ1's own lean adopted at sign-off: the mechanism is
 > 100% reused (`ESP.restart()`, already proven at `wifiSection.h:377` and

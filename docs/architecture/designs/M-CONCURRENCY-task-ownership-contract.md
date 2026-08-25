@@ -1,7 +1,8 @@
 # Design — M-CONCURRENCY: the task-ownership contract
 
 > Owner: Architect
-> Status: **proposed** — 2026-08-16
+> Status: proposed
+> As-built: 2026-08-16
 > Date: 2026-08-16
 > Feeds: a future ADR; promotes to `docs/architecture/interfaces/IFC-002`
 > Tracked-as: TASK-473

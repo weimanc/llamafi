@@ -1,7 +1,7 @@
 # Design — Heap Arbitration: Sprite Apps vs. SSL Tasks
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-26
 > Feeds: ADR-032
 > Tracked-as: (unscheduled — pending PM)

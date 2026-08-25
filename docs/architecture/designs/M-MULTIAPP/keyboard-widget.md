@@ -1,7 +1,7 @@
 # Design — KeyboardWidget
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-06-04 (updated 2026-06-06 — page 4 eliminated; OQ2/OQ3 resolved; implementation sketches; reusable elements noted; implementation audit 2026-06-06)
 > Part of: M-MULTIAPP
 > Consumers: [wifi-settings.md](wifi-settings.md), settings `app` tab (stock/crypto ticker entry)

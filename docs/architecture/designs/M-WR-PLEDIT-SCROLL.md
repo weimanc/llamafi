@@ -1,7 +1,8 @@
 # Design — WebRadio PLEDIT drag/velocity scroll (M-WR-PLEDIT-SCROLL)
 
 > Owner: Architect
-> Status: accepted — human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
+> Status: accepted
+> As-built: human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
 > Date: 2026-07-02 (dispositions applied 2026-07-03)
 > Feeds: ADR-TBD (lean below to be promoted after review)
 > Tracked-as: TASK-277

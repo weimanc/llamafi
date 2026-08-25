@@ -1,7 +1,8 @@
 # Design — M-WIFI-MULTI-AP: store multiple saved WiFi networks (manual switch only)
 
 > Owner: Architect
-> Status: **accepted** (2026-08-04, human sign-off)
+> Status: accepted
+> As-built: 2026-08-04, human sign-off
 > Date: 2026-08-04
 > Feeds: — (no ADR — OQ1's own lean adopted at sign-off: boot chain and
 > `wifiDiag::superviseTick()` are unchanged, so there's no boot-order or

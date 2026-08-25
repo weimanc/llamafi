@@ -1,7 +1,7 @@
 # New-App Integration Checklist
 
 > Owner: Developer / Architect  
-> Status: active  
+> Status: accepted
 > Date: 2026-06-14  
 > Ref: BP-036 (LL-076) — cross-cutting shell integrations must be audited at every new-app registration
 

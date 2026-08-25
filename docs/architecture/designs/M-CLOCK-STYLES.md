@@ -1,7 +1,8 @@
 # M-CLOCK-STYLES — Clock style variants + MM position fix
 
 > Owner: Architect  
-> Status: done (2026-06-13 — TASK-193; T_CLK_01–14 14/14 PASS)  
+> Status: done
+> As-built: 2026-06-13 — TASK-193; T_CLK_01–14 14/14 PASS
 > Date: 2026-06-12  
 > Part of: [overview.md](M-MULTIAPP/overview.md)  
 > See also: [clock.md](M-MULTIAPP/clock.md), [settings.md](M-MULTIAPP/settings.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)

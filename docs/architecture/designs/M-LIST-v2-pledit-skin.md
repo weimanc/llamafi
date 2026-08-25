@@ -1,7 +1,8 @@
 # Design — M-LIST-v2 Winamp PLEDIT Playlist Skin
 
 > Owner: Developer
-> Status: planned (2026-05-15)
+> Status: proposed
+> As-built: 2026-05-15
 > Tracked-as: TASK-047a–e
 > Deps: M-LIST (TASK-020 done), M2 bake pipeline, M3 renderer
 > Decision: ADR-018

@@ -1,7 +1,8 @@
 # Design — endless-ticker wraparound for the Winamp title marquee
 
 > Owner: Architect
-> Status: accepted (lean) — human-approved 2026-08-04 (Option B)
+> Status: accepted
+> As-built: lean) — human-approved 2026-08-04 (Option B)
 > Date: 2026-08-04
 > Feeds: (ADR TBD — promote once implemented + VE-verified)
 > Tracked-as: TASK-399

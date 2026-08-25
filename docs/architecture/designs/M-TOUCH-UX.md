@@ -1,7 +1,8 @@
 # Design — Touch UX Layer (M-TOUCH-UX)
 
 > Owner: Architect
-> Status: proposed (2026-05-31)
+> Status: proposed
+> As-built: 2026-05-31
 > ADR: ADR-035
 > Addresses: scattered hitbox arithmetic; missing UX feedback for async actions
 

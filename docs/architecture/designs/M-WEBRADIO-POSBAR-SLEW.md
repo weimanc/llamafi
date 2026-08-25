@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-POSBAR-SLEW: bound the buffer-fullness bar's visual travel per second
 
 > Owner: Architect
-> Status: **accepted** (2026-08-06, human sign-off)
+> Status: accepted
+> As-built: 2026-08-06, human sign-off
 > Date: 2026-08-06
 > Feeds: — (no ADR — same class of decision as M-WEBRADIO-POSBAR-SMOOTH:
 > a display-refresh tuning fix, not a novel architectural decision)

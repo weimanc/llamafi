@@ -1,7 +1,8 @@
 # M-MULTIAPP — App Interface and AppShell Refactor
 
 > Owner: Architect
-> Status: draft — awaiting review
+> Status: proposed
+> As-built: awaiting review
 > Date: 2026-05-25
 > Part of: [overview.md](overview.md)
 > Feeds: ADR-026

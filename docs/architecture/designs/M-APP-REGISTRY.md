@@ -2,7 +2,7 @@
 
 > Architect design doc · 2026-06-06  
 > ADR: [ADR-041](../decisions/ADR-041.md)  
-> Status: **proposed**
+> Status: proposed
 
 ---
 

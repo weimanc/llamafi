@@ -1,7 +1,8 @@
 # Design — WebRadio audio decode off loopTask (dedicated pump task)
 
 > Owner: Architect
-> Status: accepted — human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
+> Status: accepted
+> As-built: human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
 > Date: 2026-07-02 (dispositions applied 2026-07-03)
 > Feeds: (ADR TBD — promote the lean once Phase-1 DUT numbers land)
 > Tracked-as: TASK-278

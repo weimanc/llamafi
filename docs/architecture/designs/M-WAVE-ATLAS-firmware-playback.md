@@ -1,7 +1,8 @@
 # Design — M-WAVE-ATLAS Firmware Playback Mode
 
 > Owner: Architect
-> Status: draft (2026-05-17)
+> Status: proposed
+> As-built: 2026-05-17
 > Resolves: OQ-2 from M-WAVE-ATLAS-wave-atlas.md
 > Deps: M-WAVE-ATLAS (bake pipeline + atlas shipped), M-VIS-ATLAS (firmware pattern)
 

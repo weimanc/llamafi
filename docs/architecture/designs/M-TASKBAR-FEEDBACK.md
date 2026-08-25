@@ -1,7 +1,8 @@
 # Design — Taskbar tap feedback + switch latency (M-TASKBAR-FEEDBACK)
 
 > Owner: Architect
-> Status: accepted — human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
+> Status: accepted
+> As-built: human-approved 2026-07-03 (panel: VE/DEV/QM approve-with-changes ×3, dispositions applied)
 > Date: 2026-07-02 (dispositions applied 2026-07-03)
 > Feeds: — (ADR when the lean is accepted)
 > Tracked-as: TASK-279

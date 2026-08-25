@@ -1,7 +1,8 @@
 # Design — M-DISPLAYSEAM: re-examining the ADR-028 rejection
 
 > Owner: Architect
-> Status: **skeleton** — 2026-08-16
+> Status: proposed
+> As-built: 2026-08-16
 > Tracked-as: TASK-487
 > Revisits: [ADR-028](../decisions/ADR-028.md) (rejected 2026-07-18)
 

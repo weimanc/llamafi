@@ -1,7 +1,8 @@
 # Design — M-LIST-v3 Playlist Interactivity
 
 > Owner: Developer
-> Status: planned (2026-05-15; updated 2026-05-22)
+> Status: proposed
+> As-built: 2026-05-15; updated 2026-05-22
 > Tracked-as: TASK-051a–h
 > Deps: M-LIST-v2, TASK-021 (tap-to-play)
 

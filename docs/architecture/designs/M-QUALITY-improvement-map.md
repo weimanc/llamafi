@@ -1,7 +1,8 @@
 # Design — M-QUALITY: the improvement map
 
 > Owner: Architect
-> Status: **map** — 2026-08-16
+> Status: accepted
+> As-built: 2026-08-16
 > Purpose: one page that says what we are trying to improve, which document owns each area, what
 > unlocks what, and — explicitly — what we have decided *not* to do.
 > Indexes: [M-TESTARCH](M-TESTARCH-test-architecture.md) · [M-TOOLING](M-TOOLING-host-tool-architecture.md) ·

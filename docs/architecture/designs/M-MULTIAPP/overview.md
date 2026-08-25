@@ -1,7 +1,7 @@
 # Design — Multi-App Shell (M-MULTIAPP)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-22
 > Feeds: ADR-024 (app-switching model)
 > Split docs: [layout.md](layout.md) · [taskbar.md](taskbar.md) · [app-lifecycle.md](app-lifecycle.md) · [preview-tooling.md](preview-tooling.md)

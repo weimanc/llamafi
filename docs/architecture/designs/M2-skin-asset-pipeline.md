@@ -1,7 +1,8 @@
 # Design — M2 Skin Asset Pipeline
 
 > Owner: Architect / Developer
-> Status: done (tier 2 confirmed complete 2026-05-16 — all atlas + layout items verified in gen/)
+> Status: done
+> As-built: tier 2 confirmed complete 2026-05-16 — all atlas + layout items verified in gen/
 > Tracked-as: feature m2-001
 
 ## Scope

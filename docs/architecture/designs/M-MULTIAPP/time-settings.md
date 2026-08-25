@@ -1,7 +1,7 @@
 # Design — Time & Location Settings
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-06-04 (updated 2026-06-05 — whiteboard decisions applied; updated 2026-06-06 — implementation audit; naming, sort order, picker layout corrected to match impl)
 > Part of: M-MULTIAPP Settings (`time` tab)
 > See also: [settings.md](settings.md)

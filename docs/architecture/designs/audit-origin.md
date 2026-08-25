@@ -1,7 +1,8 @@
 # Design — audit_origin.py: PC-Side Origin-Relative Audit
 
 > Owner: Developer
-> Status: planned (2026-05-24)
+> Status: proposed
+> As-built: 2026-05-24
 > Tracked-as: TASK-082
 > Unblocks: TASK-081 (VE T141–T146 without DUT)
 

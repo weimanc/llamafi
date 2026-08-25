@@ -1,7 +1,8 @@
 # Design — M-VIS-ATLAS Bar-Height Atlas Visualizer
 
 > Owner: Architect
-> Status: draft (2026-05-16)
+> Status: proposed
+> As-built: 2026-05-16
 > Implements: PROP-002
 > R&D sources: M-VIS-animation-improvements.md, M-VIS-video-analysis-method.md, M-VIS-spectrum-analysis.md
 > Deps: M-VIS (TASK-050a–c done), skin asset pipeline (ADR-003, ADR-014)

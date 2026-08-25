@@ -1,7 +1,8 @@
 # Design — moving WebRadio's `connecttohost()` off loopTask (TASK-398)
 
 > Owner: Architect
-> Status: **accepted, VE consensus reached (2026-08-05) — implementation-ready.**
+> Status: accepted
+> As-built: VE consensus reached (2026-08-05) — implementation-ready.
 > Human-approved 2026-08-04; six independent VE passes same day/next, iterating to consensus per
 > explicit human direction, findings narrowing 4 → 4 → 4 → 3 → 1 → **0 blocking**. Full history in
 > the "Lean / decision" and "## VE review" sections below — summary: passes 1-2 found and fixed a

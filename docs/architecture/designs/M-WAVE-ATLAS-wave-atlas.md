@@ -1,7 +1,8 @@
 # Design — M-WAVE-ATLAS Oscilloscope Waveform Atlas
 
 > Owner: Architect
-> Status: draft (2026-05-17)
+> Status: proposed
+> As-built: 2026-05-17
 > R&D sources: M-VIS-waveform-analysis.md
 > Deps: M-VIS-ATLAS (bake pipeline pattern), M-VIS (TASK-050c — tickWave firmware, done)
 

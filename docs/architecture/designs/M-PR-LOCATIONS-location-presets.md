@@ -1,7 +1,8 @@
 # Design — M-PR-LOCATIONS: PlaneRadar location presets + geocode lookup
 
 > Owner: Architect
-> Status: **r2 — panel-reviewed** — proposed 2026-07-13; Q1–Q7 resolved by
+> Status: implemented
+> As-built: r2 — panel-reviewed — proposed 2026-07-13; Q1–Q7 resolved by
 > human same day (see Resolved questions); 4-reviewer panel (DEV/VE/QM/PM,
 > see `M-PR-LOCATIONS-*-review.md`) unanimous PASS-with-actions 2026-07-13;
 > all blockers/majors folded in 2026-07-14 (r2, this revision) — tasks filed

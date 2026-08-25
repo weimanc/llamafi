@@ -1,7 +1,8 @@
 # Design — M-ERRMODEL: what an error *is* in this system
 
 > Owner: Architect
-> Status: **skeleton** — 2026-08-16
+> Status: proposed
+> As-built: 2026-08-16
 > Tracked-as: TASK-484
 
 > **⚠ SKELETON — A STARTING POINT, NOT A DESIGN.**

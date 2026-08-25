@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-POSBAR-SMOOTH: smooth + rate-limit the WebRadio buffer-fullness bar
 
 > Owner: Architect
-> Status: **accepted** (2026-08-05, human sign-off)
+> Status: accepted
+> As-built: 2026-08-05, human sign-off
 > Date: 2026-08-05
 > Feeds: — (no ADR — human accepted the doc's own lean: this is a
 > display-refresh tuning fix, not a novel architectural decision)

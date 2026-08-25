@@ -1,7 +1,8 @@
 # Spec — `run/check-docs`: a staleness gate for architecture documents
 
 > Owner: Architect (spec) — **Developer implements**
-> Status: **proposed** — 2026-08-16
+> Status: proposed
+> As-built: 2026-08-16
 > Date: 2026-08-16
 > Parent: [M-DOCLIFE-keeping-design-docs-alive.md](M-DOCLIFE-keeping-design-docs-alive.md) §4
 > Tracked-as: TASK-475

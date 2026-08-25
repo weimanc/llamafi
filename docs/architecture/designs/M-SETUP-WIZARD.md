@@ -1,7 +1,8 @@
 # Design — M-SETUP-WIZARD: `run/setup` wizard
 
 > Owner: Architect  
-> Status: **implemented** (2026-06-11, `463ba0b`; VE-verified same day — feature
+> Status: implemented
+> As-built: 2026-06-11, `463ba0b`; VE-verified same day — feature
 > `setup-wizard-001`, T-SETUP-01..10)  
 > Milestone: M-SETUP-WIZARD  
 > Reality-sync 2026-07-16 (Architect pass): shipped as designed EXCEPT the

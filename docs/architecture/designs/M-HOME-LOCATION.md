@@ -1,7 +1,8 @@
 # Design — M-HOME-LOCATION: one device home location (X030 resolution)
 
 > Owner: Architect
-> Status: **accepted** (r2 2026-07-16 — panel-reviewed PASS-with-actions
+> Status: accepted
+> As-built: r2 2026-07-16 — panel-reviewed PASS-with-actions
 > [0 BLOCKER / 5 MAJOR, all folded: H-1 writer×mirror matrix, H-2 unconditional
 > slot-0 home refresh, H-3 pre-existing serial-writer mirror bug named+owned,
 > H-4 kCities-by-name hint reference, H-5 debug surface + G4 hard ordering],

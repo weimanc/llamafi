@@ -1,7 +1,8 @@
 # Design — M-SERIALDBG Serial Debug Command Framework
 
 > Owner: Developer
-> Status: planned (2026-05-17)
+> Status: proposed
+> As-built: 2026-05-17
 > ADR: [ADR-021](../decisions/ADR-021.md)
 > Deps: M5 (hit-test path), M-LOG (structured serial), M-CONN (reconnect baseline)
 

@@ -1,7 +1,8 @@
 # Design — Display repair: is the delta engine worth generalizing?
 
 > Owner: Architect
-> Status: implemented — Feeds: ADR-052 (accepted 2026-07-19); PlaneRadar
+> Status: implemented
+> As-built: Feeds: ADR-052 (accepted 2026-07-19); PlaneRadar
 > consumer landed as TASK-358 (commit `0c84e46`)
 > Date: 2026-07-19
 > Tracked-as: TASK-358 (PlaneRadar consumer); Clock Flip + heatmap viewport

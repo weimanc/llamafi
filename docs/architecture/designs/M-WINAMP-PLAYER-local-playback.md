@@ -1,7 +1,8 @@
 # Design — M-WINAMP-PLAYER-local: the Winamp-Player mode
 
 > Owner: Architect
-> Status: **accepted 2026-08-07** (ADR-059 signed off; implementation authorised)
+> Status: accepted
+> As-built: 2026-08-07 (ADR-059 signed off; implementation authorised)
 > Date: 2026-08-07
 > Parent: [M-WINAMP-PLAYER.md](M-WINAMP-PLAYER.md) (workstream 4 of 4)
 > Feeds: ADR-059 D3, D5, D6, D7, D8, D9

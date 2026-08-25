@@ -1,7 +1,8 @@
 # Design — M-BOOT-UI: paint Winamp chrome first, surface boot + whole-session WiFi status via the title marquee
 
 > Owner: Architect
-> Status: accepted (2026-07-20, human sign-off)
+> Status: accepted
+> As-built: 2026-07-20, human sign-off
 > Date: 2026-07-19 (extended same day, §6: whole-session background
 > WiFi-reconnect status, resolving OQ2 per human decision)
 > Feeds: ADR-055 (proposed)

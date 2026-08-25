@@ -1,7 +1,7 @@
 # Design — Crab Post-Implementation Fixes
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-30
 > Tracked-as: (pending task creation)
 > Supersedes: crab.md §2, §4, §8 (where contradicted below)

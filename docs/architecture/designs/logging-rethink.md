@@ -2,7 +2,8 @@
 
 > Owner: Architect
 > Date: 2026-05-07
-> Status: feeds ADR-010 (accepted)
+> Status: superseded
+> As-built: ADR-010 (accepted)
 > Trigger: User during M3 DUT verification — "improve logging"
 
 ## Pain points observed this session

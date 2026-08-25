@@ -1,7 +1,7 @@
 # Design — PlaneRadar fetch: HTTP response compression feasibility
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-08-06
 > Feeds: — (no ADR yet; this doc is the feasibility gate TASK-403 requires before any
 >   implementation)

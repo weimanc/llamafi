@@ -1,7 +1,7 @@
 # M-MULTIAPP — Interactive Preview Tooling
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
 > Companion: [preview-tooling.md](preview-tooling.md)

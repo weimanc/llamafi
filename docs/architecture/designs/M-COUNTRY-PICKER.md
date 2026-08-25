@@ -1,7 +1,8 @@
 # Design — M-COUNTRY-PICKER: shared country picker (SPickerList + ISO table)
 
 > Owner: Architect
-> Status: **accepted** (r2 2026-07-16 — panel-reviewed PASS-with-actions
+> Status: accepted
+> As-built: r2 2026-07-16 — panel-reviewed PASS-with-actions
 > [1 BLOCKER CP-1 phase-routing/takeover + 3 MAJOR CP-2/3/4, all folded into
 > D1/D2/D3], human sign-off; review: `M-COUNTRY-PICKER-review.md`. Notable:
 > CP-2 found a dead in-repo country bake this design now deletes; CP-10's

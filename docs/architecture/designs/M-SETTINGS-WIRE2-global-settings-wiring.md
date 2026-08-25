@@ -1,7 +1,8 @@
 # Design — M-SETTINGS-WIRE2: Global settings wiring gaps (audit remediation)
 
 > Owner: Architect
-> Status: **accepted** (r2 2026-07-16 — panel-reviewed PASS-with-actions, all MAJORs
+> Status: accepted
+> As-built: r2 2026-07-16 — panel-reviewed PASS-with-actions, all MAJORs
 > folded, human sign-off; see §10)
 > Date: 2026-07-16
 > Feeds: ADR-050 (accepted 2026-07-16)

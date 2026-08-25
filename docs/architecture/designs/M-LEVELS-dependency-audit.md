@@ -1,7 +1,8 @@
 # Design — M-LEVELS: auditing the dependency graph ADR-060 D2a asserts
 
 > Owner: Architect
-> Status: **audited** — 2026-08-16 (was: skeleton, same day)
+> Status: done
+> As-built: 2026-08-16 (was: skeleton, same day)
 > Tracked-as: TASK-485
 > Governs: [ADR-060](../decisions/ADR-060.md) D2a / D2b
 > Related: [M-TESTARCH §2c](M-TESTARCH-test-architecture.md) — test coverage per level

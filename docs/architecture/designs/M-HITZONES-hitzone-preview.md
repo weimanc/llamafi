@@ -1,7 +1,8 @@
 # Design — M-HITZONES Hit-zone Preview PNG
 
 > Owner: Developer
-> Status: done (2026-05-16)
+> Status: done
+> As-built: 2026-05-16
 > Tracked-as: TASK-054
 
 ## Scope

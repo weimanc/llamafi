@@ -1,7 +1,8 @@
 # Design — M-HEAP-FRAGMENTATION: Spotify's permanent TLS heap ceiling starves WebRadio's station fetch
 
 > Owner: Architect
-> Status: **parked** (2026-07-19, human decision — none of Option E's
+> Status: rejected
+> As-built: 2026-07-19, human decision — none of Option E's
 > variants appealed; not adopting now). Root-cause investigation and
 > design-space survey stand as a reference if this fragmentation issue
 > reoccurs or worsens; Option E is not scheduled and the `webradio-002`/

@@ -1,7 +1,8 @@
 # Design — In-app clock face/theme cycling via tap zones
 
 > Owner: Architect
-> Status: accepted — Q1–Q4 resolved by human 2026-07-18, all as proposed
+> Status: accepted
+> As-built: Q1–Q4 resolved by human 2026-07-18, all as proposed
 > Date: 2026-07-18
 > Tracked-as: TASK-346
 > Depends on: M-CLOCK-THEMES.md (TASK-345, implemented — `nixieTheme`/`vfdTheme` fields + runtime tint), ADR-050

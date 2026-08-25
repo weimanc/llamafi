@@ -1,7 +1,8 @@
 # Design — Aquarium Memory Optimisation (M-AQUARIUM-OPT)
 
 > Owner: Architect
-> Status: draft — gradient cache section superseded (see note below)
+> Status: proposed
+> As-built: gradient cache section superseded (see note below)
 > Date: 2026-05-28
 > ADR: [ADR-033](../../decisions/ADR-033.md) — gradient cache heap migration (pending supersession)
 

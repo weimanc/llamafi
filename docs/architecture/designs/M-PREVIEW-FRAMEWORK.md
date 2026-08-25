@@ -1,7 +1,8 @@
 # M-PREVIEW-FRAMEWORK — Common preview tool framework
 
 > Architect design doc · 2026-06-13
-> Status: **done — implemented 2026-06-13** (TASK-192). One implementation note: `pygame.K_Q` does not exist in pygame; `PreviewWindow.handle_event` uses `pg.K_q`. Exit-criteria separator pixel corrected below.
+> Status: done
+> As-built: implemented 2026-06-13 (TASK-192). One implementation note: `pygame.K_Q` does not exist in pygame; `PreviewWindow.handle_event` uses `pg.K_q`. Exit-criteria separator pixel corrected below.
 
 ---
 

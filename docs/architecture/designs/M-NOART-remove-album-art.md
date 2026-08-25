@@ -1,7 +1,7 @@
 # Design — Album-art path removal (M-NOART)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-20
 > Feeds: (leave blank — no ADR needed; change is structural, not cross-cutting)
 > Tracked-as: TASK-062

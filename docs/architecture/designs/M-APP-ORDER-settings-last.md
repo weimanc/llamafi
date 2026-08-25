@@ -1,7 +1,8 @@
 # Design — M-APP-ORDER: Settings pinned as last taskbar entry
 
 > Owner: Architect
-> Status: scheduled — designed 2026-07-18, filed as TASK-347. No ADR needed
+> Status: proposed
+> As-built: designed 2026-07-18, filed as TASK-347. No ADR needed
 > (ADR-041's X-macro registry already owns ordering; this adds one ordering
 > invariant on top of the existing WebRadio-last invariant).
 > Deps: ADR-041 (X-macro registry), TASK-242 (WebRadio taskbar exclusion),

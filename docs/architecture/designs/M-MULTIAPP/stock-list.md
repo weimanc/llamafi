@@ -1,7 +1,8 @@
 # M-MULTIAPP — Stock App: List View
 
 > Owner: Architect
-> Status: POC scope — ready for implementation
+> Status: proposed
+> As-built: scope — ready for implementation
 > Date: 2026-05-29
 > Part of: [stock.md](stock.md)
 > See also: [stock-chart.md](stock-chart.md)

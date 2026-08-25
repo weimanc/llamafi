@@ -1,7 +1,8 @@
 # Design — M-VENDORING: a policy for vendored upstream code
 
 > Owner: Architect
-> Status: **skeleton** — 2026-08-16
+> Status: proposed
+> As-built: 2026-08-16
 > Tracked-as: TASK-486
 > Extends: [ADR-060](../decisions/ADR-060.md) D2b
 

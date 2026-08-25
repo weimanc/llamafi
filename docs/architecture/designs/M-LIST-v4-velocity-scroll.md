@@ -1,7 +1,8 @@
 # Design — Velocity-Scroll PLEDIT (M-LIST-v4)
 
 > Owner: Architect
-> Status: draft — VE feedback incorporated (2026-05-25)
+> Status: proposed
+> As-built: VE feedback incorporated (2026-05-25)
 > Feeds: ADR-030
 > Tracked-as: TASK-TBD (PM to assign)
 > Deps: M-LIST-v3 (implemented), M-TOUCH-CAPTURE / TASK-101 (implemented)

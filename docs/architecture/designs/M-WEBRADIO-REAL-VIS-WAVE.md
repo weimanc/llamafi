@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-REAL-VIS-WAVE: real audio for WebRadio's "wave" mode
 
 > Owner: Architect
-> Status: implemented (2026-08-03, TASK-388 — see ADR-056's Amendment 2)
+> Status: implemented
+> As-built: 2026-08-03, TASK-388 — see ADR-056's Amendment 2
 > Date: 2026-08-02 (amended 2026-08-02, same day, post-PROP-009)
 > Feeds: ADR-056 (amended 2026-08-03 — see that doc's Amendment 2)
 > Tracked-as: TASK-388 (DONE 2026-08-03; rescoped 2026-08-02 — see amendment)

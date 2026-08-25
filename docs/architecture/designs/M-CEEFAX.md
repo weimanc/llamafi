@@ -1,7 +1,8 @@
 # Design — M-CEEFAX: NMS Ceefax Live Teletext
 
 > Owner: Architect
-> Status: **accepted, scheduled 2026-07-30** — see ADR-057. DS-6, DS-2, DS-7
+> Status: accepted
+> As-built: scheduled 2026-07-30 — see ADR-057. DS-6, DS-2, DS-7
 >   all resolved. DS-2 (EXP-006): real TLS contention, root-caused to a
 >   DMA-memory capacity ceiling; crash-prevention mitigation DUT-verified;
 >   decision locked 2026-07-29 to accept best-effort connectivity, framework

@@ -1,7 +1,7 @@
 # Design — Aquarium + VuMeter CPU Optimisation (M-AQUARIUM-CPU-OPT)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-06-04
 > Amended: 2026-06-04 — extended to cover vuMeter.h hotspots and shared math utility
 > Feeds: ADR-038 (pending)

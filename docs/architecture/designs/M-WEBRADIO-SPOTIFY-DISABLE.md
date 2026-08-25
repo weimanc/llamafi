@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-NOPSRAM: No-PSRAM playback viability via a Spotify-disabled build
 
 > Owner: Architect
-> Status: **sketch / proposed** (2026-06-26) — not implemented; PM to schedule as an `rnd/` experiment.
+> Status: proposed
+> As-built: / proposed (2026-06-26) — not implemented; PM to schedule as an `rnd/` experiment.
 > Review: **panel consensus reached, 2026-06-26** (PM/Dev/VE/QM/R&D). R1: 4 NEEDS-CHANGES + 1 AGREE-WITH-NITS → rev2. R2: Dev AGREE, PM/VE/QM/R&D AGREE-WITH-NITS → rev3 folds the substantive nits (two-threshold prediction, `get wrPlaying` V0 signal, dead-block method, single-guard comment, vacuous-coex warning).
 > Tracked-as: M-WEBRADIO-NOPSRAM (roadmap); experiment record → **EXP-008**; feeds TASK-241 / TASK-233 / ADR-045.
 > Deps: M-WEBRADIO (firmware complete); **prereq-done:** TASK-239/240 (~11 KB reclaim); **sidesteps:** TASK-243 (Premium); **baseline:** EXP-007.

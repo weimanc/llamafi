@@ -1,7 +1,8 @@
 # Design — M-PLANERADAR Phase 0: host parse trial + heap bound
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10; executed (see Results)
+> Status: proposed
+> As-built: designer-review PASS 2026-07-10; executed (see Results)
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)
 > Closes: R1 parse-heap term (coexistence term → parent exit criterion 4) — settles D1 lean with measured numbers

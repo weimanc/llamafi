@@ -1,7 +1,8 @@
 # Design — M-LOG2 On-screen Log Overlay
 
 > Owner: Developer
-> Status: done (TASK-018 DUT-verified 2026-05-07); PLEDIT compat fix needed before M-LIST-v2 ships
+> Status: done
+> As-built: TASK-018 DUT-verified 2026-05-07); PLEDIT compat fix needed before M-LIST-v2 ships
 > Tracked-as: TASK-018
 > Deps: log-001 (M-LOG ringbuffer in `logSink.h`), M3 (chrome as top layer)
 

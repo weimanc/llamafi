@@ -2,7 +2,8 @@
 
 > Owner: **Architect (seams) + VE (plan)** — joint. VE owns `test_plan.md` and `regression_suite/`
 > per AGENTS.md; the Architect defines the seams and VE challenges them for testability.
-> Status: **reviewed + restructured** — 2026-08-16 (was: skeleton, same day)
+> Status: done
+> As-built: + restructured — 2026-08-16 (was: skeleton, same day)
 > Tracked-as: TASK-483
 > Companion to: [M-TOOLING](M-TOOLING-host-tool-architecture.md) F1/F2, [ADR-060](../decisions/ADR-060.md) D0
 > Supersedes: the 2026-08-16 skeleton (63 lines). Its Known/Open items are dispositioned in §1 —

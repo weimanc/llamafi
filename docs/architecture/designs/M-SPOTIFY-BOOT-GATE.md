@@ -1,7 +1,8 @@
 # Design — M-SPOTIFY-BOOT-GATE: gate spotifyTask's TLS connect on g_settings.playerMode
 
 > Owner: Architect
-> Status: accepted (2026-07-19, human sign-off)
+> Status: accepted
+> As-built: 2026-07-19, human sign-off
 > Date: 2026-07-19
 > Feeds: ADR-054 (accepted)
 > Tracked-as: — (PM to file)

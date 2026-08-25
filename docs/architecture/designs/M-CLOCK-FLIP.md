@@ -1,7 +1,8 @@
 # M-CLOCK-FLIP — Flip Clock Renderer Physics
 
 > Owner: Architect  
-> Status: shipped (TASK-193, 2026-06-13 — `ClockApp::_drawFlip()` in `app/src/clockApp.h`);
+> Status: done
+> As-built: TASK-193, 2026-06-13 — `ClockApp::_drawFlip()` in `app/src/clockApp.h`);
 > **bug-fixed + polished (TASK-337, 2026-07-18)**; **resynced to the
 > `preview_clock.py`/`_clock_flip.py` concept tool (TASK-337 follow-up,
 > 2026-07-18)**. TASK-193 had a real rendering bug — each half-card drew

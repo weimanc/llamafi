@@ -1,7 +1,8 @@
 # Design — M-CODEQUAL: duplication, abstraction and constant-ownership cleanups
 
 > Owner: Architect
-> Status: **proposed** — 2026-08-15
+> Status: proposed
+> As-built: 2026-08-15
 > Date: 2026-08-15
 > Companion to: [M-SRCLAYOUT-main-decomposition.md](M-SRCLAYOUT-main-decomposition.md)
 > Tracked-as: TASK-458 … TASK-463

@@ -1,7 +1,7 @@
 # Design — AquariumApp Demoscene Optimisations (M-AQUARIUM-DEMOSCENE)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-28
 > Supersedes: seaweed-opt.md (absorbed), ADR-033 gradient heap migration (see §9)
 

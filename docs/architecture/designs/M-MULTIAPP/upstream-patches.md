@@ -1,7 +1,7 @@
 # M-RESTRUCTURE — Upstream Patch Registry
 
 > Owner: Developer  
-> Status: active  
+> Status: accepted
 > Part of: [source-ownership.md](source-ownership.md)
 
 Tracks every intentional deviation from upstream

@@ -1,7 +1,8 @@
 # Design — M-PLANERADAR: ADS-B Plane Radar app
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10 (4 rounds, incl. independent re-execution of the phase-0 harness); ADR-048/049 accepted 2026-07-11, implementation may proceed (TASK-303..307); TASK-301/302 remain open but non-blocking (see Phase 0 exit status)
+> Status: proposed
+> As-built: designer-review PASS 2026-07-10 (4 rounds, incl. independent re-execution of the phase-0 harness); ADR-048/049 accepted 2026-07-11, implementation may proceed (TASK-303..307); TASK-301/302 remain open but non-blocking (see Phase 0 exit status)
 > Date: 2026-07-10
 > Feeds: ADR-048 (parse/heap lean), ADR-049 (airport-DB bake variant) — both accepted 2026-07-11
 > Tracked-as: TASK-301..307 — PM breakdown 2026-07-10, see roadmap.md

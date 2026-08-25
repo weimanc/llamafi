@@ -1,7 +1,7 @@
 # Design — WebRadio on-device diagnostic surfacing (marquee/title-zone insight)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-08-04
 > Feeds: —
 > Tracked-as: —

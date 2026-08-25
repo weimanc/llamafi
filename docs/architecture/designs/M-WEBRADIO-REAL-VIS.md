@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-REAL-VIS: real audio-driven visualizer for WebRadio
 
 > Owner: Architect
-> Status: implemented (2026-07-30) — vu-002 landed (6444c4c/f3e0523), T_WR_VIS_01/02/03
+> Status: implemented
+> As-built: 2026-07-30) — vu-002 landed (6444c4c/f3e0523), T_WR_VIS_01/02/03
 > DUT-verified (897b71d), BP-048 human eyeball gate passed, ADR-056 accepted
 > Date: 2026-07-29
 > Feeds: ADR-056 (accepted 2026-07-30 — amends ADR-009 for the WebRadio case only)

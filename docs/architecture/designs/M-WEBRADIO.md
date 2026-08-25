@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO: International Web Radio App
 
 > Owner: Architect  
-> Status: design draft (R&D complete — EXP-005)  
+> Status: proposed
+> As-built: draft (R&D complete — EXP-005)
 > Date: 2026-06-13  
 > Tracked-as: (TBD — pending PM scheduling)
 

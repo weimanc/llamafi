@@ -1,7 +1,8 @@
 # Design — M-PLEDIT-ABSTRACTION: one playlist renderer behind a source interface
 
 > Owner: Architect
-> Status: **accepted 2026-08-07** (ADR-059 signed off; implementation authorised)
+> Status: accepted
+> As-built: 2026-08-07 (ADR-059 signed off; implementation authorised)
 > Date: 2026-08-07
 > Parent: [M-WINAMP-PLAYER.md](M-WINAMP-PLAYER.md) (workstream 3 of 4)
 > Feeds: ADR-059 D4

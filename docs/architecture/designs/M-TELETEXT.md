@@ -1,7 +1,7 @@
 # Design — M-TELETEXT: NOS Teletekst App
 
 > Owner: Architect
-> Status: final
+> Status: done
 > Date: 2026-06-13
 > Feeds: ADR-044
 > Tracked-as: TASK-175–TASK-191 (M-TELETEXT milestone)

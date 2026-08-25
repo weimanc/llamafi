@@ -1,7 +1,7 @@
 # Design — M-WEBRADIO-HOST-REPRO: host-side network reproduction harness for WebRadio connectivity
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-08-03
 > Feeds: TASK-390 (informs, does not replace — this is a diagnostic sub-investigation)
 > Tracked-as: TASK-391 (filed alongside this doc)

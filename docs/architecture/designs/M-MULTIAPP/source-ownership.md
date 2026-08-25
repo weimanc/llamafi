@@ -1,7 +1,8 @@
 # M-MULTIAPP — Source Ownership and Project Restructure
 
 > Owner: Architect
-> Status: draft (2026-05-24)
+> Status: proposed
+> As-built: 2026-05-24
 > Part of: [overview.md](overview.md)
 > Prerequisite for: M-MULTIAPP firmware implementation, originX=0 shift
 

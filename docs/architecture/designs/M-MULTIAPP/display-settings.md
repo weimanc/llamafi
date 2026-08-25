@@ -1,7 +1,7 @@
 # Design — Display Settings
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-06-04 (updated 2026-06-06 — implementation audit; tab layout labels corrected)
 > Part of: M-MULTIAPP Settings (`disp` tab)
 > See also: [settings.md](settings.md)

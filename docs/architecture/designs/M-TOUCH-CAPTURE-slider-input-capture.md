@@ -1,7 +1,8 @@
 # Design — Slider Input Capture (M-TOUCH-CAPTURE)
 
 > Owner: Architect
-> Status: approved (2026-05-25)
+> Status: accepted
+> As-built: 2026-05-25
 > Tracked-as: TASK-101 (implementation), TASK-102 (VE test suite)
 > Deps: touch-002 (skin-region touch, implemented)
 

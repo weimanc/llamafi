@@ -1,7 +1,8 @@
 # Design — M-WEBRADIO-REAL-VIS-SPECTRUM: graduate real per-band spectrum energy for WebRadio
 
 > Owner: Architect
-> Status: implemented (2026-08-03, TASK-387 — see ADR-056's amendment)
+> Status: implemented
+> As-built: 2026-08-03, TASK-387 — see ADR-056's amendment
 > Date: 2026-08-02
 > Feeds: ADR-056 (amended 2026-08-03 — see that doc's Amendment section)
 > Tracked-as: TASK-387 (DONE 2026-08-03)

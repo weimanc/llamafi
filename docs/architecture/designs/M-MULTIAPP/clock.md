@@ -1,7 +1,8 @@
 # M-MULTIAPP — Clock App Design
 
 > Owner: Architect
-> Status: implemented — doc predates App ABC (see implementation note)
+> Status: implemented
+> As-built: doc predates App ABC (see implementation note)
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
 > See also: [app-lifecycle.md](app-lifecycle.md), [app-interface.md](app-interface.md), [layout.md](layout.md)

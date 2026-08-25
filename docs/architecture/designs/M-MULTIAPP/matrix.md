@@ -1,7 +1,7 @@
 # M-MULTIAPP — Matrix Rain App Design
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
 > See also: [app-lifecycle.md](app-lifecycle.md), [layout.md](layout.md)

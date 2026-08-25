@@ -1,7 +1,8 @@
 # Design — M-PLANERADAR Phase 0: adsb.fi API probe + cert chain
 
 > Owner: Architect
-> Status: draft — designer-review PASS 2026-07-10; execution complete except
+> Status: proposed
+> As-built: designer-review PASS 2026-07-10; execution complete except
 > evening-soak scope cut pending human sign-off (see Results)
 > Date: 2026-07-10
 > Parent: [M-PLANERADAR-plane-radar-app.md](../M-PLANERADAR-plane-radar-app.md)

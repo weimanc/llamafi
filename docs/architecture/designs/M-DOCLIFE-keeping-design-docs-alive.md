@@ -1,7 +1,8 @@
 # Design — M-DOCLIFE: keeping architecture docs alive under many agents
 
 > Owner: Architect (proposing) — **decisions here belong to PM (process) and QM (adoption)**
-> Status: **proposed** — 2026-08-16
+> Status: proposed
+> As-built: 2026-08-16
 > Date: 2026-08-16
 > Tracked-as: TASK-474
 > Consulted: @PM (§3), @QM (§4). BP candidates in §4 are **candidates** — per AGENTS.md, QM brings

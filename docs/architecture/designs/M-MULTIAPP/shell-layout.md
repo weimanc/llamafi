@@ -1,7 +1,7 @@
 # M-MULTIAPP — Shell Layout Header (gen/shell_layout.h)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-22
 > Part of: [overview.md](overview.md)
 > Feeds: ADR-025

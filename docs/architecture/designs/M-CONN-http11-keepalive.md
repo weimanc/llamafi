@@ -1,7 +1,7 @@
 # Design — HTTP/1.1 Keep-Alive for SpotifyArduino
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-19
 > Feeds: (leave blank — no ADR yet)
 > Tracked-as: (leave blank)

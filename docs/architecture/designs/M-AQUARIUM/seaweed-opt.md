@@ -1,7 +1,7 @@
 # Design — Seaweed Procedural Optimisation (M-AQUARIUM-SEAWEED)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-28
 
 ---

@@ -1,7 +1,7 @@
 # Design — AquariumApp Hybrid Strip Renderer (M-AQUARIUM-HYBRID)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-29
 > Supersedes: fullheight.md (which proposed a 275×240 single sprite — infeasible at runtime heap)
 

@@ -1,7 +1,7 @@
 # Design — Aquarium Crab (M-AQUARIUM-CRAB)
 
 > Owner: Architect
-> Status: draft
+> Status: proposed
 > Date: 2026-05-29
 
 ---

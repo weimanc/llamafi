@@ -1,7 +1,8 @@
 # Design — M-LIST-v3 PLEDIT Hit-zone Redesign
 
 > Owner: Architect
-> Status: planned (2026-05-22)
+> Status: proposed
+> As-built: 2026-05-22
 > Tracked-as: TASK-051d (swipe gesture), TASK-051i (scrollbar strip drag), TASK-051j (hitzones PNG + human review)
 > Deps: M-LIST-v3 Feature 2 (scrollOffset), M-HITZONES tooling (TASK-054, done)
 

@@ -1,7 +1,8 @@
 # Design — M-WINAMP-PLAYER (umbrella): local media playback for the Winamp player slot
 
 > Owner: Architect
-> Status: **accepted 2026-08-07** (ADR-059 signed off; implementation authorised)
+> Status: accepted
+> As-built: 2026-08-07 (ADR-059 signed off; implementation authorised)
 > Date: 2026-08-07 (restructured from a single doc into umbrella + 4 workstreams, same date)
 > Feeds: ADR-059 (**accepted 2026-08-07**)
 > Tracked-as: TASK-408 … TASK-422 (proposed)

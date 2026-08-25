@@ -1,7 +1,8 @@
 # Design — M-SRCLAYOUT: decompose `main.cpp` and move state ownership out of it
 
 > Owner: Architect
-> Status: **partially landed; Stages A and B VERIFIED 2026-08-16** (a044f5d, 78caa95, b36f184) —
+> Status: proposed
+> As-built: landed; Stages A and B VERIFIED 2026-08-16 (a044f5d, 78caa95, b36f184) —
 > reviewed and DUT-verified under TASK-488, nothing reverted; see §5a. Stages C and D remain
 > **proposed** and need ADR-060 sign-off before TASK-455 begins.
 > Date: 2026-08-15

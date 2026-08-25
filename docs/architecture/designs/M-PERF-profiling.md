@@ -1,7 +1,8 @@
 # Design — M-PERF Profiling + Targeted Optimisation
 
 > Owner: Developer (tier 1) / Architect (tier 2 ADRs) / Developer (tier 3 impl)
-> Status: planned (added 2026-05-08)
+> Status: proposed
+> As-built: added 2026-05-08
 > Tracked-as: TASK-029–033
 > Deps: M-LOG (log-001 heartbeat plumbing), M3, M-IO
 
