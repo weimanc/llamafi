@@ -30,7 +30,12 @@ WINAMP_H  = SRC_DIR / "winamp" / "winampDisplay.h"
 LAYOUT_H  = GEN_DIR / "skin_layout.h"
 VUMETER_H = SRC_DIR / "winamp" / "vuMeter.h"
 
-SCREEN_W, SCREEN_H = 320, 240
+# M-CODEQUAL C5 (TASK-461): was an independent `320, 240` literal — this
+# tool bypassed the shared parser entirely.
+sys.path.insert(0, str(TOOLS_DIR))
+from shell_layout import defines as _shell_defines
+_D = _shell_defines(GEN_DIR / "shell_layout.h")
+SCREEN_W, SCREEN_H = _D["SCREEN_W"], _D["SCREEN_H"]
 
 
 # TASK-251: parse the VIS rect from vuMeter.h (its real owner) rather than

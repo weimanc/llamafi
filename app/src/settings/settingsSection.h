@@ -19,6 +19,7 @@
 #include "../touch/hitbox.h"
 #include "../touchPhase.h"
 #include "../settingsStorage.h"
+#include "gen/shell_layout.h"   // M-CODEQUAL C5 (TASK-461): APP_CANVAS_W
 
 extern TFT_eSPI tft;
 
@@ -26,7 +27,12 @@ extern TFT_eSPI tft;
 // Geometry — all sections share these bounds
 // ============================================================================
 
-static constexpr int16_t S_CANVAS_W     = 275;   // left canvas width (x:0..274)
+// M-CODEQUAL C5 (TASK-461): was an independent `= 275` literal; now a named
+// alias for the one canonical source (gen/shell_layout.h's APP_CANVAS_W) so
+// this section's own geometry can never drift from the shell's. Kept as its
+// own symbol (not renamed at each of its ~100 call sites across settings/)
+// on purpose — S_CANVAS_W is still the locally-meaningful name here.
+static constexpr int16_t S_CANVAS_W     = APP_CANVAS_W;   // left canvas width (x:0..274)
 static constexpr int16_t S_CANVAS_H     = 240;
 
 static constexpr int16_t S_HEADER_H     =  28;   // header bar height

@@ -10,6 +10,16 @@
 #define TASKBAR_ICON_W       36   // icon glyph width (centred in slot) — ADR-051, was 24
 #define TASKBAR_ICON_H       36   // icon glyph height — ADR-051, was 24
 
+// Screen + app canvas geometry (M-CODEQUAL C5, TASK-461): one source of
+// truth per concept — the app canvas ends where the taskbar begins (it is
+// NOT the same fact as the Winamp skin window's width, which comes from
+// the .wsz via bake_skin.py/skin_layout.h; firmware asserts the two
+// currently coincide rather than being defined as one constant).
+#define SCREEN_W      320   // hardware display width
+#define SCREEN_H      240   // hardware display height
+#define APP_CANVAS_W  275   // == TASKBAR_X: canvas ends where the taskbar begins
+#define APP_CANVAS_H  240   // == SCREEN_H: no horizontal chrome above/below the canvas
+
 // Aesthetics (resolved in interactive preview pass)
 #define TASKBAR_BG_RGB565    0x2104   // background fill colour
 #define TASKBAR_ACTIVE_STYLE 'A'      // A=3px left bar, B=full cell, C=dot

@@ -47,7 +47,7 @@ void CryptoApp::resume() {
 void CryptoApp::tick() { cryptoTick(); }
 
 void CryptoApp::repaintCrypto() {
-  tft.fillRect(0, CX_CANVAS_Y, 275, CX_CANVAS_H, TFT_BLACK);
+  tft.fillRect(0, CX_CANVAS_Y, APP_CANVAS_W, CX_CANVAS_H, TFT_BLACK);   // M-CODEQUAL C5 (TASK-461)
   tft.setTextDatum(TL_DATUM);
   tft.setTextColor(0xFFE0);
   tft.drawString("CRYPTO TERMINAL", CX_COL_SYM, CX_HEADER_Y, 2);

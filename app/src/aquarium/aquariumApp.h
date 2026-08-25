@@ -39,7 +39,10 @@ public:
 
 private:
     // ── Constants ──────────────────────────────────────────────────────────
-    static constexpr int   AQ_CANVAS_W            = 275;
+    // M-CODEQUAL C5 (TASK-461): was an independent `275` literal; now the one
+    // canonical source (gen/shell_layout.h's APP_CANVAS_W, visible here via
+    // appShell.h's include of it above).
+    static constexpr int   AQ_CANVAS_W            = APP_CANVAS_W;
     static constexpr int   AQ_CANVAS_H            = 240;  // informational; no single sprite this size
     static constexpr int   AQ_STRIP_H             = 40;
     static constexpr int   AQ_STRIP_COUNT         = 6;

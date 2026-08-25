@@ -26,9 +26,15 @@ TASKBAR_X      = int(_SH["TASKBAR_X"])        # 275
 TASKBAR_W      = int(_SH["TASKBAR_W"])         # 45
 TASKBAR_SLOT_H = int(_SH["TASKBAR_SLOT_H"])    # 40
 
-SCREEN_W = 320
-SCREEN_H = 240
-ORIGIN_X = 0   # M-RESTRUCTURE step 5 set originX=0; M-SHELL-LAYOUT will drive this from shell_layout.h
+# M-CODEQUAL C5 (TASK-461): SCREEN_W/SCREEN_H were independent `320`/`240`
+# literals — now parsed like everything else in this module.
+SCREEN_W = int(_SH["SCREEN_W"])
+SCREEN_H = int(_SH["SCREEN_H"])
+# ORIGIN_X is a settled architectural fact, not a generated value: M-RESTRUCTURE
+# step 5 shifted originX from 22 to 0 and that shift is permanent (no skin/shell
+# concept it could be re-derived from — closing the TODO this line used to carry,
+# per M-CODEQUAL C5's §6.2 instruction to "close it or delete it").
+ORIGIN_X = 0
 
 # VIS area constants — parsed from vuMeter.h's vu:: constexpr ints (not in skin_layout.h).
 _VUMETER = pathlib.Path(__file__).parent / "../src/winamp/vuMeter.h"

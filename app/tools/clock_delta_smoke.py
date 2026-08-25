@@ -24,6 +24,7 @@ import numpy as np
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from screendump import DutLite, dump_with_retry, autodetect_port  # noqa: E402
+from preview_common import APP_W as _APP_W  # noqa: E402  # M-CODEQUAL C5 (TASK-461)
 
 BAND_H  = 135
 MASK_X0, MASK_X1 = 120, 156   # colon column (all faces), end-exclusive
@@ -45,9 +46,9 @@ def wait_for_early_second(max_sec=25):
 def steady_pair(dut):
     wait_for_early_second()
     m0 = time.localtime().tm_min
-    a = dump_with_retry(dut, 0, 0, 275, BAND_H)
+    a = dump_with_retry(dut, 0, 0, _APP_W, BAND_H)
     time.sleep(2)
-    b = dump_with_retry(dut, 0, 0, 275, BAND_H)
+    b = dump_with_retry(dut, 0, 0, _APP_W, BAND_H)
     m1 = time.localtime().tm_min
     return a, b, (m0 == m1)
 

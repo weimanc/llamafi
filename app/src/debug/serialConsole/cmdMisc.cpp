@@ -63,12 +63,15 @@ void cmdInfo(const char *) {
 // screenshot instead of
 // a human eyeballing the DUT — see app/tools/screendump.py.
 void cmdScreenDump(const char *args) {
-  int x = 0, y = 0, w = 320, h = 240;
+  // M-CODEQUAL C5 (TASK-461): was raw 320/240 literals — SCREEN_W/SCREEN_H
+  // are the whole-panel dims (this command reads back the full physical
+  // display, not just the app canvas).
+  int x = 0, y = 0, w = SCREEN_W, h = SCREEN_H;
   sscanf(args, "%d %d %d %d", &x, &y, &w, &h);
   if (x < 0) x = 0;
   if (y < 0) y = 0;
-  if (w <= 0 || x + w > 320) w = 320 - x;
-  if (h <= 0 || y + h > 240) h = 240 - y;
+  if (w <= 0 || x + w > SCREEN_W) w = SCREEN_W - x;
+  if (h <= 0 || y + h > SCREEN_H) h = SCREEN_H - y;
   if (w <= 0 || h <= 0) {
     Serial.println("{\"ok\":false,\"cmd\":\"screendump\",\"error\":\"empty region\"}");
     return;
@@ -79,8 +82,8 @@ void cmdScreenDump(const char *args) {
   // the 12 KB to the heap between screendump calls instead of pinning it in
   // .bss for the life of the process; this command runs ~18s on-demand from
   // a host tool, not on any hot path, so the malloc cost is irrelevant.
-  const size_t kB64Size = ((320 * kBandRows * 2 + 2) / 3) * 4 + 8;
-  uint16_t *s_band = (uint16_t *)malloc(sizeof(uint16_t) * 320 * kBandRows);
+  const size_t kB64Size = ((SCREEN_W * kBandRows * 2 + 2) / 3) * 4 + 8;
+  uint16_t *s_band = (uint16_t *)malloc(sizeof(uint16_t) * SCREEN_W * kBandRows);
   unsigned char *s_b64 = (unsigned char *)malloc(kB64Size);
   if (!s_band || !s_b64) {
     free(s_band);

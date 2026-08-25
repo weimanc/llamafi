@@ -88,7 +88,7 @@ void WeatherApp::repaintWeatherTime() {
 }
 
 void WeatherApp::repaintWeather() {
-  tft.fillRect(0, 0, 275, 240, TFT_BLACK);
+  tft.fillRect(0, 0, APP_CANVAS_W, APP_CANVAS_H, TFT_BLACK);   // M-CODEQUAL C5 (TASK-461)
   weatherDrawChrome();
   repaintWeatherValues();
   repaintWeatherTime();

@@ -31,8 +31,12 @@ constexpr unsigned long REDRAW_MIN_INTERVAL_MS = 250;  // 4 Hz cap
 constexpr int FONT_ID   = 1;                            // 6×8 px GLCD
 constexpr int CHAR_W    = 6;
 constexpr int CHAR_H    = 8;
-constexpr int PANEL_W   = 320;
-constexpr int PANEL_H   = 240;
+// M-CODEQUAL C5 (TASK-461): was independent `320`/`240` literals; now the
+// one canonical source (gen/shell_layout.h's SCREEN_W/SCREEN_H, visible via
+// winampDisplay.h's include of it above) — this panel covers the whole
+// physical screen, not just the app canvas.
+constexpr int PANEL_W   = SCREEN_W;
+constexpr int PANEL_H   = SCREEN_H;
 constexpr int LINES_FIT = PANEL_H / CHAR_H;             // 30
 constexpr int CHARS_FIT = PANEL_W / CHAR_W;             // 53
 constexpr uint16_t FG   = TFT_GREEN;

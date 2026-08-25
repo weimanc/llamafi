@@ -18,6 +18,18 @@
 extern const uint16_t SKIN_MAIN_BG[];
 extern const uint16_t SKIN_CBUTTONS[];
 extern const uint16_t SKIN_FONT[];
+
+// M-CODEQUAL C5 (TASK-461): the Winamp window (skin_layout.h's WINDOW_W, from
+// the .wsz via bake_skin.py) and the app canvas (shell_layout.h's
+// APP_CANVAS_W, == TASKBAR_X — the canvas ends where the taskbar begins) are
+// independent facts that currently happen to share a value. Do not collapse
+// them into one constant — that would couple the skin format to the shell
+// layout and make a differently-sized future skin unrepresentable. This
+// assert is the one place that records they coincide today; if it ever
+// fires, that is a real divergence to resolve deliberately, not a bug in
+// the assert.
+static_assert(APP_CANVAS_W == WINDOW_W,
+              "skin window and app canvas have diverged — intentional? see M-CODEQUAL C5");
 extern const SkinUV SKIN_GLYPH[128];
 extern const uint16_t SKIN_NUMBERS[];
 extern const uint16_t SKIN_POSBAR[];

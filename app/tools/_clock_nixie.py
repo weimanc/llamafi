@@ -14,8 +14,14 @@ from __future__ import annotations
 
 import math
 import pathlib
+import sys as _sys
 import time as _time
 from abc import ABC, abstractmethod
+
+# M-CODEQUAL C5 (TASK-461): CANVAS_W/CANVAS_H below used to be independent
+# `275`/`240` literals — this tool bypassed the shared parser entirely.
+_sys.path.insert(0, str(pathlib.Path(__file__).parent))
+from preview_common import APP_W as _APP_W, APP_H as _APP_H
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
@@ -44,8 +50,8 @@ def _load_font(paths: list, size: int) -> ImageFont.FreeTypeFont:
 # ── ClockRenderer stub ─────────────────────────────────────────────────────────
 
 class ClockRenderer(ABC):
-    CANVAS_W = 275
-    CANVAS_H = 240
+    CANVAS_W = _APP_W
+    CANVAS_H = _APP_H
 
     def help_text(self) -> str:
         return "(no style-specific keys)"
@@ -79,7 +85,7 @@ TUBE_Y = 8
 
 _TUBE_GAP   = 6
 _COLON_W    = 22
-_MARGIN_X   = (275 - 4 * TUBE_W - 2 * _TUBE_GAP - _COLON_W) // 2  # 24
+_MARGIN_X   = (_APP_W - 4 * TUBE_W - 2 * _TUBE_GAP - _COLON_W) // 2  # 24
 
 TUBE_XS = [
     _MARGIN_X,                                          # H1 = 24
@@ -381,7 +387,7 @@ if __name__ == "__main__":
     import sys
 
     renderer = NixieRenderer()
-    img = Image.new("RGB", (275, 240), (0, 0, 0))
+    img = Image.new("RGB", (_APP_W, _APP_H), (0, 0, 0))
     t   = _time.struct_time((2026, 6, 13, 8, 42, 0, 4, 164, 1))
     renderer.render(img, t)
 

@@ -128,13 +128,13 @@ void SettingsApp::_onCategoryTap(int idx) {
 }
 
 void SettingsApp::repaintHeader(const char* title) {
-  tft.fillRect(0, 0, 275, SETTINGS_HEADER_H, SETTINGS_BG_RGB565);
+  tft.fillRect(0, 0, APP_CANVAS_W, SETTINGS_HEADER_H, SETTINGS_BG_RGB565);   // M-CODEQUAL C5 (TASK-461)
   tft.setTextColor(SETTINGS_HEADER_TXT);
   tft.setTextDatum(ML_DATUM);
   tft.drawString("< back", 4, 14, 2);
   tft.setTextDatum(MR_DATUM);
   tft.drawString(title, 271, 14, 2);
-  tft.drawFastHLine(0, SETTINGS_HEADER_H - 1, 275, SETTINGS_SEP_COLOR);
+  tft.drawFastHLine(0, SETTINGS_HEADER_H - 1, APP_CANVAS_W, SETTINGS_SEP_COLOR);
   tft.setTextDatum(TL_DATUM);
 }
 
@@ -144,7 +144,7 @@ void SettingsApp::repaintCategoryList() {
     "Display", "LED", "Applications", "System"
   };
   repaintHeader("Settings");
-  tft.fillRect(0, SETTINGS_CONTENT_Y, 275, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);
+  tft.fillRect(0, SETTINGS_CONTENT_Y, APP_CANVAS_W, SETTINGS_CONTENT_H, SETTINGS_BG_RGB565);   // M-CODEQUAL C5 (TASK-461)
   for (int i = 0; i < SETTINGS_CAT_COUNT; i++) {
     int y   = SETTINGS_CONTENT_Y + i * SETTINGS_ROW_H;
     int mid = y + SETTINGS_ROW_H / 2;

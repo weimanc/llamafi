@@ -23,7 +23,7 @@ void TouchDebugOverlay::drawDiamond(int x, int y) {
 }
 
 void TouchDebugOverlay::drawCrosshair(int x, int y) {
-    tft.drawFastHLine(0, y, 275, 0x4208);   // horizontal -- x:0..274
+    tft.drawFastHLine(0, y, APP_CANVAS_W, 0x4208);   // horizontal -- x:0..274
     tft.drawFastVLine(x, 0, 240, 0x4208);   // vertical   -- y:0..239
 }
 

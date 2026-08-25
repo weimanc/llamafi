@@ -373,7 +373,8 @@ private:
         int32_t ryT = ((int32_t)_rawY[0] + _rawY[1]) / 2;   // TL + TR
         int32_t ryB = ((int32_t)_rawY[2] + _rawY[3]) / 2;   // BR + BL (note: BR=2, BL=3)
 
-        int32_t screenW = 275 - 2 * CAL_INSET_X;   // = 235
+        // M-CODEQUAL C5 (TASK-461): was a raw `275` literal.
+        int32_t screenW = S_CANVAS_W - 2 * CAL_INSET_X;   // = 235
         int32_t screenH = 239 - CAL_INSET_Y - 20;  // = 171
 
         if (screenW == 0 || screenH == 0) return false;
@@ -552,8 +553,9 @@ private:
         // sizeX_px=320, sizeY_px=240 — must match CYD28_TouchR constructor args.
         int32_t xRange = (int32_t)g_calData.xMax - g_calData.xMin;
         int32_t yRange = (int32_t)g_calData.yMax - g_calData.yMin;
-        int ax = (xRange > 0) ? (int)(((int32_t)(_rawX[i] - g_calData.xMin) * 320) / xRange) : 0;
-        int ay = (yRange > 0) ? (int)(((int32_t)(_rawY[i] - g_calData.yMin) * 240) / yRange) : 0;
+        // M-CODEQUAL C5 (TASK-461): was raw 320/240 literals.
+        int ax = (xRange > 0) ? (int)(((int32_t)(_rawX[i] - g_calData.xMin) * SCREEN_W) / xRange) : 0;
+        int ay = (yRange > 0) ? (int)(((int32_t)(_rawY[i] - g_calData.yMin) * SCREEN_H) / yRange) : 0;
         ax = constrain(ax, 0, 274);
         ay = constrain(ay, 0, 239);
 

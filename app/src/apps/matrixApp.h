@@ -13,7 +13,10 @@ extern TFT_eSPI tft;
 #define MATRIX_STREAMS    14
 #define MATRIX_STRIDE     19
 #define MATRIX_TICK_MS    25
-#define MATRIX_CANVAS_W  275
+// M-CODEQUAL C5 (TASK-461): was an independent `275` literal; now the one
+// canonical source (gen/shell_layout.h's APP_CANVAS_W, visible via
+// appShell.h's include of it above).
+#define MATRIX_CANVAS_W  APP_CANVAS_W
 #define MATRIX_CANVAS_H  240
 
 struct MatrixAppState {

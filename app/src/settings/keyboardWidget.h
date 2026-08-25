@@ -18,7 +18,11 @@ extern TFT_eSPI tft;
 #define KB_INPUT_H    40
 #define KB_ROW_H      40
 #define KB_KEY_W      27
-#define KB_CANVAS_W  275
+// M-CODEQUAL C5 (TASK-461): was an independent `275` literal; now the one
+// canonical source (settingsSection.h's S_CANVAS_W, itself an alias for
+// gen/shell_layout.h's APP_CANVAS_W — settingsSection.h is already included
+// above).
+#define KB_CANVAS_W  S_CANVAS_W
 
 // ---- Key tables (static file-scope to avoid ODR issues with constexpr) ----
 

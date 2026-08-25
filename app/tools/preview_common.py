@@ -13,17 +13,25 @@ import sys
 #    mirrored literals rot silently, and preview_layout's --export writes
 #    the header back from these values) ─────────────────────────────────────────
 
-SCREEN_W  = 320   # hardware, not in shell_layout.h
-SCREEN_H  = 240
-APP_W     = 275
-APP_H     = 240
-
 import pathlib as _pathlib
 import sys as _sys
 _sys.path.insert(0, str(_pathlib.Path(__file__).parent))
 from shell_layout import defines as _shell_defines, rgb565_to_rgb8 as _565
 
 _D = _shell_defines()
+
+# M-CODEQUAL C5 (TASK-461): SCREEN_W/SCREEN_H/APP_W/APP_H used to be hand-
+# typed here ("hardware, not in shell_layout.h") — the actual gap the design
+# doc's §6.2 named. preview_layout.py's --export now emits SCREEN_W/SCREEN_H/
+# APP_CANVAS_W/APP_CANVAS_H, closing it; parsed like every other constant
+# here. Kept the APP_W/APP_H *names* (not renamed to APP_CANVAS_W) — several
+# preview_*.py tools already import them by this name and the source-of-
+# truth fix doesn't require a rename fan-out too.
+SCREEN_W  = _D["SCREEN_W"]
+SCREEN_H  = _D["SCREEN_H"]
+APP_W     = _D["APP_CANVAS_W"]
+APP_H     = _D["APP_CANVAS_H"]
+
 TASKBAR_X          = _D["TASKBAR_X"]
 TASKBAR_W          = _D["TASKBAR_W"]
 TASKBAR_SLOT_H     = _D["TASKBAR_SLOT_H"]
