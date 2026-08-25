@@ -67,10 +67,22 @@ def has(res, frag) -> bool:
 def case_a5_guard_removed():
     """A5 (TASK-458): Teletext was converted to spotifyTask::TlsYieldGuard —
     dropping the guard declaration must still surface an unbracketed FAIL,
-    the same as dropping a literal tlsYield() did for the old pattern."""
+    the same as dropping a literal tlsYield() did for the old pattern.
+
+    Re-anchored for TASK-460 (M-CODEQUAL C1): fetchTeletext() now calls the
+    shared httpFetchJsonBuffered() skeleton, which moved LOG_HEAP("dataTask.
+    teletext") out of fetchTeletext() and into the (unattributable, generic)
+    skeleton — WiFiClientSecure tls; stays in fetchTeletext() itself (on
+    purpose: A5's attribution scan is per-enclosing-function, so collapsing
+    the TLS declaration into the skeleton would make every one of the four
+    consolidated sites unattributable to any app), so the anchor now runs
+    through the BufferedFetchCfg line that's unique to Teletext (root CA +
+    cert tag) rather than the old adjacent LOG_HEAP call."""
     s = edit(base_srcs(), DATA,
-             'spotifyTask::TlsYieldGuard tlsGuard;\n    LOG_HEAP("dataTask.teletext");',
-             'LOG_HEAP("dataTask.teletext");')
+             'spotifyTask::TlsYieldGuard tlsGuard;\n    WiFiClientSecure tls;\n'
+             '    BufferedFetchCfg cfg{url, TELETEXT_NOS_ROOT_CA, DATA_FETCH_TELETEXT_PAGE,',
+             'WiFiClientSecure tls;\n'
+             '    BufferedFetchCfg cfg{url, TELETEXT_NOS_ROOT_CA, DATA_FETCH_TELETEXT_PAGE,')
     r = findings(s)
     assert has(r, "A5/Teletext"), r["failures"]
     assert r["a5_cells"]["Teletext"] == "FAIL", r["a5_cells"]

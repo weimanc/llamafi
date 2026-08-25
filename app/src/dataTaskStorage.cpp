@@ -177,12 +177,13 @@ static constexpr int OPENHTTPS_BEGIN_FAILED = INT_MIN;
 // Reserved band -120..-129: TLS-layer sentinels (see dataTask.h).
 static constexpr int CERT_VERIFY_FAILED = -120;
 
-// TASK-341: shared substitution, factored out of openHttps() so the fetchers
-// that hand-roll begin()/GET() instead of going through it (their divergence
-// is deliberate — extra headers/streaming-filter parse between begin() and
-// GET() that openHttps()'s atomic begin+GET can't accommodate) get the same
-// -120 surfacing with a two-line call, not a copy-pasted check. Checked only
-// when GET() already failed; a stale-but-different lastError() code falls
+// TASK-341: shared substitution, factored out so the fetchers that hand-roll
+// begin()/GET() instead of going through httpFetchJsonBuffered() (TASK-460;
+// their divergence is deliberate — extra headers/streaming-filter parse
+// between begin() and GET() that the buffered skeleton's atomic begin+GET
+// can't accommodate) get the same -120 surfacing with a two-line call, not a
+// copy-pasted check. Checked only when GET() already failed; a stale-but-
+// different lastError() code falls
 // through to the raw HTTPClient code unchanged.
 static int certSentinel(WiFiClientSecure& tls, int code) {
     if (code < 0) {
@@ -235,18 +236,76 @@ static const char* wrongCaFor(FetchType type) {
     }
 }
 
-static int openHttps(WiFiClientSecure& tls, HTTPClient& http, const char* url,
-                      const char* rootCA, bool insecure) {
-    if (insecure) tls.setInsecure();
-    else          tls.setCACert(rootCA);
+// TASK-460 (M-CODEQUAL C1, buffered half — supersedes TASK-223's openHttps()):
+// shared skeleton for the four BUFFERED fetches (fetchWeather, fetchCrypto,
+// fetchTeletext, fetchGeocode — http.getString() into a String, http.end(),
+// then parse; see M-CODEQUAL-duplication-and-abstraction.md §2). The five
+// STREAMING fetches (fetchStockQuote/fetchStockChartWithRetry/
+// fetchHeatmapQuote/fetchStockChartBySym/fetchPlaneRadar) parse directly off
+// http.getStream() under a DeserializationOption::Filter and are explicitly
+// out of scope — one skeleton cannot serve both without dropping that filter
+// (a real heap regression).
+//
+// WiFiClientSecure and the TlsYieldGuard stay declared in the CALLER, not in
+// here, even though that means one more line per call site: A6's checker
+// counterpart, check_app_conformance.py's A5 scan, attributes an HTTPS
+// session-open site to an app by finding the WiFiClientSecure declaration's
+// *enclosing function* — collapsing that declaration into this shared helper
+// would make every one of the four sites enclose in this one generic
+// function instead of fetchWeather()/fetchCrypto()/fetchTeletext()/
+// fetchGeocode(), which the checker cannot attribute to any single app.
+// Keeping `WiFiClientSecure tls;` (and the guard that must precede it for
+// A5's bracket scan) in the caller keeps both per-app attribution and the
+// bracket-coverage proof exactly as before.
+//
+// Only the URL, root CA, cert-break tag, phase slot, log tag, and parse body
+// vary between the four; everything else — cert-break substitution, HTTP/1.0,
+// begin()+GET()+certSentinel(), buffering the body, http.end(), phase
+// bookkeeping — is here once. Constraint (-std=gnu++11): the parse callback
+// is a template parameter (lambda or function pointer), never std::function
+// — no heap allocation for the callback. The callback is invoked exactly
+// once, unconditionally, with the HTTP result code (possibly
+// OPENHTTPS_BEGIN_FAILED) and the body (empty unless code == 200) — same
+// division of labour the four functions already had: this owns the
+// transport, the callback owns everything that used to run after http.end().
+struct BufferedFetchCfg {
+    const char*       url;
+    const char*       rootCa;
+    FetchType         certTag;
+    volatile int8_t*  phaseSlot;   // nullable — Teletext/Geocode track no phase
+    const char*       logTag;      // e.g. "dataTask.weather" — DUT tests grep this exact tag
+    const char*       userAgent;   // nullable — Geocode's mandatory pre-begin() Nominatim UA
+};
+
+template <typename ParseFn>
+static void httpFetchJsonBuffered(WiFiClientSecure& tls, const BufferedFetchCfg& cfg,
+                                   ParseFn parse) {
+    if (cfg.phaseSlot) *cfg.phaseSlot = 0;   // TLS + http.begin
+    LOG_HEAP(cfg.logTag);
+    tls.setCACert(consumeCertBreak(cfg.certTag)
+                      ? wrongCaFor(cfg.certTag) : cfg.rootCa);  // TASK-344
+    HTTPClient http;
+    if (cfg.userAgent) http.setUserAgent(cfg.userAgent);  // must precede begin()
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
-    if (!http.begin(tls, url)) return OPENHTTPS_BEGIN_FAILED;
-    int code = http.GET();
-    return insecure ? code : certSentinel(tls, code);   // begin() succeeded — caller still http.end()s
+    if (!http.begin(tls, cfg.url)) {
+        if (cfg.phaseSlot) *cfg.phaseSlot = -1;
+        parse(OPENHTTPS_BEGIN_FAILED, String());
+        return;
+    }
+    if (cfg.phaseSlot) *cfg.phaseSlot = 1;   // GET in flight
+    unsigned long t0 = millis();
+    int code = certSentinel(tls, http.GET());  // TASK-341
+    LOG_D(cfg.logTag, "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
+    String body;
+    if (code == 200) body = http.getString();
+    http.end();              // TLS freed here (HTTP/1.0 close)
+    LOG_HEAP(cfg.logTag);
+    if (cfg.phaseSlot && code == 200) *cfg.phaseSlot = 2;  // JSON parse
+    parse(code, body);
+    if (cfg.phaseSlot) *cfg.phaseSlot = -1;
 }
 
 static void fetchWeather() {
-    s_weatherFetchPhase = 0;  // TLS + http.begin
     // WIRE2-G4: read back the coords snapshotted by enqueueWeather() under the
     // same mux (matches fetchPlaneRadar's read of its pending slot).
     float lat, lon;
@@ -264,28 +323,18 @@ static void fetchWeather() {
     // below. Was previously omitted here despite BP-031 citing weather as
     // conforming — fixed 2026-06-21 (TASK-222).
     spotifyTask::TlsYieldGuard tlsGuard;
-    LOG_HEAP("dataTask.weather");
     WiFiClientSecure tls;
-    tls.setCACert(consumeCertBreak(DATA_FETCH_WEATHER)
-                      ? wrongCaFor(DATA_FETCH_WEATHER) : OPEN_METEO_ROOT_CA);  // TASK-344
-    HTTPClient http;
-    http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
-    if (!http.begin(tls, url)) {
-        LOG_W("dataTask.weather", "http.begin failed");
-        s_weatherFetchPhase = -1;
-        return;
-    }
-    s_weatherFetchPhase = 1;  // GET in flight
-    unsigned long t0 = millis();
-    int code = certSentinel(tls, http.GET());  // TASK-341
-    LOG_D("dataTask.weather", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
-    String body;
-    if (code == 200) body = http.getString();
-    else             LOG_W("dataTask.weather", "http %d", code);
-    http.end();             // TLS freed here (HTTP/1.0 close)
-    LOG_HEAP("dataTask.weather");
-    if (code == 200) {
-        s_weatherFetchPhase = 2;  // JSON parse
+    BufferedFetchCfg cfg{url, OPEN_METEO_ROOT_CA, DATA_FETCH_WEATHER,
+                          &s_weatherFetchPhase, "dataTask.weather", nullptr};
+    httpFetchJsonBuffered(tls, cfg, [](int code, const String& body) {
+        if (code == OPENHTTPS_BEGIN_FAILED) {
+            LOG_W("dataTask.weather", "http.begin failed");
+            return;
+        }
+        if (code != 200) {
+            LOG_W("dataTask.weather", "http %d", code);
+            return;
+        }
         // M-MEMPLAN §8 (TASK-326): backed by MEM_weather_doc (same overlay region).
         BasicJsonDocument<StaticRegionAllocator> doc(
             1024, StaticRegionAllocator{MEM_weather_doc, 1024u});
@@ -305,8 +354,7 @@ static void fetchWeather() {
         } else {
             LOG_W("dataTask.weather", "JSON parse error: %s", err.c_str());
         }
-    }
-    s_weatherFetchPhase = -1;
+    });
 }
 
 static void fetchCrypto() {
@@ -333,30 +381,19 @@ static void fetchCrypto() {
     cryptoUrl += ccy;
     cryptoUrl += "&include_24hr_change=true";
 
-    s_cryptoFetchPhase = 0;  // TLS + http.begin
-    LOG_HEAP("dataTask.crypto");
     WiFiClientSecure tls;
-    tls.setCACert(consumeCertBreak(DATA_FETCH_CRYPTO)
-                      ? wrongCaFor(DATA_FETCH_CRYPTO) : COINGECKO_ROOT_CA);  // TASK-344
-    HTTPClient http;
-    http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
-    if (!http.begin(tls, cryptoUrl)) {
-        LOG_W("dataTask.crypto", "http.begin failed");
-        s_cryptoFetchPhase = -1;
-        return;
-    }
-    s_cryptoFetchPhase = 1;  // GET in flight
-    unsigned long t0 = millis();
-    int code = certSentinel(tls, http.GET());  // TASK-341
-    s_cryptoLastCode = code;
-    LOG_D("dataTask.crypto", "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
-    String body;
-    if (code == 200) body = http.getString();
-    else             LOG_W("dataTask.crypto", "http %d", code);
-    http.end();             // TLS freed here (HTTP/1.0 close)
-    LOG_HEAP("dataTask.crypto");
-    if (code == 200) {
-        s_cryptoFetchPhase = 2;  // JSON parse
+    BufferedFetchCfg cfg{cryptoUrl.c_str(), COINGECKO_ROOT_CA, DATA_FETCH_CRYPTO,
+                          &s_cryptoFetchPhase, "dataTask.crypto", nullptr};
+    httpFetchJsonBuffered(tls, cfg, [&](int code, const String& body) {
+        s_cryptoLastCode = code;
+        if (code == OPENHTTPS_BEGIN_FAILED) {
+            LOG_W("dataTask.crypto", "http.begin failed");
+            return;
+        }
+        if (code != 200) {
+            LOG_W("dataTask.crypto", "http %d", code);
+            return;
+        }
         // M-MEMPLAN §8 (TASK-269): backed by MEM_crypto_doc (same overlay region).
         BasicJsonDocument<StaticRegionAllocator> doc(
             2048, StaticRegionAllocator{MEM_crypto_doc, 2048u});
@@ -379,8 +416,7 @@ static void fetchCrypto() {
         } else {
             LOG_W("dataTask.crypto", "JSON parse error: %s", err.c_str());
         }
-    }
-    s_cryptoFetchPhase = -1;
+    });
 }
 
 static void fetchStockQuote() {
@@ -618,39 +654,28 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
     // leaving maxAlloc<50k — insufficient for a new TLS handshake. Same fix as
     // fetchCrypto/fetchStockQuote/fetchHeatmapQuote. Supersedes ADR-044 item 9.
     spotifyTask::TlsYieldGuard tlsGuard;
-    LOG_HEAP("dataTask.teletext");
     WiFiClientSecure tls;
-    HTTPClient http;
-    unsigned long t0 = millis();
-    int code = openHttps(tls, http, url,
-        consumeCertBreak(DATA_FETCH_TELETEXT_PAGE)
-            ? wrongCaFor(DATA_FETCH_TELETEXT_PAGE) : TELETEXT_NOS_ROOT_CA,  // TASK-344
-        /*insecure=*/false);
-    if (code == OPENHTTPS_BEGIN_FAILED) {
-        LOG_W("dataTask.teletext", "http.begin failed page=%u", page);
-        portENTER_CRITICAL_SAFE(&s_teletextMux);
-        s_teletextState.lastHttpCode = -1;
-        portEXIT_CRITICAL_SAFE(&s_teletextMux);
-        return;
-    }
-    LOG_D("dataTask.teletext", "GET page=%u %d elapsed=%lums", page, code, (unsigned long)(millis() - t0));
-    String body;
-    if (code == 200) body = http.getString();
-    else             LOG_W("dataTask.teletext", "http %d page=%u", code, page);
-    http.end();
-    LOG_HEAP("dataTask.teletext");
+    BufferedFetchCfg cfg{url, TELETEXT_NOS_ROOT_CA, DATA_FETCH_TELETEXT_PAGE,
+                          nullptr, "dataTask.teletext", nullptr};
+    httpFetchJsonBuffered(tls, cfg, [page](int code, const String& body) {
+        if (code == OPENHTTPS_BEGIN_FAILED) {
+            LOG_W("dataTask.teletext", "http.begin failed page=%u", page);
+            portENTER_CRITICAL_SAFE(&s_teletextMux);
+            s_teletextState.lastHttpCode = -1;
+            portEXIT_CRITICAL_SAFE(&s_teletextMux);
+            return;
+        }
+        if (code != 200) {
+            LOG_W("dataTask.teletext", "http %d page=%u", code, page);
+            portENTER_CRITICAL_SAFE(&s_teletextMux);
+            s_teletextState.lastHttpCode = code;
+            portEXIT_CRITICAL_SAFE(&s_teletextMux);
+            return;
+        }
 
-    TeletextState st = {};
-    st.lastHttpCode = code;
-
-    if (code != 200) {
-        portENTER_CRITICAL_SAFE(&s_teletextMux);
-        s_teletextState.lastHttpCode = code;
-        portEXIT_CRITICAL_SAFE(&s_teletextMux);
-        return;
-    }
-
-    st.page = page;
+        TeletextState st = {};
+        st.lastHttpCode = code;
+        st.page = page;
 
     // --- Parse navigation metadata (lines before <pre> of form KEY=VALUE) ---
     {
@@ -767,10 +792,11 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
           st.page, st.prevPage, st.nextPage,
           st.ftlTargets[0], st.ftlTargets[1], st.ftlTargets[2], st.ftlTargets[3]);
 
-    portENTER_CRITICAL_SAFE(&s_teletextMux);
-    s_teletextState = st;
-    s_teletextNew   = true;
-    portEXIT_CRITICAL_SAFE(&s_teletextMux);
+        portENTER_CRITICAL_SAFE(&s_teletextMux);
+        s_teletextState = st;
+        s_teletextNew   = true;
+        portEXIT_CRITICAL_SAFE(&s_teletextMux);
+    });
 }
 
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
@@ -1438,8 +1464,8 @@ static void geoUrlEncode(char* dst, size_t dstLen, const char* src) {
 // contract per phase0-geocode-probe.md: jsonv2, limit=1, addressdetails=0;
 // max observed response 459 B -> 1 KB parse doc (measured, BP-001); lat/lon
 // arrive as JSON *strings*; "[]" = postcode unknown (-96, distinct from
-// network errors so the editor can say "not found"). openHttps() supplies
-// the -120 pinned-CA sentinel (TASK-318); NOMINATIM_ROOT_CA carries a
+// network errors so the editor can say "not found"). httpFetchJsonBuffered()
+// (TASK-460) supplies the -120 pinned-CA sentinel (TASK-318); NOMINATIM_ROOT_CA carries a
 // cross-sign rot risk documented at its #define.
 static void fetchGeocode() {
     char country[4], postcode[12];
@@ -1451,7 +1477,7 @@ static void fetchGeocode() {
     portEXIT_CRITICAL_SAFE(&s_pendingGeoMux);
 
     spotifyTask::TlsYieldGuard tlsGuard;   // BP-031: free Spotify TLS before our own handshake
-    LOG_HEAP("dataTask.geocode");
+    WiFiClientSecure tls;
 
     char encPost[40];
     geoUrlEncode(encPost, sizeof(encPost), postcode);
@@ -1460,46 +1486,45 @@ static void fetchGeocode() {
              "%s?country=%s&postalcode=%s&format=jsonv2&limit=1&addressdetails=0",
              GEOCODE_URL_BASE, country, encPost);
 
-    GeocodeResult r;
-    r.seq = seq;
-
-    WiFiClientSecure tls;
-    HTTPClient http;
-    http.setUserAgent(GEOCODE_UA);   // mandatory (403 on default UA) — set pre-begin
-    int code = openHttps(tls, http, url,
-        consumeCertBreak(DATA_FETCH_GEOCODE)
-            ? wrongCaFor(DATA_FETCH_GEOCODE) : NOMINATIM_ROOT_CA,  // TASK-344
-        false);
-    if (code == OPENHTTPS_BEGIN_FAILED) {
-        r.errorCode = -100;
-    } else if (code == 200) {
-        DynamicJsonDocument doc(1024);
-        DeserializationError err = deserializeJson(doc, http.getString());
-        http.end();
-        if (err) {
-            r.errorCode = -97;   // transaction ok, body unparseable
-            LOG_W("dataTask.geocode", "parse error: %s", err.c_str());
-        } else if (doc.as<JsonArrayConst>().size() == 0) {
-            r.errorCode = -96;   // GEOCODE_NO_MATCH — valid query, unknown postcode
+    // GEOCODE_UA is mandatory (403 on default UA) — httpFetchJsonBuffered sets
+    // it pre-begin(). TASK-460 harmonization vs. the pre-refactor code: http.end()
+    // now always runs before the parse (matching Weather/Crypto/Teletext), where
+    // this function used to end() the 200 case AFTER deserializeJson() — the body
+    // is already fully buffered by getString() either way, so this only moves
+    // when the TLS socket itself is torn down, not what gets parsed.
+    BufferedFetchCfg cfg{url, NOMINATIM_ROOT_CA, DATA_FETCH_GEOCODE,
+                          nullptr, "dataTask.geocode", GEOCODE_UA};
+    httpFetchJsonBuffered(tls, cfg, [&](int code, const String& body) {
+        GeocodeResult r;
+        r.seq = seq;
+        if (code == OPENHTTPS_BEGIN_FAILED) {
+            r.errorCode = -100;
+        } else if (code == 200) {
+            DynamicJsonDocument doc(1024);
+            DeserializationError err = deserializeJson(doc, body);
+            if (err) {
+                r.errorCode = -97;   // transaction ok, body unparseable
+                LOG_W("dataTask.geocode", "parse error: %s", err.c_str());
+            } else if (doc.as<JsonArrayConst>().size() == 0) {
+                r.errorCode = -96;   // GEOCODE_NO_MATCH — valid query, unknown postcode
+            } else {
+                JsonVariantConst hit = doc.as<JsonArrayConst>()[0];
+                r.ok  = true;
+                r.lat = atof(hit["lat"] | "0");   // strings on the wire (probe)
+                r.lon = atof(hit["lon"] | "0");
+                strlcpy(r.display, hit["display_name"] | "", sizeof(r.display));
+            }
         } else {
-            JsonVariantConst hit = doc.as<JsonArrayConst>()[0];
-            r.ok  = true;
-            r.lat = atof(hit["lat"] | "0");   // strings on the wire (probe)
-            r.lon = atof(hit["lon"] | "0");
-            strlcpy(r.display, hit["display_name"] | "", sizeof(r.display));
+            r.errorCode = code;      // HTTP status, HTTPClient negative, or -120
         }
-    } else {
-        r.errorCode = code;      // HTTP status, HTTPClient negative, or -120
-        http.end();
-    }
-    LOG_D("dataTask.geocode", "%s %s -> ok=%d rc=%d seq=%u",
-          country, postcode, (int)r.ok, r.errorCode, (unsigned)seq);
+        LOG_D("dataTask.geocode", "%s %s -> ok=%d rc=%d seq=%u",
+              country, postcode, (int)r.ok, r.errorCode, (unsigned)seq);
 
-    portENTER_CRITICAL_SAFE(&s_geocodeMux);
-    s_geocodeResult = r;
-    s_geocodeNew    = true;
-    portEXIT_CRITICAL_SAFE(&s_geocodeMux);
-    LOG_HEAP("dataTask.geocode");
+        portENTER_CRITICAL_SAFE(&s_geocodeMux);
+        s_geocodeResult = r;
+        s_geocodeNew    = true;
+        portEXIT_CRITICAL_SAFE(&s_geocodeMux);
+    });
 }
 
 static void fetchWebRadioStations() {
