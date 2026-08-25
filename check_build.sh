@@ -36,10 +36,13 @@ echo
 # previous 3-of-8 subset's stated reason ("a full matrix would make this gate
 # unusable") was measured false — the five previously-ungated envs cold-built
 # in 66 s total. [env:cyd2usb] is excluded because it is no longer a build
-# target: ADR-061 D8 / TASK-467 demoted it to the non-building [cyd2usb_base]
-# section (it FAILED to build — missing JPEGDEC.h). TASK-531 retired
-# cyd2usb_webradio_16k (EXP-012 closed, negative verdict), leaving 6
-# buildable envs.
+# target: ADR-061 D8 / TASK-467 first demoted it to the non-building
+# [cyd2usb_base] base section (it FAILED to build — missing JPEGDEC.h);
+# ADR-061 D9 step 4 / TASK-470 later deleted that section too, once
+# cheapYellowLCD.h/.cpp (the JPEGDEC-needing plain-CYD path) had no
+# dependents left — its few real build_flags/lib_deps folded straight into
+# [env:cyd2usb_winamp]. TASK-531 retired cyd2usb_webradio_16k (EXP-012
+# closed, negative verdict), leaving 6 buildable envs.
 ENVS=(
     cyd2usb_winamp                  # production
     cyd2usb_winamp_debug            # DUT test target

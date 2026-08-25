@@ -126,3 +126,33 @@ tft;`; `cheapYellowLCD.cpp` no longer defines `tft` at all — it keeps its
 other includes only. If this directory is ever re-vendored, the extern in
 `cheapYellowLCD.h` should be re-pointed at `display/tft.h` rather than
 reintroduced locally.
+
+### Follow-up — TASK-470 (ADR-061 D9 step 4, 2026-08-25): `cheapYellowLCD.h`/`.cpp` deleted
+
+The two files this patch record's PATCH-TOUCHSCREEN-1 section above is
+partly about no longer exist. TASK-469 (D9 step 3, same day) flattened
+`WinampDisplay : public CheapYellowDisplay` onto `WinampDisplay : public
+SpotifyDisplay` directly, absorbing the small amount of `CheapYellowDisplay`
+behaviour it actually used; nothing in `app/src` depended on the class
+after that. `main.cpp`'s `#elif defined YELLOW_DISPLAY` display-selection
+branch (the only thing that ever `#include`d `cheapYellowLCD.h` or
+instantiated `CheapYellowDisplay`) is deleted too — plain-CYD was already a
+"no longer supported target" per ADR-061 D9's consequences, and no env
+defines `YELLOW_DISPLAY` for *that* purpose (see below).
+
+**`touchScreen.h`/`.cpp` are unaffected and stay** — they were always their
+own file pair (see PATCH-TOUCHSCREEN-1 above), only ever transitively
+`#include`d *through* `cheapYellowLCD.h`. `winamp/winampDisplay.h` now
+`#include`s `touchScreen.h` directly (TASK-469), so the touch subsystem
+declarations reach every includer exactly as before — one hop shorter.
+
+**`-DYELLOW_DISPLAY` the build flag is NOT retired** — do not read this
+follow-up as license to strip it from `[common_cyd]` in `platformio.ini`.
+It is still unconditionally defined for every CYD env and gates a real,
+independent, live feature: `boot.cpp`'s GPIO0 `forceRefreshToken` check
+(`#if defined YELLOW_DISPLAY`, not an `#elif` of the display-selection
+chain). That coupling — one macro, two unrelated meanings (display class
+selection in `main.cpp`; a boot-time button gate in `boot.cpp`) — predates
+this task and was flagged, not fixed, here; a future cleanup could give the
+boot-time gate its own flag if the overload is ever confusing enough to be
+worth the churn.

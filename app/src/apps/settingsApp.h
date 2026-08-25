@@ -11,7 +11,7 @@
 #include "ui/palette.h"           // M-CODEQUAL C6 (TASK-463): UI_BG_COLOR/UI_SEP_COLOR
 
 #include "display/tft.h"
-extern CYD28_TouchR ts;   // defined once, in cheapYellowLCD.h's touchScreen.h chain
+extern CYD28_TouchR ts;   // defined once, in touchScreen.h/.cpp
 
 // ── SettingsApp constants (TASK-141a) ─────────────────────────────────
 #define SETTINGS_HEADER_H         28

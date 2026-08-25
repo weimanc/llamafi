@@ -129,9 +129,11 @@ Other envs (don't use on this board): `cyd` (single-USB CYD, inversion off), `tr
 ```sh
 ./run/check   # 11 gates: full env matrix (cyd2usb_winamp, cyd2usb_winamp_debug, cyd2usb_player,
               # cyd2usb_winamp_screenlog, cyd2usb_webradio, cyd2usb_winamp_debug_noSpotify —
-              # every buildable env in app/platformio.ini; [env:cyd2usb] excluded, demoted to
-              # non-building [cyd2usb_base] per ADR-061 D8/TASK-467; cyd2usb_webradio_16k
-              # retired per TASK-531, EXP-012 closed with a negative verdict), golden.sha256,
+              # every buildable env in app/platformio.ini; [env:cyd2usb] excluded — demoted to
+              # non-building [cyd2usb_base] per ADR-061 D8/TASK-467, that base section itself
+              # later deleted per ADR-061 D9/TASK-470 once cheapYellowLCD.h had no dependents
+              # left; cyd2usb_webradio_16k retired per TASK-531, EXP-012 closed with a negative
+              # verdict), golden.sha256,
               # smoke, app-registry staleness, mem_layout staleness+budget, check-docs
               # documentation gate (+ one warn-only settings-wiring gate, not counted)
 ```

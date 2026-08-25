@@ -88,7 +88,7 @@ extern WinampDisplay winampDisplay;   // defined in main.cpp
 #endif
 
 #include "display/tft.h"
-extern CYD28_TouchR ts;           // defined once, in cheapYellowLCD.h's touchScreen.h chain
+extern CYD28_TouchR ts;           // defined once, in touchScreen.h/.cpp
 
 // The following are defined exactly once, directly in main.cpp's translation
 // unit (main.cpp #includes spotifyLogic.h / refreshToken.h / configFile.h

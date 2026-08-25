@@ -14,7 +14,16 @@
 // This project currently supports the following displays
 // (Uncomment the required #define)
 
-// 1. Cheap yellow display (Using TFT-eSPI library)
+// 1. Cheap yellow display (Using TFT-eSPI library) — RETIRED. ADR-061 D9
+// consequences: "no longer a supported target" (human decision, 2026-08-15).
+// The implementing class (CheapYellowDisplay, cheapYellowLCD.h/.cpp) was
+// deleted in TASK-470 once WinampDisplay no longer depended on it (TASK-469
+// flattened it onto SpotifyDisplay directly). Note: `YELLOW_DISPLAY` the
+// *macro* is still defined unconditionally by every CYD env (`[common_cyd]`
+// in platformio.ini) for an unrelated reason — boot.cpp's GPIO0
+// forceRefreshToken gate keys off it too, independently of display
+// selection — so it isn't safe to repurpose this identifier for anything
+// else without checking that use as well.
 // #define YELLOW_DISPLAY
 
 // 2. Matrix Displays (Like the ESP32 Trinity)
@@ -22,11 +31,6 @@
 
 // 3. Winamp 2 skin renderer on CYD2USB (M3 — uses gen/ atlas)
 // #define WINAMP_DISPLAY
-
-// If no defines are set, it will default to CYD
-#if !defined(YELLOW_DISPLAY) && !defined(MATRIX_DISPLAY) && !defined(WINAMP_DISPLAY)
-#define YELLOW_DISPLAY // Default to Yellow Display for display type
-#endif
 
 // Album art disabled while the i.scdn.co fetch hang is unresolved.
 // Comment out to re-enable.
@@ -163,19 +167,16 @@ AppId currentAppId = AppId::Spotify;
 // Display Handling Code
 // ----------------------------
 
-// WINAMP_DISPLAY is checked first so that envs which define it on top of
-// YELLOW_DISPLAY (cyd2usb_winamp inherits common_cyd) pick the Winamp renderer.
+// WINAMP_DISPLAY is checked first — every currently-building env defines it
+// (cyd2usb_winamp and everything that extends it). The plain-CYD branch
+// (YELLOW_DISPLAY, CheapYellowDisplay) was deleted in TASK-470 (ADR-061 D9
+// step 4): no supported env selected it, and WinampDisplay no longer
+// depends on that class after TASK-469's flatten.
 #if defined WINAMP_DISPLAY
 
 #include "winamp/winampDisplay.h"
 WinampDisplay winampDisplay;
 SpotifyDisplay *spotifyDisplay = &winampDisplay;
-
-#elif defined YELLOW_DISPLAY
-
-#include "cheapYellowLCD.h"
-CheapYellowDisplay cyd;
-SpotifyDisplay *spotifyDisplay = &cyd;
 
 #elif defined MATRIX_DISPLAY
 #include "matrixDisplay.h"

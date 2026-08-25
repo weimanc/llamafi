@@ -29,7 +29,7 @@
 extern WinampDisplay winampDisplay;       // defined in main.cpp
 
 #include "display/tft.h"
-extern CYD28_TouchR ts;                   // defined once, in cheapYellowLCD.h's touchScreen.h chain
+extern CYD28_TouchR ts;                   // defined once, in touchScreen.h/.cpp
 
 // TASK-413 / ADR-059 D6: the three player-mode AppIds, and the reverse lookup.
 // TASK-422: the argument is resolved through the compiled-in set first, so a

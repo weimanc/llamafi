@@ -4,18 +4,18 @@
 // pulls in nothing above it.
 //
 // Before this: `TFT_eSPI tft = TFT_eSPI();` was defined in the vendored
-// `app/lib/SpotifyDiyThingUpstream/cheapYellowLCD.cpp` (see that
-// directory's LOCAL_PATCHES.md, PATCH-TOUCHSCREEN-1), an upstream
-// compatibility header nobody in this codebase owns, and every one of the
+// `app/lib/SpotifyDiyThingUpstream/cheapYellowLCD.cpp` (see PATCH-TOUCHSCREEN-1
+// in that directory's LOCAL_PATCHES.md — the file itself is gone as of
+// TASK-470 below, but the patch record explains the history), an upstream
+// compatibility header nobody in this codebase owned, and every one of the
 // ~28 files that call `tft.` re-declared its own local, hand-written
 // extern for `tft` rather than including a shared declaration. This is
 // that shared declaration; `tft.cpp` carries the single definition.
-// `cheapYellowLCD.h`/`.cpp` now include this header instead of
-// declaring/defining `tft` themselves (D9 step 1 note: the file coupling
-// from `WinampDisplay : public CheapYellowDisplay` was NOT resolved here —
-// that was D9 step 3 / TASK-469, since done: `WinampDisplay` now inherits
-// `SpotifyDisplay` directly. `cheapYellowLCD.h`/`.cpp` themselves are the
-// last piece, deleted in D9 step 4 / TASK-470).
+// D9's full chain, now closed: step 1 (TASK-468) rehomed `tft` here; step 3
+// (TASK-469) flattened `WinampDisplay : public CheapYellowDisplay` onto
+// `WinampDisplay : public SpotifyDisplay` directly; step 4 (TASK-470)
+// deleted `cheapYellowLCD.h`/`.cpp` entirely, since nothing depended on the
+// class any more.
 //
 // ADR-061 D9: "Step 1 is worth doing regardless of whether the chain
 // completes. A single owned display/tft component is strictly better
