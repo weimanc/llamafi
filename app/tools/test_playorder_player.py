@@ -43,10 +43,14 @@ Usage: run/playorder-player (flashes cyd2usb_player, runs this, restores prod)
 """
 import argparse
 import json
+import pathlib
 import sys
 import time
 
 import serial
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
 PL_SHORT5 = "/playlists/short5.m3u"   # 5 real short tracks (TASK-418 fixture)
 
@@ -202,7 +206,7 @@ def run_sequence(ser: serial.Serial, per_track_timeout_s: float) -> list:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", required=True)
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--settle-s", type=float, default=90.0)
     ap.add_argument("--per-track-timeout-s", type=float, default=15.0,

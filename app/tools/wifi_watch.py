@@ -24,9 +24,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import pathlib
+import sys
 import time
 
-from run_serialdbg_tests import Dut
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import Dut, resolve_port  # TASK-479: shared session + port resolver
 
 
 class WatchDut(Dut):
@@ -98,7 +101,7 @@ def drain_to_log(d: Dut, logf, seconds: float):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--port", default="/dev/ttyUSB1")
+    p.add_argument("--port", default=resolve_port())
     p.add_argument("--hours", type=float, default=4.0)
     p.add_argument("--log", default="wifi_watch.log")
     args = p.parse_args()

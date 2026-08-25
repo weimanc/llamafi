@@ -26,9 +26,13 @@ default) by cycling the Mode row. Colour (hue/sat/val) is saved
 unchanged.
 """
 import json, sys, time
+import pathlib
 import serial
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
+
+PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
 results = []
 
 SETTINGS_SLOT = 6

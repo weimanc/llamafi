@@ -38,7 +38,7 @@ import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
-from run_serialdbg_tests import Dut
+from lib.dut import Dut  # TASK-479: import from lib.dut directly
 from app_ids_gen import APP_SLOT
 from ve_suite_base import (
     RESULTS, pass_, fail, skip, flake,

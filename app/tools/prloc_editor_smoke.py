@@ -49,13 +49,17 @@ settingsWidgets.h geometry, same approach prloc_smoke.py / the preview tool use:
   Header back zone                 : (10, 10)
 """
 import json, sys, time
+import pathlib
 import serial
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
 # --force bypasses the destructive-scope guard below (D2). Accepted anywhere
 # in argv so it doesn't disturb the existing positional PORT convention.
 FORCE = "--force" in sys.argv
 _argv = [a for a in sys.argv[1:] if a != "--force"]
-PORT = _argv[0] if _argv else "/dev/ttyUSB0"
+PORT = _argv[0] if _argv else resolve_port()
 results = []
 
 # ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------

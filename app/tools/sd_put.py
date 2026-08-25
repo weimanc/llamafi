@@ -20,8 +20,11 @@ from pathlib import Path
 
 import serial
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
+
 CHUNK = 90            # bytes per sdput call; 90 -> 120 base64 chars, under the 160 B line buffer
-DEFAULT_PORT = "/dev/ttyUSB1"
+DEFAULT_PORT = resolve_port()
 
 
 class Dut:

@@ -34,10 +34,14 @@ Usage: run/browser-player (flashes cyd2usb_player, runs this, restores prod)
 """
 import argparse
 import json
+import pathlib
 import sys
 import time
 
 import serial
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
 PL_PATH = "/mp3/rel.m3u"     # a real playlist (TASK-415 fixture) pointing at
                               # this card's actual mp3s, not a synthetic one
@@ -260,7 +264,7 @@ def run_sequence(ser: serial.Serial, walk_timeout_s: float) -> tuple:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", required=True)
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--settle-s", type=float, default=90.0)
     ap.add_argument("--walk-timeout-s", type=float, default=20.0)

@@ -21,7 +21,7 @@ import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import serial  # noqa: E402
-from screendump import autodetect_port  # noqa: E402
+from lib.dut import resolve_port  # noqa: E402  TASK-479: one port resolver (run/port)
 
 TOP = (137, 60)
 BOT = (137, 180)
@@ -64,7 +64,7 @@ class Dut:
         return self.cmd("get settingsSaveCount").get("count", -1)
 
 
-port = sys.argv[1] if len(sys.argv) > 1 else autodetect_port()
+port = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
 print(f"== opening {port} (DTR reset) ==", flush=True)
 d = Dut(port)
 

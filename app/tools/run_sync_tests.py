@@ -36,6 +36,7 @@ except ImportError:
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import coords as _c
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONFIG    = REPO_ROOT / "data" / "spotify_diy_config.json"
@@ -1282,7 +1283,7 @@ def main():
     p = argparse.ArgumentParser(
         description="sync-001 + drift-001 + playlist-001 test suite (T097–T116)."
     )
-    p.add_argument("--port", default="/dev/ttyUSB1")
+    p.add_argument("--port", default=resolve_port())
     p.add_argument("--baud", type=int, default=115200)
     p.add_argument("--interactive", action="store_true",
                    help="enable visual tests T112 + T113")

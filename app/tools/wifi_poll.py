@@ -14,13 +14,16 @@ Usage:
   python3 app/tools/wifi_poll.py --port $(./run/port) --hours 4 --log poll.log
 """
 from __future__ import annotations
-import argparse, json, time
+import argparse, json, sys, time
+import pathlib
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 from wifi_watch import WatchDut, note, poll_json
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--port", default="/dev/ttyUSB1")
+    p.add_argument("--port", default=resolve_port())
     p.add_argument("--hours", type=float, default=4.0)
     p.add_argument("--log", default="wifi_poll.log")
     p.add_argument("--interval", type=float, default=30.0)

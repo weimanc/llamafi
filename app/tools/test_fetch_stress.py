@@ -38,7 +38,7 @@ import urllib.request
 from collections import defaultdict, Counter
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from run_serialdbg_tests import Dut          # noqa: E402
+from lib.dut import Dut                      # noqa: E402  TASK-479: import from lib.dut directly
 from ve_suite_base import make_arg_parser    # noqa: E402
 
 RE_GET  = re.compile(r"\[dataTask\.(\w+)\].*?(-?\d+) elapsed=(\d+)ms")

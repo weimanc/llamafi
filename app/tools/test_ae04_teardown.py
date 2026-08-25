@@ -77,11 +77,15 @@ Exit 0 = all cycles clean; 1 otherwise.
 """
 import argparse
 import json
+import pathlib
 import re
 import sys
 import time
 
 import serial
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
 WEBRADIO_APPID = 11  # appRegistry.h: Spotify..PlaneRadar, Settings, WebRadio (last)
 SPOTIFY_APPID = 0
@@ -322,7 +326,7 @@ def run_cycle(d, n, args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", required=True)
+    ap.add_argument("--port", default=resolve_port())
     ap.add_argument("--cycles", type=int, default=10)
     # See the module docstring's closing HARNESS NOTE para: 100 ms (T_AE_04's literal
     # exit criterion) false-positives on this app's ordinary app-switch repaint

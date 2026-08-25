@@ -20,9 +20,13 @@ _repaintPrSourceFork()):
   Header back zone                     : (10, 10)
 """
 import json, sys, time
+import pathlib
 import serial
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
+
+PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
 SLOT = int(sys.argv[2]) if len(sys.argv) > 2 else 3   # slot under test — restored at the end
 results = []
 

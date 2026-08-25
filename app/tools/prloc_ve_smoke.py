@@ -36,9 +36,13 @@ Uses whatever 4 slots are currently populated on the DUT (does not assume
 labels) — restores every slot it touches to its pre-test value at the end.
 """
 import json, sys, time
+import pathlib
 import serial
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyUSB0"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
+
+PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
 results = []
 
 # ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------
