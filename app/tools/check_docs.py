@@ -13,6 +13,8 @@ Checks
   C4        Status: uses the closed vocabulary (decisions/designs/interfaces)  (BLOCKING)
   C5        relative .md links resolve                                                     (BLOCKING)
   C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
+  SPIKE     app/tools/**/task<NNN>_* whose TASK-NNN is archived (TASK-482,
+            M-TOOLING §4 rule 3 — not part of the C1-C6 M-DOCLIFE taxonomy)  (advisory)
 
 Phase 1 blocked on C5 and C1-delta only: both read 0 on ship day, and a gate
 that fails on day one gets switched off. Phase 2 (TASK-475, 2026-08-25) added
@@ -75,6 +77,14 @@ TASK_RE = re.compile(r"\bTASK-(\d+)")
 ADR_RE = re.compile(r"\bADR-(\d+)")
 IFC_RE = re.compile(r"\bIFC-(\d+)")
 X_RE = re.compile(r"\bX(0\d{2})\b")
+# TASK-482 (M-TOOLING §4 rule 3): spike/task<NNN>_* naming, wherever it lives
+# today — app/tools/spike/ once TASK-481's directory move lands, flat
+# app/tools/ until then (glob below covers both without needing to know
+# which). Only the leading number is checked, per the design doc's own "a
+# tool written for one task ... named for its task" (singular) — a spike
+# file naming two tasks (e.g. task399_402_dut_verify.py) is checked against
+# the first only, matching the "five-line grep" simplicity the doc asks for.
+SPIKE_TASK_RE = re.compile(r"^task(\d+)_")
 ENV_RE = re.compile(r"\bcyd2usb[A-Za-z0-9_]*")
 
 
@@ -288,6 +298,42 @@ def check_c3(c: Corpus) -> Result:
                         f"{rel}:{lineno}: {m.group(0)} -> no [env:{m.group(0)}] in app/platformio.ini")
     r.summary = (f"{len(r.failures)} occurrences of {len(names)} unknown env names "
                  f"(of {r.total} cyd2usb* references)")
+    return r
+
+
+# ── SPIKE (TASK-482, M-TOOLING §4 rule 3) ──────────────────────────────────────
+# Not part of the C1-C6 doc-decay taxonomy (M-DOCLIFE) — a separate mechanism
+# from the same design doc's retirement rule, checking a naming/archival fact
+# about app/tools/, not a documentation citation. Advisory on landing (same
+# precedent as C3): today's six spikes ALL fail immediately by design ("the
+# correct first result" per the design doc), so this cannot land blocking
+# without redding out run/check on day one the way C5/C1-delta's blocking
+# landing depended on reading 0 first — promoting is a scope call for a
+# human once the backlog is actually retired, not a mechanical one.
+
+def check_spike_retirement(c: Corpus) -> Result:
+    r = Result("SPIKE", blocking=False)
+    task_ids: set[str] = set()
+    archive = os.path.join(c.root, "docs", "project", "tasks-archive.md")
+    if os.path.exists(archive):
+        with open(archive, encoding="utf-8", errors="replace") as fh:
+            task_ids = set(TASK_RE.findall(fh.read()))
+    spikes: list[str] = []
+    for path in glob.glob(os.path.join(c.root, "app", "tools", "**", "task*.py"),
+                          recursive=True):
+        base = os.path.basename(path)
+        m = SPIKE_TASK_RE.match(base)
+        if not m:
+            continue
+        rel = os.path.relpath(path, c.root)
+        spikes.append(rel)
+        r.total += 1
+        tid = m.group(1)
+        if tid in task_ids:
+            r.failures.append(
+                f"{rel}: named for TASK-{tid}, which is archived (tasks-archive.md) "
+                f"-> retire (delete or promote per M-TOOLING §4 rule 2)")
+    r.summary = f"{len(r.failures)} retirement-due of {r.total} spike scripts"
     return r
 
 
@@ -837,7 +883,7 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
         advisory_extra = []
 
     advisory: list[Result] = advisory_extra + [
-        check_c1_full(c), check_c3(c)]
+        check_c1_full(c), check_c3(c), check_spike_retirement(c)]
 
     counted = [r for r in blocking if not r.skipped]
     total = len(counted)

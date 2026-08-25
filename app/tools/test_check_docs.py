@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""test_check_docs.py — T_DOC_01..T_DOC_14 for run/check-docs (TASK-475, TASK-521).
+"""test_check_docs.py — T_DOC_01..T_DOC_15 for run/check-docs (TASK-475, TASK-521, TASK-482).
 
 Registered in docs/verification/test_plan.md under the T_DOC_ family, reserved
 by @VE before this harness existed. Host-side only: no DUT, no serial, no
@@ -626,15 +626,53 @@ def t_doc_14() -> None:
               f"a corpus with no registries must skip loudly, got {rb.summary!r}")
 
 
+# ── T_DOC_15 — SPIKE retirement check (TASK-482, M-TOOLING §4 rule 3) ───────
+
+def t_doc_15() -> None:
+    """NEGATIVE: a spike/task<NNN>_* whose TASK-NNN is archived must fail.
+
+    Positive control (task number NOT archived) must stay clean in the same
+    tree, so the check cannot be passing/failing for an unrelated reason.
+    Also proves only the LEADING task number is checked (task123_456_x.py
+    with 123 archived but 456 not) and that a non-spike-shaped filename in
+    app/tools/ (no task<NNN>_ prefix) is ignored entirely.
+    """
+    tid = "T_DOC_15"
+    with tempfile.TemporaryDirectory() as tmp:
+        root = os.path.join(tmp, "spike")
+        write(root, "docs/project/tasks-archive.md",
+              "| TASK-100 | DONE | archived |\n| TASK-123 | DONE | archived |\n")
+        write(root, "app/tools/task100_old_spike.py", "# archived task -> retire\n")
+        write(root, "app/tools/task200_live_spike.py", "# open task -> keep\n")
+        write(root, "app/tools/task123_456_pair_spike.py", "# leading number only\n")
+        write(root, "app/tools/helpers.py", "# not a spike filename at all\n")
+
+        r = cd.check_spike_retirement(cd.Corpus(root))
+        check(tid, r.total == 3,
+              f"exactly 3 spike-shaped files expected (helpers.py must not "
+              f"match), got {r.total}")
+        flagged = {f.split(":")[0] for f in r.failures}
+        check(tid, flagged == {"app/tools/task100_old_spike.py",
+                               "app/tools/task123_456_pair_spike.py"},
+              f"exactly the archived-leading-number spikes must be flagged, got {flagged}")
+        check(tid, not any("task200_live_spike.py" in f for f in r.failures),
+              "positive control: an open task's spike must not be flagged")
+        check(tid, any("TASK-100" in f for f in r.failures)
+              and not any("TASK-200" in f for f in r.failures),
+              "message must name the archived task id")
+        check(tid, "2 retirement-due of 3 spike scripts" in r.summary,
+              f"summary must count both dimensions: {r.summary}")
+
+
 TESTS = [("T_DOC_01", t_doc_01), ("T_DOC_02", t_doc_02), ("T_DOC_03", t_doc_03),
          ("T_DOC_04", t_doc_04), ("T_DOC_05", t_doc_05), ("T_DOC_06", t_doc_06),
          ("T_DOC_07", t_doc_07), ("T_DOC_08", t_doc_08), ("T_DOC_09", t_doc_09),
          ("T_DOC_10", t_doc_10), ("T_DOC_11", t_doc_11), ("T_DOC_12", t_doc_12),
-         ("T_DOC_13", t_doc_13), ("T_DOC_14", t_doc_14)]
+         ("T_DOC_13", t_doc_13), ("T_DOC_14", t_doc_14), ("T_DOC_15", t_doc_15)]
 
 
 def main() -> int:
-    print("=== test_check_docs.py — T_DOC_01..14 ===")
+    print("=== test_check_docs.py — T_DOC_01..15 ===")
     for tid, fn in TESTS:
         before = len(FAILURES)
         try:

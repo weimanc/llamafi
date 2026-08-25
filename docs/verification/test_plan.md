@@ -136,6 +136,7 @@ rule.
 | `T_DOC_12` | unit | **C6.2 negative** — a doc row with no status at all | Missing `Status` column and empty status cell both fail; an `Expected result` column is **not** a status; id-keyed, so the same id declared in a second table counts; `**Status**:` field form counts | passing |
 | `T_DOC_13` | unit | C6 exception ledger — a gate, not an amnesty | A valid row suppresses exactly its finding and the debt stays in the summary; a **stale** row FAILS; no `TASK-` owner or no ISO date FAILS; the ledger is never scanned as a plan (else it grandfathers itself) | passing |
 | `T_DOC_14` | unit | C6 registry discovery + the exemption split | All three registry shapes (dict / `(id, fn)` pairs / function-ref list) discovered with no edit to the checker; an exempt file resolves C6.1 but cannot declare a status — **with the non-exempt control**; no registries → skip loudly, never a silent 100 % | passing |
+| `T_DOC_15` | unit | SPIKE retirement check (TASK-482, M-TOOLING §4 rule 3) | An `app/tools/**/task<NNN>_*` whose leading `TASK-NNN` is in `tasks-archive.md` is flagged; an open task's spike is **not** (positive control, same tree); only the *leading* number is checked (`task123_456_x.py`, 123 archived / 456 not, still flags); a non-spike-shaped filename (`helpers.py`) is never counted | passing |
 
 **Non-vacuity — mutation-tested, not assumed.** Each mechanism was deliberately broken and the suite
 re-run. Caught: inline-backtick suppression reintroduced (`T_DOC_03` ×2), recursive `docs/`

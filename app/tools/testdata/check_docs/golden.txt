@@ -22,5 +22,6 @@
     CLAUDE.md:7: app/src/ghost.cpp:3 -> no file resolves with >= 3 lines
 [warn] C3 (advisory, not counted): 1 occurrences of 1 unknown env names (of 2 cyd2usb* references)
     docs/architecture/designs/M-FIX-main.md:63: cyd2usb_bogus -> no [env:cyd2usb_bogus] in app/platformio.ini
+[warn] SPIKE (advisory, not counted): 0 retirement-due of 0 spike scripts
 
 === Results: 1 passed, 2 failed ===
