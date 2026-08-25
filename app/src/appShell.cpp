@@ -22,10 +22,11 @@
 #include "debug/touchDebugOverlay.h"       // g_touchDebug (self-guarded on TOUCH_DEBUG_OVERLAY)
 #include "CYD28_TouchscreenR.h"            // CYD28_TouchR / CYD28_TS_Point
 
-#ifdef WINAMP_DISPLAY
+// TASK-501: WINAMP_DISPLAY is unconditionally defined (every buildable env
+// extends [env:cyd2usb_winamp] — see app/platformio.ini and TASK-496/467's
+// own note in shell/appTable.cpp) — no #ifdef needed.
 #include "winamp/winampDisplay.h"
 extern WinampDisplay winampDisplay;       // defined in main.cpp
-#endif
 
 extern TFT_eSPI tft;                      // defined in main.cpp / display backend
 extern CYD28_TouchR ts;                   // defined once, in cheapYellowLCD.h's touchScreen.h chain

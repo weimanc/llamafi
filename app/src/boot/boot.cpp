@@ -79,10 +79,9 @@
 #include "sd/sdMount.h"          // sdProbeBootMount()
 #include "CYD28_TouchscreenR.h"  // CYD28_TouchR / CYD28_TS_Point (for `ts` below)
 
-#ifdef WINAMP_DISPLAY
+// TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
 #include "winamp/winampDisplay.h"
 extern WinampDisplay winampDisplay;   // defined in main.cpp
-#endif
 
 #ifdef NFC_ENABLED
 #include "nfc.h"
@@ -255,7 +254,7 @@ void setup()
   ledcSetup(LED_B_CH, 5000, 8); ledcAttachPin(LED_B_PIN, LED_B_CH);
   g_ledFlow.applyMode();
 
-#ifdef WINAMP_DISPLAY
+  // TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
   // M-BOOT-UI (TASK-364, ADR-055 decision 1): paint the Winamp chrome now —
   // a flash-resident composite blit, no heap/network cost — instead of
   // leaving the screen solid black through the WiFi/NTP phases below. This
@@ -267,7 +266,6 @@ void setup()
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
   winampDisplay.setTitle("STARTING UP...");
-#endif
 
   refreshToken[0] = '\0';
   fetchConfigFile(refreshToken, clientId, clientSecret);
@@ -291,9 +289,7 @@ void setup()
   bool wifiConnected  = false;
   bool wifiCredsKnown = false;
   {
-#ifdef WINAMP_DISPLAY
     winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
-#endif
     WiFi.persistent(true);
     WiFi.mode(WIFI_STA);
     // TASK-296: driver is up after mode() — a non-empty stored SSID means NVS
@@ -309,9 +305,7 @@ void setup()
       // is what was tripping task_wdt during a flaky-AP boot.
       while (WiFi.status() != WL_CONNECTED && millis() < dl) {
         delay(100); esp_task_wdt_reset();
-#ifdef WINAMP_DISPLAY
         winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
-#endif
       } }
     wifiConnected = (WiFi.status() == WL_CONNECTED);
   }
@@ -426,9 +420,7 @@ void setup()
     const char* connectedSsid = nullptr;
     const char* connectedPass = nullptr;
     for (uint8_t i = 0; i < candCount && !wifiConnected; i++) {
-#ifdef WINAMP_DISPLAY
       winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
-#endif
       Serial.printf("[wifi] Connecting from saved networks (%u/%u): %s\n",
                     (unsigned)(i + 1), (unsigned)candCount, cand[i].ssid);
       WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
@@ -462,9 +454,7 @@ void setup()
             seenDisc = wifiDiag::discCount;
             if (millis() < dl) { Serial.print("r"); WiFi.begin(cand[i].ssid, cand[i].pass); }
           }
-#ifdef WINAMP_DISPLAY
           winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
-#endif
         }
         Serial.println(); }
       if (WiFi.status() == WL_CONNECTED) {
@@ -479,9 +469,7 @@ void setup()
     if (wifiConnected) {
       WiFi.persistent(true);
       WiFi.begin(connectedSsid, connectedPass);  // persist verified creds to NVS
-#ifdef WINAMP_DISPLAY
       winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2, re-assoc settle
-#endif
       // TASK-290: this re-begin DEAUTHS the just-verified association
       // (observed [wifi-ev] reason=8 ~150ms after GOT_IP) and the code
       // below read localIP() before re-association finished — boot
@@ -491,9 +479,7 @@ void setup()
       { unsigned long dl = millis() + 15000;
         while (WiFi.status() != WL_CONNECTED && millis() < dl) {
           delay(100); esp_task_wdt_reset();
-#ifdef WINAMP_DISPLAY
           winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
-#endif
         } }
       wifiConnected = (WiFi.status() == WL_CONNECTED);
       Serial.println("[wifi] saved-network credentials saved to NVS");
@@ -514,9 +500,7 @@ void setup()
   }
 
   if (wifiConnected) {
-#ifdef WINAMP_DISPLAY
     winampDisplay.setTitle("WI-FI: CONNECTED");  // M-BOOT-UI (TASK-364) §2
-#endif
     // TASK-272: disable modem power-save. With the default WIFI_PS_MIN_MODEM the
     // radio dozes after idle periods; the first TCP connect after ~30-45 s of
     // network quiet then fails with EHOSTUNREACH (errno 118) for tens of seconds
@@ -537,9 +521,7 @@ void setup()
     // link self-heals when the AP settles.
     WiFi.setAutoReconnect(true);
     wifiDiag::superviseArm();
-#ifdef WINAMP_DISPLAY
     winampDisplay.setTitle("WI-FI: RETRY IN BG");  // M-BOOT-UI (TASK-364) §2
-#endif
     Serial.println("[wifi] connect failed with stored credentials — reconnect + supervisor armed");
   } else {
     // Leave WiFi in a clean disconnected STA state so WifiSection scan works.
@@ -547,9 +529,7 @@ void setup()
     // so the subsequent scanNetworks() call is not blocked by a reconnect loop.
     WiFi.setAutoReconnect(false);
     WiFi.disconnect(false);
-#ifdef WINAMP_DISPLAY
     winampDisplay.setTitle("WI-FI SETUP NEEDED");  // M-BOOT-UI (TASK-364) §2
-#endif
     Serial.println("[wifi] no credentials — will open WiFi settings after init");
   }
   mb_heap_probe("post-wifi");  // TASK-261 Phase 0 milestone M1
@@ -567,18 +547,14 @@ void setup()
   // WIRE2-G1: apply the persisted TZ rule at boot (SettingsStorage::load()
   // ran above) instead of hardcoded UTC; fresh device defaults to "UTC0" —
   // identical behaviour. The epoch wait below is TZ-independent.
-#ifdef WINAMP_DISPLAY
   winampDisplay.setTitle("TIME: SYNCING...");  // M-BOOT-UI (TASK-364) §2
-#endif
   configTzTime(g_settings.posixTz, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
   unsigned long ntpStart = millis();
   unsigned long ntpDeadline = ntpStart + 5000;
   while (time(nullptr) < 1700000000UL && millis() < ntpDeadline) {
     delay(50);
     yield();
-#ifdef WINAMP_DISPLAY
     winampDisplay.tickMarquee();  // M-BOOT-UI (TASK-364) §3 Option B
-#endif
   }
   time_t now = time(nullptr);
   if (now >= 1700000000UL) {
@@ -586,9 +562,7 @@ void setup()
   } else {
     Serial.printf("[time] NTP sync failed after %lums, trying HTTPS-Date fallback\n",
                   millis() - ntpStart);
-#ifdef WINAMP_DISPLAY
     winampDisplay.setTitle("TIME: HTTPS FALLBACK...");  // M-BOOT-UI (TASK-364) §2
-#endif
     time_t httpsT;
     if (fetchHttpsDate("connectivitycheck.gstatic.com", httpsT)) {
       struct timeval tv = {httpsT, 0};

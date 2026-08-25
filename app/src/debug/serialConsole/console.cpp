@@ -119,7 +119,8 @@ void drainInjectionQueue() {
 #ifdef SERIAL_DEBUG
   if (s_injectHead == s_injectTail) return;
   InjectionStep &step = s_injectQueue[s_injectHead % 64];
-#ifdef WINAMP_DISPLAY
+  // TASK-501: WINAMP_DISPLAY is unconditionally defined — the (void)step;
+  // no-WINAMP_DISPLAY placeholder this #ifdef used to guard against is gone.
   if (step.release) {
     if (winampDisplay.tbIsDragging()) {
       // Taskbar drag release — TASK-279: same shared commit path as production
@@ -183,9 +184,6 @@ void drainInjectionQueue() {
         g_apps[(int)currentAppId]->handleInput(ph, step.sx, step.sy);
     }
   }
-#else
-  (void)step;
-#endif
   ++s_injectHead;
 #endif
 }

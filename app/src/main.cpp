@@ -125,9 +125,7 @@ char clientSecret[200];
 #ifdef SCREEN_LOG
 #include "screenLog.h"
 #endif
-#ifdef WINAMP_DISPLAY
-#include "winamp/vuMeter.h"
-#endif
+#include "winamp/vuMeter.h"   // TASK-501: WINAMP_DISPLAY is unconditionally defined
 #include "util/mathUtil.h"
 #include "util/timeFmt.h"   // WIRE2-G2/G3: shared 12h/24h + dateFmt helpers
 #include "util/tftViewportRepair.h"   // TASK-359: heatmap rotated-text clip migrated onto the shared helper
@@ -281,7 +279,6 @@ void loop()
   // here bought nothing: the driver's own ~2.4s reconnect loop still refused
   // every esp_wifi_scan_start(). _startScan() now clears it for real.
   if (currentAppId != AppId::Settings) wifiDiag::superviseTick();
-#ifdef WINAMP_DISPLAY
   // M-BOOT-UI §6 (TASK-364, ADR-055 decision 5): whole-session background
   // WiFi-reconnect status on the title marquee. Self-contained edge-trigger
   // (deliberately not wifiDiag::superviseTick()'s lastDiscMs anchor — a
@@ -290,6 +287,8 @@ void loop()
   // condition as, superviseTick() above (X042, load-bearing per §6 Q4):
   // Settings already owns and repaints this whole screen region, so an
   // ungated override would blit stray marquee text over the Settings UI.
+  // TASK-501: WINAMP_DISPLAY is unconditionally defined, so this block no
+  // longer needs its own #ifdef.
   if (currentAppId != AppId::Settings) {
     static uint32_t s_wifiDownSinceMs = 0;
     // OQ5: proposed starting point, not DUT-pinned — VE/DUT to tune, a
@@ -306,7 +305,6 @@ void loop()
       winampDisplay.clearWifiDownOverride();
     }
   }
-#endif
   esp_task_wdt_reset();   // WDT safety: reset after serial+logsink, before appTick
 #ifdef SCREEN_LOG
   { unsigned long _t = millis(); screenlog::tick(spotifyDisplay);

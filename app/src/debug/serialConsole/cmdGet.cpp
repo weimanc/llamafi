@@ -303,13 +303,10 @@ void cmdGet(const char *args) {
     // TASK-278: wrPump only exists while WebRadio has played at least once this
     // session — report 0/0/0 before then (wrPumpAlive() gates the size too, so
     // "used" doesn't read as a false full-stack allocation). webRadioApp.h is
-    // only compiled under WINAMP_DISPLAY (see include above).
-#ifdef WINAMP_DISPLAY
+    // only compiled under WINAMP_DISPLAY, which TASK-501 made unconditional
+    // (every buildable env defines it — see include above / app/platformio.ini).
     size_t wS = wrPumpAlive() ? wrPumpStackSizeBytes() : 0;
     size_t wF = wrPumpStackHighWaterBytes();
-#else
-    size_t wS = 0, wF = 0;
-#endif
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"stacks\","
                   "\"dataSize\":%u,\"dataFree\":%u,\"dataUsed\":%u,"
                   "\"spotSize\":%u,\"spotFree\":%u,\"spotUsed\":%u,"
@@ -516,12 +513,11 @@ void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
-#ifdef WINAMP_DISPLAY
+  // TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
   if (webRadioDbgGet(args, buf, sizeof(buf))) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
-#endif
   if (strcmp(args, "clockStyle") == 0) {
     static const char* kSN[] = {"digital","flip","nixie","vfd"};
     uint8_t cs = (uint8_t)g_settings.clockStyle % 4;

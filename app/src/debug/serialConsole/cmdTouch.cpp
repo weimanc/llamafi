@@ -24,7 +24,7 @@ void cmdTap(const char *args) {
     Serial.println("{\"ok\":false,\"cmd\":\"tap\",\"error\":\"bad args — tap <x> <y>\"}");
     return;
   }
-#ifdef WINAMP_DISPLAY
+  // TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
   // Taskbar handled at shell level — WinampDisplay must not reference switchApp.
   if (x >= TASKBAR_X) {
     int slot   = (int)y / TASKBAR_SLOT_H;
@@ -181,10 +181,6 @@ void cmdTap(const char *args) {
                   "\"hit\":\"%s\",\"action\":\"%s\",\"skipped\":%s}\n",
                   x, y, r.region, r.action, r.skipped ? "true" : "false");
   }
-#else
-  Serial.printf("{\"ok\":true,\"cmd\":\"tap\",\"x\":%d,\"y\":%d,"
-                "\"hit\":\"NONE\",\"action\":\"NONE\",\"skipped\":false}\n", x, y);
-#endif
 }
 
 void cmdDrag(const char *args) {
@@ -197,9 +193,7 @@ void cmdDrag(const char *args) {
                    "\"error\":\"bad args — drag <x1> <y1> <x2> <y2> <steps=1..62> [hold]\"}");
     return;
   }
-#ifdef WINAMP_DISPLAY
-  winampDisplay._injectingDrag = true;
-#endif
+  winampDisplay._injectingDrag = true;   // TASK-501: WINAMP_DISPLAY is unconditionally defined
   s_injectHead = s_injectTail = 0;
   s_injectIsFirst = true;  // first dequeued sample → Press, rest → Move
   for (int i = 0; i <= steps; ++i) {
@@ -242,7 +236,7 @@ void cmdTick(const char *args) {
   sscanf(args, "%d %d", &n, &dtMs);
   if (n < 1)    n    = 1;
   if (dtMs < 1) dtMs = 20;
-#ifdef WINAMP_DISPLAY
+  // TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
   // TASK-277 [VE-1-5]: drive the ACTIVE app's integrator when WebRadio is up.
   // The reply's scrollOffset field stays Spotify-only — WebRadio tests assert
   // via `get wrScroll` exclusively.
@@ -258,9 +252,5 @@ void cmdTick(const char *args) {
     sscanf(sbuf, "\"key\":\"scrollOffset\",\"val\":%d", &scrollOff);
   Serial.printf("{\"ok\":true,\"cmd\":\"tick\",\"steps\":%d,\"dtMs\":%d,"
                 "\"scrollOffset\":%d}\n", n, dtMs, scrollOff);
-#else
-  Serial.printf("{\"ok\":true,\"cmd\":\"tick\",\"steps\":%d,\"dtMs\":%d,"
-                "\"scrollOffset\":0}\n", n, dtMs);
-#endif
 }
 #endif // SERIAL_DEBUG

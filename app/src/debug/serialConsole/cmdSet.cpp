@@ -577,13 +577,12 @@ void cmdSet(const char *args) {
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
-#ifdef WINAMP_DISPLAY
+  // TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
   if (webRadioDbgSet(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
-#endif
   // WIRE2 (§6 debug hooks, W-1): force a save — T-SETW-01/02's load→RAM→save
   // leg; nothing saves at boot, so without this a spiffs pull returns the
   // pushed bytes verbatim and proves nothing. Value is ignored ("set
