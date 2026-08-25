@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_docs.py — documentation staleness gate (TASK-475, M-DOCLIFE phase 2).
+"""check_docs.py — documentation staleness gate (TASK-475, M-DOCLIFE phase 4).
 
 Implements the mechanically-detectable half of M-DOCLIFE (decay modes D1-D4) as
 specified in docs/architecture/designs/M-DOCLIFE-check-docs-spec.md.
@@ -10,13 +10,18 @@ Checks
   C1-delta  the same, restricted to citations NEWLY ADDED in a diff                        (BLOCKING)
   C2        every TASK-/ADR-/IFC-/X0NN identifier referenced exists                        (BLOCKING)
   C3        every `cyd2usb*` build-env name in docs exists in app/platformio.ini           (advisory)
-  C4        Status: uses the closed vocabulary (decisions/designs/interfaces)  (advisory)
+  C4        Status: uses the closed vocabulary (decisions/designs/interfaces)  (BLOCKING)
   C5        relative .md links resolve                                                     (BLOCKING)
   C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
 
 Phase 1 blocked on C5 and C1-delta only: both read 0 on ship day, and a gate
-that fails on day one gets switched off. Phase 2 (TASK-475, 2026-08-25) adds
-C2: it has read 0 since phase 1 and still does at promotion time.
+that fails on day one gets switched off. Phase 2 (TASK-475, 2026-08-25) added
+C2: it has read 0 since phase 1 and still does at promotion time. Phase 4
+(same day) added C4, once TASK-508's ~189-header migration landed and
+re-measurement read 0. Phase 3 (C3) remains advisory: unblocked (ADR-061 D8 /
+TASK-467 landed) but the count is 58 occurrences across 10 unknown env names,
+not near zero — promoting it is a scope call for a human, not a mechanical
+one, per this session's own escalation discipline.
 
 Rules that are easy to get wrong, and are therefore spelled out here:
 
@@ -330,7 +335,9 @@ def check_c4(c: Corpus) -> Result:
     checks vocabulary of an existing field, not its presence (a different,
     unruled question; see TASK-508's own follow-up note).
     """
-    r = Result("C4", blocking=False)
+    # TASK-475 phase 4: promoted advisory -> blocking, 2026-08-25, now that
+    # TASK-508's migration has landed (6361ef3) and re-measurement reads 0.
+    r = Result("C4", blocking=True)
     for rel in c.gated:
         if not rel.startswith(C4_SCOPE_DIRS):
             continue
@@ -811,7 +818,7 @@ def check_c1_delta(c: Corpus, base_spec: str) -> Result:
 def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
     c = Corpus(root)
 
-    blocking: list[Result] = [check_c5(c), check_c6(c), check_c2(c)]
+    blocking: list[Result] = [check_c5(c), check_c6(c), check_c2(c), check_c4(c)]
     # C6 prints its ledger arithmetic even when clean. A blocking check that is
     # invisible on the happy path cannot be distinguished from one that was
     # silently skipped — the failure mode TASK-511 hit from the other side.
@@ -830,7 +837,7 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
         advisory_extra = []
 
     advisory: list[Result] = advisory_extra + [
-        check_c1_full(c), check_c3(c), check_c4(c)]
+        check_c1_full(c), check_c3(c)]
 
     counted = [r for r in blocking if not r.skipped]
     total = len(counted)

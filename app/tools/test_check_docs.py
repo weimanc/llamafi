@@ -94,9 +94,11 @@ def t_doc_01() -> None:
     check(tid, rc == 1, f"blocking C5 failure must exit 1, got {rc}")
     check(tid, "=== Doc check ===" in out, "standalone output missing banner")
     check(tid, "=== Results:" in out, "standalone output missing Results tail")
-    # TASK-475 phase 2 (2026-08-25): C2 is now blocking alongside C5, so the
-    # fixture's [n/N] counted-blocking-check count is 2, not 1.
-    check(tid, "[2/2]" in out, "standalone output missing [n/N] progress line")
+    # TASK-475 phases 2 and 4 (2026-08-25): C2 and C4 are now blocking
+    # alongside C5, so the fixture's [n/N] counted-blocking-check count is 3
+    # (C4 itself is clean in the fixture — both its Status: headers already
+    # conform — so it counts but never fails here).
+    check(tid, "[3/3]" in out, "standalone output missing [n/N] progress line")
 
     # Advisory-only failure must exit 0. Copy the fixture and repair the one
     # broken link (C5) and the four broken ids (C2, now blocking too),
