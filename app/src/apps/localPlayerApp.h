@@ -27,7 +27,7 @@
 #include <TFT_eSPI.h>
 #include <SD.h>
 #include <esp_heap_caps.h>
-#include <SpotifyArduino.h>   // winamp/winampDisplay.h's CheapYellowDisplay base needs this in scope
+#include <SpotifyArduino.h>   // winamp/winampDisplay.h's WinampDisplay needs this in scope (CurrentlyPlaying, SpotifyArduino*)
 
 #include "appShell.h"
 #include "audio/audioEngine.h"

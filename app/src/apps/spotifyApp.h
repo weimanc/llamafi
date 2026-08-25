@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include <WiFi.h>
-#include <SpotifyArduino.h>   // winamp/winampDisplay.h's CheapYellowDisplay base needs this in scope
+#include <SpotifyArduino.h>   // winamp/winampDisplay.h's WinampDisplay needs this in scope (CurrentlyPlaying, SpotifyArduino*)
 #include "appShell.h"
 #include "winamp/winampDisplay.h"
 #include "spotifyTask.h"
