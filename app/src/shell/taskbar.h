@@ -8,6 +8,7 @@
 
 #include <TFT_eSPI.h>
 #include "gen/shell_layout.h"
+#include "ui/palette.h"         // M-CODEQUAL C6 (TASK-463): UI_SEP_COLOR
 #include "gen/taskbar_icons.h"
 #include "appShell.h"
 
@@ -25,7 +26,9 @@
 // (== TASKBAR_SEP_COLOR) painted behind the icon while the finger is down — the
 // opaque baked icon stays dark inside the halo (DEV-3-4 bake constraint, accepted
 // per OQ1). Firmware-only constant, same golden-hash rule as TASKBAR_BUSY_COLOR.
-#define TASKBAR_PRESSED_BG 0x4208
+// M-CODEQUAL C6 (TASK-463): was an independent literal (matching the comment's
+// own "== TASKBAR_SEP_COLOR" note); now an alias for the one canonical source.
+#define TASKBAR_PRESSED_BG UI_SEP_COLOR
 
 // TASK-242 / TASK-413 (ADR-059 D7): number of apps the taskbar cycles through.
 // WebRadio and LocalPlayer are entered ONLY via the Winamp player-slot mode

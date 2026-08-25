@@ -20,6 +20,7 @@
 #include "../touchPhase.h"
 #include "../settingsStorage.h"
 #include "gen/shell_layout.h"   // M-CODEQUAL C5 (TASK-461): APP_CANVAS_W
+#include "ui/palette.h"         // M-CODEQUAL C6 (TASK-463): UI_BG_COLOR/UI_SEP_COLOR
 
 extern TFT_eSPI tft;
 
@@ -51,15 +52,17 @@ static constexpr int16_t S_BACK_ZONE_W  =  60;   // < back tap zone width
 // Colour palette
 // ============================================================================
 
-static constexpr uint16_t S_BG          = 0x2104;   // background
-static constexpr uint16_t S_SEP         = 0x4208;   // separator / rule lines
+// M-CODEQUAL C6 (TASK-463): were independent `0x2104`/`0x4208` literals; now
+// aliases for the one canonical source (ui/palette.h).
+static constexpr uint16_t S_BG          = UI_BG_COLOR;    // background
+static constexpr uint16_t S_SEP         = UI_SEP_COLOR;   // separator / rule lines
 static constexpr uint16_t S_HDR_TXT     = 0xFFFF;   // header bar text (white)
 static constexpr uint16_t S_LABEL       = 0xFFFF;   // row label (white)
 static constexpr uint16_t S_VALUE       = 0x07FF;   // neutral value (cyan)
 static constexpr uint16_t S_VALUE_ON    = 0x07E0;   // enabled / active (green)
 static constexpr uint16_t S_VALUE_OFF   = 0x7BEF;   // disabled / inactive (grey)
 static constexpr uint16_t S_SUBHDR      = 0xFFE0;   // sub-section header text (yellow)
-static constexpr uint16_t S_CHEVRON     = 0x4208;   // > chevron (grey)
+static constexpr uint16_t S_CHEVRON     = UI_SEP_COLOR;   // > chevron (grey)
 
 // ============================================================================
 // Row descriptor

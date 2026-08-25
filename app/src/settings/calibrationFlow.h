@@ -141,8 +141,10 @@ namespace TouchCalStorage {
 #define CAL_CROSSHAIR_ARM   24
 #define CAL_Z_THRESHOLD    400
 
-#define CAL_BG_COLOR         0x2104
-#define CAL_SEP_COLOR        0x4208
+// M-CODEQUAL C6 (TASK-463): were independent literals; now aliases for the
+// one canonical source (ui/palette.h, visible via settingsSection.h above).
+#define CAL_BG_COLOR         UI_BG_COLOR
+#define CAL_SEP_COLOR        UI_SEP_COLOR
 #define CAL_HEADER_COLOR     0xFFFF
 #define CAL_SECTION_COLOR    0xFFE0
 #define CAL_VALUE_COLOR      0x07FF

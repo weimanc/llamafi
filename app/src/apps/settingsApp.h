@@ -8,6 +8,7 @@
 #include "shell/shellState.h"   // ShellState::previous (M-SRCLAYOUT D3)
 #include "settingsStorage.h"
 #include "CYD28_TouchscreenR.h"   // CYD28_TouchR — class decl only, for the extern below
+#include "ui/palette.h"           // M-CODEQUAL C6 (TASK-463): UI_BG_COLOR/UI_SEP_COLOR
 
 extern TFT_eSPI  tft;
 extern CYD28_TouchR ts;   // defined once, in cheapYellowLCD.h's touchScreen.h chain
@@ -21,12 +22,14 @@ extern CYD28_TouchR ts;   // defined once, in cheapYellowLCD.h's touchScreen.h c
 #define SETTINGS_ROW_COL_LABEL     8
 #define SETTINGS_ROW_COL_VALUE   268
 #define SETTINGS_ROW_MAX           8
-#define SETTINGS_BG_RGB565      0x2104
-#define SETTINGS_SEP_COLOR      0x4208
+// M-CODEQUAL C6 (TASK-463): were independent literals; now aliases for the
+// one canonical source (ui/palette.h).
+#define SETTINGS_BG_RGB565      UI_BG_COLOR
+#define SETTINGS_SEP_COLOR      UI_SEP_COLOR
 #define SETTINGS_HEADER_TXT     0xFFFF
 #define SETTINGS_LABEL_COLOR    0xFFFF
 #define SETTINGS_VALUE_COLOR    0x07FF
-#define SETTINGS_CHEVRON_COLOR  0x4208
+#define SETTINGS_CHEVRON_COLOR  UI_SEP_COLOR
 #define SETTINGS_CANCEL_COLOR   0xC8A0
 
 #include "settings/wifiSection.h"

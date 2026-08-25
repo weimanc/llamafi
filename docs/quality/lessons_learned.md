@@ -4,6 +4,21 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-08-25 — TASK-463/465: the debug/production seam had three unreasoned `#ifdef` mechanisms until ADR-061 D1-D5 wrote the convention down, and it had never been proposed as a BP
+
+### LL-144 — 2026-08-25 — A ratified ADR decision that states a repo-wide coding convention is not itself discoverable as one until it is proposed to QM as a BP
+**Context**: M-CODEQUAL-duplication-and-abstraction.md's C4 finding (2026-08-16) first named the problem — `app/src` mixed three undocumented `#ifdef` mechanisms (`SERIAL_DEBUG` for the bulk, `SD_BOOT_MOUNT` for the production-safe subset, `MEMBUDGET_PHASE1`) with the separation reasoned per-site in scattered comments, never as a stated policy — and proposed a five-rule convention. ADR-061 (M-SRCLAYOUT's own decision record, landed since) independently formalized the identical convention as **D1–D5** (`docs/architecture/decisions/ADR-061.md:84-103`), word-for-word the same four rules as C4's proposal plus a fifth ("prefer always-compile-never-run to `#ifdef` for small conditional blocks") C4 never had. Both documents state the SAME convention as settled fact — but neither is `best_practices.md`, so a Developer skimming that file (the file `AGENTS.md` says "all agents read+apply") would never learn it exists, and the convention has been silently re-enforced per-site by whoever happened to read the right design doc or ADR, exactly the failure mode both documents exist to end.
+**Observation**: A decision can be ratified (ADR status) and still be practically invisible, because `best_practices.md` is this project's own stated single read+apply surface for cross-cutting conventions, and nothing routes a landed ADR's normative rules into it automatically. The gap is structural, not a one-off oversight — an ADR is written to record *why a decision was made*, not to be a checklist someone consults before touching an `#ifdef`.
+**Root cause**: No step in this project's process moves a convention from "decided" (ADR) to "practiced" (`best_practices.md`) — `best_practices.md`'s own header says entries are "promoted from `lessons_learned.md` on explicit human approval," but nothing prompts that promotion step for a convention that already shipped as an ADR rather than surfacing first as an incident retrospective.
+**Suggested improvement**: When an ADR states a convention with day-to-day applicability (not just a one-time architectural choice), its landing checklist should include "propose the convention to QM as a BP via `lessons_learned.md`," the same path an incident-derived lesson already takes — not treat ADR ratification and BP adoption as separate, optionally-connected events.
+**Status**: proposed for promotion — awaiting human sign-off. **Proposed rule** (D1–D5, ADR-061's wording — the more complete of the two near-identical statements, C4's four folded in as a subset):
+1. Production code never contains `#ifdef` for debug. It calls a normally-named function.
+2. Debug implementations live in `debug/` as components, never inline in the subsystem they observe (ADR-060 D0; half-done as of ADR-061's writing).
+3. Per-app introspection stays behind the existing `dbgGet`/`dbgSet` virtuals — that contract already does this correctly and is the model to generalise.
+4. Production-safe, production-valuable diagnostics (the SD boot mount, `wifiDiag`) get their own feature gate and are **not** lumped under `SERIAL_DEBUG`.
+5. For small conditional blocks, prefer "always compile, never run" to `#ifdef` — keeps the block type-checked even in release builds, catching bit-rot `#ifdef`-only code would hide.
+**Applies to**: Developer (every new debug hook), Architect (design docs proposing a convention should route it here, not assume ADR ratification is enough)
+
 ## Retrospective — 2026-08-05 — TASK-396: two real "flagged for a separate task" notes sat unfiled for 2-4 weeks each, invisible to any task-number search
 
 ### LL-118 — 2026-08-05 — A task-closeout note that identifies new, real, out-of-scope work is not tracked until it has a number, and "flagging for a separate task" prose doesn't create one
