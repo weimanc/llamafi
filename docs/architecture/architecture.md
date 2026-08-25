@@ -46,9 +46,11 @@ Two personalities of the player slot:
                           |  results/queue        +-----------+-----------+
                           |                       enqueue/poll | (seq/epoch identity)
 +-------------------------v-----------------------------------v----------------------+
-|  loop() — app shell (appShell.h)                                                   |
-|  switchApp() lifecycle: init/resume/suspend/tick/handleInput (TouchPhase)          |
-|  + taskbar (45px, scrolling)  + screenLog overlay  + LedFlow  + serial debug       |
+|  loop() (main.cpp, 357 lines) -> appShell.cpp dispatch (post-TASK-471 split)        |
+|  switchApp()/appTick()/appHandleInput() lifecycle: init/resume/suspend/tick/        |
+|  handleInput (TouchPhase) + taskbar (45px, scrolling) + screenLog overlay + LedFlow  |
+|  serial debug: handleSerialCommands() in debug/serialConsole/console.cpp; setup()   |
+|  itself lives in boot/boot.cpp, off the loop() path (both split out of main.cpp)    |
 +---+----------+---------+--------+--------+--------+--------+--------+---------+----+
     |          |         |        |        |        |        |        |         |
  Winamp      Clock    Weather  Crypto/  Aquarium Teletext  Plane   Settings  WebRadio
