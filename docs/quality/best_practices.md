@@ -702,6 +702,14 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 
 ---
 
+### BP-069 — A task-board row is a pointer: id, priority, status, title, design-doc link, commit hash — nothing else
+
+**Adopted from**: LL-145
+**Date adopted**: 2026-08-25 (human)
+**Rule**: A `tasks*.md` row holds only: task id, priority, status, a one-line title/summary, a link to the governing design doc (only when one exists), and the landing commit hash(es). It does not hold the verification narrative — diff summaries, byte-deltas, DUT logs, judgment-call rationale. That evidence lives in the commit message (which already carries it in full on this project) and, for tasks with a governing design doc, in that doc's `BP-065` as-built section, updated by the agent executing the task **in the same commit that lands the work** — not as a follow-up, and not duplicated a third time into the board. A design doc under `docs/architecture/designs/*.md` is warranted only for a genuine design or architectural decision; a mechanical or hygiene task (a stale count, a doc-comment sync, a one-line promotion) gets a thin row and no separate doc at all — its record is the commit message alone. Applies **going forward only**: already-landed verbose rows are handled by ordinary archive passes (moved to `tasks-archive.md` per the existing convention), never retroactively rewritten to fit this shape.
+**Rationale**: A single session landed ~30 tasks and several rows in `tasks-architecture.md` grew past 1,000 words each, because the row was the only place execution evidence had anywhere to go once a task closed — the same failure shape that grew `main.cpp` to 5,880 lines and `run_serialdbg_tests.py` to 10,229: one file absorbs everything of a kind because nothing else is designated to hold it. Unpacking a bloated row showed it was three different kinds of content pasted together — design intent (already has a home: the design doc), execution evidence (the commit message already has this, in full — the row was a second, worse copy), and scheduling state (the only thing a board actually needs). `BP-065` already put the as-built record in the design doc at landing time; this rule is the direct extension of that pattern to the board itself, closing the gap that let the duplication happen.
+**Applies to**: All (PM especially — board maintenance; Developer/Architect — commit-time as-built updates)
+
 ---
 
 ## Entry Format
