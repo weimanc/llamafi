@@ -26,3 +26,9 @@ __pycache__/
 # TASK-343: check-datatask-certs --propose-fix reports — human-review scratch
 # output, never a committed artifact (the checker regenerates it on demand).
 /scratch/
+
+# editor swap/backup files — a stray one (.tasks-winamp-player.md.swp) got
+# tracked and had to be cleaned up by hand; this stops it recurring.
+*.swp
+*.swo
+*~
