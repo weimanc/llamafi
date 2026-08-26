@@ -8,6 +8,7 @@ the teletext family, which needs the universal app-switch / taskbar-scroll
 """
 
 import time
+from contextlib import contextmanager
 
 from lib.dut import Dut
 from lib.results import skip
@@ -159,3 +160,16 @@ def _tb_set_offset(dut: Dut, target: int) -> bool:
             dut.cmd(f"drag {_TB_X} 60 {_TB_X} 110 10", timeout=5.0)  # 50 px down → -1
             time.sleep(0.1)
     return _tb_get_offset(dut) == target
+
+
+@contextmanager
+def _bgpoll_suspended(dut: "Dut"):
+    """Suspend background Spotify polls for the duration of the block.
+    Guarantees bgPoll resumes even if the test body raises.
+    Pre-conditions (e.g. _wait_shell_not_busy) are the caller's responsibility.
+    """
+    dut.cmd("set bgPoll 0", timeout=2.0)
+    try:
+        yield
+    finally:
+        dut.cmd("set bgPoll 1", timeout=2.0)
