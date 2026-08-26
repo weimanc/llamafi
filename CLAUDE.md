@@ -245,10 +245,22 @@ PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). O
 **Upstream files** (`Spotify-Diy-Thing/SpotifyDiyThing/`, included via `lib_extra_dirs`):
 - `spotifyLogic.h` — Spotify API call + state-machine logic.
 - `spotifyDisplay.h` — display abstraction (superseded by app shell; kept for upstream compat).
-- `cheapYellowLCD.h` — concrete display backend (has PATCH-001). `matrixDisplay.h` was deleted (TASK-467/ADR-061 D8) — no env defined `MATRIX_DISPLAY`, so it was unreachable.
+- `matrixDisplay.h` was deleted (TASK-467/ADR-061 D8) — no env defined `MATRIX_DISPLAY`, so it was unreachable. `cheapYellowLCD.h` was deleted too (TASK-470/ADR-061 D9 step 4) — `WinampDisplay` now derives directly from `SpotifyDisplay` (`app/src/winamp/winampDisplay.{h,cpp}`); the global `tft` object lives in `app/src/display/tft.{h,cpp}`, not here.
 - `nfc.h` — optional PN532 NFC reader; tags carry Spotify URIs/URLs that get played on swipe. Set `NFC_ENABLED 0` in the `.ino` to disable. `writeContextToNfc` toggles writing the currently-playing context back to a tag (off for albums that auto-flow into related songs).
 - `touchScreen.h` / `CYD28_TouchscreenR.{h,cpp}` — CYD touch input (rotated coordinates).
 - `configFile.h` — SPIFFS-backed persisted config.
 - `WifiManagerHandler.h`, `refreshToken.h` — first-run setup flow described above.
 
 `GitHubPages/` hosts the ESPWebTools browser flasher (Chrome/Edge) — a build artifact deployment target, not part of firmware.
+
+**Host tooling** (`app/tools/`, per [M-TOOLING-host-tool-architecture.md](docs/architecture/designs/M-TOOLING-host-tool-architecture.md)):
+- `lib/` — shared layer: `dut.py` (DUT session: port resolve, open, send, expect), `flaky.py`/`results.py` (suite reporting).
+- `gate/` — host gates `run/check`/`run/check-docs` invoke: the four `check_*.py` scripts + their `test_check_*.py` tests. Leaves — nothing else depends on `gate/`.
+- `gen/` — codegen writing into `app/gen/`, staleness-gated (`gen_app_registry.py`, `gen_mem_layout.py`, …).
+- `bake/` — asset bakes writing into `app/gen/`, `golden.sha256`-gated (`bake_skin.py`, `bake_nixie.py`, …).
+- `preview/` — host-only renderers (parse `gen/*.h`, never mirror it — LL-114). `preview_common.py` (the shared parser these import) stays flat in `app/tools/`, not inside `preview/`.
+- `probe/` — one-shot host probes against live external services.
+- `suite/` — DUT test suites (not yet populated — `run_serialdbg_tests.py`, the 128-test regression runner, is still flat pending its own split, TASK-480).
+- `spike/` — one-off, task-scoped tools; `run/check-docs`'s `SPIKE` check (blocking) fails any `spike/task<NNN>_*` whose task is archived.
+
+Levels depend downward only: a suite may use `lib/`; `lib/` never imports a suite; `preview/`/`bake/` never import from `suite/`.

@@ -10,7 +10,7 @@ The Architect is a systems thinker who translates intent into structure. They op
 
 1. Maintain `docs/architecture/architecture.md` as the living system specification.
 2. Author and maintain Architecture Decision Records (ADRs) in `docs/architecture/decisions/`.
-3. Author module-level design docs in `docs/architecture/designs/` to work out a design space before committing to an ADR; review Developer-authored design docs for cross-cutting impact.
+3. Author module-level design docs in `docs/architecture/designs/` to work out a design space before committing to an ADR; review Developer-authored design docs for cross-cutting impact. **Threshold (BP-069, 2026-08-25, human)**: a design doc is warranted only for a genuine design or architectural decision — not for a mechanical or hygiene task (a stale count, a doc-comment sync, a one-line promotion). Those get a task-board row and a commit message; writing a design doc for one is the over-production this rule exists to stop. When in doubt, ask whether the work involves a real choice among options — if not, it doesn't need one.
 4. Define and maintain interface contracts (IFCs) in `docs/architecture/interfaces/`.
 5. Review R&D proposals for architectural feasibility before PM scheduling.
 6. Consult with Developer before any cross-component or cross-feature design is implemented.
