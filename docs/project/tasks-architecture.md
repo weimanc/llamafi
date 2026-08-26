@@ -221,7 +221,7 @@ are registered canonically in `docs/verification/test_plan.md`, not here.
 | TASK-536 | P3 | **DONE 2026-08-26** (`dea7ab3`) | `ROWLEN` advisory row-length check, per [M-ROWGATE-task-board-length-check.md](../architecture/designs/M-ROWGATE-task-board-length-check.md) — see its As-built (§7) for the measured threshold and count. |
 | TASK-537 | **P2** | OPEN — filed 2026-08-26, **blocks TASK-481** | Add a `gate/` level to the §3 taxonomy: 34 of 103 tools (incl. all four `check_*.py` gates) have no home in it — see [M-TOOLING](../architecture/designs/M-TOOLING-host-tool-architecture.md) §3 R5 + §8. |
 | TASK-538 | P3 | OPEN — filed 2026-08-26 | Clear the 6 archived spikes, then flip `check_docs.py`'s SPIKE check to blocking in the same commit — see [M-TOOLING](../architecture/designs/M-TOOLING-host-tool-architecture.md) §4 R6. |
-| TASK-539 | P3 | OPEN — filed 2026-08-26 | Document the 15 undocumented `run/` scripts in `CLAUDE.md`'s run-script table — see [M-TOOLING](../architecture/designs/M-TOOLING-host-tool-architecture.md) F5 R9 for the current list. |
+| TASK-539 | P3 | **DONE 2026-08-26** (`45f8961`) | Documented the 15 `run/` scripts M-TOOLING F5/R9 found missing from `CLAUDE.md`'s run-script list (re-verified against `ls run/` before adding, count and members matched R9 exactly). |
 
 ## Vendoring / `app/lib` ([ADR-060 D2b](../architecture/decisions/ADR-060.md))
 
