@@ -7,7 +7,7 @@ A new satellite suite needs:
         RESULTS, pass_, fail, skip, flake,
         make_arg_parser, run_suite, print_results,
     )
-    from run_serialdbg_tests import Dut
+    from lib.dut import Dut
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import traceback
 from typing import Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from run_serialdbg_tests import Dut
+    from lib.dut import Dut  # TASK-479: direct import (was run_serialdbg_tests re-export)
 
 # ── result tracking — moved to lib/results.py (TASK-520) ──────────────────────
 # These were byte-identical copies of run_serialdbg_tests.py's. Re-exported here

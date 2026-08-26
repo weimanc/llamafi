@@ -27,7 +27,7 @@ sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 
 import coords as _c                                     # noqa: E402
 from app_ids_gen import APP_ORDER, APP_SLOT             # noqa: E402
-from run_serialdbg_tests import Dut                     # noqa: E402
+from lib.dut import Dut                                  # noqa: E402  TASK-479: direct import
 from ve_suite_base import (                             # noqa: E402
     RESULTS, pass_, fail, skip,
     make_arg_parser, run_suite, print_results,

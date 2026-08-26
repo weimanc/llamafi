@@ -34,8 +34,7 @@ import re
 import statistics
 import time
 
-from run_serialdbg_tests import Dut
-from lib.dut import resolve_port  # P1: one port resolver (run/port)
+from lib.dut import Dut, resolve_port  # TASK-479: direct import, one port resolver (run/port)
 from wifi_watch import WatchDut  # lenient gate: skips ELF + Spotify-poll checks
 
 # App registry order (appRegistry.h) — taskbar slot i shows app (tbScrollOffset+i) % 10.

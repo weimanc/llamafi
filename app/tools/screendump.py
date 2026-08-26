@@ -27,7 +27,7 @@ import sys
 import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from run_serialdbg_tests import Dut, _DUT_WIFI_WAIT_S, _PORTAL_INDICATORS  # reuse DRD-gap/boot handling
+from lib.dut import Dut, _DUT_WIFI_WAIT_S, _PORTAL_INDICATORS  # TASK-479: reuse DRD-gap/boot handling, direct import
 
 import numpy as np
 from PIL import Image
