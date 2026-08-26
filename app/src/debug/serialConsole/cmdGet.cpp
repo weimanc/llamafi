@@ -73,6 +73,11 @@ void cmdGet(const char *args) {
   // ms = device→host clock anchor; disc*/lastGotIpMs from the wifiDiag handler.
   // Field set VE-gated (BP-024) — extend, don't rename.
   if (strcmp(args, "wifi") == 0) {
+    // TASK-544 (G7): one atomic snapshot instead of four direct field reads
+    // that could pair a fresh field with a stale one across a disconnect
+    // landing mid-read (arduino_events is priority 19, preempts loopTask
+    // between any two of these).
+    wifiDiag::DiscSnapshot ds = wifiDiag::discSnapshot();
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifi\","
                   "\"ms\":%lu,\"status\":%d,\"rssi\":%d,\"ip\":\"%s\",\"ch\":%d,"
                   "\"discCount\":%lu,\"lastDiscReason\":%u,\"lastDiscMs\":%lu,"
@@ -80,10 +85,10 @@ void cmdGet(const char *args) {
                   (unsigned long)millis(), (int)WiFi.status(),
                   (WiFi.status() == WL_CONNECTED) ? (int)WiFi.RSSI() : 0,
                   WiFi.localIP().toString().c_str(), (int)WiFi.channel(),
-                  (unsigned long)wifiDiag::discCount,
-                  (unsigned)wifiDiag::lastDiscReason,
-                  (unsigned long)wifiDiag::lastDiscMs,
-                  (unsigned long)wifiDiag::lastGotIpMs,
+                  (unsigned long)ds.discCount,
+                  (unsigned)ds.lastDiscReason,
+                  (unsigned long)ds.lastDiscMs,
+                  (unsigned long)ds.lastGotIpMs,
                   (unsigned long)wifiDiag::superviseKicks);
     return;
   }
@@ -129,19 +134,21 @@ void cmdGet(const char *args) {
   // gapsOver1s split BEACON_TIMEOUT into "beacons stopped arriving" (H-A/H-C)
   // vs "beacons fine, stack timed out" (H-B). otherMgmt proves rx was alive.
   if (strcmp(args, "beacon") == 0) {
+    // TASK-544 (G6): one atomic snapshot instead of seven direct field reads
+    // racing promiscCb on a different core.
+    wifiDiag::BeaconStats bs = wifiDiag::beaconStatsSnapshot();
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"beacon\","
                   "\"active\":%s,\"count\":%lu,\"gapMaxMs\":%lu,\"gapsOver1s\":%lu,"
                   "\"lastAgoMs\":%lu,\"rssi\":%ld,\"noiseFloor\":%ld,"
                   "\"otherMgmt\":%lu,\"last\":true}\n",
                   wifiDiag::beaconWatchActive() ? "true" : "false",
-                  (unsigned long)wifiDiag::beaconStats.count,
-                  (unsigned long)wifiDiag::beaconStats.gapMaxMs,
-                  (unsigned long)wifiDiag::beaconStats.gapsOver1s,
-                  (unsigned long)(wifiDiag::beaconStats.lastMs
-                      ? millis() - wifiDiag::beaconStats.lastMs : 0),
-                  (long)wifiDiag::beaconStats.lastRssi,
-                  (long)wifiDiag::beaconStats.noiseFloor,
-                  (unsigned long)wifiDiag::beaconStats.otherMgmt);
+                  (unsigned long)bs.count,
+                  (unsigned long)bs.gapMaxMs,
+                  (unsigned long)bs.gapsOver1s,
+                  (unsigned long)(bs.lastMs ? millis() - bs.lastMs : 0),
+                  (long)bs.lastRssi,
+                  (long)bs.noiseFloor,
+                  (unsigned long)bs.otherMgmt);
     return;
   }
   // TASK-282: async scan result — reports every AP whose SSID matches ours

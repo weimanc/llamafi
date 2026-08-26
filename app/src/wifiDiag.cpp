@@ -2,6 +2,7 @@
 #include "wifiDiag.h"
 #include <WiFi.h>
 #include <stdio.h>
+#include <freertos/FreeRTOS.h>   // TASK-544: portMUX_TYPE / portENTER_CRITICAL_SAFE
 #ifdef SERIAL_DEBUG
 #include <esp_wifi.h>
 #include <string.h>
@@ -13,6 +14,23 @@ volatile uint32_t discCount     = 0;
 volatile uint8_t  lastDiscReason = 0;
 volatile uint32_t lastDiscMs    = 0;
 volatile uint32_t lastGotIpMs   = 0;
+
+// TASK-544 (G7): guards a consistent GROUP read of the four counters above
+// (onEvent() writes under it too). Does not change the single-field bare-
+// volatile reads elsewhere (logHeartbeat's discCount, superviseTick's
+// lastDiscMs) — those were never the hazard.
+static portMUX_TYPE s_discMux = portMUX_INITIALIZER_UNLOCKED;
+
+DiscSnapshot discSnapshot() {
+    DiscSnapshot s;
+    portENTER_CRITICAL_SAFE(&s_discMux);
+    s.discCount      = discCount;
+    s.lastDiscReason = lastDiscReason;
+    s.lastDiscMs     = lastDiscMs;
+    s.lastGotIpMs    = lastGotIpMs;
+    portEXIT_CRITICAL_SAFE(&s_discMux);
+    return s;
+}
 
 // Flap guard (design §3.1 / QM OQ1 condition): a pathological AP must not
 // storm the serial log. Budget of events per rolling minute; excess is
@@ -38,13 +56,20 @@ static const char* evName(WiFiEvent_t ev) {
 static void onEvent(WiFiEvent_t ev, WiFiEventInfo_t info) {
     const uint32_t now = millis();
 
-    // Counters update unconditionally — the flap guard limits LINES, never data.
+    // Counters update unconditionally — the flap guard limits LINES, never
+    // data. TASK-544 (G7): under the same portMUX discSnapshot() reads
+    // through, so a group read can never pair a field from this write with
+    // a stale field from a prior one.
     if (ev == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+        portENTER_CRITICAL_SAFE(&s_discMux);
         discCount      = discCount + 1;
         lastDiscReason = info.wifi_sta_disconnected.reason;
         lastDiscMs     = now;
+        portEXIT_CRITICAL_SAFE(&s_discMux);
     } else if (ev == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+        portENTER_CRITICAL_SAFE(&s_discMux);
         lastGotIpMs = now;
+        portEXIT_CRITICAL_SAFE(&s_discMux);
     }
 
     // Rolling-minute line budget.
@@ -185,6 +210,19 @@ void superviseTick() {
 
 BeaconStats beaconStats = {};
 
+// TASK-544 (G6): promiscCb runs on the WiFi driver task, core 0 — a genuine
+// cross-core writer against loopTask's readers, mirroring dataTask's own
+// portMUX + copy-into-caller-storage pattern (M1).
+static portMUX_TYPE s_beaconMux = portMUX_INITIALIZER_UNLOCKED;
+
+BeaconStats beaconStatsSnapshot() {
+    BeaconStats s;
+    portENTER_CRITICAL_SAFE(&s_beaconMux);
+    s = beaconStats;
+    portEXIT_CRITICAL_SAFE(&s_beaconMux);
+    return s;
+}
+
 static bool     s_watchActive = false;
 static uint8_t  s_bssid[6]    = {};
 // Pending gap event, written in the promiscuous callback (WiFi task), drained
@@ -202,10 +240,17 @@ static void promiscCb(void* buf, wifi_promiscuous_pkt_type_t type) {
     // Beacon: type/subtype 0x80 (mgmt, subtype 8). addr3 = BSSID at offset 16.
     if (fr[0] != 0x80) return;
     if (memcmp(fr + 16, s_bssid, 6) != 0) {
+        portENTER_CRITICAL_SAFE(&s_beaconMux);
         beaconStats.otherMgmt = beaconStats.otherMgmt + 1;
+        portEXIT_CRITICAL_SAFE(&s_beaconMux);
         return;
     }
-    const uint32_t now  = millis();
+    const uint32_t now = millis();
+    // TASK-544 (G6): the whole read-modify-write, gapMaxMs/gapsOver1s
+    // included, is one critical section — this runs on core 0 against
+    // loopTask readers on core 1, a true cross-core race (not the
+    // same-core preemption every other crossing in this file is).
+    portENTER_CRITICAL_SAFE(&s_beaconMux);
     const uint32_t last = beaconStats.lastMs;
     if (last != 0) {
         const uint32_t gap = now - last;
@@ -221,6 +266,7 @@ static void promiscCb(void* buf, wifi_promiscuous_pkt_type_t type) {
     beaconStats.count      = beaconStats.count + 1;
     beaconStats.lastRssi   = p->rx_ctrl.rssi;
     beaconStats.noiseFloor = p->rx_ctrl.noise_floor;
+    portEXIT_CRITICAL_SAFE(&s_beaconMux);
 }
 
 bool beaconWatchStart() {
@@ -247,10 +293,13 @@ bool beaconWatchActive() { return s_watchActive; }
 void poll() {
     if (!s_pendFlag) return;
     s_pendFlag = false;
+    // TASK-544 (G6): snapshot rssi/noiseFloor together instead of two direct
+    // reads racing promiscCb on core 0.
+    BeaconStats bs = beaconStatsSnapshot();
     char buf[96];
     snprintf(buf, sizeof(buf), "[beacon] t=%lu gap=%lums rssi=%ld nf=%ld\n",
              (unsigned long)s_pendAtMs, (unsigned long)s_pendGapMs,
-             (long)beaconStats.lastRssi, (long)beaconStats.noiseFloor);
+             (long)bs.lastRssi, (long)bs.noiseFloor);
     Serial.print(buf);   // single write — same no-tearing rule as [wifi-ev]
 }
 #endif  // SERIAL_DEBUG

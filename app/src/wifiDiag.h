@@ -12,13 +12,34 @@
 namespace wifiDiag {
 
 // Counters consumed by the SERIAL_DEBUG `get wifi` accessor (design §3.2).
-// Written from the WiFi event task, read from loop — volatile is sufficient
-// for these monotonic diagnostics (no compound read-modify-write races that
-// matter: worst case a poll sees a half-updated pair one poll early).
+// Written from the WiFi event task (`arduino_events`, framework-owned,
+// priority 19 — M-CONCURRENCY §1's sixth context), read from loop. A lone
+// field read (logHeartbeat's discCount, superviseTick's lastDiscMs) is fine
+// as a bare volatile — worst case a poll sees a half-updated *pair* one poll
+// early, which is the "matters" this comment used to wave away. It does NOT
+// cover reading more than one of these as one logical group: `arduino_events`
+// runs at priority 19 and can preempt loopTask between any two of these
+// reads, so a group read can pair a NEW lastDiscMs with a STALE
+// lastDiscReason across a disconnect that lands mid-read (M-CONCURRENCY §5
+// G7, TASK-544). Use discSnapshot() for any read that touches more than one
+// of these four together.
 extern volatile uint32_t discCount;       // STA_DISCONNECTED events since boot
 extern volatile uint8_t  lastDiscReason;  // reason code of the last disconnect
 extern volatile uint32_t lastDiscMs;      // millis() of the last disconnect
 extern volatile uint32_t lastGotIpMs;     // millis() of the last GOT_IP (outage end bound)
+
+// TASK-544 (G7): atomic copy of all four counters above, taken under the
+// same portMUX onEvent() writes under — mirrors dataTask's own "portMUX +
+// copy into caller storage" pattern (M-CONCURRENCY R5 mechanism 1). Use this
+// instead of reading the bare volatiles whenever more than one field is
+// consumed together (e.g. `get wifi`'s JSON, which prints all four).
+struct DiscSnapshot {
+    uint32_t discCount;
+    uint8_t  lastDiscReason;
+    uint32_t lastDiscMs;
+    uint32_t lastGotIpMs;
+};
+DiscSnapshot discSnapshot();
 
 void begin();  // register the event handler — call BEFORE WiFi.begin()
 
@@ -68,8 +89,19 @@ uint8_t superviseCandidateCount();
 // Beacon watcher: promiscuous-mode management-frame tap, filtered to the
 // associated BSSID on the current channel. Per-beacon rx_ctrl gives RSSI and
 // the PHY noise floor — evidence at the antenna, below the stack's timeout
-// logic. gap events > 1 s are queued in the callback (WiFi task context) and
-// printed by poll() from loop context as stable-prefix "[beacon]" lines.
+// logic. gap events > 1 s are queued in the callback and printed by poll()
+// from loop context as stable-prefix "[beacon]" lines.
+//
+// TASK-544 (G6): the callback (`promiscCb`) runs on the closed-source WiFi
+// driver task — core 0, priority 23 (M-CONCURRENCY §1's sixth context) —
+// while every reader here runs on loopTask, core 1. That is a genuine
+// cross-core simultaneous access, not a same-core preemption race like every
+// other crossing in this file: "safe by scheduling" does not apply even in
+// principle. `volatile` alone does not make a seven-field read-modify-write
+// atomic across cores. Fields stay `volatile` (debug-build direct reads
+// elsewhere are unaffected), but any write in `promiscCb` and any read of
+// more than one field together goes through the portMUX below — the same
+// M1 mechanism `dataTask`'s own result slots already use.
 struct BeaconStats {
     volatile uint32_t count;        // beacons from our BSSID since watch start
     volatile uint32_t gapMaxMs;     // max inter-beacon gap observed
@@ -80,6 +112,11 @@ struct BeaconStats {
     volatile uint32_t otherMgmt;    // mgmt frames seen from other BSSIDs (sanity: rx alive)
 };
 extern BeaconStats beaconStats;
+// Atomic copy of every field above, taken under the same portMUX promiscCb
+// writes under. Use this instead of reading `beaconStats.*` directly
+// whenever more than one field is consumed together (cmdGet.cpp's `get
+// beacon`, poll()'s own [beacon] line).
+BeaconStats beaconStatsSnapshot();
 
 bool beaconWatchStart();  // needs an associated STA (locks to its BSSID); false if not connected
 void beaconWatchStop();
