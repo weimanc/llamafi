@@ -238,7 +238,7 @@ are registered canonically in `docs/verification/test_plan.md`, not here.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-476 | P3 | OPEN | relocate `mb_arena` → `app/src/mem/arena`. **Blocked on an unanswered question**: can a PlatformIO `lib/` dir include from `src/`? Answer that first |
+| TASK-476 | P3 | DONE 2026-08-26 (`d73f305`) | relocated `mb_arena.{h,cpp}` from `app/lib/ESP32-audioI2S/src/` to `app/src/mem/arena/`; `-Isrc` answer confirmed real, 11/11 build, byte-delta -8 B (`__FILE__` string only) |
 | TASK-477 | — | **LANDED** (`f2730cc`) | fix `mb_arena.h`'s header comment — it claims production is "byte-clean"; `platformio.ini:93` defines `MEMBUDGET_PHASE1` in `[env:cyd2usb_winamp]` |
 
 ## Skeletons — problems with a home, not yet designed
