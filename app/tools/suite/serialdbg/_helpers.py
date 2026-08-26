@@ -11,9 +11,118 @@ import time
 from contextlib import contextmanager
 
 from lib.dut import Dut
-from lib.results import skip
+from lib.results import skip, pass_
 import coords as _c
 from app_ids_gen import APP_SLOT
+
+
+def _check_residue(dut: Dut, tid: str) -> bool:
+    """After switching back to Spotify, verify lastPlaylistDraw advances within 3 s.
+    Returns True if PASS was recorded, False if the check was skipped (no Spotify signal).
+    Does not call fail() — caller decides on skip vs fail."""
+    r_before = dut.cmd("get lastPlaylistDraw", timeout=3.0)
+    if not r_before.get("ok"):
+        return False
+    t_before = r_before.get("ms", 0)
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        r = dut.cmd("get lastPlaylistDraw", timeout=1.0)
+        if r.get("ok") and r.get("ms", t_before) != t_before:
+            pass_(tid, f"lastPlaylistDraw advanced {t_before}→{r['ms']} — no TFT state residue")
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
+    """Switch to StockApp via the serial switchApp command.
+    TASK-247: force List launch view first (in-RAM only, not persisted) so the
+    list-centric suite is deterministic regardless of the device's saved stockMode
+    (e.g. a user-configured Heatmap default), and so the heatmap/chart launch no
+    longer pre-fetches the unused list quote."""
+    dut.cmd("set stockMode 0", timeout=timeout)
+    r = dut.cmd(f"switchApp {APP_SLOT['Stock']}", timeout=timeout)
+    if not r.get("ok"):
+        return False
+    time.sleep(0.3)
+    r2 = dut.cmd("get appId", timeout=timeout)
+    return r2.get("ok", False) and r2.get("name") == "Stock"
+
+
+def _restore_from_stock(dut: Dut, timeout: float = 5.0) -> bool:
+    """Switch back to Spotify from Stock."""
+    r = dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=timeout)
+    if not r.get("ok"):
+        return False
+    time.sleep(0.3)
+    r2 = dut.cmd("get appId", timeout=timeout)
+    return r2.get("ok", False) and r2.get("name") == "Spotify"
+
+
+def _stock_get(dut: Dut, var: str, timeout: float = 3.0):
+    """Get a stock debug var; return the response dict."""
+    return dut.cmd(f"get {var}", timeout=timeout)
+
+
+def _stock_ok_count(dut: Dut) -> int:
+    """Return current fetchOkCount from firmware, or -1 on error."""
+    r = _stock_get(dut, "fetchOkCount")
+    if r.get("ok"):
+        try:
+            return int(r.get("val", -1))
+        except (ValueError, TypeError):
+            pass
+    return -1
+
+
+_CHART_PHASE_NAMES = {0: "TLS/connect", 1: "GET/response", 2: "JSON-parse"}
+
+
+def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
+                         test_id: str = "") -> bool:
+    """Wait until fetchOkCount advances past `before` — proves a chart fetch completed
+    (HTTP + parse), not just that it was enqueued (LL-041). `before` must be snapshotted
+    from fetchOkCount before the triggering tap/command. Returns True on success.
+    On timeout prints stockChartProgress phase and the last dataq sample to aid
+    diagnosis (TASK-300: distinguishes queued/parked-in-yield from never-enqueued
+    — the fetch's tlsYield() fires BEFORE stockChartProgress is set, so
+    progress=-1 alone can't tell the two apart)."""
+    prefix = f"[{test_id}] " if test_id else ""
+    deadline = time.monotonic() + timeout_s
+    last_q = None
+    ticks = 0
+    while time.monotonic() < deadline:
+        try:
+            current = _stock_ok_count(dut)
+        except TimeoutError:
+            time.sleep(1.0)
+            continue
+        if current > before:
+            return True
+        ticks += 1
+        if ticks % 3 == 0:  # sample the dispatch pipeline every ~3 s (TASK-300)
+            try:
+                q = dut.cmd("get dataq", timeout=3.0)
+                if q.get("ok"):
+                    q.pop("ok", None); q.pop("cmd", None); q.pop("last", None)
+                    if q != last_q:
+                        print(f"  {prefix}dataq: {q}", flush=True)
+                    last_q = q
+            except TimeoutError:
+                pass
+        time.sleep(1.0)
+    r_prog = dut.cmd("get stockChartProgress", timeout=3.0)
+    phase = r_prog.get("val") if r_prog.get("ok") else "?"
+    phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
+    print(f"  {prefix}_wait_chart_complete timed out — stockChartProgress={phase} "
+          f"({phase_name}) dataq={last_q}", flush=True)
+    # TASK-386: heap/backoff snapshot on every timeout, for every caller, automatically
+    # — dataq was already sampled above, this adds the two fields it doesn't cover.
+    # Return type/signature unchanged (still bool) — zero risk to any of the 9 existing
+    # call sites (T176/T185/T188/T192/T193/T194/T204/T-BUSY-01b/...), and any future
+    # caller gets this for free without needing to know _diag_snapshot() exists.
+    _diag_snapshot(dut, f"{prefix}_wait_chart_complete-timeout")
+    return False
 
 
 def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
