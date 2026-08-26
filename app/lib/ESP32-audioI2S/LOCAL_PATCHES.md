@@ -72,8 +72,13 @@ srcFilter — a further patch for no functional gain. They are unreachable, not 
 
 ---
 
-## The other local file in this tree
+## The other local file in this tree (relocated 2026-08-26, TASK-476)
 
-`src/mb_arena.{h,cpp}` is **not a patch, it is an addition** — a project-authored fixed-slot
-allocator (TASK-261 Phase 2 / TASK-267 / ADR-047), not present upstream. It is the target of
-PATCH-MEMBUDGET-1/2. See TASK-452/444 for its open design questions (TASK-443 was withdrawn 2026-08-15).
+`mb_arena.{h,cpp}` used to live here as `src/mb_arena.{h,cpp}` — **not a patch, an addition** — a
+project-authored fixed-slot allocator (TASK-261 Phase 2 / TASK-267 / ADR-047), not present upstream.
+It has moved to `app/src/mem/arena/mb_arena.{h,cpp}`, since it's project-owned code with no upstream
+counterpart and doesn't need to live inside the vendored fork. PATCH-MEMBUDGET-1/2 above still target
+it — `mp3_decoder.cpp` now reaches it via `#include "mem/arena/mb_arena.h"`, resolved through the
+`-Isrc` include path already granted to library sources (confirmed via `pio run -t compiledb` before
+the move; TASK-476). See TASK-452/444 for its open design questions (TASK-443 was withdrawn
+2026-08-15).

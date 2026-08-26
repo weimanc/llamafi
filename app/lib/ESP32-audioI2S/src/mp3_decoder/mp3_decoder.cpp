@@ -8,7 +8,7 @@
 #include "mp3_decoder.h"
 // PATCH-MEMBUDGET-1/2 (TASK-261 Phase 2): arena alloc/free for Sites 1+2.
 // Include path resolves via PlatformIO lib_ldf_mode=deep+ scanning app/lib/.
-#include "../mb_arena.h"
+#include "mem/arena/mb_arena.h"  // TASK-476: relocated to app/src/, resolved via -Isrc
 /* clip to range [-2^n, 2^n - 1] */
 #if 0 //Fast on ARM:
 #define CLIP_2N(y, n) { \

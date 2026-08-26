@@ -15,7 +15,7 @@
 #include "esp_task_wdt.h"
 #include <esp_heap_caps.h> // T_MB_PROBE_00: caps-split for CP1/CP2 (TASK-261 Phase 0+2)
 #ifdef MEMBUDGET_PHASE1
-#include "mb_arena.h"  // Phase 2: arena HWM reporting at CP2
+#include "mem/arena/mb_arena.h"  // Phase 2: arena HWM reporting at CP2
 #endif
 #include "audio/audioEngine.h"  // TASK-409: system-owned Audio engine (PURE MOVE)
 #include "appShell.h"
