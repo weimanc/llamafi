@@ -112,10 +112,14 @@ case "$CMD" in
     if [ -n "$FILE" ]; then
       # Push single file
       FILE="${FILE#/}"
-      SRC="$PIO_DIR/data/$FILE"
+      # TASK-506: SRC_FILE overrides the default app/data/<file> source — lets
+      # a caller push a file from an arbitrary path (e.g. run/test's own
+      # pre-run settings.json snapshot) without touching the dev's real
+      # app/data/ working copy. Unset/empty falls back to prior behavior.
+      SRC="${SRC_FILE:-$PIO_DIR/data/$FILE}"
       [ -f "$SRC" ] || { echo "ERROR: $SRC not found" >&2; _start_monitor; exit 1; }
       cp "$SRC" "$UNPACKED/$FILE"
-      echo "[spiffs] updating /$FILE" >&2
+      echo "[spiffs] updating /$FILE (from $SRC)" >&2
     else
       # Merge app/data/ into unpacked fs (skip .gitkeep)
       for f in "$PIO_DIR"/data/*; do

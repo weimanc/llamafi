@@ -13,6 +13,24 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 PORT=$(resolve_port)
 
+# TASK-506: snapshot persisted settings before the suite runs so they can be
+# restored after — same content BP-049 already asks every DUT session to
+# capture by hand (`./run/spiffs pull` + a timestamped copy), just automated
+# so a run/test invocation doesn't depend on the operator remembering it.
+# Best-effort throughout: a snapshot/restore failure WARNs, never fails the
+# suite — the settings a test suite mutates are real but recoverable
+# (BP-049's own point), not worth losing 30+ minutes of test results over.
+SETTINGS_SNAPSHOT_DIR="$(mktemp -d)"
+echo "[test] step 0b/6 — snapshotting settings.json (TASK-506/BP-049)"
+if "$(dirname "$0")/spiffs" pull >/dev/null 2>&1 \
+    && [ -f "$PIO_DIR/data/spiffs-dump/settings.json" ]; then
+  cp "$PIO_DIR/data/spiffs-dump/settings.json" "$SETTINGS_SNAPSHOT_DIR/settings.json"
+  echo "[test] settings.json snapshot saved to $SETTINGS_SNAPSHOT_DIR"
+else
+  echo "WARN [test]: settings.json snapshot failed — restore step will be skipped" >&2
+  SETTINGS_SNAPSHOT_DIR=""
+fi
+
 _TEST_RC=0
 _cleanup() {
   local rc=$_TEST_RC
@@ -22,10 +40,26 @@ _cleanup() {
     echo "ERROR [test]: prod restore failed — DUT still running debug firmware" >&2
     rc=99
   }
+  echo "[test] step 5b/6 — restoring settings.json from the pre-run snapshot (TASK-506)"
+  local settings_restored=0
+  if [ -n "$SETTINGS_SNAPSHOT_DIR" ] && [ -f "$SETTINGS_SNAPSHOT_DIR/settings.json" ]; then
+    if SRC_FILE="$SETTINGS_SNAPSHOT_DIR/settings.json" "$(dirname "$0")/spiffs" push settings.json; then
+      settings_restored=1   # `spiffs push` already restarted the monitor — step 6 below skips it
+    else
+      echo "WARN [test]: settings.json restore failed — device may carry test-mutated settings (BP-049: pull+diff manually)" >&2
+    fi
+    rm -rf "$SETTINGS_SNAPSHOT_DIR"
+  else
+    echo "WARN [test]: no settings.json snapshot to restore" >&2
+  fi
   echo "[test] step 6/6 — restarting monitor"
-  tmux new-session -d -s "$SESSION" \
-    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
-    2>/dev/null || echo "WARN [test]: monitor start failed" >&2
+  if [ "$settings_restored" = "1" ]; then
+    echo "[test] monitor already restarted by the settings-restore step above — skipping"
+  else
+    tmux new-session -d -s "$SESSION" \
+      "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+      2>/dev/null || echo "WARN [test]: monitor start failed" >&2
+  fi
   # TASK-434 item 1: the harness exits SETUP_FAIL_EXIT (3) for a RIG condition —
   # WiFi never came up, wrong firmware flashed, port busy. Re-state it AFTER the
   # prod restore, because the restore's flash output is the last thing in the log
