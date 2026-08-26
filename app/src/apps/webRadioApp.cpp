@@ -233,7 +233,7 @@ void WebRadioApp::tick() {
             _minBufPct      = 100;
             _wasEmpty       = false;
 #endif
-            // _spotifyYielded stays true — TLS resumes in _stopAudio().
+            // _tlsGuard stays held — TLS resumes in _stopAudio().
             _dirty = true;
             s_wrPumpResult = WrPumpResult::NONE;
         } else if (result == WrPumpResult::FAILED) {
@@ -246,10 +246,7 @@ void WebRadioApp::tick() {
             // has already root-caused and fixed five times before).
             _state = WRPlayState::ERROR_UNREACHABLE;
             LOG_W("webradio", "connecttohost failed idx=%u", _currentIdx);
-            if (_spotifyYielded) {
-                spotifyTask::tlsResume();
-                _spotifyYielded = false;
-            }
+            _tlsGuard = spotifyTask::TlsYieldGuard::none();
             _onPlaybackFailed(/*connectFail=*/true);  // TASK-234: skip a dead host
             _dirty = true;
             s_wrPumpResult = WrPumpResult::NONE;
@@ -257,10 +254,7 @@ void WebRadioApp::tick() {
             // Same TLS-resume obligation as FAILED above — a STOP/eject
             // during CONNECTING must not leak the yield either.
             _state = WRPlayState::STOPPED;
-            if (_spotifyYielded) {
-                spotifyTask::tlsResume();
-                _spotifyYielded = false;
-            }
+            _tlsGuard = spotifyTask::TlsYieldGuard::none();
             _dirty = true;
             s_wrPumpResult = WrPumpResult::NONE;
         }
@@ -1274,10 +1268,7 @@ void WebRadioApp::_stopAudio(bool resumeTls) {
     _snapPlaySec = 0;
     winampDisplay.updateTimeDigits(0);
     // Resume Spotify TLS if we yielded it for playback
-    if (_spotifyYielded && resumeTls) {
-        spotifyTask::tlsResume();
-        _spotifyYielded = false;
-    }
+    if (resumeTls) _tlsGuard = spotifyTask::TlsYieldGuard::none();
 }
 
 void WebRadioApp::_play(uint8_t idx, bool userInitiated) {
@@ -1336,10 +1327,7 @@ void WebRadioApp::_play(uint8_t idx, bool userInitiated) {
         LOG_W("webradio", "play idx=%u — forced connect-fail (debug wrDeadUrls)", idx);
         // The held-across-stop yield (see _stopAudio) must not leak on
         // this early return — no stream is coming.
-        if (_spotifyYielded) {
-            spotifyTask::tlsResume();
-            _spotifyYielded = false;
-        }
+        _tlsGuard = spotifyTask::TlsYieldGuard::none();
         _onPlaybackFailed(/*connectFail=*/true);
         _dirty = true;
         return;
@@ -1358,9 +1346,8 @@ void WebRadioApp::_play(uint8_t idx, bool userInitiated) {
     // TLS stays yielded while playing; _stopAudio() resumes it. Skipped
     // when the yield is still held from the previous session (stop-then-
     // replay path — see _stopAudio deadlock comment).
-    if (!_spotifyYielded) {
-        spotifyTask::tlsYield();
-        _spotifyYielded = true;
+    if (!_tlsGuard.ok()) {
+        _tlsGuard = spotifyTask::TlsYieldGuard();
     }
     esp_task_wdt_reset();
 
@@ -1391,8 +1378,7 @@ void WebRadioApp::_play(uint8_t idx, bool userInitiated) {
     // `set plPlay`. The degrade path below is unchanged.
     if (!aeEnsureAudio()) {
         _state = WRPlayState::ERROR_UNREACHABLE;
-        spotifyTask::tlsResume();
-        _spotifyYielded = false;
+        _tlsGuard = spotifyTask::TlsYieldGuard::none();
         _onPlaybackFailed(/*connectFail=*/true);
         _dirty = true;
         return;

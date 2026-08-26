@@ -336,7 +336,12 @@ private:
     enum : uint8_t { ACT_NONE = 0, ACT_RETRY_SAME, ACT_SKIP_NEXT } _pendingAction = ACT_NONE;
     int         _lastHttpCode    = 0;
     bool        _lastOk          = false;
-    bool        _spotifyYielded  = false;
+    // TASK-542 (C2b, mirrors TASK-459's s_aeSpotifyYielded migration): the
+    // held-across-ticks TLS yield is a TlsYieldGuard, not a bare bool — the
+    // guard's move-assignment reproduces the old `if (flag) { tlsResume();
+    // flag=false; }` pattern exactly (see spotifyTask.h's TlsYieldGuard),
+    // so a release site that forgets the `if` can no longer double-resume.
+    spotifyTask::TlsYieldGuard _tlsGuard = spotifyTask::TlsYieldGuard::none();
     bool        _lastTlsInsecure = false;  // T_WR_TLS_01 — which path the last fetch used
     char        _lastJsonErr[24] = {};
     char        _icyTitle[WR_ICY_TITLE_LEN] = {};
@@ -384,7 +389,7 @@ private:
     // (DUT-reproduced 2026-07-07 via NEXT-while-playing: loopTask parked the
     // full 150 s ceiling, serial dead). Keeping the yield held across the
     // stop removes the bounce entirely; _play() skips its re-yield when
-    // _spotifyYielded is still true.
+    // _tlsGuard is still held (ok()==true).
     void _stopAudio(bool resumeTls = true);
 
     // userInitiated=true (user picked this station) resets the auto-skip scan;

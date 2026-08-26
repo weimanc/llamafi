@@ -35,7 +35,7 @@ TaskHandle_t g_loopTaskHandle = nullptr;
 
 volatile bool s_aeEofPending = false;
 
-// TASK-410: separate from WebRadioApp's _spotifyYielded — aeConnectFile() has
+// TASK-410: separate from WebRadioApp's _tlsGuard (TASK-542) — aeConnectFile() has
 // no app instance to hold it. DUT finding: without yielding Spotify's TLS
 // session first, its held heap fragments enough that both the arena acquire
 // and the pump task's stack alloc fail on a normal boot (reproduced: arena
