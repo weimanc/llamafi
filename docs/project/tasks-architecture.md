@@ -360,8 +360,8 @@ argument arriving from a second direction. **Blocks TASK-456.**
 | task | pri | status | title |
 |---|---|---|---|
 | **TASK-497** | **P2** | **DONE 2026-08-16** — 3 runs at HEAD; base-tree half retired on evidence | retrospective ≥3-run DUT baseline for the landed Stages A/B. *@PM: worth paying for — it is the only way left to recover D13's guarantee, and the cost is bounded and one-time. But it needs the same DUT block as 488's diff review. **One scheduling block, not two.*** |
-| TASK-498 | P3 | OPEN | `T_SRC_09` — regression test for IFC-003 I9 (the TASK-384 swallow shape) |
-| TASK-499 | P3 | OPEN | a `T_CC_` id for M-CONCURRENCY G1: enumerate every `WiFi.` call site against the known-safe set |
+| TASK-498 | P3 | **DONE 2026-08-26** (`a151b89`) | `T_SRC_09` registered in `test_plan.md` with full pass criteria (IFC-003 I9 / TASK-384 swallow shape). Status: planned — registration only, no test code. |
+| TASK-499 | P3 | **DONE 2026-08-26** (`a151b89`) | `T_CC_06` registered in `test_plan.md` with full pass criteria (M-CONCURRENCY G1 — every `WiFi.` mutating call site against a known-safe set). Status: planned — registration only, no test code. |
 
 **TASK-497 — the baseline window is not closed, but it now costs double.** ADR-059 D13 and
 `T_SRC_01` both require ≥3 full runs *before* a stage lands. Stages A (`78caa95`) and B (`b36f184`)
