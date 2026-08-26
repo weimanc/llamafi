@@ -422,6 +422,15 @@ review markers. Grepped `docs/architecture/designs/` for `CORRECTED` / `@<Role> 
 including two rounds, M-TESTARCH, M-DOCLIFE-check-docs-spec, M-DOCLIFE-keeping-design-docs-alive,
 M-CONCURRENCY — all reviewed. M-TOOLING: none.
 
+> **CORRECTED — @Architect independent review of M-CONCURRENCY, 2026-08-26.** M-CONCURRENCY was
+> **not** reviewed and does not belong in that list. Re-run today before this pass touched it,
+> `grep -Ew "CORRECTED|@VE|@Architect|@Developer|@QM"` over
+> `M-CONCURRENCY-task-ownership-contract.md` returned **zero**. Its @VE review of 2026-08-16 landed
+> on `IFC-002.md` and `test_plan.md` only; the design doc kept the original text of two claims @VE
+> had ruled false — see that document's §8 R5. So R1's real count is **two** unreviewed documents in
+> the batch, not one, and the failure mode has a second shape: a review that runs but lands on the
+> wrong artifact. R1's substance is unaffected.
+
 **A methodological note for whoever re-checks this.** A naive case-insensitive grep for `review`
 scores this file at 7 hits and makes the gap look filled. All seven are the substring inside
 `preview_common.py` / `preview/` / `preview_layout.py`. The word-boundary form is what shows the

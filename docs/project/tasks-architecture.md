@@ -204,7 +204,10 @@ are registered canonically in `docs/verification/test_plan.md`, not here.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-473 | P2 | OPEN | close the contract's gaps — G1 WiFi radio arbiter (three bugs: X014, TASK-436, TASK-404), G2 assert I2/I3, G3 dual mirrors |
+| TASK-473 | P2 | OPEN — re-scoped 2026-08-26 by the [design doc's §8 review](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md#8-independent-review--architect-2026-08-26-bp-066) | close the contract's gaps — G1 WiFi radio arbiter, G2 assert I2/I3 (**blocked on TASK-541**), G3 one-writer-per-mirror. G4 dropped: closed by TASK-491/500. |
+| TASK-541 | P2 | OPEN — filed 2026-08-26 | [M-CONCURRENCY](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) §1 enumerates four execution contexts; there are six. Correct §1/§1.1 and IFC-002, then re-derive R5. Blocks TASK-473's G2. |
+| TASK-542 | P3 | OPEN — filed 2026-08-26 | `WebRadioApp::_spotifyYielded` → `TlsYieldGuard`: the un-migrated twin of TASK-459's `s_aeSpotifyYielded`, 1 acquire / 5 releases / 4 functions. See [M-CONCURRENCY](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) §4. |
+| TASK-543 | P3 | OPEN — filed 2026-08-26, for QM | No rule propagates a correction made in an IFC back to the design doc that defines it. Three @VE corrections sat unpropagated for 10 days — [M-CONCURRENCY](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) §8 R5. Candidate BP, or a `check-docs` check. |
 
 ## M-DOCLIFE — document decay ([design](../architecture/designs/M-DOCLIFE-keeping-design-docs-alive.md) · [spec](../architecture/designs/M-DOCLIFE-check-docs-spec.md))
 
