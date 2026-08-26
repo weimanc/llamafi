@@ -89,13 +89,16 @@ framework `SD` library is vendored into `app/lib/SD/` and patched so SDHC cards 
 All build, flash, monitor, and test operations have named scripts in `run/`. Always use these instead of raw `pio` or `tmux` commands — the scripts handle port resolution, monitor lifecycle, and DUT safety automatically.
 
 ```sh
+./run/lib.sh                   # shared helpers sourced by all run/* scripts — not executed directly
 ./run/port                    # resolve + print CH340 serial port
 ./run/build                   # compile production firmware
 ./run/build-debug             # compile debug firmware
 ./run/setup                   # first-time setup wizard (WiFi + Spotify credentials)
 ./run/flash                   # flash production (kills + restores monitor)
 ./run/flash-debug             # flash debug firmware (monitor stays down for test harness)
-./run/flash-fs                # upload SPIFFS — full format/rewrite (destructive; use run/spiffs push instead)
+./run/flash-player             # flash cyd2usb_player variant (TASK-427/431); monitor not restarted
+./run/flash-webradio           # flash cyd2usb_webradio (-DDISABLE_SPOTIFY -DWEBRADIO_ONLY); monitor not restarted
+./run/flash-fs                 # upload SPIFFS — full format/rewrite (destructive; use run/spiffs push instead)
 ./run/spiffs ls               # list files on device
 ./run/spiffs pull [file]      # extract all → app/data/spiffs-dump/, or single file → stdout
 ./run/spiffs push [file]      # write single file or merge app/data/ (non-destructive, no format)
@@ -107,13 +110,25 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/test-targeted T1,T2     # targeted loop for a specific feature
 ./run/test-smoke              # smoke preset < 2 min
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
+./run/browser-player           # directory-browse + real playback test on cyd2usb_player (TASK-416/T_PLR_13)
+./run/playorder-player         # auto-advance playback across 5 tracks on cyd2usb_player (TASK-418/T_PLR_25)
+./run/player-gate              # M-TESTBASE phase-1 player gate, two-leg ordered regression run (TASK-519)
+./run/wr-gate [trials]         # ADR-045 MVP exit-criterion gate for M-WEBRADIO close (TASK-238)
+./run/pr-fetch-soak [min]      # PlaneRadar fetch-failure-rate soak by payload size (TASK-361)
 ./run/stress [min]            # multi-app fetch stress/soak (TASK-248; flash debug → soak → restore prod)
 ./run/wr-soak [min]           # WebRadio playback + A-lite arena-churn soak (TASK-271; flash webradio build → soak → restore prod)
 ./run/ae04 [cycles]           # T_AE_04 audio-engine teardown ordering, eject mid-CONNECTING (TASK-409; flash webradio build → test → restore prod)
 ./run/task488 [ids]           # T_488_04-11 refactor verification (TASK-488; DUT_TREE=<worktree> flashes another checkout for an A/B)
 ./run/pr-soak [min]           # PlaneRadar + Spotify coexistence soak (TASK-307; flash debug → soak → restore prod)
+./run/audit-origin [--grep-only] # origin-relative render/hit-test audit (TASK-082/251)
+./run/screendump               # pull an exact DUT screenshot via SERIAL_DEBUG (requires debug firmware)
 ./run/check                   # 11-gate build check (check_build.sh)
+./run/check-docs               # documentation staleness gate (TASK-475, M-DOCLIFE phase 1)
+./run/check-datatask-certs     # dataTask TLS chain preflight, offline chain-build verify (ADR-029)
+./run/check-teletext-api       # NOS Teletekst API stability canary
 ./run/bake-skin               # bake Winamp skin assets
+./run/bake-airports            # bake OurAirports runway DB for M-PLANERADAR (ADR-049)
+./run/bake-icons               # bake app/icons/taskbar/*.png -> app/gen/taskbar_icons.{cpp,h}
 ```
 
 Full reference: `docs/process/project_run_scripts.md`. Rationale and failure modes: `docs/process/dut_workflow.md`.
