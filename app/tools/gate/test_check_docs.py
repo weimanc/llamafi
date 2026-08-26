@@ -130,7 +130,7 @@ def t_doc_01() -> None:
 
 def t_doc_02() -> None:
     tid = "T_DOC_02"
-    live = os.path.dirname(os.path.dirname(HERE))
+    live = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
     c = cd.Corpus(live)
     # TASK-511: these were `== 234` / `== 69`, i.e. live-corpus counts used as pass
     # conditions — exactly what this file's own docstring forbids ("live numbers are
@@ -338,7 +338,7 @@ def t_doc_08() -> None:
     for other in ("cyd", "trinity"):
         check(tid, other not in names_fx,
               f"{other} belongs to Spotify-Diy-Thing and must not be flagged")
-    live = cd.check_c3(cd.Corpus(os.path.dirname(os.path.dirname(HERE))))
+    live = cd.check_c3(cd.Corpus(os.path.dirname(os.path.dirname(os.path.dirname(HERE)))))
     names = flagged_names(live)
     check(tid, "cyd" not in names and "trinity" not in names,
           f"live C3 must not flag the sibling project's envs; got {sorted(names)}")

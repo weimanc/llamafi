@@ -1,6 +1,6 @@
 # App-conformance exceptions — the A5/A6 ledger
 
-> Owner: **@VE** · Machine-read by `app/tools/check_app_conformance.py` · Opened **2026-08-18**
+> Owner: **@VE** · Machine-read by `app/tools/gate/check_app_conformance.py` · Opened **2026-08-18**
 > Gate: `run/check` gate 9 (`app/tools/smoke_test.sh`) · Landing task: **TASK-483**
 > Design: [M-TESTARCH §2.3](../architecture/designs/M-TESTARCH-test-architecture.md) ·
 > Contract source: [NEW-APP-CHECKLIST.md](../architecture/designs/NEW-APP-CHECKLIST.md) items 2 and 3
@@ -42,7 +42,7 @@ mechanism**, so that everything else is a live finding from day one.
 | `A5` | `app/src/dataTaskStorage.cpp:fetchGeocode` | correctly bracketed (`tlsYield()` at :1465, `tlsResume()` at :1515); attribution only. The fetch is raised from `settings/appsSection.h:1017` (`enqueueGeocode`) — i.e. it belongs to **Settings**, on behalf of PlaneRadar's location entry — and `DATA_FETCH_GEOCODE` names neither app | TASK-483 | 2026-08-18 |
 | `A6` | `Spotify` | `SpotifyApp` is a shim over two collaborators that each carry a full debug surface, both wired into `app/src/debug/serialConsole/cmdGet.h:452`: `WinampDisplay::dbgGet()` (`winamp/winampDisplay.h:1226`) and `spotifyTask::dbg_get()`. The app object holds no state that a test would ask for; `g_SpotifyApp` is referenced **nowhere** outside the composition root. Deviation from item 3's letter ("the App class implements `dbgGet`"), conformance with its intent (the app is observable) | TASK-483 | 2026-08-18 |
 
-**5 rows.** Re-count from the tool, never from this line: `python3 app/tools/check_app_conformance.py`
+**5 rows.** Re-count from the tool, never from this line: `python3 app/tools/gate/check_app_conformance.py`
 prints `N exception(s) on the ledger`.
 
 ## Not on the ledger, and deliberately so

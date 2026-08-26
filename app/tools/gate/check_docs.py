@@ -69,7 +69,15 @@ EXEMPT_SUFFIXES = ("-review.md",)
 EXTRA_GATED = ("CLAUDE.md",)
 
 # C1 resolution roots. docs/ is additionally indexed recursively by basename.
-RESOLVE_ROOTS = (".", "app", "app/src", "app/tools", "docs")
+# TASK-481: app/tools/ split into gen/bake/preview/probe/gate/suite/spike —
+# added as resolve roots so a doc citation that drops the app/tools/ prefix
+# (e.g. "check_docs.py:44" rather than "app/tools/gate/check_docs.py:44")
+# still resolves after the move.
+RESOLVE_ROOTS = (
+    ".", "app", "app/src", "app/tools", "docs",
+    "app/tools/gen", "app/tools/bake", "app/tools/preview",
+    "app/tools/probe", "app/tools/gate", "app/tools/suite", "app/tools/spike",
+)
 
 CITE_EXT = "h|cpp|py|ini|sh|yaml|json|md"
 CITE_RE = re.compile(r"([\w./-]+\.(?:" + CITE_EXT + r")):(\d+)(?:-(\d+))?")
@@ -81,9 +89,11 @@ ADR_RE = re.compile(r"\bADR-(\d+)")
 IFC_RE = re.compile(r"\bIFC-(\d+)")
 X_RE = re.compile(r"\bX(0\d{2})\b")
 # TASK-482 (M-TOOLING §4 rule 3): spike/task<NNN>_* naming, wherever it lives
-# today — app/tools/spike/ once TASK-481's directory move lands, flat
-# app/tools/ until then (glob below covers both without needing to know
-# which). Only the leading number is checked, per the design doc's own "a
+# — app/tools/spike/ once a spike file exists there again (TASK-481's
+# directory move landed but found zero live spikes to place; TASK-538 had
+# already deleted all six), flat app/tools/ for any spike filed before the
+# next one lands there. Glob below covers both without needing to know
+# which. Only the leading number is checked, per the design doc's own "a
 # tool written for one task ... named for its task" (singular) — a spike
 # file naming two tasks (e.g. task399_402_dut_verify.py) is checked against
 # the first only, matching the "five-line grep" simplicity the doc asks for.
@@ -106,8 +116,8 @@ def is_gated_path(rel: str) -> bool:
 
     Deliberately narrow: only docs/**.md and the EXTRA_GATED files. Everything
     else in the tree — including this checker's own fixture corpus under
-    app/tools/testdata/ — is outside the corpus and is never scanned, in
-    full-corpus mode or in delta mode.
+    app/tools/gate/testdata/ (TASK-481) — is outside the corpus and is never
+    scanned, in full-corpus mode or in delta mode.
     """
     rel = rel.replace(os.sep, "/")
     if rel in EXTRA_GATED:
@@ -977,7 +987,7 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    default_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    default_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     ap = argparse.ArgumentParser(description="Documentation staleness gate (TASK-475).")
     ap.add_argument("--root", default=default_root,
                     help="repo root to check (default: this tool's repo)")

@@ -16,4 +16,4 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
-exec "$VENV_PY" "$PIO_DIR/tools/check_docs.py" --root "$PROJ_ROOT" "$@"
+exec "$VENV_PY" "$PIO_DIR/tools/gate/check_docs.py" --root "$PROJ_ROOT" "$@"

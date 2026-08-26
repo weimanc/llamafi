@@ -23,7 +23,7 @@ they can be re-run rather than believed.
 
 | Skeleton claim | Verdict | Evidence |
 |---|---|---|
-| "There are no unit tests and no host test target." | **FALSE** | `app/tools/test_check_docs.py` (372 lines) is a fixture-backed, golden-file host suite for `T_DOC_01..09`, gated at `run/check` gate 9 via `smoke_test.sh`. `test_adr045_gate.py` (452 lines) is a second. Both are host-only, no DUT, no network, ~2 s. |
+| "There are no unit tests and no host test target." | **FALSE** | `app/tools/gate/test_check_docs.py` (372 lines) is a fixture-backed, golden-file host suite for `T_DOC_01..09`, gated at `run/check` gate 9 via `smoke_test.sh`. `test_adr045_gate.py` (452 lines) is a second. Both are host-only, no DUT, no network, ~2 s. |
 | "There is no shared DUT layer." | **FALSE — and this is the important one** | `Dut` has **16 importers**, all `from run_serialdbg_tests import Dut`. A shared DUT layer exists; it lives *inside the 10 229-line suite*. |
 | "33 tools re-implement port resolution." | **WRONG SHAPE** | **Zero** Python tools re-derive VID:PID — no `udevadm`, no `list_ports`, no `1a86` anywhere under `app/tools/`. What exists is **19 files hardcoding `/dev/ttyUSB0`** as an argparse default. That is not duplicated logic; it is *absent* logic, and it is worse: the port has really been `ttyUSB1`. |
 | "128 test bodies … ~150 shared helpers." | **WRONG COUNTS** | `grep -c '^def t'` → **209** test bodies; 280 top-level defs total, so **~71** helpers, not 150. The registry declares **208 ids**. The suite is half again bigger than M-TOOLING F1 says, and its helper layer is half the claimed size. |
@@ -179,8 +179,8 @@ It proves the generation pattern against `check_settings_wiring.py`'s working pr
 time, and lands the Aquarium hole as a real failing cell on day one — which is the correct first
 result, and the same shape as every other gate in this programme.
 
-> **BUILT — @VE, 2026-08-18.** `app/tools/check_app_conformance.py` (rows A5/A6),
-> negative suite `app/tools/test_check_app_conformance.py` (10 cases, BP-068), ledger
+> **BUILT — @VE, 2026-08-18.** `app/tools/gate/check_app_conformance.py` (rows A5/A6),
+> negative suite `app/tools/gate/test_check_app_conformance.py` (10 cases, BP-068), ledger
 > `docs/verification/app_conformance_exceptions.md` (5 rows), plan section
 > `test_plan.md` → *Suite: app-conformance-001*. Wired at `run/check` gate 9. The
 > generation pattern holds: the domain is `APP_ORDER`, no app name is typed into the
@@ -521,7 +521,7 @@ mechanism that makes it stick.
 
 ### 6.1 BUILT — `check_docs.py` check **C6**, @VE, 2026-08-18 (TASK-521)
 
-Landed as `check_c6()` in `app/tools/check_docs.py`, alongside C1–C5. `run/check` reads **12/12**.
+Landed as `check_c6()` in `app/tools/gate/check_docs.py`, alongside C1–C5. `run/check` reads **12/12**.
 Corrections to the specification above, all found by building it:
 
 - **The vocabulary in rule 1 was already superseded.** §6 proposed `automated`/`manual`/`planned`.
@@ -554,7 +554,7 @@ Advisory was rejected: 49 permanent advisory failures are scrolled past, which i
 mechanism by which "covered" and "green" got conflated (LL-140). With the ledger the unexcepted
 count is 0, which is precisely TASK-475's own phase-1 rule ("block on what reads 0 today").
 
-**Negative tests (BP-068):** `T_DOC_10..14` in `app/tools/test_check_docs.py`, mutation-verified —
+**Negative tests (BP-068):** `T_DOC_10..14` in `app/tools/gate/test_check_docs.py`, mutation-verified —
 14 deliberate breaks of C6, 13 caught by a named test. The 14th is recorded rather than papered
 over: the third, belt-and-braces `kind != "mismatch"` guard in `check_c6` is unreachable, because
 kind-keyed lookup plus the parser's kind validation already hold that property twice over.

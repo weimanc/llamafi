@@ -131,7 +131,7 @@ fi
 # --strict); does not count toward PASS/FAIL, so it is deliberately not
 # numbered among the gates above.
 echo "[warn] settings-wiring gate (warn-only, not counted)"
-"$VENV_PY" "$PROJ_ROOT/app/tools/check_settings_wiring.py" || true
+"$VENV_PY" "$PROJ_ROOT/app/tools/gate/check_settings_wiring.py" || true
 
 echo
 echo "=== Results: $PASS passed, $FAIL failed ==="

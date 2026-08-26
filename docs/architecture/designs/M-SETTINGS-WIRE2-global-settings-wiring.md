@@ -288,7 +288,7 @@ shared G1+G2/G3 observable); `injectLdr` (§4-G5, sticky, cleared with `-1`).
 
 ### 6c. Static coverage gate (host, cheap, catches the *next* G-gap)
 
-Small host script (`app/tools/check_settings_wiring.py`): parse `AppSettings` field names
+Small host script (`app/tools/gate/check_settings_wiring.py`): parse `AppSettings` field names
 from `settingsStorage.h`; assert each appears in (a) `load()`, (b) `save()`, and (c) ≥1
 consumer file outside `app/src/settings/` + `settingsStorage.*` — with an explicit
 allowlist for documented-reserved fields (`teletextCountry`, `teletextAutoAdvance`).

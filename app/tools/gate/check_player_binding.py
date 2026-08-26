@@ -42,7 +42,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(os.path.dirname(HERE))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 SRC = os.path.join(ROOT, "app", "src")
 
 # The call sites the design documents claim. Each entry is (path, why).
@@ -183,7 +183,9 @@ def main() -> int:
           "`get player` is gone — T_PMT_01-03 assert the whole vector it returns")
 
     # ── 5. the binding test still exists and still reads playerBind ──────────
-    runner = os.path.join(HERE, "run_serialdbg_tests.py")
+    # TASK-481: this file moved into gate/; run_serialdbg_tests.py stayed flat
+    # in app/tools/ (its own split is TASK-480's still-open scope).
+    runner = os.path.join(ROOT, "app", "tools", "run_serialdbg_tests.py")
     if os.path.exists(runner):
         with open(runner, encoding="utf-8", errors="replace") as fh:
             rb = fh.read()

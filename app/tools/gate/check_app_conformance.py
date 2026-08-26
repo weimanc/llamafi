@@ -40,9 +40,9 @@ import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 SRC = REPO / "app" / "src"
-TOOLS = Path(__file__).resolve().parent
+TOOLS = Path(__file__).resolve().parent.parent  # app/tools/ — TASK-481 moved this file into gate/
 LEDGER = REPO / "docs" / "verification" / "app_conformance_exceptions.md"
 CMDGET = SRC / "debug" / "serialConsole" / "cmdGet.cpp"  # body moved here, TASK-471
 

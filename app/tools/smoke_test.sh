@@ -25,7 +25,8 @@ fi
 # Runs here rather than as its own check_build.sh gate so the documentation
 # gate itself (gate 12) stays one slot: gate 9 covers the CHECKER, gate 12
 # runs it against the live corpus. Host-side only, no DUT, ~2 s.
-if ! "$PYTHON" test_check_docs.py; then
+# TASK-481: check_*.py + test_check_*.py live in gate/ now.
+if ! "$PYTHON" gate/test_check_docs.py; then
     echo "FAIL: test_check_docs.py (T_DOC_01..09) FAILED" >&2
     exit 1
 fi
@@ -34,7 +35,7 @@ fi
 # Asserts the resolvePlayerTap -> playerCycle -> playerBind -> T_PMT_00 chain is
 # intact. TASK-413 added a dispatch path and left the harness on the old surface
 # with every gate green; this is the check that would have caught it.
-if ! "$PYTHON" check_player_binding.py; then
+if ! "$PYTHON" gate/check_player_binding.py; then
     echo "FAIL: check_player_binding.py (M-TESTBASE §8.4) FAILED" >&2
     exit 1
 fi
@@ -46,11 +47,11 @@ fi
 # bargain check_settings_wiring.py makes. Promote by flipping STRICT_DEFAULT in
 # check_app_conformance.py once that cell is closed or excepted; the ledger
 # (docs/verification/app_conformance_exceptions.md) states the criterion.
-if ! "$PYTHON" test_check_app_conformance.py; then
+if ! "$PYTHON" gate/test_check_app_conformance.py; then
     echo "FAIL: test_check_app_conformance.py (A5/A6 checker negative suite) FAILED" >&2
     exit 1
 fi
-if ! "$PYTHON" check_app_conformance.py; then
+if ! "$PYTHON" gate/check_app_conformance.py; then
     echo "FAIL: check_app_conformance.py crashed (findings are warn-only; a" \
          "non-zero exit here means the checker itself broke)" >&2
     exit 1

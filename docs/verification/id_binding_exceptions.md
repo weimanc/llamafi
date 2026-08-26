@@ -1,6 +1,6 @@
 # Id-binding exceptions — the C6 ledger
 
-> Owner: **@VE** · Machine-read by `app/tools/check_docs.py` (check **C6**) · Opened **2026-08-18**
+> Owner: **@VE** · Machine-read by `app/tools/gate/check_docs.py` (check **C6**) · Opened **2026-08-18**
 > Umbrella sweep task: **TASK-510** (apply the P0 convention repo-wide)
 
 ## What this file is
@@ -84,7 +84,7 @@ Owner = the task that created the test and can write its plan row, not the sweep
 | `T_CQ_01` | undeclared | M-ARCH reserved family; registered as a prose range heading (`T_CQ_01`–`T_CQ_06`), which binds only the first id and declares no status | TASK-458 | 2026-08-18 |
 | `T_SRC_01` | undeclared | as `T_CQ_01`; `T_SRC_01` is the ≥3-run behaviour-neutrality baseline, which has no status because it was never taken | TASK-488 | 2026-08-18 |
 
-**49 rows.** Re-count with `python3 app/tools/check_docs.py --no-git` — the C6 summary prints
+**49 rows.** Re-count with `python3 app/tools/gate/check_docs.py --no-git` — the C6 summary prints
 `N on the ledger`, generated, never transcribed here.
 
 ## Findings recorded while building the ledger, not fixed here

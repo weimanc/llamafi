@@ -2500,7 +2500,7 @@ features:
       - app/src/winamp/pleditView.h
       - app/src/winamp/winampDisplay.h
       - app/src/player/m3u.h
-      - app/tools/check_player_binding.py
+      - app/tools/gate/check_player_binding.py
     cross_features: [player-state-001, plmodel-001, playorder-001, localplay-001, webradio-001]
     test_ids: [T_PMT_00, T_PMT_01, T_PMT_02, T_PMT_03]
     binding: |
@@ -2513,7 +2513,7 @@ features:
     notes: |
       Additive-only field set (BP-024): extend, never rename. Zero .dram0.bss cost —
       headroom measured 8312 B before and after (printf handlers land in .rodata).
-      Enforced by app/tools/check_player_binding.py at run/check gate 9.
+      Enforced by app/tools/gate/check_player_binding.py at run/check gate 9.
 
   - id: plmodel-001
     name: Shared playlist model + single PLEDIT renderer

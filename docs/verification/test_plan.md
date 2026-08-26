@@ -106,8 +106,8 @@ TASK-480's migration list.
 
 ### `T_DOC_*` — written entries (Developer, TASK-475 phase 1)
 
-**Harness**: `app/tools/test_check_docs.py` · **Under test**: `app/tools/check_docs.py`, `run/check-docs`
-**Fixture**: `app/tools/testdata/check_docs/` + `golden.txt` · **Runner**: `python3 app/tools/test_check_docs.py`,
+**Harness**: `app/tools/gate/test_check_docs.py` · **Under test**: `app/tools/gate/check_docs.py`, `run/check-docs`
+**Fixture**: `app/tools/gate/testdata/check_docs/` + `golden.txt` · **Runner**: `python3 app/tools/gate/test_check_docs.py`,
 also invoked by `app/tools/smoke_test.sh` (so `run/check` gate 9 covers the checker, while gate 12
 runs it against the live corpus). Host-side only: no DUT, no serial, no network.
 
@@ -160,7 +160,7 @@ hardcoded to `tasks.md` (`T_DOC_02`), verbatim carve-out removed (`T_DOC_05`).
 ## Suite: app-conformance-001 — the generated app conformance matrix, rows A5/A6 (VE, 2026-08-18)
 
 > **Tier T0 — static, host-only, no device, no build.** ~0.8 s.
-> Tool: `app/tools/check_app_conformance.py` · negative suite: `app/tools/test_check_app_conformance.py`
+> Tool: `app/tools/gate/check_app_conformance.py` · negative suite: `app/tools/gate/test_check_app_conformance.py`
 > Gate: `run/check` gate 9 (`app/tools/smoke_test.sh`) · Ledger:
 > [app_conformance_exceptions.md](app_conformance_exceptions.md) ·
 > Design: [M-TESTARCH §2.3](../architecture/designs/M-TESTARCH-test-architecture.md) ·

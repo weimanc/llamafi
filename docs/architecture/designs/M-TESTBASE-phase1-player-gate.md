@@ -652,7 +652,7 @@ A static check, in the shape this programme keeps reusing (`check_settings_wirin
 docs claim.** Two today (`app/src/main.cpp` (`shellTbCancel`), `app/src/debug/serialConsole/cmdTouch.h` (`cmdTap`)) plus
 `playerCycle` once it lands. A third appearing without a doc update fails `run/check`.
 
-> **LANDED 2026-08-17 — `app/tools/check_player_binding.py`, wired into `run/check` gate 9.** It
+> **LANDED 2026-08-17 — `app/tools/gate/check_player_binding.py`, wired into `run/check` gate 9.** It
 > turned out to be ~180 lines rather than 15, because it asserts the whole chain, not just the call
 > sites: `resolvePlayerTap` defined once → **called exactly twice** in `main.cpp` and once in
 > `cmdTouch.h` → `playerCycle` registered in `kCmds[]` **and reusing the shared helper** → `get

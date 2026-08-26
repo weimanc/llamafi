@@ -176,12 +176,12 @@ edit (this is exactly how G1-G5's WIRE2 gaps were introduced: `tzName`, `dispAut
 - [ ] New field has >= 1 consumer (`g_settings.<field>`) in a file outside `app/src/settings/` and
   outside `settingsStorage.{h,cpp}` — i.e. something other than the Settings UI reads it.
 - [ ] If the field is a documented UI-only companion with no runtime consumer by design (e.g. a
-  display-name string), add it to `ALLOWLIST` in `app/tools/check_settings_wiring.py` with a comment
+  display-name string), add it to `ALLOWLIST` in `app/tools/gate/check_settings_wiring.py` with a comment
   explaining why.
 - [ ] Run `./run/check` — step `[7/7]` runs this gate (warn-only for now; a `WARN <field>` line means
   either wire it up or allowlist it).
 
-Precedent: `app/tools/check_settings_wiring.py`, wired into `check_build.sh` 2026-07-17.
+Precedent: `app/tools/gate/check_settings_wiring.py`, wired into `check_build.sh` 2026-07-17.
 
 ---
 
