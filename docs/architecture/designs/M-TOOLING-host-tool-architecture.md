@@ -228,9 +228,47 @@ app/tools/
   probe/                      ← LEVEL 2: one-shot host probes against live services
     pr_adsb_probe.py  geocode_probe.py  test_radiobrowser_api.py …
 
+  gate/                        ← LEVEL 2: host gates — runs against the build/doc corpus, never the DUT
+    check_docs.py  check_app_conformance.py  check_player_binding.py  check_settings_wiring.py
+    test_check_docs.py  test_check_app_conformance.py  …
+
   spike/                      ← EXPIRING: one-offs, with a retirement rule (§4)
     task398_connect_async_verify.py  …
 ```
+
+> **ADDED — TASK-537, 2026-08-26 (from §8 R5).** §3 as authored had no home for the four `check_*.py`
+> gates or their tests — R5 found 34 files / 8 052 lines (33 % of the corpus) fell outside all seven
+> directories, and the gates were the load-bearing part of that bucket. This is a design fix to the
+> taxonomy only; it does not move any file. `TASK-481` performs the physical move once it un-blocks,
+> and now has a directory to put these files in when it runs.
+>
+> **What `gate/` holds.** The host gates `check_build.sh` and `run/check-docs` invoke, plus their own
+> tests (`test_check_docs.py`, `test_check_app_conformance.py` — the two that exist today;
+> `check_player_binding.py` and `check_settings_wiring.py` have none yet). Not everything with a
+> `test_*` name belongs here — only the tests *of* a gate. A `test_*` file that opens a DUT session is
+> still `suite/`; §5's `suite/` row already says "runs against **the DUT**", and that sentence is what
+> was false about `test_check_docs.py`/`test_check_app_conformance.py` before this fix, not something
+> this fix needs to change.
+>
+> **What it runs against.** The build and documentation corpus — source tree, doc tree, `platformio.ini`,
+> the task boards — never the DUT and never a live external service. That is what distinguishes it from
+> every other LEVEL 2 directory: `preview/` renders host-only, `probe/` hits a live service, `suite/`
+> drives hardware. `gate/` inspects the repository itself and exits non-zero on violation. Placed at
+> LEVEL 2 (alongside `preview/` and `probe/`) rather than LEVEL 1: it does not write into `app/gen/`
+> the way `gen/`/`bake/` do, so it isn't upstream of anything the firmware build consumes — it is a
+> read-only check, same altitude as a probe or a preview, just aimed at the corpus instead of a device
+> or a service.
+>
+> **Naming convention.** `check_<what>.py` for the gate itself (already the convention in the wild —
+> not invented here), `test_check_<what>.py` for its test, matching the existing pair.
+>
+> **The analysis family (`audit_origin.py`, `tsync_diff.py`, `e0_baseline.py`, `exp012_measure.py`,
+> `command_latency.py`, `dut_fonts.py`) is explicitly OUT of scope for this task.** R5 raised it in the
+> same paragraph as the gates, but it is a different shape — these produce measurements/reports, not
+> pass/fail verdicts, and none is invoked by `run/check`. Filing them is a separate decision TASK-537's
+> own row does not claim, and forcing them into `gate/` to make this task's diff bigger would be scope
+> creep on a P2 blocking a P-something-else. Left for a follow-up task if the taxonomy still doesn't
+> fit them once `gate/` exists.
 
 > **CORRECTED — @Architect independent review, 2026-08-26 (R5). The taxonomy has no home for the
 > gates, and they are the most load-bearing tooling in the tree. Fix this before TASK-481 moves
@@ -267,6 +305,16 @@ app/tools/
 
 **Dependency rule, same as D2a:** levels depend downward only. A suite may use `lib/`; `lib/` never
 imports a suite. `preview/` and `bake/` never import from `suite/`.
+
+**`gate/`'s dependency rule (TASK-537), stated explicitly rather than left implicit:** `gate/` may
+depend downward on `lib/` like every other LEVEL 1/2 directory — a gate that needs `lib/layout.py` to
+parse `gen/*.h`, say, is not a layering violation. The direction that must never happen is the reverse:
+**nothing depends on `gate/`.** A gate is a leaf. Nothing in `gen/`, `bake/`, `preview/`, `suite/` or
+`probe/` should ever need to `import` a check to do its job — if one did, that importer would be
+depending on the *absence of a bug* being importable code, which is backwards: gates verify the tree,
+they are not infrastructure the tree runs on. The only things that invoke a `gate/` module are
+`run/check`, `run/check-docs`, and that gate's own `test_check_*.py` — all external callers, never a
+sibling tool.
 
 **`lib/dut.py` is the load-bearing piece.** It is what F2 says is missing, and it is where 33 copies
 of port resolution collapse into one. It should call `run/port` rather than re-deriving VID:PID — the
@@ -322,6 +370,7 @@ disappears because the distinction becomes structural:
 | `preview/` | host only, renders | `preview_<what>.py` |
 | `probe/` | live external service | `probe_<service>.py` |
 | `suite/` | **the DUT** | `<family>.py` inside the suite package |
+| `gate/` | the build/doc corpus — never the DUT, never a live service (TASK-537) | `check_<what>.py`, test as `test_check_<what>.py` |
 | `spike/` | anything, temporarily | `task<NNN>_<what>.py` |
 
 ## 6. Staging
@@ -476,6 +525,16 @@ inverted: the DUT layer existed and was misplaced, not missing), **R4** (test-bo
 and **R8** (the monolith is regrowing). A near-100 % confirmed rate on a first-ever review of a
 ten-day-old document is exactly what BP-066 warns is a signal about authoring pace, not about review
 quality.
+
+**TASK-537 landed (BP-065 update).** §3's taxonomy is extended with a `gate/` level (LEVEL 2): the
+four `check_*.py` host gates plus their tests, and the explicit dependency rule that `gate/` may
+depend downward on `lib/` but nothing may depend on `gate/` — a gate is a leaf. §5's naming table
+gained a matching row. This is a design-only fix, per the task's own row and R5/the disposition's
+"TASK-481 must not execute until TASK-537 closes": no file was physically moved; TASK-481 now has
+somewhere to put the gates when its directory move actually runs. The analysis family R5 named in the
+same paragraph (`audit_origin.py` etc.) was deliberately left unfiled — different shape (measurement,
+not pass/fail), out of this task's scope. TASK-481 is now unblocked on the taxonomy side (still
+blocked on TASK-480 landing first, per its own row).
 
 **TASK-538 landed (BP-065 update).** R6's promotion trigger executed as specified: the six spikes
 named in F3 were re-verified as unreferenced (grepped `run/` and every `app/tools/*.py` for all six
