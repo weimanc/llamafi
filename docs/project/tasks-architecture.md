@@ -244,9 +244,9 @@ fill in.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-483 | P3 | SKELETON | [M-TESTARCH](../architecture/designs/M-TESTARCH-test-architecture.md) — test architecture. **VE owns OQ1**: a host unit tier may not be worth it here |
+| TASK-483 | P3 | **CORRECTED 2026-08-26 — not a skeleton, resolved 2026-08-16** | Board was stale: [M-TESTARCH](../architecture/designs/M-TESTARCH-test-architecture.md) went skeleton → `done` same-day, 2026-08-16 — corrected 6 skeleton claims against measurement (independently matches several of today's own M-TOOLING review findings, e.g. the "33 port copies" figure was already debunked here first). §10 has 4 genuinely open questions (OQ-A..D) never filed as their own task ids — not done here, flagging for whoever picks this up next rather than silently closing them. |
 | TASK-484 | P3 | SKELETON | [M-ERRMODEL](../architecture/designs/M-ERRMODEL-error-model.md) — four overlapping error conventions; IFC-001 already ships the `errorCode==0` ambiguity |
-| TASK-485 | P2 | SKELETON | [M-LEVELS](../architecture/designs/M-LEVELS-dependency-audit.md) — audit D2a's asserted levels. **No include graph has ever been generated**; the audit may contradict D2a |
+| TASK-485 | P2 | **CORRECTED 2026-08-26 — not a skeleton, resolved 2026-08-16** | Board was stale: [M-LEVELS](../architecture/designs/M-LEVELS-dependency-audit.md) went skeleton → `done` same-day — the include graph WAS generated (contra the row's own prior claim). Found: D2a needs 2 fixes (a composition-root level for `main.cpp`; logging reclassified L2→L0) and 2 genuine level violations. **Caveat, not in the doc**: measured against the pre-TASK-471/472 tree — `main.cpp` was 1042+ lines and `taskbar.h` hadn't moved to `shell/` yet, so a re-measure against the current, fully-decomposed tree is needed before treating these numbers as current. |
 | TASK-486 | P3 | SKELETON | [M-VENDORING](../architecture/designs/M-VENDORING-upstream-policy.md) — five vendored trees, five conventions, no upstream refs recorded |
 | ~~TASK-487~~ | — | **FOLDED into TASK-493** | @PM: a five-minute re-read, not a milestone thread. Carry it as a checklist line on the `architecture.md` sync, not a standalone task id. The doc stays. |
 
