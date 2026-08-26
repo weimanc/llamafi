@@ -24,8 +24,93 @@
 # ve_suite_base.flake() to consult it is the next step (TASK-520).
 
 flaky:
+  - id: T087
+    suite: suite/serialdbg/shell
+    since: 2026-08-25
+    evidence: "Stable-core across the TASK-480 3-run baseline (1b58194, all 3 runs
+      failed) and reproduced again in TASK-480's post-split full-suite parity run
+      (bfe36b0). A same-day isolated re-run (TASK-545) FAILED again with a
+      DIFFERENT symptom than either of those two, and a second isolated re-run
+      minutes later PASSED clean — confirms non-deterministic, not a fixed
+      regression tied to one code path."
+    symptom: "varies by run — seen: 'SHUFFLE: hit=CANVAS action=NONE' /
+      'LOGO-cooldown: hit=CANVAS action=NONE (expected DEADZONE/FORCE_POLL)' /
+      'no TLS-reset log line within 8s'; also seen: 'SHUFFLE: hit=DEADZONE
+      action=FORCE_POLL; REPEAT: hit=DEADZONE action=FORCE_POLL' — different
+      hit-test/action pairs fail across runs, not one fixed assertion"
+    dependency: "[TIMING] — multi-region hit-test + TLS-reset log race; this rig
+      runs under a live 403 (TASK-243, Premium lapsed) which already degrades the
+      spotifyTask/TLS timing paths T087 depends on"
+    suspected: "cooldown/timing race in the multi-tap sequence, not attributable
+      to TASK-480 (byte-for-byte code move, no logic changed) — same symptom
+      class observed pre-split in the 3-run baseline"
+    owner: "@VE"
+    task: TASK-545
+    review_by: 2026-09-26
+
+  - id: T091
+    suite: suite/serialdbg/shell
+    since: 2026-08-25
+    evidence: "Stable-core across the TASK-480 3-run baseline (1b58194, all 3 runs
+      failed) and reproduced again in TASK-480's post-split full-suite parity run
+      (bfe36b0). A same-day isolated re-run (TASK-545) PASSED clean — confirms
+      non-deterministic (intermittent), not a hard regression."
+    symptom: "consecutiveFailures=1 after reconnect (expected 0) — the reconnect
+      command's own poll doesn't always land before the assertion reads the
+      counter"
+    dependency: "[TIMING] [NETWORK] — reconnect-triggered poll race; this rig
+      runs under a live 403 (TASK-243, Premium lapsed), and every poll after
+      reconnect fails against that same account-level block, so a race between
+      'poll fired' and 'counter reset' is plausible"
+    suspected: "poll-timing race, not attributable to TASK-480 (byte-for-byte
+      code move, no logic changed) — same symptom observed pre-split in all 3
+      baseline runs"
+    owner: "@VE"
+    task: TASK-545
+    review_by: 2026-09-26
+
+  - id: T_WR_COEX_01
+    suite: suite/serialdbg/webradio
+    since: 2026-08-26
+    evidence: "TASK-540 investigated this exact symptom on 5 fresh DUT runs and
+      closed 2026-08-26 as 'could not reproduce as a firmware defect' — 4
+      different outcomes across 5 runs (PASS; timeout at wrState=1 CONNECTING;
+      timeout at wrState=0 STOPPED; station-list fetch itself unavailable/SKIP),
+      attributed to real radio-browser.info station churn within the harness's
+      30s window, not a state-machine defect. Recurred with the identical
+      wrState=5-stuck symptom in TASK-480's full-suite parity run the same day
+      (bfe36b0) — consistent with TASK-540's own closing note ('re-open if a
+      future run shows the same wrState stuck on a clean network'), not yet
+      confirmed clean-network so not reopening on this alone."
+    symptom: "timeout — wrState=5 (expected 2/PLAYING after set wrPlay 0)"
+    dependency: "[NETWORK] — radio-browser.info station availability/churn,
+      external to this codebase"
+    suspected: "external station-fetch flakiness per TASK-540's closing
+      disposition, not a firmware defect. If review_by finds another clean-
+      network recurrence, reopen TASK-540 rather than re-investigating fresh."
+    owner: "@VE"
+    task: TASK-540
+    review_by: 2026-09-26
+
+  - id: T_WR_VOL_03
+    suite: suite/serialdbg/webradio
+    since: 2026-08-26
+    evidence: "Same TASK-540 investigation and same-day parity-run recurrence as
+      T_WR_COEX_01 above — both ids share the identical wrState=5-stuck root
+      cause (T_WR_VOL_03 calls the same station-connect path after forcing
+      wrVol=21)."
+    symptom: "station did not reach PLAYING after wrPlay 0 (state=5)"
+    dependency: "[NETWORK] — radio-browser.info station availability/churn,
+      external to this codebase"
+    suspected: "external station-fetch flakiness per TASK-540's closing
+      disposition, not a firmware defect. Same reopen condition as
+      T_WR_COEX_01."
+    owner: "@VE"
+    task: TASK-540
+    review_by: 2026-09-26
+
   - id: T_PLR_17
-    suite: run_serialdbg_tests
+    suite: suite/serialdbg/player
     since: 2026-08-17
     evidence: "1 fail in 3 runs, same build, same session (df21bbd). FAILED in the
       sequence T_PLR_01,05,17,18,19; PASSED in isolation; PASSED again on the
@@ -43,7 +128,7 @@ flaky:
     # unstable, not proof of a root cause. Re-derive before acting on it.
 
   - id: T_PMT_04
-    suite: run_serialdbg_tests
+    suite: suite/serialdbg/player
     since: 2026-08-17
     evidence: "1 fail in 5 fresh-boot runs (TASK-513). On the failing boot all three
       play attempts left curRow=-1 and acquires never left 0; the built-in retry
