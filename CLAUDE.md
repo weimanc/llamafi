@@ -260,7 +260,7 @@ PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). O
 - `bake/` — asset bakes writing into `app/gen/`, `golden.sha256`-gated (`bake_skin.py`, `bake_nixie.py`, …).
 - `preview/` — host-only renderers (parse `gen/*.h`, never mirror it — LL-114). `preview_common.py` (the shared parser these import) stays flat in `app/tools/`, not inside `preview/`.
 - `probe/` — one-shot host probes against live external services.
-- `suite/` — DUT test suites (not yet populated — `run_serialdbg_tests.py`, the 128-test regression runner, is still flat pending its own split, TASK-480).
+- `suite/` — DUT test suites. `serialdbg/` split in progress (TASK-480): scaffold + `clock.py` extracted so far; `run_serialdbg_tests.py` (the 128-test regression runner) is still the live entry point and still holds the rest of the families pending their own extraction.
 - `spike/` — one-off, task-scoped tools; `run/check-docs`'s `SPIKE` check (blocking) fails any `spike/task<NNN>_*` whose task is archived.
 
 Levels depend downward only: a suite may use `lib/`; `lib/` never imports a suite; `preview/`/`bake/` never import from `suite/`.
