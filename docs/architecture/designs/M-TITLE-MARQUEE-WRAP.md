@@ -20,7 +20,7 @@ wider than the slot, scrolls **endlessly** — text exits stage left, the same t
 from the right with no pause, separated by a small glyph that (in the classic font) reads
 visually like a four-point star / shuriken, not scroll-out-then-blank-then-restart. The user
 found the glyph in this skin's own `TEXT.BMP`: row 2, column 1 — immediately after `?` in
-`bake_skin.py`'s `CHAR_MAP` (`"?*                             "`, `app/tools/bake_skin.py:174`).
+`bake_skin.py`'s `CHAR_MAP` (`"?*                             "`, `app/tools/bake/bake_skin.py:174`).
 Confirmed by cropping that cell out of `app/skins/base-2.91/TEXT.BMP`: it renders as a
 4-pointed star, not a typewriter asterisk — `CHAR_MAP` maps it to ASCII `'*'` for lack of a
 better host character, but the baked glyph is cosmetically a ninja-star/shuriken, and three of

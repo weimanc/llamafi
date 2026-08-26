@@ -1846,7 +1846,7 @@ features:
       - app/icons/taskbar/planeradar_active.png
       - app/tools/preview_planeradar.py
       - app/tools/pr_adsb_probe.py
-      - app/tools/bake_airports.py
+      - app/tools/bake/bake_airports.py
       - app/tools/host/pr_parse_trial/main.cpp
       - app/tools/host/pr_airport_bake_trial.py
       - run/check-datatask-certs
@@ -2114,7 +2114,7 @@ features:
       active theme's C_ON.
     git_ref: "TASK-345 (2026-07-18)"
     components:
-      - app/tools/bake_nixie.py
+      - app/tools/bake/bake_nixie.py
       - app/gen/nixie_glyphs.cpp
       - app/gen/nixie_glyphs.h
       - app/src/clockApp.h

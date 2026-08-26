@@ -178,7 +178,7 @@ def main() -> int:
     args = p.parse_args()
 
     script_dir = Path(__file__).parent
-    repo_root = script_dir.parent.parent
+    repo_root = script_dir.parent.parent.parent
     out_dir = Path(args.out_dir) if args.out_dir else (repo_root / "app" / "gen")
     out_dir.mkdir(parents=True, exist_ok=True)
 

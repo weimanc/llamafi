@@ -60,7 +60,8 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE))
+TOOLS = HERE.parent  # app/tools/ — TASK-481 moved this file into bake/
+sys.path.insert(0, str(TOOLS))
 import _clock_nixie as nx
 
 # ── tube geometry — always the concept's, so bake and preview can't drift ───
@@ -71,8 +72,8 @@ TUBE_R = nx.TUBE_R
 C_WHITE = (255, 255, 255)         # bake source — luminance-only, tinted at runtime
 C_PREVIEW = (255, 125, 8)         # amber — --sheet preview only, not baked
 
-OUT_DIR = HERE.parent / "gen"
-SHEET_OUT = HERE / "icon_drafts" / "NIXIE_SHEET.png"
+OUT_DIR = TOOLS.parent / "gen"
+SHEET_OUT = TOOLS / "icon_drafts" / "NIXIE_SHEET.png"
 
 
 def _build_tube_mask() -> Image.Image:

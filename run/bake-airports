@@ -8,5 +8,5 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
 echo "[bake-airports] baking OurAirports runway DB -> app/gen/"
-"$VENV_PY" "$PIO_DIR/tools/bake_airports.py" "$@"
+"$VENV_PY" "$PIO_DIR/tools/bake/bake_airports.py" "$@"
 echo "[bake-airports] done — verify: cd app/gen && sha256sum -c golden.sha256"

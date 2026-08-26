@@ -12,11 +12,11 @@
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 python3 "$SCRIPT_DIR/bake_wave.py" \
   -i "$REPO_ROOT/resource/Screencast_20260516_061832.webm" \
-  -o "$SCRIPT_DIR/../gen" \
+  -o "$SCRIPT_DIR/../../gen" \
   --frame-start 30 \
   --dc-offset 3 \
   --boost 2.0 \

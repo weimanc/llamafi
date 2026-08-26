@@ -71,7 +71,7 @@ absence* (empty overlay), never garbage.
 
 ### Adoption into project conventions
 
-- Script lands as `app/tools/bake_airports.py` (our naming), wrapped by
+- Script lands as `app/tools/bake/bake_airports.py` (our naming), wrapped by
   `run/bake-airports`; output to `app/gen/airport_db.c` + `airport_db.h`.
 - Output determinism: sort all emitted arrays (ICAO order), no timestamps in
   the generated header comment except a `-- source CSV commit/date --` line

@@ -7,7 +7,7 @@
 > 3-pass-bloom sprite)**; **tube geometry resynced to the concept
 > (TASK-336 follow-up, 2026-07-18)**. `ClockApp::_drawNixie()` in
 > `app/src/clockApp.h` now `pushImage()`s a flash-resident sprite baked by
-> `app/tools/bake_nixie.py`, which reuses this doc's / `_clock_nixie.py`'s
+> `app/tools/bake/bake_nixie.py`, which reuses this doc's / `_clock_nixie.py`'s
 > bloom pipeline **verbatim** — the wire-glyph/mesh/bloom model described
 > below IS what ships now, just pre-rendered to flash instead of drawn
 > live (TFT_eSPI has no Gaussian blur at runtime). Baked at the concept's
@@ -151,7 +151,7 @@ Aspect ratio: 48:110 ≈ 1:2.3 — tall capsule matching reference concept.
 > matching the concept's tube height/width/spacing/glow+bloom exactly.
 > Firmware now uses the values above verbatim (`kTw=48, kTh=110, kTr=18,
 > kTy=8`, x positions `{24, 78, 148, 202}`) — no more split between
-> "host-tool geometry" and "shipped geometry." `app/tools/bake_nixie.py`
+> "host-tool geometry" and "shipped geometry." `app/tools/bake/bake_nixie.py`
 > was also changed to read `nx.TUBE_W/H/R` directly instead of overriding
 > them, so the bake and the preview tool structurally can't drift apart
 > on tube shape again. Flash cost rose 71.1 KB → 103.1 KB (10 digits ×
@@ -590,7 +590,7 @@ The concept reference shows no explicit seconds indicator. Options:
 > outline strokes + plain text, no sprites). **TASK-336 (2026-07-18)
 > subsequently implemented Option A below** — pre-baked glyph sprites, single
 > theme (not the 4-theme/422KB version originally sized) — via
-> `app/tools/bake_nixie.py` → `app/gen/nixie_glyphs.cpp/.h`. Outer
+> `app/tools/bake/bake_nixie.py` → `app/gen/nixie_glyphs.cpp/.h`. Outer
 > bleed/glass outline/pin shadows stayed as cheap runtime draws exactly as
 > Option A always intended. Retained below for the original option analysis;
 > see TASK-336 in `docs/project/tasks.md` for what actually shipped.
