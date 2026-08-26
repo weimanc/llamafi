@@ -429,6 +429,18 @@ def _tb_set_offset(dut: Dut, target: int) -> bool:
     return _tb_get_offset(dut) == target
 
 
+def _tb_precondition(dut: Dut, tid: str) -> bool:
+    """Common precondition for T162–T166: Spotify active, tbScrollOffset=0."""
+    if not _restore_spotify(dut):
+        skip(tid, "precondition: could not restore Spotify")
+        return False
+    if not _tb_set_offset(dut, 0):
+        skip(tid, f"precondition: tbScrollOffset={_tb_get_offset(dut)} could not be reset to 0")
+        return False
+    dut.set_cooldown_zero()
+    return True
+
+
 @contextmanager
 def _bgpoll_suspended(dut: "Dut"):
     """Suspend background Spotify polls for the duration of the block.

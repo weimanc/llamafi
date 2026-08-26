@@ -184,8 +184,15 @@ def main() -> int:
 
     # ── 5. the binding test still exists and still reads playerBind ──────────
     # TASK-481: this file moved into gate/; run_serialdbg_tests.py stayed flat
-    # in app/tools/ (its own split is TASK-480's still-open scope).
+    # in app/tools/ pending its own split (TASK-480). TASK-480 is now moving
+    # families out of the monolith one at a time — T_PMT_00's body landed in
+    # suite/serialdbg/player.py while the monolith still carries the ALL_TESTS
+    # registry entry (imported back, same pattern every extracted family
+    # uses). So this check reads BOTH: the monolith for the registry entry,
+    # and the monolith + every suite/serialdbg/*.py for the `get playerBind`
+    # string, wherever the test body currently lives.
     runner = os.path.join(ROOT, "app", "tools", "run_serialdbg_tests.py")
+    suite_dir = os.path.join(ROOT, "app", "tools", "suite", "serialdbg")
     if os.path.exists(runner):
         with open(runner, encoding="utf-8", errors="replace") as fh:
             rb = fh.read()
@@ -197,7 +204,13 @@ def main() -> int:
               "T_PMT_00 is not registered in ALL_TESTS — the binding test is the only "
               "thing that notices when the surface moves, and an unregistered test "
               "never runs")
-        check("get playerBind" in rb,
+        corpus = rb
+        if os.path.isdir(suite_dir):
+            for name in sorted(os.listdir(suite_dir)):
+                if name.endswith(".py"):
+                    with open(os.path.join(suite_dir, name), encoding="utf-8", errors="replace") as fh:
+                        corpus += fh.read()
+        check("get playerBind" in corpus,
               "no test reads `get playerBind` — the observable exists but nothing checks it, "
               "which is how the binding rotted the first two times")
     else:
