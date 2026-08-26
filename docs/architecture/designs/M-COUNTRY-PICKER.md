@@ -76,7 +76,7 @@ put at risk by this design.
 
 ### D2 — Data: baked full ISO 3166-1 table
 
-Host tool (`app/tools/gen_countries.py`) → checked-in `app/gen/countries.h`:
+Host tool (`app/tools/gen/gen_countries.py`) → checked-in `app/gen/countries.h`:
 ~249 `{ name, code }` entries, alphabetical by English short name. Flash cost
 ≈ 6 KB `.rodata` — trivial at current usage. Same determinism gate as every
 bake (`golden.sha256`, re-run byte-identical, `run/check` staleness).

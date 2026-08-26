@@ -33,8 +33,8 @@ TESTS="${1:-}"
 
 # Every `get` key the console implements — cmdGet.h's own strcmp chain plus the
 # per-app dbgGet chains it delegates to. Regenerate with:
-#   python3 app/tools/gen_get_keys.py
-GET_KEYS="$("$VENV_PY" "$PROJ_ROOT/app/tools/gen_get_keys.py")"
+#   python3 app/tools/gen/gen_get_keys.py
+GET_KEYS="$("$VENV_PY" "$PROJ_ROOT/app/tools/gen/gen_get_keys.py")"
 
 _RC=0
 _cleanup() {

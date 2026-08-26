@@ -212,7 +212,7 @@ def main() -> None:
     args = parser.parse_args()
 
     script_dir = pathlib.Path(__file__).parent
-    repo_root = script_dir.parent.parent
+    repo_root = script_dir.parent.parent.parent
 
     manifest_path = repo_root / "app" / "mem_manifest.yaml"
     if not manifest_path.exists():

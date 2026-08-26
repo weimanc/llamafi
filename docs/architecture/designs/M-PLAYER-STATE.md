@@ -60,7 +60,7 @@ The configurable-apps list is **codegen**: `appRegistry.h` column 3 (`configurab
 
 **Changes:**
 1. `appRegistry.h`: flip Spotify to **`APP_X( Spotify, 'S', 1 )`**, then **re-run
-   `app/tools/gen_app_registry.py`** (regenerates `gen/configurable_apps.h`; the `run/check` [5/5] staleness
+   `app/tools/gen/gen_app_registry.py`** (regenerates `gen/configurable_apps.h`; the `run/check` [5/5] staleness
    gate enforces this — a stale gen fails the build).
 2. `settings/appsSection.h`: add the `AppId::Spotify` case to the repaint + cycle dispatch switches
    (`:89` / `:175`), mirroring `_repaintClock`/`_cycleClock` (single-row section):

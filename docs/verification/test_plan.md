@@ -4911,7 +4911,7 @@ Landed 2026-07-17 (`13bb3fd`). Design: `docs/architecture/designs/M-COUNTRY-PICK
 - **Type**: unit
 - **Feature(s)**: settings-widgets-001
 - **Objective**: `app/gen/countries.h` is network-free-generated from the committed `app/tools/data/iso3166.csv`; re-running the bake must reproduce it byte-for-byte (same gate class as every other bake in the repo).
-- **Steps**: `python3 app/tools/gen_countries.py` → `cd app/gen && sha256sum -c golden.sha256`.
+- **Steps**: `python3 app/tools/gen/gen_countries.py` → `cd app/gen && sha256sum -c golden.sha256`.
 - **Status**: **PASS 2026-07-17**. Re-bake produced byte-identical `countries.h` (and every other golden-pinned gen artifact); `git status` showed zero diff after the run.
 
 **Regression carried by this suite**: T-TIME city-picker suite is untouched (no donor changes in v1) — re-run unchanged as a sanity check, not a new test. T-WRSET-03 (country-change propagation) is exercised via the picker path now, per above.

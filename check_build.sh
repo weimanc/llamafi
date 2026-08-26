@@ -81,7 +81,7 @@ fi
 # ── 9. app registry staleness check ────────────────────────────────────────────
 echo "[9/$TOTAL] gen_app_registry staleness check"
 TMPDIR_REG=$(mktemp -d)
-if "$VENV_PY" "$PROJ_ROOT/app/tools/gen_app_registry.py" --out-dir "$TMPDIR_REG" > /dev/null 2>&1; then
+if "$VENV_PY" "$PROJ_ROOT/app/tools/gen/gen_app_registry.py" --out-dir "$TMPDIR_REG" > /dev/null 2>&1; then
     if diff -q "$TMPDIR_REG/app_ids_gen.py" "$PROJ_ROOT/app/tools/app_ids_gen.py" > /dev/null 2>&1 && \
        diff -q "$TMPDIR_REG/configurable_apps.h" "$PROJ_ROOT/app/gen/configurable_apps.h" > /dev/null 2>&1; then
         ok "app registry generated files are up to date"
@@ -96,7 +96,7 @@ rm -rf "$TMPDIR_REG"
 # ── 10. mem_layout staleness + budget check ────────────────────────────────────
 echo "[10/$TOTAL] gen_mem_layout staleness + budget check"
 TMPDIR_MEM=$(mktemp -d)
-if "$VENV_PY" "$PROJ_ROOT/app/tools/gen_mem_layout.py" --out-dir "$TMPDIR_MEM" > /dev/null 2>&1; then
+if "$VENV_PY" "$PROJ_ROOT/app/tools/gen/gen_mem_layout.py" --out-dir "$TMPDIR_MEM" > /dev/null 2>&1; then
     if diff -q "$TMPDIR_MEM/mem_layout.h" "$PROJ_ROOT/app/gen/mem_layout.h" > /dev/null 2>&1 && \
        diff -q "$TMPDIR_MEM/mem_layout.py" "$PROJ_ROOT/app/gen/mem_layout.py" > /dev/null 2>&1; then
         ok "mem_layout files are up to date and budget passes"

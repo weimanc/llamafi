@@ -21,7 +21,7 @@ import sys
 
 EXPECTED_COUNT = 249   # officially assigned ISO 3166-1 alpha-2 codes
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 CSV_PATH = REPO_ROOT / "app" / "tools" / "data" / "iso3166.csv"
 OUT_H = REPO_ROOT / "app" / "gen" / "countries.h"
 

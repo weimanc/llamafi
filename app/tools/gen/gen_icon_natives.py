@@ -54,10 +54,11 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 HERE = Path(__file__).parent
-ICONS_DIR = HERE.parent / "icons" / "taskbar"
-OUT_DIR = HERE / "icon_drafts" / "native"
+TOOLS = HERE.parent  # app/tools/ — TASK-481 moved this file into gen/
+ICONS_DIR = TOOLS.parent / "icons" / "taskbar"
+OUT_DIR = TOOLS / "icon_drafts" / "native"
 
-sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(TOOLS))
 from shell_layout import defines as shell_defines
 
 _D = shell_defines()
@@ -438,9 +439,9 @@ def main():
         subprocess.run(
             [sys.executable, str(HERE / "gen_taskbar_icons.py"),
              "--icons-dir", str(tdir), "--out-dir", str(gen_dir),
-             "--layout", str(HERE.parent / "gen" / "shell_layout.h"),
+             "--layout", str(TOOLS.parent / "gen" / "shell_layout.h"),
              "--sheet", "--sheet-out",
-             str(HERE / "icon_drafts" / "NATIVE_SHEET.png")],
+             str(TOOLS / "icon_drafts" / "NATIVE_SHEET.png")],
             check=True)
     print("Candidate sheet: app/tools/icon_drafts/NATIVE_SHEET.png")
 

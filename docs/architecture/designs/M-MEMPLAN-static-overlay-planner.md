@@ -55,7 +55,7 @@ buffers:
 overlaid; persistent `state` must NOT be in an overlay region — the planner rejects `kind: state` in any
 multi-app group). One file; every app's memory is visible and diff-reviewable here.
 
-## 4. The offline algorithm (the planner — `app/tools/gen_mem_layout.py`)
+## 4. The offline algorithm (the planner — `app/tools/gen/gen_mem_layout.py`)
 
 ```
 group buffers by (caps, group)
@@ -114,7 +114,7 @@ budgeted number, checked at build time.
 
 ## 7. Integration
 
-- **Tool:** `app/tools/gen_mem_layout.py` (host, venv) — mirrors `gen_app_registry.py`. Inputs
+- **Tool:** `app/tools/gen/gen_mem_layout.py` (host, venv) — mirrors `gen_app_registry.py`. Inputs
   `app/mem_manifest.yaml`; outputs `app/gen/mem_layout.h` + `app/gen/mem_layout.py`.
 - **Gate:** add a 6th `check_build.sh` step — (a) **staleness** (re-gen diffs clean, like [5/5]) and (b) the
   **WCMU budget assertion** (the planner exits non-zero on overflow). Both block the build.

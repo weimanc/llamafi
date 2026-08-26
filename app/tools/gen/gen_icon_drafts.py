@@ -22,8 +22,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 HERE = Path(__file__).parent
-ICONS_DIR = HERE.parent / "icons" / "taskbar"
-OUT_DIR = HERE / "icon_drafts"
+TOOLS = HERE.parent  # app/tools/ — TASK-481 moved this file into gen/
+ICONS_DIR = TOOLS.parent / "icons" / "taskbar"
+OUT_DIR = TOOLS / "icon_drafts"
 OUT_DIR.mkdir(exist_ok=True)
 
 SS = 10          # supersample factor for anti-aliasing
@@ -34,7 +35,7 @@ SS = 10          # supersample factor for anti-aliasing
 # one LANCZOS down to (BAKE_W, BAKE_H), no intermediate canvas — the
 # double-resample trap this milestone kills.
 import sys
-sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(TOOLS))
 from shell_layout import defines as _shell_defines, rgb565_to_rgb8 as _565
 
 _D = _shell_defines()

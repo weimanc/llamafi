@@ -15,7 +15,7 @@ import pathlib
 import re
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = pathlib.Path(__file__).resolve().parents[3]
 CMDGET = ROOT / "app/src/debug/serialConsole/cmdGet.h"
 
 _DBGGET = re.compile(r"bool\s+dbgGet\s*\([^)]*\)\s*(?:const\s*)?(?:override\s*)?\{")

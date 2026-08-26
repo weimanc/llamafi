@@ -1368,7 +1368,7 @@ features:
       taskbar.h uses tft.pushImage() with kTaskbarIcons[] lookup table.
     components:
       - app/icons/taskbar/          # source PNGs (18 icons × 2 variants)
-      - app/tools/gen_taskbar_icons.py
+      - app/tools/gen/gen_taskbar_icons.py
       - app/gen/taskbar_icons.cpp
       - app/gen/taskbar_icons.h
       - app/src/taskbar/taskbar.h
@@ -1629,7 +1629,7 @@ features:
       expands in appShell.h (enum class AppId { ... , COUNT }) and main.cpp (the g_apps[] dispatch
       array), so adding/removing an app is a single-line registry edit. Column 3 (configurable, 1 =
       appears in Settings > Applications) drives the codegen of app/src/gen/configurable_apps.h via
-      app/tools/gen_app_registry.py (also app/tools/app_ids_gen.py). check_build.sh step [5/5]
+      app/tools/gen/gen_app_registry.py (also app/tools/app_ids_gen.py). check_build.sh step [5/5]
       regenerates and diffs the output — any staleness fails the build, so an appRegistry.h edit
       MUST be followed by re-running the codegen and committing the result. Invariants: WebRadio is
       the LAST AppId and configurable=0 (eject-only, taskbar-excluded — TASK-242/LL-085). New apps
@@ -1638,7 +1638,7 @@ features:
       - app/src/appRegistry.h
       - app/src/appShell.h
       - app/src/main.cpp
-      - app/tools/gen_app_registry.py
+      - app/tools/gen/gen_app_registry.py
       - app/tools/app_ids_gen.py
       - app/src/gen/configurable_apps.h
       - check_build.sh
@@ -1707,7 +1707,7 @@ features:
       scratch may overlay; state rejected from multi-app groups). placement:runtime (OQ1) =
       BUDGETED against the ceiling but NOT statically placed (decoder/InBuff stay runtime-JIT in
       WebRadioApp::_play() — static BSS re-fails the fetch TLS, EXP-011).
-      PLANNER: app/tools/gen_mem_layout.py -> app/gen/mem_layout.h (static overlay arrays + MEM_*
+      PLANNER: app/tools/gen/gen_mem_layout.py -> app/gen/mem_layout.h (static overlay arrays + MEM_*
       macros + budget consts) + app/gen/mem_layout.py (test mirror). Deterministic -> golden-hashed
       (app/gen/golden.sha256). HARD non-zero exit on budget overflow.
       GATE: check_build.sh [6/6] = mem_layout staleness (re-gen diffs clean) + WCMU budget assert.
@@ -1718,7 +1718,7 @@ features:
       a separate struct). Validates the overlay-sharing mechanism end-to-end.
     components:
       - app/mem_manifest.yaml
-      - app/tools/gen_mem_layout.py
+      - app/tools/gen/gen_mem_layout.py
       - app/gen/mem_layout.h
       - app/gen/mem_layout.py
       - app/gen/golden.sha256
@@ -1961,7 +1961,7 @@ features:
       - app/src/settings/timeSection.h
       - app/src/settings/calibrationFlow.h
       - app/gen/countries.h
-      - app/tools/gen_countries.py
+      - app/tools/gen/gen_countries.py
       - app/tools/data/iso3166.csv
     cross_features: [settings-001, pr-locations-001, settings-wifi]
     test_ids: [T-CPICK-01, T-CPICK-02, T-CPICK-03, T-CPICK-04, T-CPICK-05]

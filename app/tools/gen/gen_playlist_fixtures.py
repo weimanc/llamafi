@@ -16,7 +16,7 @@ Nothing here writes to the card itself.
 import os
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 OUT = REPO / "app" / "tools" / "fixtures" / "sd"
 
 # A slice of what /mp3 actually holds — `sdls /mp3`, 2026-08-11.

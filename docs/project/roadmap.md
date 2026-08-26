@@ -742,7 +742,7 @@ Replace the single ASCII-character glyphs (`S`, `C`, `W`, `$`, …) in `taskbar.
 **Asset pipeline** (mirrors `vis_atlas` / `wave_atlas` pattern):
 1. Source PNGs: `app/icons/taskbar/<app_name>.png` (20×20, RGBA).  
    One file per entry in `appRegistry.h`: `spotify`, `clock`, `weather`, `crypto`, `matrix`, `life`, `settings`, `stock`, `aquarium`.
-2. Bake script: `app/tools/gen_taskbar_icons.py` → `app/gen/taskbar_icons.c` + `taskbar_icons.h`.  
+2. Bake script: `app/tools/gen/gen_taskbar_icons.py` → `app/gen/taskbar_icons.c` + `taskbar_icons.h`.  
    Outputs one `uint16_t[400]` RGB565 array per app, plus a lookup table indexed by `AppId`.
 3. `taskbar.h` — replace `tft.drawChar()` call with `tft.pushImage()` using the baked array.
 
@@ -751,7 +751,7 @@ Candidate source: [Material Symbols](https://fonts.google.com/icons) or [Simple 
 
 **Status:** done (2026-06-12 — TASK-170/171; icons sourced + baked; `taskbar.h` updated to `pushImage()`; DUT flashed and verified)  
 - 9 inactive (B&W) + 9 active (coloured) icons, all 24×24 baked RGB565  
-- `run/bake-icons` + `app/tools/gen_taskbar_icons.py`; `golden.sha256` updated  
+- `run/bake-icons` + `app/tools/gen/gen_taskbar_icons.py`; `golden.sha256` updated  
 **Deps:** M-MULTIAPP (done)  
 
 ---
