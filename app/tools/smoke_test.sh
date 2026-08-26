@@ -41,6 +41,17 @@ if ! "$PYTHON" gate/check_player_binding.py; then
     exit 1
 fi
 
+# 4b. suite/serialdbg/ cross-file Name-reference gate (TASK-480/TASK-545).
+# A pure code move can't introduce a logic bug but can absolutely drop an
+# import — caught 3 times live during TASK-480's split (_drain_data_pipeline,
+# _tap_and_wait_log, _tb_precondition), each time only after a DUT run threw
+# a NameError hours in. This is the same AST walk that caught them, made
+# permanent so the next suite/serialdbg/ change gets the check for free.
+if ! "$PYTHON" gate/check_suite_serialdbg_names.py; then
+    echo "FAIL: check_suite_serialdbg_names.py (TASK-480/TASK-545) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —
