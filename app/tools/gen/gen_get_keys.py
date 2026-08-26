@@ -2,8 +2,11 @@
 """Print every `get` key the SERIAL_DEBUG console implements, comma-separated.
 
 Two sources, both scanned statically so the list cannot drift from firmware:
-  1. cmdGet.h's own `strcmp(args, "key")` chain;
-  2. the per-app/per-display `dbgGet()` chains cmdGet.h delegates to.
+  1. cmdGet.cpp's own `strcmp(args, "key")` chain (M-SRCLAYOUT Stage E /
+     TASK-471 moved the body out of cmdGet.h into cmdGet.cpp; this script
+     wasn't updated at the time and silently produced zero keys ever since —
+     found and fixed incidentally while executing TASK-504);
+  2. the per-app/per-display `dbgGet()` chains cmdGet.cpp delegates to.
 
 Used by run/task488 to drive T_488_10 ("every key resolves — no 'unknown'").
 """
@@ -16,7 +19,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-CMDGET = ROOT / "app/src/debug/serialConsole/cmdGet.h"
+CMDGET = ROOT / "app/src/debug/serialConsole/cmdGet.cpp"
 
 _DBGGET = re.compile(r"bool\s+dbgGet\s*\([^)]*\)\s*(?:const\s*)?(?:override\s*)?\{")
 _STRCMP = re.compile(r'strcmp\(\s*\w+\s*,\s*"([A-Za-z0-9_]+)"')
