@@ -608,3 +608,28 @@ promoting `preview_common.py`/`shell_layout.py`/`coords.py`/`ve_suite_base.py` i
 stated intent, OQ1's packaging question); the analysis family (`audit_origin.py`, `tsync_diff.py`,
 `e0_baseline.py`, `exp012_measure.py`, `command_latency.py`, `dut_fonts.py`, and now `poll_latency_mock.py`
 by the same reasoning) — still homeless, a decision for a human, not this task.
+
+**TASK-480 landed (BP-065 update).** `suite/serialdbg/` — the item TASK-481 explicitly left out —
+is now built. `run_serialdbg_tests.py` (10 005 lines, 214 test bodies) split into one module per app
+family (`clock.py`, `teletext.py`, `planeradar.py`, `stock.py`, `webradio.py`, `player.py`, and
+`shell.py` as the catch-all §3 anticipated for taskbar/app-switch plus the small single-screen apps
+with no family of their own), `_helpers.py` for anything used by 2+ families, and `runner.py` as the
+new CLI entry point. Staged per §6: scaffold first, one family at a time, each independently
+DUT-verified against the 3-run baseline before the next; monolith stayed the live entry point
+throughout so `run/test`/`run/test-targeted` never broke mid-migration. Full-suite parity confirmed
+against the baseline (1b58194) before the monolith was deleted and every caller repointed.
+
+**One correction to §3 found on contact.** The design named `_helpers.py`'s size as "~150 shared
+helpers" — the real number that survived the split is under 30; most of what looked like shared
+helpers in the monolith turned out to be family-private once traced, and several were cross-family
+in ways not obvious from the monolith's flat layout (`_tap_and_wait_log` looked webradio-only, is
+also player's; `_drain_data_pipeline` looked stock-only, is also webradio's) — caught by a custom
+AST checker built during this task (no `pyflakes` in this venv) that scans each family module for
+names loaded but never bound, run before every DUT verification pass, not after.
+
+**Two gate-scoping bugs surfaced by the deletion, both pre-existing latent bugs the monolith's own
+presence had masked, not new ones this task introduced.** `check_docs.py`'s C6 test-id-registry scan
+globbed `app/tools/*.py` non-recursively — harmless while every `TESTS`-shaped dict lived flat in the
+monolith, silently blinding to ~155 registry ids the moment they moved under `suite/serialdbg/`.
+`check_player_binding.py` (already touched once this task, TASK-537) hardcoded the monolith's path
+for its `playerBind` check. Both fixed in the same commit as the deletion, not left for a follow-up.
