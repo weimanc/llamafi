@@ -35,7 +35,16 @@ deliberately NOT filed — it waits for the study's graduation proposal (R&D pro
 
 ## Split-out boards
 
-- **M-WINAMP-PLAYER** active tasks: [tasks-winamp-player.md](tasks-winamp-player.md) — 12 entries.
+**These are stopgaps, not permanent fixtures (human, 2026-08-26).** Each was split out purely to
+keep `tasks.md` from growing back past its last archive-sweep size — not because the milestone it
+covers deserves a permanently separate board. **When a split board's active-task count reaches
+zero, fold its remaining historical content into `tasks-archive.md` and delete the split file** —
+same discipline as any other closed-milestone archive pass, just triggered by "empty" rather than
+by a periodic sweep. Don't let a split file become a second permanent home the way `tasks.md` itself
+almost did.
+
+- **M-WINAMP-PLAYER** active tasks: [tasks-winamp-player.md](tasks-winamp-player.md) — 12 entries,
+  paused.
 - **M-ARCH** (M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE) active tasks:
   [tasks-architecture.md](tasks-architecture.md) — 61 entries, **caught up as of 2026-08-25** (see
   status note at the top of that section below).

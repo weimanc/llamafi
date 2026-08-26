@@ -13,6 +13,11 @@
 > inline verification narrative. Full contract in
 > [tasks-architecture.md § Row format](tasks-architecture.md#row-format-bp-069-2026-08-25-human--read-before-adding-or-closing-any-row).
 >
+> **This file is a stopgap, not a permanent board (human, 2026-08-26)** — also just a process note,
+> not an instruction to resume work while paused. When every row here is eventually closed, fold
+> the rest into `tasks-archive.md` and delete this file. See
+> [tasks.md § Split-out boards](tasks.md#split-out-boards).
+>
 > Closed entries live in [tasks-archive.md](tasks-archive.md). The rest of the board is in
 > [tasks.md](tasks.md).
 

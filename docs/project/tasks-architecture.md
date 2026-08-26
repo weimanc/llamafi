@@ -15,6 +15,11 @@
 > as landed-and-verified, not as open work.**
 >
 > Closed entries go to [tasks-archive.md](tasks-archive.md).
+>
+> **This file is a stopgap, not a permanent board (human, 2026-08-26).** When every remaining row
+> here is closed, fold what's left into `tasks-archive.md` and delete this file — same as any other
+> closed-milestone archive, just triggered by reaching zero rather than a periodic sweep. See
+> [tasks.md § Split-out boards](tasks.md#split-out-boards).
 
 > ## Row format (BP-069, 2026-08-25, human) — read before adding or closing any row
 >
