@@ -76,14 +76,22 @@ scan_bands() {  # $1=ssid -> sets G24 G5 (empty=absent) + NBR (neighbour 2.4 con
     # One scan returns every AP; extract ours + a neighbour 2.4 GHz control from it.
     all=$(nmcli -t -f SSID,BSSID,CHAN,FREQ,SIGNAL dev wifi list --rescan yes 2>/dev/null)
     ours=$(echo "$all" | grep -i "^${ssid}:")
-    G24=$(echo "$ours" | awk -F: '{n=NF; if ($(n-1) ~ /^2[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
-    G5=$(echo  "$ours" | awk -F: '{n=NF; if ($(n-1) ~ /^5[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
+    # NF==0 guard: `echo "" | awk` still runs on one empty line with NF=0, and
+    # $(n-1)/$(n-2) with n=0 is a negative field index -> awk "fatal: attempt to
+    # access field -1", killing the whole pipeline. This fires on EVERY genuine
+    # ABSENT (ours has no match), which is the exact case this tool exists to
+    # detect — found 2026-08-26 when the target SSID went truly absent for the
+    # first time under this code path and the log filled with awk fatals (still
+    # producing the right ABSENT verdict by luck: a fatal awk leaves $() empty,
+    # which downstream code already treats as absent — but noisy and fragile).
+    G24=$(echo "$ours" | awk -F: '{n=NF; if (n>=2 && $(n-1) ~ /^2[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
+    G5=$(echo  "$ours" | awk -F: '{n=NF; if (n>=2 && $(n-1) ~ /^5[0-9]{3} MHz$/) {print $(n-2)" "$NF; exit}}')
     # NBR = "<count>/<maxSignal>" of OTHER APs on 2.4 GHz in the same scan. This is
     # the control: if ours goes ABSENT but NBR count stays >0, the scan worked and
     # the fault is OUR router, not a host scan hiccup or general-band interference.
     NBR=$(echo "$all" | awk -F: -v me="$ssid" '
         BEGIN{c=0; mx=0}
-        { n=NF; if (tolower($1)!=tolower(me) && $(n-1) ~ /^2[0-9]{3} MHz$/) {
+        { n=NF; if (n>=2 && tolower($1)!=tolower(me) && $(n-1) ~ /^2[0-9]{3} MHz$/) {
               c++; if ($NF+0>mx) mx=$NF } }
         END{ printf "%d/%d", c, mx }')
 }
