@@ -1,6 +1,15 @@
 // appRegistry.h — canonical app list.  One row per app.
 // Comment out a row to disable that app at build time.
 //
+// NO INCLUDE GUARD — DELIBERATE. This is an X-macro token list, not a
+// declaration header: every includer wraps it in its own `#define APP_X(...)`
+// / `#include "appRegistry.h"` / `#undef APP_X` block and expects the rows to
+// be re-emitted verbatim each time. A guard would make the second `#include`
+// in the same translation unit silently expand to nothing. `cmdGet.cpp`
+// relies on exactly this — it includes this file twice (`kAppNames` for `get
+// appId`, `kIdleAppNames` for `get idle`), each with its own `APP_X` macro
+// producing a different table from the same row data (TASK-457).
+//
 // AFTER EDITING: re-run the codegen script to keep generated files in sync:
 //   ~/proj/esp/venv/bin/python3 app/tools/gen_app_registry.py
 // Then run check_build.sh — step [6/7] enforces staleness (renumbered TASK-422;
