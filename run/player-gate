@@ -110,7 +110,7 @@ _baseline_rows() {
     }' "$1"
 }
 
-# Extract "id status" from a runner log. run_serialdbg_tests.py prints a
+# Extract "id status" from a runner log. suite/serialdbg/runner.py prints a
 # "── Results ──" block of "  <id>: <STATUS>[: reason]" lines; that block only
 # exists if the run reached its summary, so an aborted leg yields nothing and
 # every declared id is then MISSING — which is a regression, correctly.
@@ -321,7 +321,7 @@ _run_runner_leg() {
   echo ""
   echo "[player-gate] leg $leg — $env — $(wc -l <"$OUT_DIR/leg$leg.ran") runner cells"
   set +e
-  ( cd "$PIO_DIR" && DUT_ENV="$env" "$VENV_PY" -u tools/run_serialdbg_tests.py \
+  ( cd "$PIO_DIR" && DUT_ENV="$env" "$VENV_PY" -u tools/suite/serialdbg/runner.py \
       --port "$PORT" --tests "$ids" ) 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e

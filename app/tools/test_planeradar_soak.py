@@ -29,7 +29,8 @@ import time
 import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from run_serialdbg_tests import Dut, _switch_to, _restore_spotify   # noqa: E402
+from lib.dut import Dut                                              # noqa: E402
+from suite.serialdbg._helpers import _switch_to, _restore_spotify    # noqa: E402
 from ve_suite_base import make_arg_parser                            # noqa: E402
 
 CRASH_RE = re.compile(

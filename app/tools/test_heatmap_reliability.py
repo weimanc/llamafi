@@ -28,12 +28,14 @@ import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
-from run_serialdbg_tests import (
-    Dut,
+from lib.dut import Dut
+from suite.serialdbg._helpers import (
     _switch_to_stock,
     _restore_from_stock,
-    _wait_heatmap_count,
     _wait_shell_not_busy,
+)
+from suite.serialdbg.stock import (
+    _wait_heatmap_count,
     _ensure_stock_list_view,
 )
 from ve_suite_base import (

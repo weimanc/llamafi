@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # run/test-sync — sync/drift/playlist suite (T097-T116) — requires DUT
-# Uses run_sync_tests.py (separate runner from run_serialdbg_tests.py).
+# Uses run_sync_tests.py (separate runner from suite/serialdbg/runner.py).
 # Runs the full 6-step validation loop with trap-guarded prod restore.
 # Usage: ./run/test-sync
 #        BOOT_WAIT=12 ./run/test-sync

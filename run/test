@@ -110,7 +110,7 @@ if [ -n "${LOG_FILE:-}" ]; then
   echo "[test] raw serial log: $LOG_FILE"
   _LOG_ARGS=(--log-file "$LOG_FILE")
 fi
-(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" "${_LOG_ARGS[@]}") \
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_LOG_ARGS[@]}") \
   || _TEST_RC=$?
 
 # EXIT trap fires here: steps 5 and 6 run unconditionally

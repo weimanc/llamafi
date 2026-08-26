@@ -65,5 +65,5 @@ fi
 # failure for everything else.
 _WIFI_ARGS=()
 [ "${NO_WIFI:-}" = "1" ] && _WIFI_ARGS+=(--no-wifi)
-(cd "$PIO_DIR" && "$VENV_PY" tools/run_serialdbg_tests.py --port "$PORT" --tests "$TESTS" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}") \
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" --tests "$TESTS" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}") \
   || _TEST_RC=$?

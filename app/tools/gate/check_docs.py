@@ -571,7 +571,7 @@ def test_registries(root: str) -> dict[str, str]:
     tools = os.path.join(root, "app", "tools")
     if not os.path.isdir(tools):
         return reg
-    for path in sorted(glob.glob(os.path.join(tools, "*.py"))):
+    for path in sorted(glob.glob(os.path.join(tools, "**", "*.py"), recursive=True)):
         rel = os.path.relpath(path, root).replace(os.sep, "/")
         try:
             with open(path, encoding="utf-8", errors="replace") as fh:

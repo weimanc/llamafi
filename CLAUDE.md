@@ -260,7 +260,7 @@ PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). O
 - `bake/` — asset bakes writing into `app/gen/`, `golden.sha256`-gated (`bake_skin.py`, `bake_nixie.py`, …).
 - `preview/` — host-only renderers (parse `gen/*.h`, never mirror it — LL-114). `preview_common.py` (the shared parser these import) stays flat in `app/tools/`, not inside `preview/`.
 - `probe/` — one-shot host probes against live external services.
-- `suite/` — DUT test suites. `serialdbg/` split in progress (TASK-480): scaffold + `clock.py` extracted so far; `run_serialdbg_tests.py` (the 128-test regression runner) is still the live entry point and still holds the rest of the families pending their own extraction.
+- `suite/` — DUT test suites. `serialdbg/` (TASK-480, DONE): the former 10 005-line `run_serialdbg_tests.py` monolith split into one module per app family — `clock.py`, `teletext.py`, `planeradar.py`, `stock.py`, `webradio.py`, `player.py`, `shell.py` (the catch-all for taskbar/app-switch and the small single-screen apps) — plus `_helpers.py` for anything used by 2+ families. `runner.py` is the CLI entry point `run/test`/`run/test-targeted`/`run/player-gate` invoke; `__init__.py`'s `build_all_tests()` assembles the combined registry from each family's own `TESTS` dict.
 - `spike/` — one-off, task-scoped tools; `run/check-docs`'s `SPIKE` check (blocking) fails any `spike/task<NNN>_*` whose task is archived.
 
 Levels depend downward only: a suite may use `lib/`; `lib/` never imports a suite; `preview/`/`bake/` never import from `suite/`.

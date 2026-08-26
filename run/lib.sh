@@ -11,7 +11,7 @@ ENV_PROD="cyd2usb_winamp"
 # TASK-435 item 2: the debug env the test scripts flash and the harness verifies
 # against. Overridable so a suite can run on a second testable variant —
 # DUT_ENV=cyd2usb_player ./run/test-targeted T_PLR_01,T_PLR_02
-# The same variable is read by run_serialdbg_tests.py for its ELF-hash guard
+# The same variable is read by suite/serialdbg/runner.py for its ELF-hash guard
 # (it inherits the environment), so the two cannot disagree about which binary
 # is supposed to be on the device. ENV_PROD is deliberately NOT overridable:
 # every test script's trap restores production, and that must stay production.

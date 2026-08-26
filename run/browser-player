@@ -41,7 +41,7 @@ echo "[browser-player] 2/3 — flashing $ENV_PLAYER to $PORT"
 # DUT-measured (2026-08-11): the upload's own end-of-flash reset (via RTS) and
 # the test script's serial.Serial() open (which ALSO toggles DTR/resets, per
 # the CH340 driver quirk — same one BP-018/_DUT_RESET_GAP_FILE guards against
-# in run_serialdbg_tests.py's Dut class) land close enough together to trip
+# in suite/serialdbg/runner.py's Dut class) land close enough together to trip
 # the ESP32's double-reset-detector and produce a stuck, non-clean boot —
 # `xTaskCreatePinnedToCore failed rc=-1` on every later play attempt, not
 # self-clearing on retry. A gap here, before the port is reopened, avoids it.

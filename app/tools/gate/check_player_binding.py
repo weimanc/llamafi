@@ -183,28 +183,25 @@ def main() -> int:
           "`get player` is gone — T_PMT_01-03 assert the whole vector it returns")
 
     # ── 5. the binding test still exists and still reads playerBind ──────────
-    # TASK-481: this file moved into gate/; run_serialdbg_tests.py stayed flat
-    # in app/tools/ pending its own split (TASK-480). TASK-480 is now moving
-    # families out of the monolith one at a time — T_PMT_00's body landed in
-    # suite/serialdbg/player.py while the monolith still carries the ALL_TESTS
-    # registry entry (imported back, same pattern every extracted family
-    # uses). So this check reads BOTH: the monolith for the registry entry,
-    # and the monolith + every suite/serialdbg/*.py for the `get playerBind`
-    # string, wherever the test body currently lives.
-    runner = os.path.join(ROOT, "app", "tools", "run_serialdbg_tests.py")
+    # TASK-480 finished the run_serialdbg_tests.py split: T_PMT_00's body and
+    # its TESTS-dict registration both live in suite/serialdbg/player.py now,
+    # and the old monolith is gone. Every suite/serialdbg/*.py is scanned for
+    # `get playerBind` since a future re-split could move the body elsewhere
+    # in that tree without moving the registration.
+    player_module = os.path.join(ROOT, "app", "tools", "suite", "serialdbg", "player.py")
     suite_dir = os.path.join(ROOT, "app", "tools", "suite", "serialdbg")
-    if os.path.exists(runner):
-        with open(runner, encoding="utf-8", errors="replace") as fh:
-            rb = fh.read()
+    if os.path.exists(player_module):
+        with open(player_module, encoding="utf-8", errors="replace") as fh:
+            pb = fh.read()
         # Match the REGISTRY ENTRY, not the id anywhere. A negative test caught
-        # this: deleting `"T_PMT_00": t_pmt_00,` from ALL_TESTS left the id in the
+        # this: deleting `"T_PMT_00": t_pmt_00,` from TESTS left the id in the
         # body's own pass_()/fail() strings, so a substring check still passed
         # while the test no longer ran at all.
-        check(re.search(r'"T_PMT_00"\s*:\s*t_pmt_00', rb) is not None,
-              "T_PMT_00 is not registered in ALL_TESTS — the binding test is the only "
-              "thing that notices when the surface moves, and an unregistered test "
-              "never runs")
-        corpus = rb
+        check(re.search(r'"T_PMT_00"\s*:\s*t_pmt_00', pb) is not None,
+              "T_PMT_00 is not registered in player.py's TESTS dict — the binding test "
+              "is the only thing that notices when the surface moves, and an "
+              "unregistered test never runs")
+        corpus = ""
         if os.path.isdir(suite_dir):
             for name in sorted(os.listdir(suite_dir)):
                 if name.endswith(".py"):
@@ -214,7 +211,7 @@ def main() -> int:
               "no test reads `get playerBind` — the observable exists but nothing checks it, "
               "which is how the binding rotted the first two times")
     else:
-        notes.append("run_serialdbg_tests.py not found — skipped the test-side checks")
+        notes.append("suite/serialdbg/player.py not found — skipped the test-side checks")
 
     # ── report ───────────────────────────────────────────────────────────────
     print("=== check_player_binding.py — M-TESTBASE §8.4 ===")
