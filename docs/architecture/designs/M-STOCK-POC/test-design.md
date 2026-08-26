@@ -467,7 +467,7 @@ T185 — dep: T183 (error state established)
 
 | ID | File | Description |
 |----|------|-------------|
-| T_SF_01 | `app/tools/test_yahoo_finance_api.py` | Yahoo Finance quote endpoint reachable |
+| T_SF_01 | `app/tools/probe/test_yahoo_finance_api.py` | Yahoo Finance quote endpoint reachable |
 | T_SF_02 | same | Quote response contains price + changePct fields |
 | T_SF_03 | same | Response parses correctly for all 8 tickers |
 | T_SF_04 | same | Chart endpoint reachable for D1 range |
@@ -475,7 +475,7 @@ T185 — dep: T183 (error state established)
 | T_SF_06 | same | Rate limiting / error response handled gracefully |
 | T_SF_07 | same | All 4 range types (D1/D5/1M/YTD) return valid data |
 
-Run before DUT work: `python3 app/tools/test_yahoo_finance_api.py`.
+Run before DUT work: `python3 app/tools/probe/test_yahoo_finance_api.py`.
 
 ### DUT-required (serial debug interface)
 

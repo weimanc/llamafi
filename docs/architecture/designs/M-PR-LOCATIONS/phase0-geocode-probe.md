@@ -31,7 +31,7 @@ need a committed, repeatable source:
 
 ## Tool
 
-`app/tools/geocode_probe.py` — stdlib + `requests` (venv `~/proj/esp/venv`,
+`app/tools/probe/geocode_probe.py` — stdlib + `requests` (venv `~/proj/esp/venv`,
 falls back to plain `python3` since only stdlib + `requests` are used, no
 project-specific deps). Four phases, always run in this order with ≥1.1 s
 between every Nominatim HTTP request (Nominatim usage policy hard cap):
@@ -60,7 +60,7 @@ two raw TLS handshakes via `openssl s_client`, not calls to the rate-limited
 search API. `--report` emits a markdown summary block (used verbatim for the
 tables below). Exit code 0 iff every check lands on its expected outcome.
 
-Run: `~/proj/esp/venv/bin/python3 app/tools/geocode_probe.py --report`
+Run: `~/proj/esp/venv/bin/python3 app/tools/probe/geocode_probe.py --report`
 
 ## A bug the script caught in itself
 

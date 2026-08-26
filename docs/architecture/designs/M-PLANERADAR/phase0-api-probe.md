@@ -55,7 +55,7 @@ behaviour under sustained polling until measured.
 
 ### Tool
 
-`app/tools/pr_adsb_probe.py` — project venv (`~/proj/esp/venv`), `requests`.
+`app/tools/probe/pr_adsb_probe.py` — project venv (`~/proj/esp/venv`), `requests`.
 Modes:
 
 - `--survey` — one fetch per (site × preset), print summary table.

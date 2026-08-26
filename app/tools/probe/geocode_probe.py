@@ -51,7 +51,7 @@ from urllib.parse import quote
 
 import requests
 
-PROJ_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJ_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CERTS_H = PROJ_ROOT / "app" / "src" / "dataTaskCerts.h"
 
 HOST = "nominatim.openstreetmap.org"

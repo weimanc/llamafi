@@ -1041,7 +1041,7 @@ limiting coming and going, or (b) `abortWebRadioFetch()` genuinely failing to pa
 in-flight request is stuck in DNS/connect rather than at a checkpoint. Case (b) would be a real
 defect and would also explain some of TASK-284's "empty list forever" history.
 
-**How to tell them apart:** run `app/tools/test_radiobrowser_api.py` from the host on the same
+**How to tell them apart:** run `app/tools/probe/test_radiobrowser_api.py` from the host on the same
 network first (per the established "validate on the host before flailing on the device" practice). A
 host fetch that also fails puts it on the network; a host fetch that succeeds while the device sits
 at `pending=1` puts it on the abort path. Then check whether `dataTask` ever posts a result with

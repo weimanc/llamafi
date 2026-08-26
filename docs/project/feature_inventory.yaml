@@ -721,7 +721,7 @@ features:
       - app/src/dataTask.h
       - app/src/dataTaskStorage.cpp
       - app/src/dataTaskCerts.h
-      - app/tools/test_yahoo_finance_api.py
+      - app/tools/probe/test_yahoo_finance_api.py
       - docs/architecture/designs/M-STOCK-POC/
     cross_features: [taskbar-scroll-001, conn-002, weather-001, crypto-001]
     test_ids: [T169, T170, T171, T172, T173, T174, T175, T176, T177, T178, T179,
@@ -1845,7 +1845,7 @@ features:
       - app/icons/taskbar/planeradar.png
       - app/icons/taskbar/planeradar_active.png
       - app/tools/preview/preview_planeradar.py
-      - app/tools/pr_adsb_probe.py
+      - app/tools/probe/pr_adsb_probe.py
       - app/tools/bake/bake_airports.py
       - app/tools/host/pr_parse_trial/main.cpp
       - app/tools/host/pr_airport_bake_trial.py

@@ -26,7 +26,8 @@ import requests
 
 API_BASE = "https://opendata.adsb.fi/api/v3"
 HERE = pathlib.Path(__file__).resolve().parent
-FIXTURES = HERE / "fixtures" / "planeradar"
+TOOLS = HERE.parent  # app/tools/ — TASK-481 moved this file into probe/; fixtures/ stays flat
+FIXTURES = TOOLS / "fixtures" / "planeradar"
 
 # Probe matrix (phase0-api-probe.md): site name -> (lat, lon)
 SITES = {
@@ -225,7 +226,7 @@ def main() -> None:
                    help="custom longitude, overrides --site (must pair with --lat)")
     p.add_argument("--preset", type=int, choices=PRESETS_KM, default=10)
     p.add_argument("--interval", type=float, default=10.0)
-    p.add_argument("--log", default=str(HERE / "fixtures" / "planeradar" / "soak.jsonl"))
+    p.add_argument("--log", default=str(TOOLS / "fixtures" / "planeradar" / "soak.jsonl"))
     args = p.parse_args()
 
     if args.survey:
