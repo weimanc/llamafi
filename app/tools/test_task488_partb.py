@@ -423,7 +423,7 @@ def t_488_11(dut: Dut):
     # the criterion is asking, with a signal that is not 48 KB of noise.
     sweep_ids = range(_TB_N) if _NO_PLAYERS else range(len(APP_ORDER))
     samples = [h1]
-    for n in (1, 2, 3):
+    for n in range(1, _SWEEPS + 1):
         for _ in range(3):
             for app_id in sweep_ids:
                 _switch(dut, app_id, settle=0.4)
@@ -431,7 +431,7 @@ def t_488_11(dut: Dut):
         dut.cmd("set playerMode spotify", timeout=3.0)
         time.sleep(1.0)
         samples.append(_heap(dut))
-        print(f"    sweep {n}/3 done — freeInt={samples[-1]}")
+        print(f"    sweep {n}/{_SWEEPS} done — freeInt={samples[-1]}")
 
     deltas = [samples[i + 1] - samples[i] for i in range(len(samples) - 1)]
     steady = deltas[1:]                       # sweeps 2 and 3, past the one-offs
@@ -457,10 +457,11 @@ TEST_FNS = {
 
 _GET_KEYS: list[str] = []
 _NO_PLAYERS = False
+_SWEEPS = 3   # TASK-505: default preserves the original 3-sweep behavior
 
 
 def main():
-    global _GET_KEYS, _NO_PLAYERS
+    global _GET_KEYS, _NO_PLAYERS, _SWEEPS
     p = make_arg_parser(ALL_TESTS, description="TASK-488 Part B — DUT verification")
     p.add_argument("--get-keys", default="",
                    help="comma-separated `get` keys for T_488_10 (from a static "
@@ -469,12 +470,20 @@ def main():
                    help="T_488_11: sweep the 11 taskbar apps only, leaving "
                         "WebRadio/LocalPlayer out so the ~48 KB audio arena "
                         "does not swamp the measurement")
+    p.add_argument("--sweeps", type=int, default=3,
+                   help="T_488_11 (TASK-505): number of post-idle sweeps to run "
+                        "(default 3, matching the original criterion). A longer "
+                        "run answers whether the heap plateau TASK-505 observed "
+                        "after 3 sweeps is genuine or just a slower decline — "
+                        "the PASS/FAIL gate still only judges sweeps 2..N "
+                        "(sweep 1's one-off app-init/arena cost stays excluded).")
     p.add_argument("--settle", type=float, default=150.0,
                    help="seconds to wait after boot before the first heap read "
                         "(TASK-425: heap is not stable before ~150 s post-reset)")
     args = p.parse_args()
     _GET_KEYS = [k for k in args.get_keys.split(",") if k]
     _NO_PLAYERS = args.no_players
+    _SWEEPS = max(1, args.sweeps)
 
     dut = Dut(args.port, args.baud, args.timeout)
     if args.settle > 0:

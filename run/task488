@@ -63,6 +63,10 @@ sleep "$BOOT_WAIT"
 echo "[task488] 4/4 — running Part B (settle ${SETTLE}s)"
 _ARGS=(--port "$PORT" --settle "$SETTLE" --get-keys "$GET_KEYS")
 [ "${NO_PLAYERS:-0}" = "1" ] && _ARGS+=(--no-players)
+# TASK-505: SWEEPS=10 ./run/task488 T_488_11 — longer sweep count on a quiet
+# rig, to answer whether the heap plateau after 3 sweeps is genuine or just a
+# slower decline. Default (unset) keeps the original 3-sweep behavior.
+[ -n "${SWEEPS:-}" ] && _ARGS+=(--sweeps "$SWEEPS")
 [ -n "$TESTS" ] && _ARGS+=(--tests "$TESTS")
 # The suite's ELF-hash guard (BP-017) resolves .pio/build relative to its own
 # location, so in A/B mode it must run from the tree whose firmware is on the
