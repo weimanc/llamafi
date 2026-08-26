@@ -165,6 +165,36 @@ static const char  HEATMAP_URL[] =
 // INT_MIN can't collide with any HTTPClient return value.
 static constexpr int OPENHTTPS_BEGIN_FAILED = INT_MIN;
 
+// TASK-512 (M-CODEQUAL C2 remainder, deferred out of TASK-458): RAII guard
+// for the http.begin()/http.end() pairing above — the same shape as
+// spotifyTask::TlsYieldGuard, deliberately NOT a plain stack guard that only
+// calls end() at scope exit. Every one of this file's fetchers frees TLS
+// with an explicit end() call BEFORE the function's real end (HTTP/1.0 close
+// semantics: freeing early gives the JSON parse step room, and one function
+// logs the freed-heap reading right after) — that ordering is load-bearing
+// and this guard preserves it exactly: end() is still called by hand at the
+// same point in the same functions, this only removes the need to ALSO
+// call it (or forget to) on every early-return failure path. begin()
+// failing never calls end() (nothing was opened) — same as the manual code
+// before it, and the same shape TlsYieldGuard's ok_ used for tlsTryYield().
+class HttpSession {
+public:
+    HttpSession(HTTPClient& http, WiFiClientSecure& tls, const char* url)
+        : http_(http), open_(http.begin(tls, url)) {}
+    // String overload — the stock-quote/chart fetchers build the URL with
+    // String concatenation, not a literal.
+    HttpSession(HTTPClient& http, WiFiClientSecure& tls, const String& url)
+        : http_(http), open_(http.begin(tls, url)) {}
+    ~HttpSession() { end(); }
+    void end() { if (open_) { http_.end(); open_ = false; } }
+    bool ok() const { return open_; }
+    HttpSession(const HttpSession&) = delete;
+    HttpSession& operator=(const HttpSession&) = delete;
+private:
+    HTTPClient& http_;
+    bool        open_;
+};
+
 // TASK-318 (M-CERT-ERRCODE): pinned-CA verify failure surfaced as its own
 // errorCode. HTTPClient collapses a failed TLS handshake into a generic
 // -1 HTTPC_ERROR_CONNECTION_REFUSED; the underlying mbedTLS code survives in
@@ -287,7 +317,8 @@ static void httpFetchJsonBuffered(WiFiClientSecure& tls, const BufferedFetchCfg&
     HTTPClient http;
     if (cfg.userAgent) http.setUserAgent(cfg.userAgent);  // must precede begin()
     http.useHTTP10(true);   // force Connection:close so http.end() frees TLS
-    if (!http.begin(tls, cfg.url)) {
+    HttpSession session(http, tls, cfg.url);   // TASK-512
+    if (!session.ok()) {
         if (cfg.phaseSlot) *cfg.phaseSlot = -1;
         parse(OPENHTTPS_BEGIN_FAILED, String());
         return;
@@ -298,7 +329,7 @@ static void httpFetchJsonBuffered(WiFiClientSecure& tls, const BufferedFetchCfg&
     LOG_D(cfg.logTag, "GET %d elapsed=%lums", code, (unsigned long)(millis() - t0));
     String body;
     if (code == 200) body = http.getString();
-    http.end();              // TLS freed here (HTTP/1.0 close)
+    session.end();            // TLS freed here (HTTP/1.0 close)
     LOG_HEAP(cfg.logTag);
     if (cfg.phaseSlot && code == 200) *cfg.phaseSlot = 2;  // JSON parse
     parse(code, body);
@@ -446,7 +477,8 @@ static void fetchStockQuote() {
         tls.setCACert(consumeCertBreak(DATA_FETCH_STOCK_QUOTE)
                           ? wrongCaFor(DATA_FETCH_STOCK_QUOTE) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
         HTTPClient http;
-        if (!http.begin(tls, url)) {
+        HttpSession session(http, tls, url);   // TASK-512
+        if (!session.ok()) {
             LOG_W("dataTask.stock", "spark http.begin failed");
             r.ok = false; r.errorCode = -100;
         } else {
@@ -458,7 +490,7 @@ static void fetchStockQuote() {
                   code, (unsigned long)(millis() - t0));
             if (code != 200) {
                 r.ok = false; r.errorCode = code;
-                http.end();
+                session.end();
             } else {
                 // Wildcard filter: keep {chartPreviousClose, close} for every symbol key.
                 // Filtered payload ~614 B for 8 symbols; <1536> doc gives headroom.
@@ -468,7 +500,7 @@ static void fetchStockQuote() {
                 StaticJsonDocument<1536> doc;
                 DeserializationError err = deserializeJson(doc, http.getStream(),
                                                DeserializationOption::Filter(filter));
-                http.end();
+                session.end();
                 if (err) {
                     LOG_W("dataTask.stock", "spark JSON err: %s", err.c_str());
                     r.ok = false; r.errorCode = -90 - (int)err.code();
@@ -510,7 +542,8 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
     WiFiClientSecure tls;
     tls.setCACert(consumeCertBreak(certTag) ? wrongCaFor(certTag) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
     HTTPClient http;
-    if (!http.begin(tls, url)) {
+    HttpSession session(http, tls, url);   // TASK-512
+    if (!session.ok()) {
         LOG_W("dataTask.stock", "chart http.begin failed sym=%s", symbol);
         r.ok = false; r.errorCode = -100;
         return -100;
@@ -524,7 +557,7 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
           symbol, STOCK_RANGE_STR[rangeIdx], code, (unsigned long)(millis() - t0));
     if (code != 200) {
         r.ok = false; r.errorCode = code;
-        http.end();
+        session.end();
         return code;
     }
     LOG_D("dataTask.stock", "chart pre-json heap free=%uk maxBlk=%uk",
@@ -541,7 +574,7 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
     StaticJsonDocument<2048> doc;
     DeserializationError err = deserializeJson(doc, http.getStream(),
                                    DeserializationOption::Filter(filter));
-    http.end();
+    session.end();
     LOG_D("dataTask.stock", "chart post-json heap free=%uk maxBlk=%uk err=%s",
           (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
           (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024),
@@ -922,7 +955,8 @@ static void fetchHeatmapQuote() {
     tls.setCACert(consumeCertBreak(DATA_FETCH_HEATMAP_QUOTE)
                       ? wrongCaFor(DATA_FETCH_HEATMAP_QUOTE) : YAHOO_FINANCE_ROOT_CA);  // TASK-344
     HTTPClient http;
-    if (!http.begin(tls, HEATMAP_URL)) {
+    HttpSession session(http, tls, HEATMAP_URL);   // TASK-512
+    if (!session.ok()) {
         LOG_W("dataTask.stock", "heatmap http.begin failed");
         HeatmapQuoteResult r; r.ok = false; r.errorCode = -100;
         portENTER_CRITICAL_SAFE(&s_heatmapMux);
@@ -947,7 +981,7 @@ static void fetchHeatmapQuote() {
     HeatmapQuoteResult r;
     if (code != 200) {
         r.ok = false; r.errorCode = code;
-        http.end();
+        session.end();
     } else {
         // Filter: 4 fields per quote entry; raw payload ~54 kB → filtered ~2.4 kB.
         // s_heatmapDoc pre-allocated at startup (avoids malloc failure from heap
@@ -961,7 +995,7 @@ static void fetchHeatmapQuote() {
         LOG_D("dataTask.stock", "heatmap doc cap=%u", (unsigned)s_heatmapDoc.capacity());
         DeserializationError err = deserializeJson(s_heatmapDoc, http.getStream(),
                                        DeserializationOption::Filter(filter));
-        http.end();
+        session.end();
         if (err) {
             LOG_W("dataTask.stock", "heatmap JSON err: %s", err.c_str());
             r.ok = false; r.errorCode = -90 - (int)err.code();
@@ -1036,7 +1070,8 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
                       ? wrongCaFor(DATA_FETCH_WEBRADIO_STATIONS) : RADIO_BROWSER_ROOT_CA);  // TASK-344
     HTTPClient http;
     http.useHTTP10(true);
-    if (!http.begin(tls, url)) {
+    HttpSession session(http, tls, url);   // TASK-512
+    if (!session.ok()) {
         LOG_W("dataTask.webradio", "http.begin failed mirror=%s", mirror);
         return -1;
     }
@@ -1049,7 +1084,7 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     LOG_I("dataTask.webradio", "GET mirror=%s code=%d elapsed=%lums",
           mirror, code, (unsigned long)(millis() - t0));
     if (code != 200) {
-        http.end();
+        session.end();
         return code;
     }
 
@@ -1062,7 +1097,7 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     doc.clear();
     DeserializationError err = deserializeJson(doc, http.getStream(),
                                    DeserializationOption::Filter(filter));
-    http.end();
+    session.end();
     if (err) {
         strlcpy(s_webRadioResult.jsonErr, err.c_str(), sizeof(s_webRadioResult.jsonErr));
         LOG_W("dataTask.webradio", "JSON err mirror=%s: %s", mirror, err.c_str());
@@ -1286,7 +1321,8 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) 
                       ? wrongCaFor(DATA_FETCH_PLANERADAR) : PLANERADAR_ROOT_CA);  // TASK-344
     HTTPClient http;
     http.useHTTP10(true);   // identity encoding so getStream() yields clean JSON
-    if (!http.begin(tls, url)) {
+    HttpSession session(http, tls, url);   // TASK-512
+    if (!session.ok()) {
         LOG_W("dataTask.planeradar", "http.begin failed");
         r.ok = false; r.errorCode = -100;
         return -100;
@@ -1311,11 +1347,11 @@ static int prFetchOnce(const char* url, PlaneRadarResult& r, uint16_t& scanned) 
         // internal retry loop to suppress). TASK-313's retry (in the caller)
         // is scoped to parse errors only — it never fires here.
         r.ok = false; r.errorCode = code;
-        http.end();
+        session.end();
         return code;
     }
     int rc = prParseStream(http.getStream(), r, scanned);
-    http.end();
+    session.end();
     if (rc != 0) { r.ok = false; r.errorCode = rc; r.count = 0; }
     return code;
 }
