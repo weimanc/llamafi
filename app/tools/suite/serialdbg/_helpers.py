@@ -7,6 +7,7 @@ the teletext family, which needs the universal app-switch / taskbar-scroll
 / diagnostics primitives almost every other family also uses.
 """
 
+import json
 import time
 from contextlib import contextmanager
 
@@ -14,6 +15,163 @@ from lib.dut import Dut
 from lib.results import skip, pass_
 import coords as _c
 from app_ids_gen import APP_SLOT
+
+
+def _tap_and_wait_log(dut: Dut, x: int, y: int, marker: str,
+                       tap_timeout: float = 5.0, log_timeout: float = 8.0
+                       ) -> tuple[dict | None, bool]:
+    """Send a tap and scan for `marker` in ONE continuous serial read.
+
+    TASK-417 gate investigation (2026-08-11): the split pattern used
+    elsewhere — dut.cmd(f"tap {x} {y}") followed by a separate
+    _wait_for_log() — has a real race. dut.cmd()'s read_json() silently
+    discards every non-JSON line while hunting for the tap's own JSON
+    reply. spotifyTask's async trace lines ("dequeued action=SHUFFLE",
+    "hard reset — stopping client") are printed from a DIFFERENT FreeRTOS
+    task and can land in that exact window — read_json() eats them before
+    the caller's own _wait_for_log() ever starts reading, and the check
+    then times out even though the firmware did exactly the right thing.
+    Confirmed on the DUT: a raw serial capture (LOG_FILE) showed
+    "dequeued action=SHUFFLE" and "dequeued action=REPEAT" both present,
+    in order, within the same second — while T_PLR_17's old split-read
+    reported FAIL for both ("dispatch did not reach spotifyTask"). The
+    firmware was never at fault; the harness was reading around the line
+    it needed. This helper keeps the tap-ack JSON parse and the log-marker
+    scan in one unbroken readline() loop so nothing sent to the wire
+    between them can be silently lost. Returns
+    (json_response_or_None, marker_found)."""
+    dut.wait_shell_cooldown_clear()
+    dut.send(f"tap {x} {y}")
+    resp: dict | None = None
+    marker_found = False
+    deadline = time.monotonic() + max(tap_timeout, log_timeout)
+    while time.monotonic() < deadline and not (resp is not None and marker_found):
+        try:
+            line = dut.ser.readline().decode(errors="replace").strip()
+        except Exception:
+            break
+        if not line:
+            continue
+        if resp is None and line.startswith("{"):
+            try:
+                obj = json.loads(line)
+                if obj.get("cmd") == "tap":
+                    resp = obj
+                    continue
+            except json.JSONDecodeError:
+                pass
+        if marker in line:
+            marker_found = True
+    return resp, marker_found
+
+
+def _drain_data_pipeline(dut: Dut, timeout_s: float = 200.0, tag: str = "") -> bool:
+    """Wait until the dataTask/spotifyTask fetch pipeline is quiet: nothing in
+    flight or queued, no unacked tlsYield, and spotifyTask not inside an API
+    call (spAct=3 — doPoll incl. token refresh has no yield check). TASK-299/300:
+    a fetch enqueued behind a busy pipeline serializes for up to minutes —
+    firmware working as designed (TASK-244 accepted poll-bounded yield latency)
+    — so tests that measure fetch completion rather than latency under
+    contention must drain first. Returns True once quiet, False on timeout."""
+    prefix = f"[{tag}] " if tag else ""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            q = dut.cmd("get dataq", timeout=3.0)
+            if (q.get("queueWaiting", 1) == 0 and q.get("inFlight", 0) == -1
+                    and q.get("yieldCount", 1) == 0 and q.get("spAct") != 3):
+                return True
+            print(f"  {prefix}draining: inFlight={q.get('inFlight')} "
+                  f"queueWaiting={q.get('queueWaiting')} yieldCount={q.get('yieldCount')} "
+                  f"spAct={q.get('spAct')}", flush=True)
+        except TimeoutError:
+            pass
+        time.sleep(2.0)
+    return False
+
+
+def _poll_shell_busy(dut: Dut, expected: bool, timeout_ms: int = 500,
+                     cmd_timeout: float = 5.0) -> bool:
+    """Poll get shellBusy until busy==expected. Returns True if reached within timeout.
+    cmd_timeout: per-command serial timeout; raised to 5 s by default to tolerate
+    transient serial flooding from concurrent dataTask output (chart/quote fetches)."""
+    deadline = time.monotonic() + timeout_ms / 1000.0
+    while time.monotonic() < deadline:
+        try:
+            r = dut.cmd("get shellBusy", timeout=cmd_timeout)
+            if r.get("ok") and r.get("busy") == expected:
+                return True
+        except TimeoutError:
+            pass  # transient serial flood from dataTask; retry
+        time.sleep(0.02)
+    return False
+
+
+def _get_vis_mode(dut: Dut) -> int | None:
+    """Return current visMode integer (0–3), or None on error."""
+    r = dut.cmd("get visMode", timeout=2.0)
+    if r.get("ok"):
+        try:
+            return int(r["mode"])
+        except (KeyError, ValueError, TypeError):
+            pass
+    return None
+
+
+def _do_drag(dut: Dut, x1: int, y1: int, x2: int, y2: int,
+             steps: int = 30, timeout: float = 15.0) -> dict | None:
+    """Send a drag and return the drag JSON response, or None on timeout."""
+    dut.send(f"drag {x1} {y1} {x2} {y2} {steps}")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            line = dut.ser.readline().decode(errors="replace").strip()
+        except Exception:
+            return None
+        if line.startswith("{"):
+            try:
+                obj = json.loads(line)
+                if obj.get("cmd") == "drag":
+                    return obj
+            except json.JSONDecodeError:
+                pass
+    return None
+
+
+def _get_scroll(dut: Dut, timeout: float = 3.0) -> int | None:
+    """Return scrollOffset int, or None on error."""
+    r = dut.cmd("get scrollOffset", timeout=timeout)
+    if not r.get("ok") or r.get("key") != "scrollOffset":
+        return None
+    return r.get("val")
+
+
+# PLEDIT (playlist-editor) drag geometry — shared by the velocity-scroll-001
+# suite (Spotify queue, shell.py) and its WebRadio variant (webradio.py).
+_PLEDIT_X  = 140   # x inside PLEDIT content area  (x ∈ [12..255])
+_PLSTART_Y = 163   # drag start y (below anchor)
+_PLEND_Y   = 150   # drag end y   (above anchor);  dy = 150-163 = -13 (finger up)
+
+
+def _vs_drain_until_drag(dut: Dut, timeout: float = 10.0) -> tuple[list[dict], dict | None]:
+    """Read JSON lines until the drag-completion response arrives.
+    Returns (other_responses_in_order, drag_resp_or_None)."""
+    pre: list[dict] = []
+    drag_resp = None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        line = dut.ser.readline().decode(errors="replace").strip()
+        if not line or not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if obj.get("cmd") == "drag":
+            drag_resp = obj
+            break
+        pre.append(obj)
+    return pre, drag_resp
 
 
 def _check_residue(dut: Dut, tid: str) -> bool:

@@ -35,7 +35,7 @@ from app_ids_gen import APP_SLOT
 from suite.serialdbg._helpers import (
     _restore_spotify, _check_residue, _diag_snapshot, _wait_shell_not_busy,
     _switch_to_stock, _restore_from_stock, _stock_get, _stock_ok_count,
-    _wait_chart_complete,
+    _wait_chart_complete, _drain_data_pipeline,
 )
 
 
@@ -66,29 +66,8 @@ def _stock_quote_ok_count(dut: Dut) -> int:
     return -1
 
 
-def _drain_data_pipeline(dut: Dut, timeout_s: float = 200.0, tag: str = "") -> bool:
-    """Wait until the dataTask/spotifyTask fetch pipeline is quiet: nothing in
-    flight or queued, no unacked tlsYield, and spotifyTask not inside an API
-    call (spAct=3 — doPoll incl. token refresh has no yield check). TASK-299/300:
-    a fetch enqueued behind a busy pipeline serializes for up to minutes —
-    firmware working as designed (TASK-244 accepted poll-bounded yield latency)
-    — so tests that measure fetch completion rather than latency under
-    contention must drain first. Returns True once quiet, False on timeout."""
-    prefix = f"[{tag}] " if tag else ""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        try:
-            q = dut.cmd("get dataq", timeout=3.0)
-            if (q.get("queueWaiting", 1) == 0 and q.get("inFlight", 0) == -1
-                    and q.get("yieldCount", 1) == 0 and q.get("spAct") != 3):
-                return True
-            print(f"  {prefix}draining: inFlight={q.get('inFlight')} "
-                  f"queueWaiting={q.get('queueWaiting')} yieldCount={q.get('yieldCount')} "
-                  f"spAct={q.get('spAct')}", flush=True)
-        except TimeoutError:
-            pass
-        time.sleep(2.0)
-    return False
+# _drain_data_pipeline — moved to suite/serialdbg/_helpers.py (TASK-480):
+# also used by webradio.py's T_WR_TLS_01, not stock-only as first assumed.
 
 
 # ── T169 — Stock app switch round-trip ───────────────────────────────────────
