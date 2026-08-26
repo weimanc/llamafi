@@ -72,9 +72,59 @@ counted as a test inflates coverage — was applied and, for `T_CC_01`, found *n
 > - **`T_CC_03`/`T_CC_04`: DISCARD stands, no further action** — the rows above already record why;
 >   nothing to execute.
 
-**New id — `T_SRC_09`** (IFC-003 I9, the TASK-384 shape): drive, per app that overrides
-`isNavigationTap()`, that an async-pending **non**-navigation tap is swallowed **and** a navigation tap
-is not. No regression test covers this today; only TASK-384's one-off hardware repro exists.
+### `T_CC_06` — WiFi radio-mutating call sites are all quiesce-guarded (G1)
+
+**Filed**: TASK-499 (registration only, per its own row — not a full test implementation).
+
+- **Objective**: enumerate every radio-mutating `WiFi.*` call (`scanNetworks`, `begin`, `disconnect`,
+  `connect`/`reconnect`-adjacent — NOT read-only calls like `status()`/`RSSI()`/`SSID()`) against a
+  known-safe set, so a future call site that skips the `setAutoReconnect(false)`-before-mutate
+  convention (TASK-436's fix, extended to the one gap TASK-473's G1 found — `cmdSet.cpp`'s `set
+  wifiScan`) is caught instead of silently reintroducing the collision class X014/TASK-436/TASK-404
+  describe. This is the audit G1's fix didn't formalize into a check.
+- **Preconditions**: none — host-only, static.
+- **Steps**: grep `app/src` for `WiFi\.(scanNetworks|begin|disconnect|reconnect)\(` (38 raw hits as
+  of 2026-08-26, before filtering read-only/no-op overloads); for each call site, confirm one of:
+  (a) it runs inside a block that already called `WiFi.setAutoReconnect(false)` on the same code
+  path (the guarded shape `wifiSection.h::_startScan()`, `boot.cpp`'s NVS→SPIFFS interlock,
+  `cmdSet.cpp`'s `wifiScan`/`wifiKick` now use), or (b) it's on the known-safe list — `WiFi.begin()`
+  calls that are themselves the FIRST radio action of a boot stage (nothing to collide with yet) and
+  `wifiDiag::superviseTick()`'s kick (already serialized: only fires when disconnected, and
+  `WiFi.disconnect()` immediately precedes it in the same function).
+- **Expected result**: every call site resolves to (a) or (b); a call site in neither bucket fails
+  the audit and needs the same treatment TASK-473 G1 gave `wifiScan`.
+- **Status**: planned. Not implemented as a script this pass — TASK-499 registers the id with pass
+  criteria; write-up of an actual `check_*`-style host script (mirroring `T_CC_01`'s grep) is future
+  work, not bundled into this registration.
+
+### `T_SRC_09` — IFC-003 I9 regression (async-pending navigation-tap exception)
+
+**Filed**: TASK-498 (registration only — see the entry below for what's implemented today).
+
+- **Objective**: Per app that overrides `isNavigationTap()` (current set, grepped 2026-08-26:
+  `StockApp` — `stock/stockApp.{h,cpp}`, back button out of drill-in; `LocalPlayerApp` via
+  `player/fileBrowser.h` — directory back-nav), confirm I9's exception holds in both directions: a
+  navigation tap is dispatched even while `hasPendingAsync()` is true, and a **non**-navigation tap
+  in the same app, same state, is still silently swallowed (the general I9 rule, unchanged). Guards
+  against the TASK-384 shape recurring — `g_shellBusy`'s gate runs before the per-app dispatch, so a
+  future gate/dispatch reordering could re-introduce the silent drop with no test noticing.
+- **Preconditions**: DUT on debug firmware; app driven into a state with `hasPendingAsync() == true`
+  (Stock: mid drill-in fetch: `set stockChart <sym>` then tap before `stockChartProgress` reaches
+  terminal; LocalPlayer: mid directory-listing fetch).
+- **Steps**: (1) drive the app into the async-pending state above; (2) tap the app's navigation
+  control (Stock's back button; LocalPlayer's `..` row) — assert the tap is NOT reported
+  `"skipped":true` and the navigation actually occurs (`stockSubView` reverts to `"list"`;
+  `fbState`/cwd moves up); (3) re-enter the same async-pending state; (4) tap a **non**-navigation
+  control in the same screen (e.g. a chart-range tab, a file row) — assert it IS
+  `"skipped":true`/no-op, proving I9's general swallow still holds and the exception is narrowly
+  scoped to navigation, not a blanket bypass.
+- **Expected result**: step 2 dispatches and changes state; step 4 is swallowed. Any other
+  combination is a regression of the TASK-384 shape (swallow) or an over-wide bypass (both non-nav
+  and nav taps land during async-pending).
+- **Status**: planned. No regression test exists today — only TASK-384's one-off hardware repro
+  (`T184`/`T231`, `tasks-archive.md`). Test code (a `run_serialdbg_tests.py` entry or a
+  `test_task488_partb.py`-style DUT driver) is out of scope for TASK-498, which registers the id
+  with pass criteria only, per its own row.
 
 ### `T_SRC_01`–`T_SRC_08` — source layout
 **Source**: [M-SRCLAYOUT §9](../architecture/designs/M-SRCLAYOUT-main-decomposition.md) ·
