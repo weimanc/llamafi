@@ -2175,7 +2175,7 @@ Common preconditions for DUT tests below:
   TASK-122 and TASK-123 fixes applied to `main.cpp`. No display required (`--no-fetch` uses
   synthetic data and does not open a pygame window when run headlessly).
 - **Steps**:
-  1. Run `python3 app/tools/preview_heatmap.py --no-fetch` to confirm the
+  1. Run `python3 app/tools/preview/preview_heatmap.py --no-fetch` to confirm the
      PoC renders without error. Note the first tile dimensions printed at quit (Phase 2 report).
   2. Extract the expected layout from the PoC: the first tile (largest market cap) should be a
      tall vertical column on the left (wide canvas, so `w > h * bias` → vertical strip), not a
@@ -4408,7 +4408,7 @@ tests. Visual (MANUAL) tests have no blockers.
 - **Type**: host automated (import inspection)
 - **Feature(s)**: M-WEBRADIO preview tool (TASK-201)
 - **Objective**: `preview_webradio.py` does not import from `preview_vis`, `bake_vis`, `preview_teletext`, or `preview_layout`, and does not pull in VIS geometry names (`RECT_X`, `LEFT_Y`, `VIS_H`, `SPEC_BARS`, `SPEC_BAR_W`, `SPEC_BAR_STEP`). Shared geometry must come from `preview_common`; skin sprite extraction must come from `bake_skin` only.
-- **Preconditions**: Tool source at `app/tools/preview_webradio.py`.
+- **Preconditions**: Tool source at `app/tools/preview/preview_webradio.py`.
 - **Steps**: Parse import block (`ast.parse` or grep). Assert no forbidden module or name found. Assert `from preview_common import …` present. Assert `from bake_skin import …` is the only other local-tool import (whitelist: `bake_skin`, `preview_common`).
 - **Expected result**: No forbidden import. `preview_common` and `bake_skin` imports confirmed. All other local-module imports absent.
 - **Status**: recheck required after TASK-201 fix

@@ -33,7 +33,11 @@ import sys
 
 from PIL import Image, ImageDraw, ImageFont
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent))
+# TASK-481: this file moved into preview/; preview_common.py stays flat in
+# app/tools/, bake_skin.py moved into bake/ (sibling directory).
+_tools_root = pathlib.Path(__file__).parent.parent
+sys.path.insert(0, str(_tools_root / "bake"))
+sys.path.insert(0, str(_tools_root))
 from preview_common import (
     APP_ORDER,
     draw_taskbar_pil,
@@ -338,8 +342,8 @@ def run_interactive(skin_path: str):
 
 def main():
     here = pathlib.Path(__file__).parent
-    default_skin = str(here / "../gen/skin_preview.png")
-    default_wsz  = here / "../skins/base-2.91.wsz"
+    default_skin = str(here / "../../gen/skin_preview.png")
+    default_wsz  = here / "../../skins/base-2.91.wsz"
 
     parser = argparse.ArgumentParser(description="WebRadio canvas preview")
     parser.add_argument("--skin", default=default_skin)

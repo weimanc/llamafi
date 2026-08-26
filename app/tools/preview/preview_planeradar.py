@@ -32,22 +32,23 @@ import time
 
 from PIL import Image, ImageDraw
 
-sys.path.insert(0, str(pathlib.Path(__file__).parent))
+HERE = pathlib.Path(__file__).parent
+TOOLS = HERE.parent  # app/tools/ — TASK-481 moved this file into preview/
+sys.path.insert(0, str(TOOLS))
 import preview_common as pc
 import dut_fonts
 
-HERE = pathlib.Path(__file__).parent
-FIXTURES = sorted((HERE / "fixtures" / "planeradar").glob("*.json"),
+FIXTURES = sorted((TOOLS / "fixtures" / "planeradar").glob("*.json"),
                   key=lambda p: p.name)
 FIXTURES = [p for p in FIXTURES
             if not p.name.endswith(".pretty.json") and p.suffix == ".json"
             and p.name not in ("truncated.json",)]
-IMG_OUT = HERE.parent.parent / "docs" / "architecture" / "designs" / "M-PLANERADAR" / "img"
+IMG_OUT = TOOLS.parent.parent / "docs" / "architecture" / "designs" / "M-PLANERADAR" / "img"
 # TASK-316 (M-PR-LOCATIONS): location-slot strip eyeball-gate PNGs live under
 # the sibling milestone's img/ dir, not M-PLANERADAR's.
-PRLOC_IMG_OUT = (HERE.parent.parent / "docs" / "architecture" / "designs"
+PRLOC_IMG_OUT = (TOOLS.parent.parent / "docs" / "architecture" / "designs"
                  / "M-PR-LOCATIONS" / "img")
-AIRPORTS_PATH = HERE / "fixtures" / "planeradar" / "airports_preview.json"
+AIRPORTS_PATH = TOOLS / "fixtures" / "planeradar" / "airports_preview.json"
 
 # ── palette (RGB565-safe; radar_theme.h equivalents) ──────────────────────────
 def rgb565(r, g, b):

@@ -43,7 +43,7 @@ design questions below before anyone writes C++.
 - `app/tools/ceefax_client.py` — background-threaded WebSocket client implementing
   the reverse-engineered protocol (handshake, page-search, keepalive, live row/header
   assembly into a 25×40 grid).
-- `app/tools/preview_teletext.py --source ceefax` — **not a separate tool.** Ceefax is
+- `app/tools/preview/preview_teletext.py --source ceefax` — **not a separate tool.** Ceefax is
   a second source behind the existing NOS preview, sharing the render pipeline
   (`build_cell_grid`, colour palette, mosaic tables — untouched), the `Keypad` widget,
   the right-strip renderer, and the row-tap link scanner (`scan_links`/`find_row_link`,

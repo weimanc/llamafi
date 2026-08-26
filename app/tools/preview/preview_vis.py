@@ -50,6 +50,10 @@ import time
 
 import numpy as np
 from PIL import Image
+
+# TASK-481: this file moved into preview/; preview_common.py stays flat in
+# app/tools/.
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 from preview_common import SCREEN_W, SCREEN_H, write_gif
 
 # ── firmware geometry (mirrors ESP32 implementation exactly) ──────────────────
@@ -63,7 +67,7 @@ def _parse_skin_layout(path):
     return d
 
 _skin = _parse_skin_layout(
-    pathlib.Path(__file__).parent / "../gen/skin_layout.h")
+    pathlib.Path(__file__).parent / "../../gen/skin_layout.h")
 
 WINDOW_W   = int(_skin["WINDOW_W"])   # from gen/skin_layout.h
 WINDOW_H   = int(_skin["WINDOW_H"])

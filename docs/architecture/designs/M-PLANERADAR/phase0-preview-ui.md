@@ -27,7 +27,7 @@ four of its open layout questions before firmware started.
 
 ## Goals
 
-1. `app/tools/preview_planeradar.py` on `preview_common.py`
+1. `app/tools/preview/preview_planeradar.py` on `preview_common.py`
    (M-PREVIEW-FRAMEWORK): full 320×240 render including taskbar, 1×/2×/3×
    zoom, PNG/GIF export.
 2. Close OQ4 with side-by-side screenshots: side-strip layout vs

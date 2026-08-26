@@ -253,7 +253,7 @@ Strip geometry today (`planeRadarApp.h:113-116`): RANGE y5, COUNT y43,
 - One-location degenerate case: single row, tap is a no-op (no flicker
   repaint on same-slot tap — guard `slot == prActiveLoc`).
 
-Preview-first per BP-048: extend `app/tools/preview_planeradar.py` with the
+Preview-first per BP-048: extend `app/tools/preview/preview_planeradar.py` with the
 label rows + active highlight and eyeball-gate the strip layout (marker
 relocation, pitch, highlight style) before firmware code.
 
@@ -264,7 +264,7 @@ code exists (BP-048 lineage; same phase-0 discipline as M-PLANERADAR).
 
 ### Strip layout — preview tool first
 
-Extend `app/tools/preview_planeradar.py`: slot label rows at the agreed
+Extend `app/tools/preview/preview_planeradar.py`: slot label rows at the agreed
 pitch, active-slot highlight variants (inverse box vs colour), N^ marker
 deleted, empty-slot rendering, degenerate single-slot case. Eyeball-gate
 the layout (BP-048: init must paint; human eyeball approves) before any

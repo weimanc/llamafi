@@ -32,7 +32,7 @@ from typing import Optional
 
 import sys as _sys
 import pathlib as _pathlib
-_sys.path.insert(0, str(_pathlib.Path(__file__).parent))
+_sys.path.insert(0, str(_pathlib.Path(__file__).parent.parent))  # app/tools/ — TASK-481 moved this into preview/
 import dut_fonts as _dut_fonts
 
 from PIL import Image, ImageDraw, ImageFont
@@ -173,7 +173,7 @@ STYLE_KEYS  = {"digital": 1, "flip": 2, "nixie": 3, "vfd": 4}
 
 def _load_renderers() -> dict[int, ClockRenderer]:
     renderers: dict[int, ClockRenderer] = {1: DigitalRenderer()}
-    _tools = str(pathlib.Path(__file__).parent)
+    _tools = str(pathlib.Path(__file__).parent.parent)  # app/tools/
     if _tools not in sys.path:
         sys.path.insert(0, _tools)
 

@@ -842,7 +842,7 @@ features:
     status: implemented
     git_ref: "48e724d (2026-07-18)"
     components:
-      - app/tools/preview_layout.py
+      - app/tools/preview/preview_layout.py
       - app/tools/preview_common.py
       - app/tools/shell_layout.py
       - app/gen/shell_layout.h
@@ -1412,7 +1412,7 @@ features:
       - app/gen/configurable_apps.h
       - app/icons/taskbar/teletext.png
       - app/icons/taskbar/teletext_active.png
-      - app/tools/preview_teletext.py
+      - app/tools/preview/preview_teletext.py
       - run/check-teletext-api
       - docs/architecture/designs/M-TELETEXT.md
       - docs/architecture/decisions/ADR-044.md
@@ -1844,7 +1844,7 @@ features:
       - app/gen/planeradar_airports.h
       - app/icons/taskbar/planeradar.png
       - app/icons/taskbar/planeradar_active.png
-      - app/tools/preview_planeradar.py
+      - app/tools/preview/preview_planeradar.py
       - app/tools/pr_adsb_probe.py
       - app/tools/bake/bake_airports.py
       - app/tools/host/pr_parse_trial/main.cpp

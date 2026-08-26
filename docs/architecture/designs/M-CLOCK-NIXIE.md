@@ -31,7 +31,7 @@
 |-------|-------|
 | Concept analysis | **Done** — physics doc from `resource/nixieclock_concept.jpg.png` |
 | Host renderer | **Done** — `app/tools/_clock_nixie.py` (`NixieRenderer`) |
-| Preview tool | **Done** — `app/tools/preview_clock.py --style nixie` |
+| Preview tool | **Done** — `app/tools/preview/preview_clock.py --style nixie` |
 | Glyph system | **Done, shipped (TASK-336), resynced to concept geometry same day** — wire-glyph + bloom baked to a flash sprite (`bake_nixie.py`, 103.1 KB, 10 digits × 48×110 RGB565 — was 71.1 KB at 52×70 before the resync) and `pushImage()`d at runtime. Ghost cathodes remain host-renderer-only (off by default, not baked). |
 | Colour themes | **Shipped (TASK-345, 2026-07-18)** — 4 themes, settings-exposed (`nixieTheme` field, Settings > Applications > Clock), DUT-verified. See "Theme picker — SHIPPED" section below. |
 | Colon afterglow | **Done (host renderer only)** — 1 Hz blink, 80 ms ramp-up, 500 ms exponential decay. Firmware colon is now round with a soft dim-halo + bright-core glow (resynced 2026-07-18, was a flat filled square with no glow), still a plain on/off blink rather than the ramp/decay — the smooth afterglow animation itself remains a separate, deferred change (needs the same tick-gate rework as Flip's colon disc). |

@@ -325,7 +325,7 @@ All four conditions must be true before M-PREVIEW-FRAMEWORK is marked done:
    shared symbols from `preview_common` and contain no local redefinition of
    `SCREEN_W`, taskbar constants, or `write_gif`. Verified by:
    - `grep -rn "^\s*\(SCREEN_W\|SCREEN_H\|TASKBAR_X\|TASKBAR_W\|APP_W\|APP_H\|TASKBAR_SLOT_H\|TASKBAR_SLOT_COUNT\|TASKBAR_ICON_W\|TASKBAR_ICON_H\|TASKBAR_BG\|TASKBAR_ACTIVE_COL\|TASKBAR_SEP_COL\)\s*=" app/tools/preview_*.py` returns zero hits (excluding comment lines).
-   - `grep -n "^def write_gif" app/tools/preview_vis.py app/tools/preview_wave.py` returns zero hits.
+   - `grep -n "^def write_gif" app/tools/preview/preview_vis.py app/tools/preview/preview_wave.py` returns zero hits.
    - `python3 -c "from preview_common import SCREEN_W, SCREEN_H, APP_W, APP_H, TASKBAR_X, TASKBAR_W, TASKBAR_SLOT_H, TASKBAR_SLOT_COUNT, TASKBAR_ICON_W, TASKBAR_ICON_H, TASKBAR_BG, TASKBAR_ACTIVE_COL, TASKBAR_SEP_COL, APP_ORDER, load_icon_pil, load_icon_pygame, draw_taskbar_pil, draw_taskbar_pygame, write_gif, PreviewWindow"` succeeds from `app/tools/`.
 3. Each tool launches and renders correctly after migration (manual smoke test:
    run each tool, confirm the taskbar is visible and visually identical to the

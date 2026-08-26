@@ -201,7 +201,7 @@ Detailed sub-design docs (one per workstream):
    feed exceeds the cap — nearest-first needs distance computed during parse).
    Output: measured peak-heap figure for D1(b) vs D1(a), settling the lean
    with data instead of estimate.
-4. **UI PoC** — `app/tools/preview_planeradar.py` on `preview_common.py`
+4. **UI PoC** — `app/tools/preview/preview_planeradar.py` on `preview_common.py`
    (M-PREVIEW-FRAMEWORK): full 275×240 canvas + taskbar at 1×/2×/3× zoom,
    replaying fixtures with optional live polling. Iterate OQ4 (side strip vs
    on-disc bezel), tag-placement collision handling, range-preset feel, and
@@ -264,7 +264,7 @@ remains open:
 8. **Suspend/resume fetch gating** — no background polling (Weather precedent).
 9. **Taskbar icon** — bake `planeradar.png`/`_active.png`; `static_assert`
    catches omission (checklist §6).
-10. **Preview tool** — `app/tools/preview_planeradar.py` on `preview_common.py`
+10. **Preview tool** — `app/tools/preview/preview_planeradar.py` on `preview_common.py`
     with canned adsb.fi JSON fixtures, so layout iterates host-side.
 11. **`cross_feature_matrix.yaml` entries** (NEW-APP-CHECKLIST §5) — one per
     cross-cutting feature the app touches (touch-004, tls-yield,

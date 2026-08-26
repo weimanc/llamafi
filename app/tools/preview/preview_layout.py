@@ -36,7 +36,11 @@ import sys
 from PIL import Image, ImageDraw
 
 # Reuse bake_skin's BI_RLE8-aware BMP loader (TEXT.BMP needs it).
-sys.path.insert(0, str(pathlib.Path(__file__).parent))
+# TASK-481: this file moved into preview/; preview_common.py stays flat in
+# app/tools/, bake_skin.py moved into bake/ (sibling directory).
+_tools_root = pathlib.Path(__file__).parent.parent
+sys.path.insert(0, str(_tools_root / "bake"))
+sys.path.insert(0, str(_tools_root))
 from bake_skin import load_bmp, open_skin
 from preview_common import (
     SCREEN_W, SCREEN_H, TASKBAR_X, TASKBAR_W,

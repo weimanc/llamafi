@@ -172,7 +172,7 @@ Deps: `python3-pillow` and **ImageMagick CLI** (`magick` on PATH). Pillow's `BI_
 **Project venv:** `~/proj/esp/venv` (this machine) — used for all host-side Python tools, invoked automatically by `run/` scripts. Override with `VENV_PY=/path/to/python3`. Direct invocation when needed:
 
 ```sh
-python3 app/tools/preview_layout.py ...
+python3 app/tools/preview/preview_layout.py ...
 ```
 
 Installed packages: `Pillow`, `numpy`, `pygame`, `pyserial`.

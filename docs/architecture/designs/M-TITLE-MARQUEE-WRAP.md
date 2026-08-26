@@ -156,7 +156,7 @@ Concretely:
 - **Exact separator glyph run and spacing** — `" * * * "` vs `"   ***   "` vs something
   narrower. This is a visual-fit call best made by looking at it on the actual TFT (DUT) or a
   `preview_layout.py`-rendered mock, not decided from the BMP crop alone. Recommend Developer
-  render a couple of candidates via `app/tools/preview_layout.py` before committing.
+  render a couple of candidates via `app/tools/preview/preview_layout.py` before committing.
   **RESOLVED 2026-08-05, and this OQ's own caution turned out to matter more than expected:**
   the ASCII `'*'` glyph this doc specced (documented above as "confirmed... a 4-pointed star"
   from a BMP crop) reads as "o-umlaut" at actual render size on real hardware, not a star —

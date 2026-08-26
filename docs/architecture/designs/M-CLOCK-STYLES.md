@@ -38,13 +38,13 @@ iteration is an order of magnitude faster than reflash cycles for visual tuning.
 
 ### Tool specification
 
-**File:** `app/tools/preview_clock.py`  
+**File:** `app/tools/preview/preview_clock.py`  
 **Dependencies:** `pygame`, `Pillow`, `dut_fonts` (already in project venv)  
 **Usage:**
 ```
-python3 app/tools/preview_clock.py          # interactive
-python3 app/tools/preview_clock.py --style flip   # start in flip style
-python3 app/tools/preview_clock.py --screenshot gen/clock_concepts/   # dump PNGs
+python3 app/tools/preview/preview_clock.py          # interactive
+python3 app/tools/preview/preview_clock.py --style flip   # start in flip style
+python3 app/tools/preview/preview_clock.py --screenshot gen/clock_concepts/   # dump PNGs
 ```
 
 **Window geometry:** 320×240 (device pixels), default `--scale 3`.  

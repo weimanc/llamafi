@@ -770,7 +770,7 @@ was written — a deliberate practice from lessons learned.
   (0x10–0x17); mosaic 2×3 pixel patterns rendered as `fillRect` blocks.
 - Navigation metadata parsed: prev/next page, prev/next subpage, 4 fast-text
   coloured button targets + labels from row 24.
-- Preview tool: `app/tools/preview_teletext.py` — live NOS fetch, full 320×240
+- Preview tool: `app/tools/preview/preview_teletext.py` — live NOS fetch, full 320×240
   canvas with taskbar, 1×/2×/3× zoom, keyboard + mouse navigation.
 - Resource impact assessed: ~1.1 KB per fetch (smallest in the project); fits
   into existing `dataTask` HTTPS pattern; ~4 KB persistent SRAM.

@@ -36,6 +36,12 @@ import threading
 import time
 import urllib.request
 from typing import Optional
+from pathlib import Path
+
+# TASK-481: this file moved into preview/; dut_fonts.py and preview_common.py
+# stay flat in app/tools/ — Python only auto-adds a script's own dir to
+# sys.path, so a sibling one level up needs an explicit entry.
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import dut_fonts as _dut_fonts
 from preview_common import (

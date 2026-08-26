@@ -2,7 +2,7 @@
 
 > Owner: Verification Engineer
 > Milestone: M-WEBRADIO (TASK-201)
-> Deliverable: `app/tools/preview_webradio.py`
+> Deliverable: `app/tools/preview/preview_webradio.py`
 > Status: passing — 2026-06-14. T275 human sign-off obtained post-fix. T273–T282 all passing.
 > Run date: 2026-06-14
 > Pattern: follows `preview_vis.py` (not clock pattern)
@@ -206,7 +206,7 @@ on host (Linux, project venv).
   `bake_skin` (skin sprite extraction — added by TASK-201 fix).  Guards against
   copy-paste drift where VIS geometry constants (`RECT_X`, `LEFT_Y`, `VIS_H`,
   `SPEC_BARS`, etc.) are pulled in from the wrong module.
-- **Preconditions**: Tool source at `app/tools/preview_webradio.py`.
+- **Preconditions**: Tool source at `app/tools/preview/preview_webradio.py`.
 - **Steps**:
   1. Parse the import block of `preview_webradio.py` (ast.parse or grep).
   2. Assert none of the following appear as imported names or module references:

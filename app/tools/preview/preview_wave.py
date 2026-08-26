@@ -24,6 +24,10 @@ import sys
 
 import numpy as np
 from PIL import Image
+
+# TASK-481: this file moved into preview/; preview_common.py stays flat in
+# app/tools/.
+sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 from preview_common import SCREEN_W, SCREEN_H, write_gif
 
 # ── firmware geometry (mirrors preview_vis.py / vuMeter.h) ────────────────────

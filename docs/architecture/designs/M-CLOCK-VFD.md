@@ -21,7 +21,7 @@
 | Layer | State |
 |-------|-------|
 | Host renderer | **Done** — `app/tools/_clock_vfd.py` (`VFDRenderer`) |
-| Preview tool | **Done** — `app/tools/preview_clock.py --style vfd` |
+| Preview tool | **Done** — `app/tools/preview/preview_clock.py --style vfd` |
 | Glyph system | **Done** — Dexter v2 (`_dex()` + `_GLYPHS`); firmware uses the same Dexter v2 bitmaps via `kVFDGlyphs` in `clockApp.h` |
 | Colour themes | **Shipped (TASK-345, 2026-07-18)** — 4 themes, settings-exposed (`vfdTheme` field, Settings > Applications > Clock), DUT-verified. See "Theme picker — SHIPPED" section below. |
 | Firmware renderer | **Shipped** (TASK-193) — sharp-dots-only grid, no bloom pass (Option C of the three options below) |

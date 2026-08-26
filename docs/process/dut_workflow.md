@@ -215,7 +215,7 @@ otherwise referenced by this doc:
 ./run/bake-skin      # bake Winamp skin assets → app/gen/ (no DUT)
 
 # Preview layout has no run/ wrapper — invoke directly (no DUT):
-python3 app/tools/preview_layout.py
+python3 app/tools/preview/preview_layout.py
 ```
 
 Note: `./run/test-sync` runs the sync/drift/playlist suite (T097-T116) via `run_sync_tests.py` — it **requires DUT** and follows the same 6-step validation loop as `./run/test`.

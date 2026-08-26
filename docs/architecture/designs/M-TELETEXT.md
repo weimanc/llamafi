@@ -22,7 +22,7 @@ A proof-of-concept was fully validated on-host:
   (0x10–0x17); mosaic 2×3 pixel patterns correctly derived from the byte value.
 - Navigation metadata parsed: `pn=p_/n_/ns/ps` (prev/next page and subpage),
   `ftl=` (4 fast-text link targets + bottom-row coloured labels).
-- Preview tool `app/tools/preview_teletext.py` renders the full 320×240 canvas
+- Preview tool `app/tools/preview/preview_teletext.py` renders the full 320×240 canvas
   including taskbar, at 1×/2×/3× zoom, with live page navigation.
 
 Open design questions being iterated in the preview tool:

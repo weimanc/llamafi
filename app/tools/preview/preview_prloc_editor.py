@@ -45,14 +45,15 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 _HERE = pathlib.Path(__file__).parent
-if str(_HERE) not in sys.path:
-    sys.path.insert(0, str(_HERE))
+_TOOLS = _HERE.parent  # app/tools/ — TASK-481 moved this file into preview/
+if str(_TOOLS) not in sys.path:
+    sys.path.insert(0, str(_TOOLS))
 
 import dut_fonts
 
 # ── output location ───────────────────────────────────────────────────────────
 
-OUT_DIR = _HERE.parent.parent / "docs" / "architecture" / "designs" / "M-PR-LOCATIONS" / "img"
+OUT_DIR = _TOOLS.parent.parent / "docs" / "architecture" / "designs" / "M-PR-LOCATIONS" / "img"
 
 # ── geometry (mirrors app/src/settings/settingsSection.h) ─────────────────────
 

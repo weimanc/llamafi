@@ -48,6 +48,11 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+# TASK-481: this file moved into preview/; preview_common.py and
+# ceefax_client.py stay flat in app/tools/.
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pygame
 from preview_common import (
