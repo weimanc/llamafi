@@ -431,7 +431,16 @@ void cmdSet(const char *args) {
   }
   // TASK-282: async scan kick — poll result via `get wifiScan` (scan-on-park
   // evidence: is the BSSID on the air when NO_AP_FOUND says it isn't?).
+  // TASK-473 (G1, M-CONCURRENCY §5): this was the one radio-mutating call
+  // site that never got TASK-436's point fix — esp_wifi_scan_start() is
+  // refused outright while auto-reconnect's esp_wifi_connect() loop has an
+  // attempt in flight, same collision wifiSection.h::_startScan() guards
+  // against. Silence auto-reconnect for the duration of the scan; the
+  // matching get-side re-arm sits in cmdGet.cpp's wifiScan handler, at the
+  // point the scan is observed to have actually finished (async — this call
+  // site cannot know that synchronously).
   if (strcmp(var, "wifiScan") == 0) {
+    WiFi.setAutoReconnect(false);
     WiFi.scanNetworks(/*async=*/true);
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"wifiScan\",\"val\":1}\n");
     return;
@@ -738,10 +747,9 @@ void cmdSet(const char *args) {
         // Settings-side only: mirror + persist so the switch survives to
         // the next PlaneRadar resume() (which repaints from g_settings
         // fresh); no result-state reset/re-fetch needed since the app
-        // isn't polling while suspended.
-        g_settings.prActiveLoc = (uint8_t)idx;
-        g_settings.prLat = g_settings.prLocs[idx].lat;
-        g_settings.prLon = g_settings.prLocs[idx].lon;
+        // isn't polling while suspended. TASK-473 (G3): routed through the
+        // matrix's own active-switch helper instead of a third inline copy.
+        SettingsStorage::prActiveLocChanged((uint8_t)idx);
         SettingsStorage::save();
       }
       Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"prloc\",\"active\":%d}\n", idx);

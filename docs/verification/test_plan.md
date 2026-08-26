@@ -28,17 +28,49 @@ From `feature_inventory.yaml` + `cross_feature_matrix.yaml`. Hierarchy: suite→
 [M-CONCURRENCY §6](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) ·
 **Task**: TASK-473
 
-| id | Must be true | VE disposition, 2026-08-16 |
-|---|---|---|
-| `T_CC_01` | no context but `loopTask` calls `tft.*` (IFC-002 I2) | **KEEP as an automatable host test.** Verified 0 hits today across the three non-loopTask TUs. Scope it to those TUs **plus one level of call-graph closure** into shared headers — closer in kind to `T_CQ_03`'s grep than to a checklist. *(Overturns the Architect's "review-shaped" note.)* |
-| `T_CC_02` | every `tlsYield()` has a matching resume on all paths (I1) | **KEEP, but BLOCKED** on TASK-495 → TASK-458. Not "guaranteed by construction after TASK-458" — that task is open and gated on an unresolved judgement call. **Today it is a manual review item and must not be counted as a passing test.** |
-| `T_CC_03` | ~~pump-task callbacks set flags only~~ | **DISCARD as written — the claim was false** (`audio_process_extern` runs a 19-band Goertzel). After IFC-002 v2's I4a/I4b split, I4a is already covered by the existing `aeDrainEof()` assert and needs no id; I4b needs a doc note, not a test. |
-| `T_CC_04` | ~~cross-context results carry identity~~ | **DISCARD as written — the claim was false.** Only 3 of 9 result types carry identity. Do **not** convert to a checklist item; re-derive a narrower assertion against IFC-002 v2's enumerated set first, then decide grep-or-review. |
-| `T_CC_05` | task core/priority/stack matches IFC-002 §1 | **KEEP unchanged.** VE independently verified every figure — pinning, priorities 1/1/2, stacks 10240/11264/8192/20480. Clean, cheap, executable. |
+| id | Must be true | VE disposition, 2026-08-16 | Status |
+|---|---|---|---|
+| `T_CC_01` | no context but `loopTask` calls `tft.*` (IFC-002 I2) | **KEEP as an automatable host test.** Verified 0 hits today across the three non-loopTask TUs. Scope it to those TUs **plus one level of call-graph closure** into shared headers — closer in kind to `T_CQ_03`'s grep than to a checklist. *(Overturns the Architect's "review-shaped" note.)* | PASS (2026-08-26, TASK-473) |
+| `T_CC_02` | every `tlsYield()` has a matching resume on all paths (I1) | **KEEP, but BLOCKED** on TASK-495 → TASK-458. Not "guaranteed by construction after TASK-458" — that task is open and gated on an unresolved judgement call. **Today it is a manual review item and must not be counted as a passing test.** | PASS (2026-08-26, TASK-473/542 — blocker cleared, see note below) |
+| `T_CC_03` | ~~pump-task callbacks set flags only~~ | **DISCARD as written — the claim was false** (`audio_process_extern` runs a 19-band Goertzel). After IFC-002 v2's I4a/I4b split, I4a is already covered by the existing `aeDrainEof()` assert and needs no id; I4b needs a doc note, not a test. | DISCARDED |
+| `T_CC_04` | ~~cross-context results carry identity~~ | **DISCARD as written — the claim was false.** Only 3 of 9 result types carry identity. Do **not** convert to a checklist item; re-derive a narrower assertion against IFC-002 v2's enumerated set first, then decide grep-or-review. | DISCARDED |
+| `T_CC_05` | task core/priority/stack matches IFC-002 §1 | **KEEP unchanged.** VE independently verified every figure — pinning, priorities 1/1/2, stacks 10240/11264/8192/20480. Clean, cheap, executable. | PASS (2026-08-26, TASK-473) |
 
 **VE verdict**: of five reserved ids, **two were discarded because the invariants they tested were
 factually wrong** (see IFC-002 v2). One is blocked, two stand. The `T_AE_05` precedent — a review gate
 counted as a test inflates coverage — was applied and, for `T_CC_01`, found *not* to apply.
+
+> **Status — TASK-473 execution, 2026-08-26 (Developer).** Clears the `id_binding_exceptions.md`
+> entries for this family (undeclared → executed), per that ledger's note that whoever executes
+> TASK-473 owns it.
+>
+> - **`T_CC_01`: PASS.** Grep, per the scoping above (three non-loopTask TUs + one level of
+>   call-graph closure): `grep -n "tft\." app/src/spotifyTaskStorage.cpp app/src/dataTaskStorage.cpp
+>   app/src/audio/audioEngine.cpp` — zero hits. Closure level: every project header these three TUs
+>   `#include` (`spotifyTask.h`, `audioEngine.h`, `dataTask.h`, `dataTaskCerts.h`, `logSink.h`,
+>   `logDecode.h`, `logHeartbeat.h`, `perf.h`, `gen/mem_layout.h`) and their own `.cpp` bodies also
+>   grepped clean for `tft\.` and for `SPIFFS|saveSettings|loadSettings` (I3's grep, same scope,
+>   same result — zero hits, corroborating R2/R3's independent-review pass).
+> - **`T_CC_02`: now unblocked, PASS by construction for 10 of 11 sites plus 1 verified-safe.**
+>   TASK-458/459/495 landed (blocker cleared per §8 R5/R7) and TASK-542 (this session) migrated the
+>   last un-migrated site, `WebRadioApp::_spotifyYielded` → `_tlsGuard` (`TlsYieldGuard`). Per
+>   M-CONCURRENCY §8 R6/R7: 9 of 11 `tlsYield()`/`tlsResume()` sites were already construction-
+>   guaranteed before this session; TASK-542 raises that to 10 of 11; the 11th
+>   (`fetchPlaneRadar`'s straight-line pair, `dataTaskStorage.cpp:1335-1440`) is manually verified
+>   safe (no `return` between the yield and the resume) rather than guard-typed, and is accepted as
+>   such — a straight-line pair with no exit path has nothing for a guard to add. No sites remain
+>   with the RAII gap the id was written against.
+> - **`T_CC_05`: PASS.** `grep -n xTaskCreatePinnedToCore app/src/*.cpp app/src/**/*.cpp` finds the
+>   project's four create sites; each read against IFC-002/M-CONCURRENCY §1's table:
+>   `spotifyTaskStorage.cpp:591` (core `APP_CPU_NUM`, prio 1, stack `10*1024`),
+>   `dataTaskStorage.cpp:1693` (core `APP_CPU_NUM`, prio 1, stack `14*1024` or `11*1024` under
+>   `WEBRADIO_ONLY`), `audio/audioEngine.cpp:410` (core `APP_CPU_NUM`, prio `WR_PUMP_PRIORITY`=2,
+>   stack `WR_PUMP_STACK_WORDS`=8192 B) — all match exactly. `loopTask`'s
+>   `-DARDUINO_LOOP_STACK_SIZE=20480` confirmed in `app/platformio.ini:67`. `arduino_events`/WiFi
+>   driver task figures are framework-internal (not a project create site) and out of this grep's
+>   reach by construction — unchanged from §1's own citation.
+> - **`T_CC_03`/`T_CC_04`: DISCARD stands, no further action** — the rows above already record why;
+>   nothing to execute.
 
 **New id — `T_SRC_09`** (IFC-003 I9, the TASK-384 shape): drive, per app that overrides
 `isNavigationTap()`, that an async-pending **non**-navigation tap is swallowed **and** a navigation tap

@@ -141,10 +141,10 @@ void PlaneRadarApp::_setActiveLoc(uint8_t slot) {
     if (slot == g_settings.prActiveLoc) return;                // (a) same slot: no-op, no flicker
     if (g_settings.prLocs[slot].label[0] == '\0') return;      // (a) empty slot: no-op
 
-    // (b) copy slot -> write-through mirror, persist.
-    g_settings.prLat       = g_settings.prLocs[slot].lat;
-    g_settings.prLon       = g_settings.prLocs[slot].lon;
-    g_settings.prActiveLoc = slot;
+    // (b) copy slot -> write-through mirror, persist. TASK-473 (G3):
+    // routed through the matrix's own helper (settingsStorage.h) instead of
+    // an inline copy, so this is no longer a second, undocumented writer.
+    SettingsStorage::prActiveLocChanged(slot);
     SettingsStorage::save();
 
     // (c) DEV-3: strip must not show the old location's count/age, and

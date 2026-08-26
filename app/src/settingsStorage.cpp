@@ -683,3 +683,11 @@ void SettingsStorage::prSlotWritten(uint8_t slot) {
         g_settings.prLon = g_settings.prLocs[slot].lon;
     }
 }
+
+// TASK-473 (G3): the other half of the matrix — see the header comment.
+void SettingsStorage::prActiveLocChanged(uint8_t slot) {
+    if (slot >= PR_NUM_LOCS) return;
+    g_settings.prLat       = g_settings.prLocs[slot].lat;
+    g_settings.prLon       = g_settings.prLocs[slot].lon;
+    g_settings.prActiveLoc = slot;
+}

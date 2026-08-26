@@ -76,15 +76,10 @@ Owner = the task that created the test and can write its plan row, not the sweep
 | `T_WR_VIS_04` | orphan | spectrum battery (`vu-003` / X044); specified in M-WEBRADIO-REAL-VIS-SPECTRUM, plan row skipped | TASK-387 | 2026-08-18 |
 | `T_WR_VIS_05` | orphan | as `T_WR_VIS_04` | TASK-387 | 2026-08-18 |
 | `T113` | undeclared | archived plan entry with no `**Status**:` field. `test_plan-archive.md` is a historical record but is **not** in `check_docs.EXEMPT_BASENAMES`, so C6 scans it — see the finding note below | TASK-060 | 2026-08-18 |
-| `T_CC_01` | undeclared | M-ARCH reserved family; the disposition table carries a VE verdict column, not a status column | TASK-473 | 2026-08-18 |
-| `T_CC_02` | undeclared | as `T_CC_01` | TASK-473 | 2026-08-18 |
-| `T_CC_03` | undeclared | as `T_CC_01` (VE verdict: DISCARD — the row should go, not gain a status) | TASK-473 | 2026-08-18 |
-| `T_CC_04` | undeclared | as `T_CC_03` | TASK-473 | 2026-08-18 |
-| `T_CC_05` | undeclared | as `T_CC_01` | TASK-473 | 2026-08-18 |
 | `T_CQ_01` | undeclared | M-ARCH reserved family; registered as a prose range heading (`T_CQ_01`–`T_CQ_06`), which binds only the first id and declares no status | TASK-458 | 2026-08-18 |
 | `T_SRC_01` | undeclared | as `T_CQ_01`; `T_SRC_01` is the ≥3-run behaviour-neutrality baseline, which has no status because it was never taken | TASK-488 | 2026-08-18 |
 
-**49 rows.** Re-count with `python3 app/tools/gate/check_docs.py --no-git` — the C6 summary prints
+**44 rows** (was 49 — TASK-473 cleared the five `T_CC_0[1-5]` rows, 2026-08-26). Re-count with `python3 app/tools/gate/check_docs.py --no-git` — the C6 summary prints
 `N on the ledger`, generated, never transcribed here.
 
 ## Findings recorded while building the ledger, not fixed here

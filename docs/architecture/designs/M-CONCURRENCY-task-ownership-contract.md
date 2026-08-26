@@ -779,3 +779,61 @@ tasks with an app-registered callback) against every `*.onEvent(`, `esp_*_regist
 third framework-owned context with app code running in it was found. This is not a proof of
 completeness — a callback mechanism this pass didn't grep for could still exist — but no candidate
 surfaced.
+
+## 10. As-built — TASK-473 (G1/G2/G3) and TASK-542 (2026-08-26, BP-065)
+
+**G1 — WiFi radio arbiter, scoped to the one gap that had no point fix.** Re-verified all three
+citations before designing anything (per this task's own instruction): TASK-436 and TASK-404 are
+closed, landed point fixes (`settings/wifiSection.h:707`/`:639`, boot.cpp's NVS→SPIFFS interlock);
+X014 was never an observed bug (`cross_feature_matrix.yaml`: "not yet tested on DUT"). Grepping every
+radio-mutating call site found exactly one that never got the `setAutoReconnect(false)`-before-scan
+treatment the other three independently converged on: `set wifiScan` (`debug/serialConsole/
+cmdSet.cpp`), a debug-only async-scan hook. A full new arbiter module was considered and rejected as
+over-scoped for the one live gap — instead, the existing convention (silence auto-reconnect for the
+duration of the radio op) was applied at this site, with the release moved to `get wifiScan`'s
+completion branch (`cmdGet.cpp`) since the scan is async and the set-side call cannot know when it's
+actually done. `WIFI_SCAN_RUNNING` is the only state left un-re-armed; every terminal state
+(`WIFI_SCAN_FAILED` or a result count) re-arms.
+
+**G2 — the aeDrainEof()-shaped assert, applied as what VE's disposition actually specified.** The
+M-CONCURRENCY §5 text proposing a runtime "handle-comparison assert" was superseded by
+`test_plan.md`'s VE disposition for `T_CC_01` (2026-08-16): "KEEP as an **automatable host test**...
+closer in kind to `T_CQ_03`'s grep than to a checklist" — there is no live call site inside
+`spotifyTaskStorage.cpp`/`dataTaskStorage.cpp`/`audio/audioEngine.cpp` to attach a runtime assert to
+(that's the point — zero hits today), so the assert takes the form VE actually specified: a
+documented, re-runnable grep, scoped to the three non-loopTask TUs plus one level of call-graph
+closure into every project header they `#include`. Executed: zero `tft.` and zero
+`SPIFFS|saveSettings|loadSettings` hits at both levels. `T_CC_01` and `T_CC_05` (never previously
+executed) both PASS; `T_CC_02` is now unblocked and PASS by construction for 10 of 11 sites plus one
+manually-verified straight-line pair, following TASK-542 below. Full results and the exact grep
+commands are in `test_plan.md`'s `T_CC_*` table. The five `T_CC_0[1-5]` ids are cleared off
+`id_binding_exceptions.md` (49 → 44 rows) — declared, not merely executed informally.
+
+**G3 — `prSlotWritten()` grew the missing mutation case.** Per R7's correction: the helper's own
+contract ("THE single implementation") couldn't express "the active slot changed" (its
+`slot == prActiveLoc` test needs the new slot to already be current, which it isn't yet at the
+moment of a switch), forcing every switch call site to duplicate the mirror-copy inline. Added
+`SettingsStorage::prActiveLocChanged(slot)` as the matrix's second, explicit half — never touches
+the home mirror, does not persist, same shape as `prSlotWritten()`. Routed all three prior inline
+writers through it: `PlaneRadarApp::_setActiveLoc()`, `appsSection.h`'s `_prDeleteSlot()` fallback,
+and `cmdSet.cpp`'s `set prloc active` Settings-side branch. Pure behavioral substitution — same
+net writes, same order, verified by reading each site before and after.
+
+**TASK-542 — `WebRadioApp::_spotifyYielded` → `_tlsGuard` (`TlsYieldGuard`).** Mirrors TASK-459's
+`s_aeSpotifyYielded` migration exactly: the bare `bool` became a `TlsYieldGuard` member
+(default `TlsYieldGuard::none()`), acquired once in `_play()` (`TlsYieldGuard()` — unconditional
+yield, matching the old unconditional `tlsYield()` call) and released via move-assignment to
+`TlsYieldGuard::none()` at every prior release site, reproducing the old `if (flag) { tlsResume();
+flag=false; }` exactly (move-assignment's own `if (ok_) tlsResume();`). **Correction to this
+document's own count, checked against source before editing**: §8 R6 and this task's filing both say
+"4 functions" — actual count is **3** (`tick()`, two release branches; `_stopAudio()`, one; `_play()`,
+the acquire plus two release branches) — 1 acquire, 5 releases, 3 functions. Not re-litigated further
+since the count doesn't change the fix, only the doc's own arithmetic.
+
+**Verified**: `run/check` 11/11 (all 6 firmware envs, `golden.sha256`, tool smoke, app-registry +
+mem_layout staleness, check-docs including the cleared `T_CC_*` ledger rows). No DUT verification
+specific to G1/G2/G3/TASK-542 beyond `run/check`'s build-time conformance gates — these are host-
+verifiable-by-construction changes (grep-checked invariants, a compile-time guard-type swap, a pure
+refactor of an existing settings-mirror path with identical net writes), not new runtime behavior
+needing a DUT repro. `set wifiScan`/`get wifiScan` and `set prloc active` were not separately
+DUT-driven this pass — flagged, not a claimed pass, if a future session wants that coverage.

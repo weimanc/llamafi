@@ -149,11 +149,19 @@ void cmdGet(const char *args) {
   if (strcmp(args, "wifiScan") == 0) {
     int16_t n = WiFi.scanComplete();
     if (n < 0) {
+      // TASK-473 (G1, M-CONCURRENCY §5): WIFI_SCAN_RUNNING is the only
+      // non-terminal state — auto-reconnect (silenced by the `set wifiScan`
+      // handler in cmdSet.cpp) must stay off until the scan is actually
+      // done, or the driver's reconnect retries can collide with it exactly
+      // as they did before TASK-436's fix, just async instead of sync.
+      // WIFI_SCAN_FAILED (idle, no scan outstanding) is terminal too.
+      if (n != WIFI_SCAN_RUNNING) WiFi.setAutoReconnect(true);
       Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"wifiScan\","
                     "\"state\":\"%s\",\"last\":true}\n",
                     n == WIFI_SCAN_RUNNING ? "running" : "idle");
       return;
     }
+    WiFi.setAutoReconnect(true);   // scan completed with results — re-arm now
     String own = WiFi.SSID();
     // TASK-426: matches:[] alone is ambiguous — an empty `own` (STA configured
     // but never associated) produces the same output as "target AP absent".

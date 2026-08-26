@@ -268,10 +268,20 @@ namespace SettingsStorage {
     //   active mirror prLat/prLon = prLocs[prActiveLoc] — refreshed iff slot == prActiveLoc
     // Call after ANY write to g_settings.prLocs[slot] (city picker,
     // _prSaveCoords, delete-fallback, `set prloc <i> ...`). Does NOT persist —
-    // callers own the save() they already do. SWITCHING the active slot
-    // (_setActiveLoc / `set prloc active`) is not a slot write and never
-    // touches home — it keeps its own prLat/prLon copy.
+    // callers own the save() they already do.
     void prSlotWritten(uint8_t slot);
+
+    // TASK-473 (G3, M-CONCURRENCY §3 R7 correction): the missing mutation
+    // case prSlotWritten() cannot express — SWITCHING which slot is active.
+    // prSlotWritten(slot)'s "refreshed iff slot == prActiveLoc" test needs
+    // the NEW active slot to already be current, which isn't true yet at the
+    // moment the switch happens (prActiveLoc is still the OLD slot), so
+    // calling prSlotWritten() from a switch would silently no-op. This is
+    // the second, deliberately separate half of the same matrix — not a
+    // second inline copy of prSlotWritten() itself. Never touches the home
+    // mirror (switching slots is not a slot write). Does NOT persist —
+    // callers own the save() they already do.
+    void prActiveLocChanged(uint8_t slot);
 
 #ifdef SERIAL_DEBUG
     // T-WRSET-04: completed-write counter for save() — increments once per

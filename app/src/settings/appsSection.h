@@ -972,12 +972,11 @@ private:
         slot.lat = 0.0f;
         slot.lon = 0.0f;
         if (_prEditSlot == settings().prActiveLoc) {
-            // Fall back active -> 0, then re-derive the ACTIVE mirror through
-            // the shared matrix helper so prLat/prLon stay valid (same net
-            // effect as the previous inline copy). prSlotWritten(0) also
-            // rewrites the HOME mirror from slot 0 — a value no-op: delete
-            // never moves home, slot 0 is undeletable (H-2 note).
-            settings().prActiveLoc = 0;
+            // Fall back active -> 0 through the matrix's own active-switch
+            // helper (TASK-473 G3) so prLat/prLon stay valid. Also rewrite
+            // the HOME mirror from slot 0 via prSlotWritten(0) — a value
+            // no-op: delete never moves home, slot 0 is undeletable (H-2).
+            SettingsStorage::prActiveLocChanged(0);
             SettingsStorage::prSlotWritten(0);
         }
         saveSettings();
