@@ -855,40 +855,13 @@ def t135(dut: Dut):
 
 # ── shared drag helper (T136–T140) ────────────────────────────────────────────
 
-def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
-    """Ensure currentAppId == Spotify; resets scroll then taps Spotify slot if needed.
-
-    TASK-280: cmdTap's taskbar branch now routes through resolvePlayerSlot(), same as
-    production — a tap on the player slot lands on WebRadio if that's the persisted
-    mode. Force playerMode=spotify first so the tap is guaranteed to land on Spotify
-    regardless of what a prior test left persisted (previously masked by the bug this
-    task fixed: cmdTap used to always land on Spotify no matter the persisted mode).
-
-    TASK-413: tapping the player slot while a player-mode app (Spotify/WebRadio/
-    LocalPlayer) is ALREADY active now CYCLES instead of restoring (resolvePlayerTap,
-    ADR-059 D6). So when currentAppId is WebRadio or LocalPlayer, setting
-    playerMode=spotify and tapping no longer lands on Spotify — it cycles away from
-    whatever `set playerMode spotify` just wrote. Step off to a non-player app
-    (Clock) first so the follow-up tap takes the restore path, not the cycle path.
-    """
-    import time
-    r = dut.cmd("get appId", timeout=timeout)
-    if r.get("name") == "Spotify":
-        return True
-    if r.get("name") in ("WebRadio", "LocalPlayer"):
-        _tb_set_offset(dut, 0)
-        dut.set_cooldown_zero()
-        cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
-        dut.cmd(f"tap {cx} {cy}", timeout=timeout)
-        time.sleep(0.2)
-    dut.cmd("set playerMode spotify", timeout=timeout)
-    _tb_set_offset(dut, 0)
-    dut.set_cooldown_zero()
-    sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=timeout)
-    time.sleep(0.3)
-    r2 = dut.cmd("get appId", timeout=timeout)
-    return r2.get("name") == "Spotify"
+# _restore_spotify moved to suite/serialdbg/_helpers.py (TASK-480) — genuinely
+# cross-family (140 call sites). Re-imported below with the other shared
+# primitives it depends on, near where _switch_to used to live.
+from suite.serialdbg._helpers import (                                          # noqa: E402,F401
+    _restore_spotify, _switch_to, _diag_snapshot, _wait_shell_not_busy,
+    _tb_get_offset, _tb_set_offset, _TB_X, _TB_N,
+)
 
 
 def _do_drag(dut: Dut, x1: int, y1: int, x2: int, y2: int,
@@ -1285,18 +1258,7 @@ def t_bi_04(dut: Dut):
 
 
 # ── multiapp helpers ─────────────────────────────────────────────────────────
-
-def _switch_to(dut: Dut, app_name: str, timeout: float = 3.0) -> bool:
-    """Reset scroll to 0, tap the app's taskbar slot, verify appId == app_name."""
-    if app_name not in APP_SLOT:
-        return False
-    _tb_set_offset(dut, 0)
-    dut.set_cooldown_zero()
-    x, y = _c.tap_taskbar_slot(APP_SLOT[app_name])
-    dut.cmd(f"tap {x} {y}", timeout=timeout)
-    time.sleep(0.4)
-    r = dut.cmd("get appId", timeout=timeout)
-    return r.get("ok", False) and r.get("name") == app_name
+# _switch_to — moved to suite/serialdbg/_helpers.py (TASK-480), imported above.
 
 
 def _check_residue(dut: Dut, tid: str) -> bool:
@@ -1863,48 +1825,7 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
     return False
 
 
-def _diag_snapshot(dut: Dut, tag: str = "") -> str:
-    """Best-effort one-line heap/backoff/dataq snapshot (TASK-385). `run/test-targeted`
-    always starts from a fresh flash+boot, so an isolated re-run can only prove a test
-    fails-or-doesn't from a *clean* state — it can't observe whatever heap fragmentation,
-    dataTask queue backlog, or Spotify-poll/tlsYield contention ~150 prior tests may have
-    left behind by the time T193/T194 run in a real `run/test` full-suite pass. Embedding
-    this snapshot directly into the fail()/skip() reason (not just printing it) means the
-    evidence survives even when the run has no `LOG_FILE=` capture — closing exactly the
-    gap TASK-385 was originally blocked on ('no serial capture for this run'). Compare
-    against the clean-boot baseline from the 2026-08-02 isolated 5/5-pass investigation:
-    heap freeInt~74-118k/lfbInt~41-45k, dataq queueWaiting=0/inFlight=0 pre-trigger,
-    spAct idle between POLL dequeues — a same-run T193/T194 snapshot reading materially
-    lower/busier than that is evidence for the suite-accumulation hypotheses; a snapshot
-    that looks the same as a clean boot points back toward plain connect-level noise
-    (TASK-383) instead."""
-    parts = []
-    try:
-        h = dut.cmd("get heap", timeout=3.0)
-        parts.append(f"heap(freeInt={h.get('freeInt')},lfbInt={h.get('lfbInt')},"
-                      f"freeDma={h.get('freeDma')},lfbDma={h.get('lfbDma')})" if h.get("ok")
-                      else "heap(no-ok)")
-    except TimeoutError:
-        parts.append("heap(timeout)")
-    try:
-        b = dut.cmd("get backoff", timeout=3.0)
-        parts.append(f"backoff(cf={b.get('consecutiveFailures')})" if b.get("ok")
-                      else "backoff(no-ok)")
-    except TimeoutError:
-        parts.append("backoff(timeout)")
-    try:
-        q = dut.cmd("get dataq", timeout=3.0)
-        parts.append(
-            f"dataq(ms={q.get('ms')},qw={q.get('queueWaiting')},inFlight={q.get('inFlight')},"
-            f"inFlightMs={q.get('inFlightMs')},tlsStopped={q.get('tlsStopped')},"
-            f"spAct={q.get('spAct')},spActMs={q.get('spActMs')},"
-            f"yieldCount={q.get('yieldCount')})" if q.get("ok") else "dataq(no-ok)")
-    except TimeoutError:
-        parts.append("dataq(timeout)")
-    snap = " ".join(parts)
-    prefix = f"[{tag}] " if tag else ""
-    print(f"  {prefix}diag: {snap}", flush=True)
-    return snap
+# _diag_snapshot — moved to suite/serialdbg/_helpers.py (TASK-480), imported above.
 
 
 def _drain_data_pipeline(dut: Dut, timeout_s: float = 200.0, tag: str = "") -> bool:
@@ -4015,40 +3936,8 @@ def t_ple_wr_160(dut: Dut):
 # T167 is retired — duplicate of revised T165.
 # T168 is MANUAL — active-indicator rendering cannot be verified via serial.
 
-_TB_X = _c.TASKBAR_X + _c.TASKBAR_W // 2   # 297
-# TASK-242: the taskbar cycles through apps BEFORE WebRadio — WebRadio is
-# eject-entered only, no taskbar slot. Must match firmware TASKBAR_APP_COUNT
-# (= (int)AppId::WebRadio), NOT APP_COUNT, or scroll-wrap tests mismatch.
-_TB_N = APP_SLOT["WebRadio"]                  # = 11 (Spotify..PlaneRadar) — TASK-307
-
-
-def _tb_get_offset(dut: Dut) -> "int | None":
-    r = dut.cmd("get tbScrollOffset", timeout=3.0)
-    v = r.get("val")
-    return int(v) if isinstance(v, (int, float)) else None
-
-
-def _tb_set_offset(dut: Dut, target: int) -> bool:
-    """Drive tbScrollOffset to target via drag gestures (one drag per slot step).
-    Chooses the shorter path; each drag is 50 px / 10 steps (LP-safe).
-    y span [60, 110] stays within screen bounds and clear of slot 0 edge."""
-    current = _tb_get_offset(dut)
-    if current is None:
-        return False
-    n = _TB_N
-    steps_up   = (target - current) % n   # up = offset++
-    steps_down = (current - target) % n   # down = offset--
-    if steps_up <= steps_down:
-        for _ in range(steps_up):
-            dut.set_cooldown_zero()
-            dut.cmd(f"drag {_TB_X} 110 {_TB_X} 60 10", timeout=5.0)  # 50 px up → +1
-            time.sleep(0.1)
-    else:
-        for _ in range(steps_down):
-            dut.set_cooldown_zero()
-            dut.cmd(f"drag {_TB_X} 60 {_TB_X} 110 10", timeout=5.0)  # 50 px down → -1
-            time.sleep(0.1)
-    return _tb_get_offset(dut) == target
+# _TB_X/_TB_N/_tb_get_offset/_tb_set_offset — moved to suite/serialdbg/_helpers.py
+# (TASK-480), imported above.
 
 
 def _tb_precondition(dut: Dut, tid: str) -> bool:
@@ -6076,22 +5965,7 @@ def _wait_heatmap_count(dut: Dut, timeout_s: float = 60.0) -> int:
     return 0
 
 
-def _wait_shell_not_busy(dut: Dut, timeout_s: float = 45.0) -> bool:
-    """Wait for g_shellBusy to clear (chart/heatmap fetch complete)."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        try:
-            r = dut.cmd("get shellBusy", timeout=5.0)
-            if r.get("ok") and not r.get("busy", True):
-                return True
-        except TimeoutError:
-            pass
-        time.sleep(1.0)
-    # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
-    # This helper gates on g_shellBusy directly, so a timeout here is exactly as
-    # relevant to the dataTask/tlsYield hypotheses as a chart-fetch timeout is.
-    _diag_snapshot(dut, "_wait_shell_not_busy-timeout")
-    return False
+# _wait_shell_not_busy — moved to suite/serialdbg/_helpers.py (TASK-480), imported above.
 
 
 
@@ -6960,204 +6834,8 @@ from suite.serialdbg.clock import (                                            #
     t_clk_08, t_clk_09, t_clk_10, t_clk_11, t_clk_12, t_clk_13, t_clk_14,
 )
 
-# ── T272 — TLS heap contention: fetchTeletext + spotifyTask concurrent ────────
-
-def t272(dut: Dut):
-    """T272: fetchTeletext completes without OOM while spotifyTask holds a TLS session.
-
-    ADR-044 item 9 asserts teletext follows the weather pattern (no tlsYield). This
-    test exercises both tasks concurrently to validate that assumption. Failure (timeout
-    or DUT crash) indicates heap contention → apply tlsYield/tlsResume to fetchTeletext.
-    TASK-191.
-    """
-    tid = "T272"
-    print(f"{tid}  TLS heap contention — fetchTeletext concurrent with spotifyTask")
-
-    # Baseline: confirm Spotify is rendering (spotifyTask has an active TLS session)
-    r0 = dut.cmd("get lastPlaylistDraw", timeout=3.0)
-    if not r0.get("ok"):
-        skip(tid, "get lastPlaylistDraw failed — Spotify not active?")
-        return
-    draw0 = r0.get("ms", 0)
-
-    # Switch to Teletext: triggers resume() which sets _lastFetch=0, forcing immediate enqueue
-    r = dut.cmd(f"switchApp {APP_SLOT['Teletext']}", timeout=5.0)
-    if not r.get("ok"):
-        skip(tid, "switchApp Teletext failed — app not registered?")
-        _restore_spotify(dut)
-        return
-
-    # Force a second enqueue in case the app was already ready from a prior run
-    dut.cmd("set triggerTeletextFetch 1", timeout=3.0)
-
-    # Poll teletextReady up to 30s — failure implies OOM/watchdog/network error
-    deadline = time.monotonic() + 30.0
-    ready = False
-    while time.monotonic() < deadline:
-        try:
-            r = dut.cmd("get teletextReady", timeout=2.0)
-            if r.get("ok") and r.get("ready") is True:
-                ready = True
-                break
-        except TimeoutError:
-            break  # DUT stopped responding — likely crash
-        time.sleep(0.5)
-
-    _restore_spotify(dut)
-    time.sleep(0.3)
-
-    if not ready:
-        # Distinguish network failure from firmware crash
-        try:
-            r_http = dut.cmd("get teletextHttpCode", timeout=2.0)
-            http_code = r_http.get("val", 0) if r_http.get("ok") else 0
-        except TimeoutError:
-            http_code = 0
-        if http_code != 0 and http_code != 200:
-            skip(tid, f"teletextReady false — HTTP {http_code} (network, not contention)")
-        else:
-            fail(tid, "teletextReady not true within 30s — OOM/watchdog/crash or persistent network error")
-        return
-
-    # Assert Spotify playback survived (lastPlaylistDraw must advance within 10s)
-    deadline2 = time.monotonic() + 10.0
-    draw_advanced = False
-    while time.monotonic() < deadline2:
-        try:
-            r = dut.cmd("get lastPlaylistDraw", timeout=2.0)
-            if r.get("ok") and r.get("ms", 0) > draw0:
-                draw_advanced = True
-                break
-        except TimeoutError:
-            break
-        time.sleep(0.5)
-
-    if not draw_advanced:
-        fail(tid, f"lastPlaylistDraw did not advance after Teletext fetch (baseline={draw0}ms) — Spotify stalled")
-        return
-
-    pass_(tid, "teletextReady=true within 30s; lastPlaylistDraw advanced — no TLS contention")
-
-
-# ── T270 — Synthetic subpage navigation (TASK-197) ────────────────────────────
-
-def t270(dut: Dut):
-    """T270-SYN: SUBDN tap enqueues subpage fetch when subpageNext is set.
-
-    Sets subpageNext=617-2 via debug command. Taps SUBDN zone centre (y=182);
-    asserts teletextLastAction==STRIP_SUBDN and shellBusy fires (confirming
-    _navigate(617,2) was called). No live network required. Replaces
-    [NETWORK][Blocked: G1,G2] variant. TASK-197 / BP-034.
-    """
-    tid = "T270"
-    print(f"{tid}  Subpage ▼ zone → STRIP_SUBDN + busy (synthetic)")
-
-    if not _switch_to(dut, "Teletext"):
-        skip(tid, "could not switch to TeletextApp")
-        return
-
-    # Wait for any pending fetch from resume() to settle
-    _wait_shell_not_busy(dut, timeout_s=8.0)
-    dut.cmd("set cooldown 0", timeout=2.0)
-
-    # Set subpage navigation targets via debug injection
-    r = dut.cmd("set teletextSubpageNext 617-2", timeout=2.0)
-    if not r.get("ok"):
-        fail(tid, f"set teletextSubpageNext failed: {r}")
-        return
-    dut.cmd("set teletextSubpagePrev 617-1", timeout=2.0)
-
-    # Confirm fields propagated
-    r_sp = dut.cmd("get teletextSubpage", timeout=2.0)
-    if not r_sp.get("ok") or r_sp.get("next", 0) != 617 or r_sp.get("nextSub", 0) != 2:
-        fail(tid, f"subpageNext not set as expected: {r_sp}")
-        return
-    print(f"  [T270] subpageNext={r_sp.get('next')}-{r_sp.get('nextSub')} ✓")
-
-    # Wait past app-level 300 ms debounce (inject is not a tap — _lastTapMs unchanged,
-    # but resume() set it to 0 and millis()>300 at this point so first tap is free)
-    time.sleep(0.1)
-
-    # Tap SUBDN zone centre: y = (166 + 199) / 2 = 182
-    dut.cmd(f"tap 257 182", timeout=3.0)
-    time.sleep(0.1)  # let action propagate
-
-    r_act = dut.cmd("get teletextLastAction", timeout=2.0)
-    action = r_act.get("val", "") if r_act.get("ok") else "<error>"
-    if action != "STRIP_SUBDN":
-        fail(tid, f"expected STRIP_SUBDN, got '{action}'")
-        return
-    print(f"  [T270] lastAction=STRIP_SUBDN ✓")
-
-    r_busy = dut.cmd("get shellBusy", timeout=2.0)
-    if not r_busy.get("ok") or not r_busy.get("busy", False):
-        fail(tid, "shellBusy not true after SUBDN tap — _navigate() not called?")
-        return
-    print(f"  [T270] shellBusy=true ✓ (fetch enqueued for 617-2)")
-
-    _wait_shell_not_busy(dut, timeout_s=8.0)
-    pass_(tid, "STRIP_SUBDN routed correctly; shellBusy=true confirmed (no network required)")
-
-
-# ── T271 — Strip zone 1-px boundary (TASK-197) ───────────────────────────────
-
-def t271(dut: Dut):
-    """T271: Right-strip pixel-exact zone boundaries PAGE_NUM/BACK/PREV_PAGE.
-
-    Tap order: y=67, y=99, y=100, y=66 (PAGE last). All BACK/PREV taps fire
-    with numpad OFF, so _draw()/_drawNumpad() is not called and no SPI phantom
-    touch is generated. PAGE is tapped last: its phantom (re-hits PAGE zone,
-    STRIP_PAGE) matches the expected value, so order doesn't matter.
-    _wait_shell_not_busy between steps handles any _goBack()/_navigate() that
-    fires when histDepth or prevPage is non-zero from a prior test.
-    No content injection needed. TASK-197 / BP-034.
-    """
-    tid = "T271"
-    print(f"{tid}  Strip zone 1-px boundary — PAGE_NUM/BACK/PREV_PAGE")
-
-    if not _switch_to(dut, "Teletext"):
-        skip(tid, "could not switch to TeletextApp")
-        return
-
-    # Steps where numpad is OFF: BACK and PREV zones. No _draw() call →
-    # no SPI phantom. _goBack() / _navigate() may fire (no-op or network);
-    # _wait_shell_not_busy drains any resulting fetch before the next tap.
-    steps_nav = [
-        (67,  "STRIP_BACK", "y=67 → BACK zone first px"),
-        (99,  "STRIP_BACK", "y=99 → BACK zone last px"),
-        (100, "STRIP_PREV", "y=100 → PREV_PAGE zone first px"),
-    ]
-    # PAGE zone last: _drawNumpad() fires, causing a phantom that also hits
-    # PAGE zone → both real action and phantom are STRIP_PAGE → harmless.
-    step_page = (66, "STRIP_PAGE", "y=66 → PAGE_NUM zone last px")
-
-    for y, expected, desc in steps_nav:
-        _wait_shell_not_busy(dut, timeout_s=8.0)
-        time.sleep(0.35)  # past 300 ms per-app debounce
-        dut.cmd("set cooldown 0", timeout=2.0)
-        dut.cmd(f"tap 257 {y}", timeout=3.0)
-        r_act = dut.cmd("get teletextLastAction", timeout=2.0)
-        action = r_act.get("val", "") if r_act.get("ok") else "<error>"
-        if action != expected:
-            fail(tid, f"{desc}: expected '{expected}', got '{action}'")
-            return
-        print(f"  [T271] {desc}: '{action}' ✓")
-
-    # PAGE zone — last step
-    _wait_shell_not_busy(dut, timeout_s=8.0)
-    time.sleep(0.35)
-    dut.cmd("set cooldown 0", timeout=2.0)
-    y, expected, desc = step_page
-    dut.cmd(f"tap 257 {y}", timeout=3.0)
-    r_act = dut.cmd("get teletextLastAction", timeout=2.0)
-    action = r_act.get("val", "") if r_act.get("ok") else "<error>"
-    if action != expected:
-        fail(tid, f"{desc}: expected '{expected}', got '{action}'")
-        return
-    print(f"  [T271] {desc}: '{action}' ✓")
-
-    pass_(tid, "all 4 boundary taps matched expected zone actions")
-
+# ── T270/T271/T272 (M-TELETEXT) — moved to suite/serialdbg/teletext.py (TASK-480) ──
+from suite.serialdbg.teletext import t272, t270, t271                            # noqa: E402,F401
 
 # ── M-WEBRADIO helpers ────────────────────────────────────────────────────────
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 # Populated one family at a time as suite/serialdbg/<family>.py lands and
 # defines a module-level TESTS dict. Import order here doesn't matter --
 # ids don't collide across families.
-_FAMILY_MODULES: list[str] = ["clock"]
+_FAMILY_MODULES: list[str] = ["clock", "teletext"]
 
 
 def build_all_tests() -> dict:
