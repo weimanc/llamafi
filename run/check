@@ -24,7 +24,7 @@ if [ "${1:-}" = "--docs-only" ]; then
   echo
   echo "[12/12] check-docs documentation gate"
   if "$PROJ_ROOT/run/check-docs" --quiet; then
-    echo "  PASS  documentation gate (C5 + C1-delta + C2 + C4 + C6) clean"
+    echo "  PASS  documentation gate (C5 + C1-delta + C2 + C4 + C6 + SPIKE) clean"
     echo
     echo "=== Results: 1 passed, 0 failed ==="
     exit 0

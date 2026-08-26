@@ -120,7 +120,7 @@ rm -rf "$TMPDIR_MEM"
 # check_build.sh's "=== Results:" tail stays the only one in the log.
 echo "[11/$TOTAL] check-docs documentation gate"
 if "$PROJ_ROOT/run/check-docs" --quiet; then
-    ok "documentation gate (C5 + C1-delta + C2 + C4 + C6) clean"
+    ok "documentation gate (C5 + C1-delta + C2 + C4 + C6 + SPIKE) clean"
 else
     fail "check-docs FAILED — see the file:line list above"
 fi

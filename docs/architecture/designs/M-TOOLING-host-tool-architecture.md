@@ -476,3 +476,12 @@ inverted: the DUT layer existed and was misplaced, not missing), **R4** (test-bo
 and **R8** (the monolith is regrowing). A near-100 % confirmed rate on a first-ever review of a
 ten-day-old document is exactly what BP-066 warns is a signal about authoring pace, not about review
 quality.
+
+**TASK-538 landed (BP-065 update).** R6's promotion trigger executed as specified: the six spikes
+named in F3 were re-verified as unreferenced (grepped `run/` and every `app/tools/*.py` for all six
+task numbers — the sole hit was `check_docs.py`'s own comment naming one as a parsing example, not a
+code dependency) and deleted (git keeps the history), and `check_spike_retirement`'s `Result` was
+flipped `blocking=False` → `blocking=True` **and** moved into `run()`'s counted `blocking` list — the
+`Result.blocking` flag alone does not gate; a check only counts if the driver places it in that list,
+which R6 did not call out and which TASK-538 discovered on contact with the code. SPIKE now reads 0
+and is a counted gate alongside C5/C2/C4/C6. §4 rule 3 is no longer aspirational.

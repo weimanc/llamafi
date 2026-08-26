@@ -14,7 +14,8 @@ Checks
   C5        relative .md links resolve                                                     (BLOCKING)
   C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
   SPIKE     app/tools/**/task<NNN>_* whose TASK-NNN is archived (TASK-482,
-            M-TOOLING §4 rule 3 — not part of the C1-C6 M-DOCLIFE taxonomy)  (advisory)
+            M-TOOLING §4 rule 3 — not part of the C1-C6 M-DOCLIFE taxonomy)  (BLOCKING,
+            promoted TASK-538 once the known backlog was cleared and it read 0)
   ROWLEN    tasks*.md row length: a row is a pointer, not a record (TASK-536,
             M-ROWGATE — not part of the C1-C6 M-DOCLIFE taxonomy either)     (advisory)
 
@@ -306,15 +307,16 @@ def check_c3(c: Corpus) -> Result:
 # ── SPIKE (TASK-482, M-TOOLING §4 rule 3) ──────────────────────────────────────
 # Not part of the C1-C6 doc-decay taxonomy (M-DOCLIFE) — a separate mechanism
 # from the same design doc's retirement rule, checking a naming/archival fact
-# about app/tools/, not a documentation citation. Advisory on landing (same
-# precedent as C3): today's six spikes ALL fail immediately by design ("the
-# correct first result" per the design doc), so this cannot land blocking
-# without redding out run/check on day one the way C5/C1-delta's blocking
-# landing depended on reading 0 first — promoting is a scope call for a
-# human once the backlog is actually retired, not a mechanical one.
+# about app/tools/, not a documentation citation. Landed advisory (TASK-482):
+# today's six spikes ALL failed immediately by design ("the correct first
+# result" per the design doc), so it could not land blocking without redding
+# out run/check on day one the way C5/C1-delta's blocking landing depended on
+# reading 0 first. TASK-538 cleared the six spikes (git keeps their history;
+# grepped clean of dependents first) and promotes this to blocking in the same
+# commit, per the same precondition every other check here has needed.
 
 def check_spike_retirement(c: Corpus) -> Result:
-    r = Result("SPIKE", blocking=False)
+    r = Result("SPIKE", blocking=True)
     task_ids: set[str] = set()
     archive = os.path.join(c.root, "docs", "project", "tasks-archive.md")
     if os.path.exists(archive):
@@ -911,7 +913,8 @@ def check_c1_delta(c: Corpus, base_spec: str) -> Result:
 def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
     c = Corpus(root)
 
-    blocking: list[Result] = [check_c5(c), check_c6(c), check_c2(c), check_c4(c)]
+    blocking: list[Result] = [
+        check_c5(c), check_c6(c), check_c2(c), check_c4(c), check_spike_retirement(c)]
     # C6 prints its ledger arithmetic even when clean. A blocking check that is
     # invisible on the happy path cannot be distinguished from one that was
     # silently skipped — the failure mode TASK-511 hit from the other side.
@@ -930,7 +933,7 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
         advisory_extra = []
 
     advisory: list[Result] = advisory_extra + [
-        check_c1_full(c), check_c3(c), check_spike_retirement(c), check_rowlen(c)]
+        check_c1_full(c), check_c3(c), check_rowlen(c)]
 
     counted = [r for r in blocking if not r.skipped]
     total = len(counted)
