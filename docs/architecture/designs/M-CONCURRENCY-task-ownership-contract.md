@@ -35,16 +35,68 @@ crosses by this mechanism; that call is illegal from there."*
 
 ---
 
-## 1. The four execution contexts
+## 1. The six execution contexts (corrected 2026-08-26, TASK-541)
 
-Measured from the source, not assumed:
+> **TASK-541 as-built.** The table below is the closed version of what §1's two review
+> corrections (below) established. Re-derived independently of both the original authoring pass
+> and the 2026-08-26 review — every citation in this table was re-checked against source for this
+> closure, not copied from the review. All of the review's citations and numbers were confirmed
+> exact except where noted; no third context was found. See §1.1 for the corrected conclusion and
+> the end of this document for the full as-built note.
+
+Measured from the source, not assumed — four contexts the project's own code creates, plus two the
+Arduino/ESP-IDF framework creates on the project's behalf into which the project registers a
+callback (a `xTaskCreatePinnedToCore` grep of `app/src` structurally cannot find the latter two —
+see §8 R1):
 
 | Context | Core | Prio | Stack | Created at |
 |---|---|---|---|---|
 | `loopTask` (Arduino) | 1 (`APP_CPU`) | 1 | 20 480 B (`-DARDUINO_LOOP_STACK_SIZE`) | framework |
 | `spotifyTask` | 1 (`APP_CPU_NUM`) | 1 | 10 240 B | `spotifyTaskStorage.cpp:591` |
-| `dataTask` | 1 (`APP_CPU_NUM`) | 1 | 11 264 B (14 336 debug) | `dataTaskStorage.cpp:1682` |
-| `wrAudio` pump | 1 (`APP_CPU_NUM`) | **2** | 8 192 B | `audio/audioEngine.h:649` |
+| `dataTask` | 1 (`APP_CPU_NUM`) | 1 | 14 336 B (11 264 B iff `WEBRADIO_ONLY`) | `dataTaskStorage.cpp:1693` |
+| `wrAudio` pump | 1 (`APP_CPU_NUM`) | **2** | 8 192 B | `audio/audioEngine.cpp:410` |
+| `arduino_events` (framework) | 1 | **19** | 4 096 B | framework — see derivation below |
+| WiFi driver task (`wifi`) | **0** | **23** | n/a (closed-source lib) | framework — see derivation below |
+
+**`arduino_events`, re-derived at the mechanism.** `WiFi.onEvent(onEvent)`
+(`app/src/wifiDiag.cpp:85`, called unconditionally from `app/src/boot/boot.cpp:276` — the
+surrounding `#ifdef SERIAL_DEBUG` in `app/src/wifiDiag.h` opens at line 63, *after* this API)
+registers into the Arduino event queue. `WiFiGeneric.cpp:578` in the pinned framework  <!-- check-docs: ignore-line -->
+(`framework-arduinoespressif32` 3.20017, i.e. the `espressif32@6.9.0` this project pins — confirmed
+against the installed package's `package.json`) creates the consumer:
+`xTaskCreateUniversal(_arduino_event_task, "arduino_events", 4096, NULL, ESP_TASKD_EVENT_PRIO - 1,
+&_arduino_event_task_handle, ARDUINO_EVENT_RUNNING_CORE)`. Resolving the priority macro chain in the
+same SDK checkout (`framework-arduinoespressif32/tools/sdk/esp32/include/`, the package tree that
+actually pairs with the `sdkconfig` line numbers below — the newer
+`framework-arduinoespressif32-libs` package installed alongside it does **not** match these line
+numbers and is not what this pinned platform version resolves to):
+`esp_system/include/esp_task.h:35` gives `ESP_TASK_PRIO_MAX = configMAX_PRIORITIES`;  <!-- check-docs: ignore-line -->
+`freertos/include/esp_additions/freertos/FreeRTOSConfig.h:81` gives `configMAX_PRIORITIES = 25`;  <!-- check-docs: ignore-line -->
+`esp_system/include/esp_task.h:54` gives `ESP_TASKD_EVENT_PRIO = ESP_TASK_PRIO_MAX - 5 = 20` →  <!-- check-docs: ignore-line -->
+task priority `20 - 1 = 19`. `ARDUINO_EVENT_RUNNING_CORE` resolves
+(`cores/esp32/esp32-hal.h:69`) to `CONFIG_ARDUINO_EVENT_RUNNING_CORE`, which  <!-- check-docs: ignore-line -->
+`framework-arduinoespressif32/tools/sdk/esp32/sdkconfig:225` sets to `1` → **core 1**. Every number  <!-- check-docs: ignore-line -->
+and every citation the review gave for this row is exact; re-derivation changed nothing.
+
+**The core-0 one, re-derived — one number confirmed from source, one not independently
+greppable.** `promiscCb` is registered via `esp_wifi_set_promiscuous_rx_cb`
+(`app/src/wifiDiag.cpp:233`) and therefore runs on the WiFi driver task. Its core pin is a
+source-verifiable `sdkconfig` fact: `framework-arduinoespressif32/tools/sdk/esp32/sdkconfig:1033`  <!-- check-docs: ignore-line -->
+sets `CONFIG_ESP32_WIFI_TASK_PINNED_TO_CORE_0=y` → **core 0**, confirmed. Its **priority (23)** is
+not: the WiFi driver task is created inside the closed-source WiFi library
+(`libnet80211.a`/`libcore.a`, shipped as prebuilt binaries in this SDK) — no header in the checked
+-out framework exposes a `WIFI_TASK_PRIORITY` or equivalent macro, and no `sdkconfig` option governs
+it (grepped `esp_wifi/include/*.h` for `Priority`/`PRIO`: no hit). 23 is this project's transcription
+of the value ESP-IDF's own published performance guide documents for the WiFi task on the IDF
+release this Arduino core wraps (v4.4-family) — carried forward here, not independently re-derived
+from a grep, because the value is compiled into a binary this checkout does not source-expose. This
+is flagged rather than silently asserted as re-verified: if a future pass gets access to a
+disassembly or an upstream IDF source tree with the wifi component in source form, re-check this one
+number specifically.
+
+> **RESOLVED — TASK-541, 2026-08-26.** Both findings below are folded into the table at the top of
+> this section (stack figure fixed, citations updated to their post-TASK-471 locations). Left in
+> place as the review record; the table above is the citable version.
 
 > **CORRECTED — @Architect independent review, 2026-08-26 (R1, R2). Every core/priority/stack
 > value in this table is right except one, which is inverted; two of the four `Created at`
@@ -65,6 +117,12 @@ Measured from the source, not assumed:
 > TASK-471 (M-SRCLAYOUT Stage E, `d81f04b`), so the citation names a location that no longer holds a
 > task creation at all. `-DARDUINO_LOOP_STACK_SIZE=20480` is `app/platformio.ini:67`, unchanged.
 > `T_CC_05` exists to catch exactly this drift and has never been run.
+
+> **RESOLVED — TASK-541, 2026-08-26.** The six-context table above supersedes the four-context one
+> this blockquote was attached to; §1.1 below is rewritten to match. Left in place as the review
+> record — see the top of §1 for the re-derivation (all citations and numbers here were confirmed
+> exact against source except the WiFi task's priority, which is not independently greppable; see
+> the note there).
 
 > **CORRECTED — @Architect independent review, 2026-08-26 (R1). "The four execution contexts" is
 > the framing defect in this document. There are six, and the two it omits are the two that break
@@ -108,21 +166,51 @@ Measured from the source, not assumed:
 > framing error: §1.1's "core 0 runs the WiFi/lwIP stack" is no longer the whole truth, because
 > this project now puts *its own* code there.
 
-### 1.1 The fact that reframes everything
+### 1.1 The fact that reframes everything (corrected 2026-08-26, TASK-541)
 
-**All four contexts are pinned to core 1.** There is **no true parallelism between them** — they are
-time-sliced on one CPU. Core 0 (`PRO_CPU`) runs the WiFi/lwIP stack, so parallelism exists between
-the app and the network stack, but not among these four.
+**Five of the six contexts are pinned to core 1; one is not.** `loopTask`, `spotifyTask`,
+`dataTask`, the `wrAudio` pump and `arduino_events` are all on core 1 and are time-sliced on one
+CPU — there is **no true parallelism among these five**. The WiFi driver task is the exception:
+`sdkconfig` pins it to **core 0**, so it runs genuinely in parallel with all five of the others, not
+merely interleaved with them. Core 0 otherwise runs the WiFi/lwIP stack, which is why the original
+"core 0 runs the WiFi/lwIP stack" framing was reasonable in 2026-08-16 — this project's own code
+(`promiscCb`, debug builds only) now runs there too, which is exactly what the four-context count
+missed.
 
-Consequences that follow directly, and that a reader assuming SMP would get wrong:
+Consequences that follow, corrected for six contexts, and split into the two kinds of danger the
+original single "most dangerous edge" sentence conflated:
 
-- Every race between these four is a **preemption race**, not a simultaneous-access race. A
-  non-atomic read that is never preempted mid-sequence is safe *by scheduling*, which is why some of
-  this code has survived without locks.
-- **The pump task at priority 2 preempts all three others**, at any instruction. That is the single
-  most dangerous edge in the system, and the reason for R4 below.
-- The three priority-1 tasks round-robin. A priority-1 task that blocks without yielding starves the
-  other two — the TASK-285/288 watchdog family.
+- **Among the five core-1 contexts, every race is a preemption race, not a simultaneous-access
+  race.** A non-atomic sequence that is never preempted mid-sequence is safe *by scheduling*, which
+  is why some of this code has survived without locks — this part of the original claim still
+  holds, just over five contexts instead of four.
+- **The most dangerous *preemption* edge is no longer the pump task.** `arduino_events` runs at
+  priority **19** — strictly above the pump task's 2 — on core 1, **in every build, not just
+  debug**, and it preempts all four other core-1 contexts (including the pump task itself) at any
+  instruction. It is the edge R4's motivating example (the pump task) understated: a context this
+  document did not know about can interrupt a `configASSERT`-guarded callback, a `portMUX`-adjacent
+  sequence, or a `Serial.print` mid-line, and does so on production hardware today, not just in a
+  debug build. `wifiDiag.cpp:64-65` already carries a code comment acknowledging the tearing risk
+  ("the handler runs on the WiFi event task; interleaved printf tears lines") — the contract simply
+  never counted the task that comment is about.
+- **The most dangerous *race*, full stop, is not a preemption race at all.** `promiscCb` on the WiFi
+  driver task (core 0, debug builds only) performs an **unlocked read-modify-write across seven
+  fields of `beaconStats`** while `debug/serialConsole/cmdGet.cpp:137-144` reads all seven on `loopTask` — a genuinely
+  simultaneous access on two different physical cores, with no scheduling relationship between the
+  writer and the reader at all. Nothing about task priority makes this safe, because priority only
+  orders contexts that share a core; a lock (or `portMUX`, matching the pattern `dataTask` already
+  uses for its own cross-core-shaped result slots) is the only fix. This is narrower in blast radius
+  than the `arduino_events` edge — seven debug-only stats fields feeding one `get` command, not
+  four other contexts' worth of state — but it is the one edge in this entire document for which
+  "safe by scheduling" is not merely unproven, it is categorically inapplicable. Ranking a single
+  "most dangerous edge" across both categories is a category error; the honest statement is two
+  edges, ranked within their own kind: **`arduino_events` is the worst preemption edge (production,
+  all builds, priority above everything on its core); the WiFi driver task's `promiscCb` is the
+  worst race of any kind (true concurrency, unlocked, debug builds only).**
+- The three priority-1 tasks (`loopTask`, `spotifyTask`, `dataTask`) round-robin among themselves,
+  as before — `arduino_events` at 19 preempts all three of them too, but does not change how they
+  relate to each other. A priority-1 task that blocks without yielding still starves the other two
+  — the TASK-285/288 watchdog family, unchanged by this correction.
 
 > **Matrix correction.** `cross_feature_matrix.yaml` X015 states *"dataTask fetch functions … run on
 > Core 0"*. That is **wrong**: `dataTaskStorage.cpp:117` pins to `APP_CPU_NUM` (core 1), and
@@ -235,6 +323,46 @@ self-deadlocks. The flag is drained on `loopTask`'s next tick. *(X063; enforced 
 > and this correction does not claim a live race. What is established is narrower and still
 > load-bearing: **the contract's named example of "exactly one writing context" has two**, so M2 as
 > written does not describe the code it cites, and any assert built from M2's wording would fire.
+
+> **RE-DERIVED — TASK-541, 2026-08-26. R5 does not hold as written; it is restated below rather than
+> patched.** The population correction above (R7) says R5's mechanisms were enumerated over four
+> contexts and the rule's "nothing else is permitted" needs to say "among whom" first. Working that
+> through against the six-context table in §1: the two framework contexts do not merely fall outside
+> R5's stated scope, they cross by two mechanisms neither M1-M4 nor any sensible fifth mechanism
+> should bless as-is.
+>
+> - **`arduino_events` → `loopTask`.** Four `volatile uint32_t`/`uint8_t` counters
+>   (`discCount`, `lastDiscReason`, `lastDiscMs`, `lastGotIpMs`) plus three plain non-`volatile`
+>   statics (`s_winStartMs`, `s_winLines`, `s_suppressed`) written on `arduino_events`, read on
+>   `loopTask` with no lock, no sequence number, and — for the three non-`volatile` statics — no
+>   compiler guarantee the write is even visible promptly to the reader. `Serial` itself is also
+>   shared, unarbitrated, between the two. This is not M2 (M2 requires exactly one writer *and* is
+>   silent on whether the reader can observe a torn group of fields — here the four counters are
+>   read together as a struct-like group at `debug/serialConsole/cmdGet.cpp:83-87` and `logHeartbeat.h:105`, so a
+>   snapshot spanning a disconnect-then-reconnect transition can pair a new `lastDiscMs` with a
+>   stale `lastDiscReason`). It is closest in shape to M2 but weaker: M2's contract implicitly
+>   assumes a single scalar read in isolation (`vu::lLevelRef()` is read alone), not a multi-field
+>   group read as one logical unit.
+> - **WiFi driver task → `loopTask` (`promiscCb`/`beaconStats`).** Unlocked read-modify-write on
+>   seven fields, read unlocked on a different core. This fits none of M1-M4 and cannot be waved
+>   into any of them without changing the code: M1 needs a `portMUX` around both sides (this project
+>   already has the pattern — `dataTask`'s own result slots), M2 needs exactly one writer (there is
+>   one writer here, but M2 was never meant to cover cross-*core* access — nothing in a scalar-static
+>   write is safe against a genuinely simultaneous writer on another core), M3/M4 don't apply to a
+>   passive stats struct.
+>
+> **Disposition: R5 is restated, not merely re-scoped.** "Nothing else is permitted" still holds as
+> the *design intent* — this document has never sanctioned inventing new ad hoc crossing shapes —
+> but the two framework-context crossings are undocumented violations of that intent, not omissions
+> in the rule's wording. Restated: **R5 governs every crossing among all six contexts in §1, not
+> four. Data crosses by exactly one of the four mechanisms below; a crossing that does not fit one
+> of them is a gap to close (bring the code into M1-M4), not a fifth mechanism to add.** Concretely,
+> two gaps exist today and are new §5 items: `promiscCb`/`beaconStats` needs the M1 treatment
+> (`portMUX`, mirroring `dataTask`'s own pattern for exactly this shape) — **G6**; and
+> `wifiDiag::onEvent`'s four-counter group needs either a documented "torn snapshot is acceptable
+> here because X" argument or a sequence-stamped M1-style publish — **G7**. Filed as **TASK-544**
+> (implementation is out of scope for a docs-only task; TASK-541 only establishes that the gap
+> exists and why).
 
 **R6 — Every cross-context result carries identity.**
 A monotonic `seq` (geocode) or `epoch` (PlaneRadar) echoed in the result, so a late reply to a
@@ -356,13 +484,20 @@ that stopped recurring.
 >   downstream of a defect in the singular case.
 > - **~~G4~~ — CLOSED.** TASK-491 (`e2f70db`) + TASK-500 (2026-08-23). Verified in the matrix text,
 >   not from the board. Drop this row.
-> - **G5 — NEW, and blocking. §1 enumerates four execution contexts; there are six.** The omitted
->   `arduino_events` context runs application code at **priority 19 on core 1 in every build**, which
->   falsifies §1.1's "single most dangerous edge" and puts R5's "nothing else is permitted" outside
->   its own quantifier. Full mechanism-level derivation in §1's correction. **TASK-473's G2 must not
->   execute before this closes** — an assert set written against a four-context model bakes the
->   omission into runtime checks, which is the one operation that makes a framing error expensive to
->   undo. Filed as **TASK-541**.
+> - **~~G5~~ — CLOSED, TASK-541 (this pass).** §1 now enumerates six contexts; §1.1 and R5 are
+>   restated against them. **TASK-473's G2 is unblocked** — see TASK-473's own row for what that
+>   unblocking means concretely.
+
+- **G6 — NEW, TASK-541. `promiscCb`'s write to `beaconStats` is unlocked against a cross-core
+  reader.** The one crossing in this document that is a true simultaneous access, not a preemption
+  race (§1.1, R5's re-derivation). Needs the M1 (`portMUX`) treatment `dataTask` already uses for
+  the same shape. Debug builds only, so bounded blast radius, but it is the only edge in the whole
+  contract for which "safe by scheduling" cannot apply even in principle. Filed as **TASK-544**.
+- **G7 — NEW, TASK-541. `wifiDiag::onEvent`'s four-counter/three-static group crossing to `loopTask`
+  has no identity and no lock**, and is read as a logical group (`debug/serialConsole/cmdGet.cpp:83-87`,
+  `logHeartbeat.h:105`), so a snapshot can pair fields from different disconnect/reconnect events.
+  Needs either a documented "torn read is acceptable because X" argument or a sequence-stamped
+  publish. Filed alongside G6 as **TASK-544**.
 
 ## 6. Verification
 
@@ -593,3 +728,54 @@ and M-TOOLING's own review recorded the opposite), **R2** (the stack figure, wro
 checks), and **R6** (`_spotifyYielded`). Ten of ten holding on a first-ever review of a ten-day-old
 document is, per BP-066's own note, a signal about authoring pace rather than about review quality —
 the second such reading in two days, on documents from the same one-day batch.
+
+## 9. As-built — TASK-541 (2026-08-26, BP-065)
+
+**Closes the blocking defect §8 R1 found.** §1's table now lists six execution contexts, not four:
+`arduino_events` (priority 19, core 1, all builds) and the WiFi driver task (priority 23, core 0,
+debug builds only) are added, each with independently re-derived — not copied from the review —
+priority, core and citations. Every number and citation the review gave checked out exactly against
+source, with one exception: the WiFi driver task's priority (23) lives inside a closed-source,
+prebuilt library this checkout does not expose in source form, so it could be re-confirmed as
+internally consistent (no `sdkconfig` option or header macro contradicts it) but not independently
+re-derived from a grep the way every other figure in this document was — flagged in §1, not silently
+asserted as re-verified.
+
+**§1.1 is rewritten**, not patched. The old "pump task preempts all three others, the single most
+dangerous edge" conflated two different kinds of danger once six contexts are counted: a preemption
+edge (same-core, ordered by priority) and a true-concurrency edge (cross-core, unordered by any
+priority). Restated as two rankings: `arduino_events` is now the worst *preemption* edge (priority
+19, all builds, preempts four other contexts at any instruction — worse than the pump task's
+priority 2 on every axis); the WiFi driver task's `promiscCb`/`beaconStats` access is the worst
+*race* of any kind, because it is the one edge in the document for which "safe by scheduling" is not
+merely unproven but inapplicable — it runs on a different physical core from its reader with no
+ordering relationship at all.
+
+**R5 is restated, not re-scoped.** Read against six contexts, R5's "nothing else is permitted" isn't
+just missing a population statement — the two framework-context crossings genuinely don't fit any of
+M1-M4, and blessing a fifth ad hoc mechanism would defeat the rule's purpose. Restated: R5 governs
+all six contexts; a crossing that doesn't fit M1-M4 is a gap to close, not grounds for a new
+mechanism. Two such gaps exist today, filed as new §5 items **G6** (`promiscCb` needs the M1/`portMUX`
+treatment `dataTask` already uses) and **G7** (`wifiDiag::onEvent`'s counter group needs identity or
+an explicit torn-read justification) — both tracked as **TASK-544**, implementation out of scope
+here.
+
+**IFC-002 propagated.** Its execution-context table, the "all four pinned to core 1" claim, the
+"Known gaps" line and the version header are all corrected in the same commit — it previously
+restated M-CONCURRENCY's pre-correction four-context model verbatim, inverted stack figure included.
+
+**TASK-473's G2 is unblocked.** See TASK-473's own row in `tasks-architecture.md` for the disposition
+— summarized: G2 was never asking for a new mechanism, only for the R2/R3 handle-comparison assert
+(the one `aeDrainEof()` already uses) to be applied at more call sites; that is unaffected by the
+context count. What *was* blocked was writing that assert set from a four-context mental model. With
+six contexts named, G2 may proceed on its original I2/I3 scope; it should not be extended to assert
+anything about `arduino_events` or the WiFi driver task specifically, since neither of those two
+gaps (G6, G7) has a fix yet to assert against — asserting the *presence* of the gap is not the same
+as closing it.
+
+**Not found: a seventh context.** Re-checked the same mechanism the review used (framework-created
+tasks with an app-registered callback) against every `*.onEvent(`, `esp_*_register*_cb`,
+`esp_*_set_*_cb` and `xTaskCreate*` call in `app/src` and the pinned framework's `WiFi*.cpp`. No
+third framework-owned context with app code running in it was found. This is not a proof of
+completeness — a callback mechanism this pass didn't grep for could still exist — but no candidate
+surfaced.
