@@ -712,6 +712,42 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 
 ---
 
+### BP-070 — A task that moves or deletes code names the docs it invalidates in its exit criteria
+
+**Adopted from**: M-DOCLIFE §3/§6 rec 2 (TASK-474, split 2026-08-27)
+**Date adopted**: 2026-08-27 (PM)
+**Rule**: Any task whose scope moves, deletes, or renames code carries a `docs-touched:` line in its
+exit criteria, naming the specific documents it invalidates — not "update docs" as a vague follow-up.
+If no doc is invalidated, the line says so explicitly (`docs-touched: none`) rather than being
+omitted, so its absence is never ambiguous between "checked, none" and "not checked."
+**Rationale**: M-PR-LOCATIONS shipped TASK-315..325 with zero matrix entries, backfilled weeks later
+— a doc update filed as a follow-up task competes with feature work and reliably loses. A follow-up
+task for documentation is the failure mode this rule exists to prevent, the same way BP-069 prevents
+verification narrative from having nowhere to live but the row.
+**Applies to**: PM (files the criteria) — Developer/Architect (fills `docs-touched:` at task filing,
+not at close-out)
+
+---
+
+### BP-071 — A task-id or feature-id reservation lands in its board the moment it's claimed, not at close-out
+
+**Adopted from**: M-DOCLIFE §1/§3/§6 rec 5 (TASK-474, split 2026-08-27)
+**Date adopted**: 2026-08-27 (PM)
+**Rule**: The moment a design doc or session claims a task id (or a `feature_inventory.yaml`/
+`cross_feature_matrix.yaml` entry), a placeholder row lands in the owning board (`tasks.md` or the
+relevant split board) immediately — not staged in an unpushed document until the work closes.
+**Rationale**: M-DOCLIFE's own case study collided on TASK-451/452 because the reservation lived only
+in an unpushed document while a parallel session took the same numbers — 18 references had to be
+renumbered. The split-board pattern (`tasks-winamp-player.md`, `tasks-architecture.md`) already does
+this informally by construction; this rule makes it an explicit, general requirement rather than an
+accident of how those two boards happened to get built. `docs/agents/architect.md`'s existing
+reservation rule for `feature_inventory.yaml`/`cross_feature_matrix.yaml` entries is the same
+principle already in force for registry ids — this extends it to task ids on any board.
+**Applies to**: PM (owns board placeholder rows) — Architect (owns registry-entry reservations,
+per existing `architect.md` responsibility 10)
+
+---
+
 ## Entry Format
 
 ```

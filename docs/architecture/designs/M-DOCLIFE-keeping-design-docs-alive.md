@@ -140,14 +140,14 @@ Two consequences:
 
 ## 6. Recommendation
 
-| # | Action | Owner |
-|---|---|---|
-| 1 | `run/check-docs` implementing the §4 table | Developer, spec by Architect |
-| 2 | `docs-touched:` in exit criteria for code-moving tasks | PM |
-| 3 | Closed status vocabulary, applied across ADRs and designs | PM + Architect |
-| 4 | Three BP candidates in §4 → human | **QM** |
-| 5 | Task-number reservations land in `tasks.md` immediately | PM |
-| 6 | Doc-staleness sweep as a milestone-close gate | PM + QM |
+| # | Action | Owner | Status |
+|---|---|---|---|
+| 1 | `run/check-docs` implementing the §4 table | Developer, spec by Architect | **DONE** — see TASK-475/508 |
+| 2 | `docs-touched:` in exit criteria for code-moving tasks | PM | **DONE 2026-08-27** — [BP-070](../../quality/best_practices.md#bp-070) |
+| 3 | Closed status vocabulary, applied across ADRs and designs | PM + Architect | **DONE** — TASK-508, 189 headers, 0 non-conforming |
+| 4 | Three BP candidates in §4 → human | **QM** | open |
+| 5 | Task-number reservations land in `tasks.md` immediately | PM | **DONE 2026-08-27** — [BP-071](../../quality/best_practices.md#bp-071) |
+| 6 | Doc-staleness sweep as a milestone-close gate | PM + QM | open |
 
 **Do 1 and 4 first.** The gate makes D1–D4 self-correcting from then on, and the BPs change what gets
 written next — both compound. 2/3/5/6 are process changes that need PM's scheduling judgement and the
