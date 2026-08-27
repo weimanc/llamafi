@@ -246,6 +246,7 @@ if [ -z "$(_baseline_rows "$BASELINE")" ]; then
   echo "ERROR [player-gate]: pass set has no adjudicated rows: $BASELINE" >&2; exit 2
 fi
 
+_PORT_EXPLICIT="${PORT:-}"
 PORT=$(resolve_port)
 OUT_DIR="${OUT_DIR:-$(mktemp -d -t player-gate-XXXXXX)}"
 mkdir -p "$OUT_DIR"
@@ -260,15 +261,16 @@ _cleanup() {
   local trigger=$?
   local rc=$_RC
   [ "$rc" = "0" ] && [ "$trigger" != "0" ] && rc=$trigger
+  local restore_pt; restore_pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
   echo ""
   echo "[player-gate] restoring $ENV_PROD (rc=$rc so far)"
-  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$restore_pt") || {
     echo "ERROR [player-gate]: prod restore failed — DUT still running a test build" >&2
     rc=99
   }
   echo "[player-gate] restarting monitor"
   tmux new-session -d -s "$SESSION" \
-    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$restore_pt'" \
     2>/dev/null || echo "WARN [player-gate]: monitor start failed" >&2
   # run/test's step-6 lesson (TASK-434 item 1): a rig condition must be re-stated
   # AFTER the restore, because the restore's flash output is the last thing in the

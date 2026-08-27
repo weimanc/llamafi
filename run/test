@@ -11,6 +11,7 @@
 #          is the only way to catch the firmware-side evidence live, in situ)
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+_PORT_EXPLICIT="${PORT:-}"
 PORT=$(resolve_port)
 
 # TASK-506: snapshot persisted settings before the suite runs so they can be
@@ -34,9 +35,10 @@ fi
 _TEST_RC=0
 _cleanup() {
   local rc=$_TEST_RC
+  local restore_pt; restore_pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
   echo ""
   echo "[test] step 5/6 — restoring $ENV_PROD (rc=$rc so far)"
-  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$restore_pt") || {
     echo "ERROR [test]: prod restore failed — DUT still running debug firmware" >&2
     rc=99
   }
@@ -57,7 +59,7 @@ _cleanup() {
     echo "[test] monitor already restarted by the settings-restore step above — skipping"
   else
     tmux new-session -d -s "$SESSION" \
-      "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'" \
+      "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$restore_pt'" \
       2>/dev/null || echo "WARN [test]: monitor start failed" >&2
   fi
   # TASK-434 item 1: the harness exits SETUP_FAIL_EXIT (3) for a RIG condition —
