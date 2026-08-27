@@ -1,9 +1,17 @@
 # M-MULTIAPP — Preview Tooling Extension
 
 > Part of: [overview.md](overview.md)
-> Status: proposed
-> Date: not yet executed — this document's own exit criteria (bottom) are unmet (TASK-534 added this
-> line per BP-065, 2026-08-27)
+> Status: done
+> As-built: the goal shipped, but via a different tool than this document specifies — TASK-551
+> (2026-08-27) found `tools/preview/preview_layout.py`, an interactive pygame tool (not a
+> `bake_skin.py --layout-preview` flag), that lets a human cycle background/indicator-style/
+> separator/colour live and export the approved values directly to `gen/shell_layout.h` (its own `e`
+> keybinding — see the script's docstring), not a `gen/layout_preview.png` composite for a human to
+> eyeball separately. No PNG artifact is produced, so `golden.sha256`'s exclusion-list exit criterion
+> (below) is moot rather than met. taskbar.md's own "Aesthetics (resolved — preview tooling pass
+> complete)" section documents the values this tool actually resolved, confirming the pass happened
+> for real, not just that a tool exists. TASK-534 (2026-08-27) had marked this `proposed` from the
+> document's own stated plan without checking the source tree first — corrected here.
 
 ## Goal
 
@@ -95,18 +103,39 @@ sub-regions in the WSZ. Not guaranteed to yield usable art.
 Start with **Option A** in the preview (fastest to iterate); switch to B if
 the result is too crude.
 
+> **As-built (TASK-551, 2026-08-27)**: shipped as **Option C** (skin-extracted
+> glyphs), not the doc's own recommended starting point A — taskbar.md's
+> Aesthetics section names "Winamp 5×6 bitmap glyphs from TEXT.BMP" via the
+> `SKIN_GLYPH` table. No record of why A/B were skipped in favour of C was
+> found in this doc or its neighbours; noting the deviation rather than
+> guessing the reason.
+
 ## Excluded from golden.sha256
 
 `gen/layout_preview.png` is excluded from the determinism check
 (`golden.sha256`) in the same way as `gen/skin_hitzones.png` — it is a
 developer preview artifact, not a firmware input.
 
+> **As-built (TASK-551, 2026-08-27)**: moot — no `gen/layout_preview.png` was
+> ever produced (see the header As-built note); the shipped tool exports
+> straight to `gen/shell_layout.h`, which is already a tracked firmware input
+> with its own golden-check treatment, not a preview artifact needing
+> exclusion.
+
 ## Exit criteria for this tooling pass
 
-- `bake_skin.py --layout-preview` generates `gen/layout_preview.png` without
-  error on the standard `python3 bake_skin.py -i ../skins/base-2.91.wsz` run.
-- At least three taskbar style variants have been rendered and compared.
-- Taskbar background colour, active indicator style, separator style, and icon
-  approach are documented in taskbar.md (open questions section updated).
-- `golden.sha256` excludes `layout_preview.png` (verify `sha256sum -c` still
-  passes after the new output is added).
+- ~~`bake_skin.py --layout-preview` generates `gen/layout_preview.png` without
+  error on the standard `python3 bake_skin.py -i ../skins/base-2.91.wsz` run.~~
+  **Not met as written — superseded.** The shipped tool is
+  `tools/preview/preview_layout.py`, a separate interactive pygame script, not
+  a `bake_skin.py` flag; there is no `layout_preview.png` output to generate.
+- **Met, differently**: style variants were compared live/interactively
+  (keyboard-driven cycling through background/indicator/separator/colour
+  options per the script's own docstring) rather than as three rendered-and-
+  compared static images — the goal (compare before locking) was served, the
+  literal mechanism wasn't.
+- **Met**: taskbar background colour, active indicator style, separator
+  style, and icon approach are documented in taskbar.md's "Aesthetics
+  (resolved — preview tooling pass complete)" section.
+- ~~`golden.sha256` excludes `layout_preview.png`~~ **N/A** — no such file
+  exists; see the As-built note above.

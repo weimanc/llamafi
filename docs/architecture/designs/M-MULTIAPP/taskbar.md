@@ -3,12 +3,12 @@
 > Part of: [overview.md](overview.md)
 > Status: accepted
 > As-built: scroll/tap handling is shipped and post-implementation-tuned (see the 2026-05-26 update
-> below) — TASK-534 added this line per BP-065, 2026-08-27. **Flagging, not resolving**: this file's
-> own "Dependency on preview pass" section (bottom) still says `renderTaskbar()`'s icon/indicator
-> styling is "blocked" on preview-tooling.md's still-`proposed` pass — that reads as stale leftover
-> text from before implementation, not a real current block (the function is described elsewhere in
-> this same file as already being called from `repaintChrome()`/`switchApp()`), but this task didn't
-> have standing to silently rewrite that section's claim — Architect should confirm and update it.
+> below) — TASK-534 added this line per BP-065, 2026-08-27. **Resolved, TASK-551 (2026-08-27)**:
+> confirmed against source (`app/src/shell/taskbar.h`, `app/gen/shell_layout.h`) that
+> `renderTaskbar()` is real and shipped, and that the preview pass this file's own "Dependency on
+> preview pass" section (bottom) called a block is also done — see preview-tooling.md's corrected
+> status. That section's "blocked" language was stale leftover text from before implementation;
+> fixed in place below rather than left contradicting the rest of this file.
 > Updated: 2026-05-26 — scroll UX revised: 1:1 positional + LP filter + 3 px dead zone (post-implementation UX tuning)
 
 ## Role
@@ -194,7 +194,11 @@ if (winampDisplay.tbGestureEnd(s_lastTouchY, (int)AppId::COUNT, &appIdx))
 
 Not called on every loop iteration when idle.
 
-## Dependency on preview pass
+## Dependency on preview pass — resolved
 
-Icon glyphs and active-indicator colour are locked by the preview tooling
-pass. Implementation of `renderTaskbar()` is blocked on that decision.
+Icon glyphs and active-indicator colour were locked by the preview tooling
+pass (`tools/preview/preview_layout.py`, see preview-tooling.md's as-built
+note) and exported to `gen/shell_layout.h`. `renderTaskbar()` is
+implemented in `app/src/shell/taskbar.h` and consumes those values — this
+was a real precondition, not a stale one, and it is now met (TASK-551,
+2026-08-27, confirmed against source).
