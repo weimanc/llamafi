@@ -658,16 +658,21 @@ Two items remain **do-not**, on measurement rather than taste: a C++ test framew
   and cannot parallelise across a single DUT. That is a hard ceiling on T3, and it is the strongest
   argument for T0/T1 that this document has — but a second DUT is a real alternative and has never
   been costed.
-  **Disposition (Architect, 2026-08-27): real, not R&D scope — hand to PM as a procurement-costing
-  task, separate from PROP-010.** This is the best-evidenced OQ of the four: `tasks-architecture.md`
-  records TASK-497's retrospective baseline required **3 full runs** before a stage could land, same
-  rule stated for `T_SRC_01` — 1.5–4.5 hrs of serialized DUT time paid per major gate, recurring, not
-  hypothetical. Re-measured the id count against current `app/tools/suite/serialdbg/*.py`: **214**
-  test functions today, plus ~19 further standalone `test_*.py` files outside `suite/` not included in
-  that count — so 224 is in the right order of magnitude but likely an undercount of the true total,
-  not stale in the direction that would shrink the ceiling. No second-DUT cost estimate exists
-  anywhere in the repo (checked `best_practices.md`, `audit_log.md`, `lessons_learned.md`,
-  `tasks-archive.md`, ADR-062) — every "second DUT" hit found is a one-off investigation session, never
-  a costed standing-infrastructure proposal. Needs a hardware+setup quote and a parallelism-worth
-  assessment (does `suite/serialdbg/runner.py` support sharding across two DUTs today, or is that
-  its own dev cost?) before this OQ can move past "open".
+  **Disposition (Architect/PM, 2026-08-27): COSTED — TASK-550.** Hardware is cheap: the
+  ESP32-2432S028R "Cheap Yellow Display" this rig already uses runs **~$10–15** per board plus a
+  microSD card (~$5–8) and possibly a USB cable — **~$20–30 one-time**, no special sourcing, per
+  current retail listings (checked 2026-08-27; see TASK-550's own row for sources). That is not the
+  real cost. The real cost is software, and it is not free but is small and already scoped:
+  `suite/serialdbg/runner.py`/`lib/dut.py`'s `Dut`/`lib/results.py` are **already safely shardable**
+  today — `Dut` is a per-process object, `--port`/`--tests` are both CLI args, results are in-process
+  state, nothing shared. Two concrete blockers stand between that and actually running two DUTs at
+  once: **(1)** ADR-062's own text says its stable-port fix explicitly does **not** disambiguate two
+  simultaneously-attached CH340 clones (this project's boards report `SerialNumber=0` — no per-unit
+  USB serial), and already names the correct fix, `/dev/serial/by-path/` (topology-based), as
+  deliberately not attempted "since nothing in this project runs multiple DUTs concurrently today."
+  **(2)** `lib/dut.py`'s reset-gap guard (`_DUT_RESET_GAP_FILE = /tmp/esp32_dut_last_reset`) is one
+  global file, not keyed per port — two DUTs resetting near-simultaneously would cross-contaminate
+  each other's 12 s reset-gap timing. Both are small, well-bounded fixes (two files), not an
+  architecture rework — filed as **TASK-552** for whoever lands the second board. Once fixed, the
+  existing `PORT=` override every `run/*` script already honors makes two-terminal parallel runs
+  usable immediately, no new orchestration layer needed.
