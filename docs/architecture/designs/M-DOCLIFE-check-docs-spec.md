@@ -9,8 +9,9 @@
 > Registers: — (tooling; no `feature_inventory.yaml` id, no new cross-feature seam)
 
 Implements the mechanically-detectable half of M-DOCLIFE (decay modes D1–D4). **D5 — a task closed
-with residual scope — is deliberately out of scope: no gate detects it, and implying otherwise gives
-false assurance.**
+with residual scope — and D6 — a correction that lands in an IFC but not the design doc it originates
+from (TASK-543) — are both deliberately out of scope: no gate detects either, and implying otherwise
+gives false assurance.**
 
 **Every baseline below was measured on 2026-08-16 against the tree at `77a9568`.** The counts are the
 point of this spec: the checks have wildly different day-one failure counts, and that dictates the
@@ -369,6 +370,16 @@ one had none. A spec without exit criteria is thrown, not handed off.
 ## 6. Non-goals
 
 - **D5 (residual scope)** — not detectable; stays a QM retrospective question.
+- **D6 (doc→doc propagation)** — not detectable; whether an IFC correction's content actually matches
+  what the design doc it originates from says is a semantic question, the same class C3 already
+  can't answer for `cmdGet`. TASK-543 (2026-08-27) considered a heuristic (flag an IFC whose latest
+  dated correction is newer than its governing design doc's own latest dated correction/as-built) and
+  explicitly declined to build it: IFC-001/003 don't even name a single governing design doc in a
+  consistent, machine-resolvable field the way IFC-002's `**Worked out in**:` link does, so a general
+  version would either miss most IFCs or need a field-standardization pass first — neither is this
+  task's scope, and a shaky heuristic here would be exactly the "invented contract" BP-067 warns
+  against. The process fix is [BP-072](../../quality/best_practices.md#bp-072); this stays a review
+  question, same as D5.
 - **Semantic accuracy** — no gate can tell that `cmdGet` is described *wrongly*, only that it exists.
   C3 found six dead envs; it could not have found X015's false Core-0 claim, which needed a human to
   ask.

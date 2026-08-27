@@ -40,7 +40,7 @@ Scale of the exposure: **274 of 576 `file:line` citations in the gated corpus ar
 None of this was carelessness — each document was accurate when written. **That is the point.**
 Accuracy at write time is not the problem; *decay* is, and decay has no owner.
 
-## 2. The five decay modes
+## 2. The six decay modes
 
 | # | Mode | Detectable? | Precedent |
 |---|---|---|---|
@@ -49,8 +49,10 @@ Accuracy at write time is not the problem; *decay* is, and decay has no owner.
 | **D3** | **Status** — landed work still marked `proposed` | **yes** | July sweep found 9 stale-`proposed` ADRs |
 | **D4** | **Dangling reference** — points at a deleted thing | **yes** | `run/ceefax-ws-soak` → deleted env |
 | **D5** | **Scope** — task closed with residual scope | **no — human judgement** | M-NOART closed; the base-class coupling it left is still open |
+| **D6** | **Doc→doc propagation** — a correction lands in an IFC/derived doc but not the design doc it originates from | **no — content-semantic, not a mechanical diff** | M-CONCURRENCY §8 R5 (TASK-543, 2026-08-27): three @VE corrections against claims IFC-002 attributes to this document sat 10 days, landing in IFC-002 and `test_plan.md` but not here |
 
-D1–D4 are mechanical. **D5 is not, and no gate will catch it** — that one needs review.
+D1–D4 are mechanical. **D5 and D6 are not, and no gate will catch either** — both need review. D6 is
+process, not detection: see [BP-072](../../quality/best_practices.md#bp-072).
 
 ## 3. @PM — process and ownership
 

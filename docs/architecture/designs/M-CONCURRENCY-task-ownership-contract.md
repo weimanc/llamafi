@@ -638,6 +638,13 @@ over this file returned **zero** before this pass. The review existed; it landed
 the test plan, not on the design doc. M-TOOLING's finding was right about the pattern and wrong about
 this instance — corrected in place there.
 
+> **Resolved, TASK-543, 2026-08-27.** The content gap this finding describes was already closed by
+> this same review pass (the R4/R6/R1 blockquote corrections embedded in §3, above). What remained
+> open was the process gap — nothing said a correction to an IFC must propagate back to its design
+> doc — and that's now [BP-072](../../quality/best_practices.md#bp-072). Registered as decay mode D6
+> in M-DOCLIFE (mechanically undetectable, same class as D5 — a heuristic check was considered and
+> explicitly declined, see M-DOCLIFE-check-docs-spec.md §6).
+
 ### R6 — R1's discipline is now partly mechanised, and the residue is concentrated in one file
 
 §4's correction has the numbers: TASK-458/459/495 landed `TlsYieldGuard`, 9 sites are guarded, and

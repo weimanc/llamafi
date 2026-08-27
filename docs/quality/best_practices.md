@@ -748,6 +748,30 @@ per existing `architect.md` responsibility 10)
 
 ---
 
+### BP-072 — A correction to an interface contract propagates, in the same pass, to the design doc it names as its origin
+
+**Adopted from**: M-CONCURRENCY §8 R5 (TASK-543, 2026-08-27)
+**Date adopted**: 2026-08-27 (Architect/PM)
+**Rule**: When a review corrects a claim in an IFC (`docs/architecture/interfaces/*.md`), and that
+IFC names a design doc as the claim's origin (a `**Worked out in**:`/`**Defined by**:` reference, or
+equivalent), the same review pass lands a matching correction in that design doc — not a follow-up
+task, not "it's now right in the interface so it's fine." If the IFC doesn't name a single governing
+design doc in a resolvable way, this rule doesn't apply and there is nothing to propagate to (that
+gap is its own, separate finding — see M-DOCLIFE D6's note on IFC-001/003).
+**Rationale**: On 2026-08-16, @VE reviewed IFC-002 and raised one BLOCKER and two MAJORs against
+claims that all originate in M-CONCURRENCY-task-ownership-contract.md. All three corrections landed
+in IFC-002 and in `test_plan.md` (which discarded the three stale test ids they invalidated) — **none
+landed in M-CONCURRENCY itself.** For ten days the design doc and the interface it supposedly derives
+from stated opposite things about two invariants, and a reader arriving through the design doc first
+(the normal path — TASK-473's board row links it first) read the wrong one. BP-065 covers code→doc
+propagation and BP-066 covers review→doc gating; neither one covers doc→doc. This is the same
+class of failure LL-114/BP-065 already fixed for firmware truths mirrored into host tools and design
+docs, one hop further down the reference chain — a correction that stops at the first document it
+touches, instead of reaching the one that's actually the source of the claim.
+**Applies to**: Architect, VE (whoever performs the review that finds the correction)
+
+---
+
 ## Entry Format
 
 ```
