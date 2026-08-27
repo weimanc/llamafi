@@ -149,8 +149,14 @@ def gate20() -> bytes:
     never decoding audio, so the 20 entries do not need 20 distinct files —
     entry ids are per-RECORD (position in the M3U), not per-file, so cycling
     through the same 12 real tracks still yields 20 distinct ids. Only
-    T_PLR_25 (the one real-playback case) needs actual short audio, and it
-    reuses gate100/real files rather than this fixture.
+    T_PLR_25 (the one real-playback case) needs actual short audio.
+
+    CORRECTION (TASK-480/2026-08-27): the line above claiming T_PLR_25 "reuses
+    gate100/real files" is stale -- player.py's actual T_PLR_25 loads its own
+    dedicated /playlists/short5.m3u (_PL_SHORT5), not anything from this file.
+    See gen_short5_audio.py (same directory) for that fixture's generator --
+    it needs real ~3s MP3 content (ffmpeg/lame), which doesn't fit this file's
+    pure-bytes-in-Python shape.
     """
     out = ["#EXTM3U"]
     for i in range(20):
@@ -158,6 +164,31 @@ def gate20() -> bytes:
         out.append(f"#EXTINF:{dur},{artist} - {title} ({i + 1:02d})")
         out.append(f"/mp3/{name}")
     return ("\n".join(out) + "\n").encode("utf-8")
+
+
+def probe200() -> dict[str, bytes]:
+    """T_PLR_13/T_PLR_14 (TASK-408/416) -- a 200-entry directory fixture.
+
+    All 200 entries are *.txt (non-audio, filtered by the file browser), so
+    the fixture's value is walk COST (200 SD.openNextFile() calls), not row
+    count -- T_PLR_13 doesn't assert an exact count. anchor.m3u lives
+    alongside them and is what actually gets loaded (T_PLR_14's _pl_load
+    call) to land the browser's eject-fallback directory on /probe200 --
+    a plain M3U with real entries, climbing out via ../mp3/ same as
+    rel_parent() above.
+
+    Returns {relative_path: bytes} rather than a single bytes blob (unlike
+    every other function here) since it's 201 separate files, not one M3U.
+    """
+    files: dict[str, bytes] = {}
+    for i in range(1, 201):
+        files[f"entry_{i:03d}.txt"] = f"probe file {i}\n".encode("utf-8")
+    anchor = ["#EXTM3U"]
+    for name, artist, title, dur in TRACKS[:2]:
+        anchor.append(f"#EXTINF:{dur},{artist} - {title}")
+        anchor.append(f"../mp3/{name}")
+    files["anchor.m3u"] = ("\n".join(anchor) + "\n").encode("utf-8")
+    return files
 
 
 def main() -> None:
@@ -169,6 +200,8 @@ def main() -> None:
     write(OUT / "playlists" / "bad.m3u", malformed())
     write(OUT / "playlists" / "empty.m3u", empty())
     write(OUT / "mp3" / "rel.m3u", rel_same_dir())
+    for name, data in probe200().items():
+        write(OUT / "probe200" / name, data)
     print("\ncopy onto the card (host card reader — the device write path is TASK-424):")
     print("  cp -r app/tools/fixtures/sd/playlists <CARD>/")
     print("  cp    app/tools/fixtures/sd/mp3/rel.m3u <CARD>/mp3/")

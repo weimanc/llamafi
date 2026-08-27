@@ -267,6 +267,27 @@ future run.
 > `sdprobe` builds its bench fixture in short bursts specifically to route around this. If this is
 > fixed, revert that to a plain single-open write — the burst loop is a workaround, not a design.
 
+**Fresh reproduction, 2026-08-27 (TASK-480-adjacent test-fixture work, unrelated to the split
+itself).** Pushing `/probe200/` (200 small `.txt` files + `anchor.m3u`) plus 5 short real MP3 tracks
+for `/playlists/short5.m3u` via `sd_put.py --tree` (the existing short-burst/90 B-chunk workaround
+this task's own note above already documents) hit the same signature twice, on two independent
+attempts: after the 5 MP3 writes (~245 KB total, well under the `sdwrite 2048`/panic threshold
+above), every subsequent `sdput` call's JSON ack reported a garbage `sizeB` in the same order of
+magnitude as this task's own filing (`842283066`, `959789370`, `2831208686`, ... vs. the original
+`1073678476`/`1073628004`) — same corrupted-FIL signature, not a new failure mode. `anchor.m3u` and
+the first 134 `.txt` files (written *before* the MP3s, in this run's alphabetical push order) landed
+correctly and were independently DUT-confirmed working (`T_PLR_14` passes clean). The 5 MP3 files
+and the remaining `.txt` entries did not survive with confidence — `T_PLR_25` (real playback against
+the MP3s) now fails with `TimeoutError: no JSON response within 5.0s`, consistent with genuinely
+damaged file content reaching the decoder, not just a corrupted ack. Two full retry attempts (fresh
+debug flash each time) reproduced the identical pattern, so this reads as deterministic given this
+trigger (a `.txt`-file push run immediately following a real-audio-file push run in the same debug
+session), not incidental flakiness. Did not attempt a fix — firmware work, this task's own scope, not
+test-tooling's. `short5.m3u`/`T_PLR_25`/`T_PMT_04` stay blocked on this task until it lands; the
+playlist and MP3 files are already staged and committed to the repo
+(`app/tools/fixtures/sd/mp3/short5/`, `app/tools/fixtures/sd/playlists/short5.m3u`) for whoever fixes
+this to re-push once the write path is trustworthy.
+
 ### TASK-452 — retire the arena from the FILE path (successor to the withdrawn TASK-443)
 
 **Scope, deliberately small.** `aeConnectFile()` stops calling `mb_arena_acquire()`; the decoder
