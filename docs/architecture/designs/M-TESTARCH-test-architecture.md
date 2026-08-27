@@ -614,12 +614,60 @@ Two items remain **do-not**, on measurement rather than taste: a C++ test framew
 ## 10. Still genuinely open
 
 - **OQ-A — is the T1 tier real?** Blocked on the §3 shim spike. Do not schedule T1 work before it.
+  **Disposition (Architect, 2026-08-27): send to R&D as a spike, not scheduled as production work
+  yet.** See [PROP-010](../../rnd/proposals/PROP-010-testarch-host-shim-and-fault-surface-spikes.md)
+  rung 1. Re-checked against current tree: `m3u.h` still pulls `<Arduino.h>`+`<SD.h>` unchanged, and
+  D0 has created **zero components** since this document was written (`tasks-architecture.md`'s own
+  header), so the shim path remains the only near-term lever — the premise hasn't gone stale. No
+  incident in `lessons_learned.md`/`audit_log.md` was found where a slow DUT cycle caught a bug a
+  host test would have caught faster; the "highest-leverage item" framing is architectural reasoning,
+  not something evidenced by an incident yet. Worth running the spike to get a real answer either way.
+  **Still genuinely blocked, 2026-08-27 second session**: unlike OQ-B (below), this one's toolchain
+  gap is real, not a missed PATH — the host shim needs a native host C++ compiler
+  (`g++`/`cc1plus`), and `gcc-c++` is not installed on this machine, no `sudo` available to fix it.
+  PlatformIO's toolchain (confirmed working, see OQ-B) is an Xtensa cross-compiler only, doesn't
+  substitute. Shim skeleton is drafted and committed on `rnd/testarch-oq-spikes`
+  ([EXP-023](../../rnd/reports/EXP-023-testarch-t1-host-shim-spike.md)) but genuinely never
+  compiled — needs `gcc-c++` installed (or an equivalent host `clang++`) before this can close.
 - **OQ-B — what is the `set fault` surface worth in firmware bytes?** The debug build has repeatedly
   been the constrained one (`.dram0.bss` overflow precedent). Price before promising.
+  **Disposition (Architect, 2026-08-27): PRICED — measured, not estimated. +8 bytes `.dram0.bss`**
+  for the single minimal "fail next allocation" mode, per [PROP-010](../../rnd/proposals/PROP-010-testarch-host-shim-and-fault-surface-spikes.md)
+  rung 2 / [EXP-024](../../rnd/reports/EXP-024-testarch-set-fault-alloc-byte-cost.md) — built
+  `cyd2usb_winamp_debug` clean via `./run/build-debug`, applied the drafted patch
+  (`mb_arena.{h,cpp}`/`cmdSet.cpp` on `rnd/testarch-oq-spikes`), rebuilt, diffed
+  `.dram0.bss` with `xtensa-esp32-elf-{nm,objdump}`: `0x149a0` → `0x149a8`, one new
+  `uint32_t` counter, nothing else moved. Well inside every headroom figure this board has
+  recorded (40 B EXP-021 snapshot, 256 B ADR-060 budget). The kill gate does not fire — this one
+  mode is cheap and buildable. Still flagging honestly: no incident search turned up a
+  multi-hour-soak bug this surface would have converted to a fast deterministic test — the
+  *benefit* side of §4's proposal remains asserted, not evidenced by a concrete case, even though
+  the *cost* side is now real. Handed to Architect to design the `set fault arena allocFail`
+  surface for real; the fuller multi-subsystem matrix still needs its own pricing per mode, not
+  assumed to scale linearly from this one data point.
 - **OQ-C — does the console JSON need an explicit schema version?** I1 says additive-only, which
   works until it does not. A `get schema` returning a version would let the DUT library refuse a
   mismatched firmware instead of timing out. Cheap; unproven need.
+  **Disposition (Architect, 2026-08-27): CLOSED, not pursued for now.** Searched
+  `lessons_learned.md`/`audit_log.md` for any field-rename-broke-tests incident under I1 — none
+  found. The convention (BP-024, "extend, don't rename") has held with zero recorded violations since
+  it was written. This reads as a hedge against a failure mode that hasn't occurred, not a live gap.
+  Re-open if a field-rename incident actually happens — at that point the cost of `get schema` is
+  trivially justified by a real instance instead of "works until it does not".
 - **OQ-D — 224 executable ids on one device is a serialisation limit.** A full run is 30–90 minutes
   and cannot parallelise across a single DUT. That is a hard ceiling on T3, and it is the strongest
   argument for T0/T1 that this document has — but a second DUT is a real alternative and has never
   been costed.
+  **Disposition (Architect, 2026-08-27): real, not R&D scope — hand to PM as a procurement-costing
+  task, separate from PROP-010.** This is the best-evidenced OQ of the four: `tasks-architecture.md`
+  records TASK-497's retrospective baseline required **3 full runs** before a stage could land, same
+  rule stated for `T_SRC_01` — 1.5–4.5 hrs of serialized DUT time paid per major gate, recurring, not
+  hypothetical. Re-measured the id count against current `app/tools/suite/serialdbg/*.py`: **214**
+  test functions today, plus ~19 further standalone `test_*.py` files outside `suite/` not included in
+  that count — so 224 is in the right order of magnitude but likely an undercount of the true total,
+  not stale in the direction that would shrink the ceiling. No second-DUT cost estimate exists
+  anywhere in the repo (checked `best_practices.md`, `audit_log.md`, `lessons_learned.md`,
+  `tasks-archive.md`, ADR-062) — every "second DUT" hit found is a one-off investigation session, never
+  a costed standing-infrastructure proposal. Needs a hardware+setup quote and a parallelism-worth
+  assessment (does `suite/serialdbg/runner.py` support sharding across two DUTs today, or is that
+  its own dev cost?) before this OQ can move past "open".
