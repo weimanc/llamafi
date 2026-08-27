@@ -1,6 +1,8 @@
 # M-MEMBUDGET — No-PSRAM RAM budget + WebRadio coexistence design space
 
-> Owner: Architect · Status: **SKETCH / design-space (not an ADR yet)** · 2026-06-27
+> Owner: Architect
+> Status: proposed
+> Date: 2026-06-27 — design-space sketch, not an ADR yet (TASK-534, reformatted per BP-065, 2026-08-27)
 > Feeds: ADR-045 (no-PSRAM playback), TASK-258/EXP-009 (bottom-up ceiling), TASK-259 (player mode-state).
 > Purpose: build a first **memory budget** for the no-PSRAM CYD so we can evaluate whether WebRadio can be
 > made *deterministically* reliable on the multi-app build (the "Option A-lite" reserved-arena approach)

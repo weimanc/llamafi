@@ -1,6 +1,10 @@
 # M-PLAYER-STATE — Player mode as persisted, user-editable state
 
-> Owner: Architect · Status: **DESIGN** · 2026-06-27
+> Owner: Architect
+> Status: proposed
+> Date: 2026-06-27 (TASK-534, reformatted per BP-065, 2026-08-27) — TASK-259's own runtime-mode-toggle
+> scope is separately implemented/DUT-verified; this document's own additions (SPIFFS persistence,
+> the Settings toggle) are not, so the document as a whole stays `proposed`, not `done`.
 > Scope: TASK-259 (runtime mode toggle — **implemented, RAM-only, DUT-verified 2026-06-27**) + this design's
 > additions: **SPIFFS persistence** + a **Settings → Applications → Player** toggle to show/edit it (OQ4).
 > Couples: M-MEMBUDGET (mode mutual-exclusion the budget leans on). Feature: `player-state-001`.

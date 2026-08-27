@@ -238,6 +238,21 @@ Closed vocabulary for architecture documents:
 `proposed` | `accepted` | `done` | `implemented` | `resolved` | `closed` | `applied` | `retired` |
 `superseded` | `rejected`
 
+> **[A4 — TASK-534, 2026-08-27, Architect/PM ruling.] Presence folded into C4, not a standalone C4b.**
+> TASK-508's migration deliberately left 14 in-scope files with no `Status:` header at all untouched
+> ("presence, not vocabulary, is a different, unruled question") and filed the gap as TASK-534. Ruling:
+> fold presence into `check_c4` as a second condition on the same corpus scan, rather than a separate
+> `C4b` — same scope, same `README.md`/exemption carve-outs, no second pass over the same files. All 14
+> files got a real `Status:`/`As-built:` header (reformatted per BP-065 where a crammed inline status
+> already existed; assigned by reading each file's actual state where none existed at all — see each
+> file's own header for the per-file reasoning) and `check_c4` re-measured 0 missing immediately before
+> promoting the presence sub-check straight to blocking — no advisory-staging period needed since the
+> gap was closed in the same session that added the check. One file (`M-MULTIAPP/taskbar.md`) got a
+> flagged-not-resolved note: its body text describes `renderTaskbar()` as still "blocked" on a
+> `proposed` preview-tooling pass, which reads as stale pre-implementation text now that the function
+> is described elsewhere in the same file as already shipped — Architect should confirm and fix that
+> claim directly; TASK-534 didn't have standing to silently rewrite another section's assertion.
+
 `draft` and `planned` are currently used by design docs and should be **folded into `proposed`** —
 M-NOART sat at `draft` for three months while half of it shipped, which is precisely the ambiguity
 to remove.

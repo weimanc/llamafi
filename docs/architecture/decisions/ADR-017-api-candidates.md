@@ -1,6 +1,9 @@
 # M-LIST — Spotify API Candidate Analysis
 
 > Companion to ADR-017. Documents all three data-source candidates evaluated for the M-LIST playlist panel.
+> Status: accepted
+> As-built: 2026-05-15 — mirrors ADR-017's own status; the decision recorded here (Tier 1 chosen,
+> Tiers 2/3 deferred) is the same decision ADR-017 accepted (TASK-534, added per BP-065, 2026-08-27)
 > Decision: **Tier 1 (queue endpoint) chosen first.** Tiers 2 and 3 deferred.
 
 ---

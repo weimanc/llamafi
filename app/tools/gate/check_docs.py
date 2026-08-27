@@ -436,12 +436,22 @@ def check_c4(c: Corpus) -> Result:
           elsewhere does not offset a stale header, and is not scanned as a
           second header either.
 
-    A file in scope with no Status: header at all is NOT a failure here — C4
-    checks vocabulary of an existing field, not its presence (a different,
-    unruled question; see TASK-508's own follow-up note).
+    A file in scope with no Status: header at all was, until TASK-534, NOT a
+    failure here — presence was a separate, unruled question from vocabulary.
+    TASK-534 (2026-08-27, Architect/PM ruling) folded presence into C4 as a
+    sub-check rather than a standalone C4b, per the Developer's own lean at
+    filing time: it reuses this function's existing corpus scan (same scope,
+    same exclusions) instead of a second pass over the same files. The 14
+    files that had no Status: header at all were fixed in the same session
+    that added this check (TASK-534) — re-measured 0 missing immediately
+    before promoting, same discipline as every other C4/C5 promotion.
     """
     # TASK-475 phase 4: promoted advisory -> blocking, 2026-08-25, now that
     # TASK-508's migration has landed (6361ef3) and re-measurement reads 0.
+    # TASK-534, 2026-08-27: added the presence sub-check (folded into C4, not
+    # a standalone C4b) and promoted straight to blocking — the 14-file gap
+    # it would have caught was fixed in the same session, so there is no
+    # advisory-staging debt to work through first.
     r = Result("C4", blocking=True)
     for rel in c.gated:
         if not rel.startswith(C4_SCOPE_DIRS):
@@ -449,11 +459,13 @@ def check_c4(c: Corpus) -> Result:
         if os.path.basename(rel) in C4_SCOPE_EXCLUDE_BASENAMES:
             continue
         lines = c.read(rel).split("\n")
+        r.total += 1
+        found = False
         for lineno, line in enumerate(lines[:20], start=1):
             m = STATUS_HEADER_RE.match(line)
             if not m:
                 continue
-            r.total += 1
+            found = True
             value = m.group("rest").strip()
             bare = value.strip("*").strip()
             word = bare.lower().rstrip(".,;:")
@@ -466,7 +478,11 @@ def check_c4(c: Corpus) -> Result:
                     f"{rel}:{lineno}: Status: {value!r} -> "
                     f"not an exact closed-vocabulary word (TASK-508 ruling (b))")
             break  # header-only (c): first Status: line in the file only
-    r.summary = f"{len(r.failures)} non-conforming of {r.total} Status: headers"
+        if not found:
+            r.failures.append(
+                f"{rel}: no Status: header in the first 20 lines "
+                f"(TASK-534: presence is required in C4's scope)")
+    r.summary = f"{len(r.failures)} non-conforming of {r.total} in-scope files"
     return r
 
 

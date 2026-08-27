@@ -11,7 +11,7 @@
     docs/architecture/designs/M-FIX-main.md:58: X099 -> id not found in its registry
   FAIL  C2: 4 unresolvable of 13 id references
 [3/4] C4
-  PASS  C4: 0 non-conforming of 2 Status: headers
+  PASS  C4: 0 non-conforming of 4 in-scope files
 [4/4] SPIKE
   PASS  SPIKE: 0 retirement-due of 0 spike scripts
 [warn] C6: skipped (no executable registries under app/tools/)

@@ -1,6 +1,8 @@
 # M-MEMPLAN — Static app-memory overlay planner (single source of truth, build-time)
 
-> Owner: Architect · Status: **Phase 2 DONE** · 2026-06-28 (Phase 2 implemented on `rnd/memplan`, commit `241adf8`)
+> Owner: Architect
+> Status: done
+> As-built: 2026-06-28 — Phase 2 implemented on `rnd/memplan`, commit `241adf8` (TASK-534, reformatted per BP-065, 2026-08-27)
 > Formalizes M-MEMBUDGET (the ad-hoc 24 K runtime arena) into a declarative, build-time-planned memory
 > **overlay** with a **single source of truth** and a **worst-case budget gate**. Mirrors the
 > `gen_app_registry.py` codegen pattern. Successor to the runtime `mb_arena_*` machinery (migration in §8).

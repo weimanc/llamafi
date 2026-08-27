@@ -1,6 +1,10 @@
 # M-MULTIAPP — App Lifecycle and State
 
 > Part of: [overview.md](overview.md)
+> Status: accepted
+> As-built: living reference for already-implemented app-switch/state-save-restore behaviour, not a
+> pending proposal (overview.md's parent `proposed` status covers the shell design as a whole; this
+> split-out file documents what actually shipped) — TASK-534 added this line per BP-065, 2026-08-27
 
 ## App enum
 

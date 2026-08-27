@@ -1,6 +1,10 @@
 # M-MULTIAPP — Screen Layout
 
 > Part of: [overview.md](overview.md)
+> Status: accepted
+> As-built: living reference for already-implemented on-device geometry (some sections describe
+> future per-app adjustments still pending — see body) — TASK-534 added this line per BP-065,
+> 2026-08-27
 
 ## Current geometry
 

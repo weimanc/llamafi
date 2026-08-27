@@ -1,6 +1,9 @@
 # M-STOCK-POC — VE Test Suite Design (T169–T185)
 
 > Owner: Architect  
+> Status: done
+> As-built: all T169-T185 exist in `app/tools/suite/serialdbg/stock.py` — re-verified present
+> (TASK-534, 2026-08-27), per BP-065
 > Implements: TASK-110  
 > Updated: 2026-05-29  
 > Baseline firmware: `cyd2usb_winamp_debug`

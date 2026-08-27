@@ -1,6 +1,9 @@
 # M-MULTIAPP — Preview Tooling Extension
 
 > Part of: [overview.md](overview.md)
+> Status: proposed
+> Date: not yet executed — this document's own exit criteria (bottom) are unmet (TASK-534 added this
+> line per BP-065, 2026-08-27)
 
 ## Goal
 

@@ -1,6 +1,8 @@
 # M-RECLAIM — Make resident components dynamic (Q2/Q3/Q4)
 
-> Owner: Architect · Status: **DESIGN (offline; no DUT)** · 2026-06-27
+> Owner: Architect
+> Status: proposed
+> Date: 2026-06-27 — design-only, no DUT work done (TASK-534, reformatted per BP-065, 2026-08-27)
 > Parent: M-MEMBUDGET §2c (the ~24–27 K + TLS overlay reclaim). Couples: TASK-259 (player mode-state).
 > Feeds: PROP-membudget-spike Phase 3 (overlay financing of the WebRadio arena). Candidate → ADR-047.
 

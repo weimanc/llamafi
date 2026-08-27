@@ -1,6 +1,14 @@
 # M-MULTIAPP — Taskbar
 
 > Part of: [overview.md](overview.md)
+> Status: accepted
+> As-built: scroll/tap handling is shipped and post-implementation-tuned (see the 2026-05-26 update
+> below) — TASK-534 added this line per BP-065, 2026-08-27. **Flagging, not resolving**: this file's
+> own "Dependency on preview pass" section (bottom) still says `renderTaskbar()`'s icon/indicator
+> styling is "blocked" on preview-tooling.md's still-`proposed` pass — that reads as stale leftover
+> text from before implementation, not a real current block (the function is described elsewhere in
+> this same file as already being called from `repaintChrome()`/`switchApp()`), but this task didn't
+> have standing to silently rewrite that section's claim — Architect should confirm and update it.
 > Updated: 2026-05-26 — scroll UX revised: 1:1 positional + LP filter + 3 px dead zone (post-implementation UX tuning)
 
 ## Role
