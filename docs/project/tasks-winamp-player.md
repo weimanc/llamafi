@@ -288,6 +288,121 @@ playlist and MP3 files are already staged and committed to the repo
 (`app/tools/fixtures/sd/mp3/short5/`, `app/tools/fixtures/sd/playlists/short5.m3u`) for whoever fixes
 this to re-push once the write path is trustworthy.
 
+**Fresh live reproduction and instrumentation, 2026-08-27** (`run/task424-repro` +
+`app/tools/task424_sdwrite_repro.py`, both committed — a raw diagnostic probe, not a registered T_
+id, following the safety pattern of `run/test-targeted`: flash debug, probe, always restore
+production). Confirmed the bug is **still live, unfixed, and produces the identical fault signature**
+as the original filing:
+
+```
+Guru Meditation Error: Core 1 panic'ed (LoadProhibited)
+PC: 0x4016e80f  EXCCAUSE: 0x1c  EXCVADDR: 0x00000001
+Backtrace (symbolized against this run's own fresh ELF, df139432):
+  validate            ff.c:3465
+  f_write             ff.c:3852
+  vfs_fat_write       vfs_fat.c:379
+  esp_vfs_write       vfs.c:431
+  __swrite / __sflush_r / _fflush_r / __sfvwrite_r / _fwrite_r / fwrite  (newlib stdio)
+  VFSFileImpl::write  vfs_api.cpp:399
+  fs::File::write     FS.cpp:50/44
+  cmdSdWrite          cmdSd.cpp:609
+  handleSerialCommands console.cpp:206
+  loop()              main.cpp:268
+  loopTask            main.cpp:50 (framework)
+```
+
+`EXCVADDR = 0x00000001` again — `obj->fs` is the literal integer `1`, not a wild pointer, not NULL.
+Reproduced 3 times this session (chunk counts 512, 1024, 2048), same PC/EXCVADDR every time.
+
+**New structural finding**: the entire call chain from `handleSerialCommands()` down to the fault is
+**one synchronous stack on `loopTask`** — no other task appears anywhere in this backtrace, and this
+project has exactly one place that ever calls `SD.begin()`/`SD.end()` at runtime
+(`cmdSd.cpp`'s own `sdmount`/`sdumount` debug commands — confirmed by a repo-wide grep, nothing else
+touches SD mount state). This **narrows, without eliminating**, the "concurrent remount" hypothesis
+this task's own next-step note proposed: nothing remounts *during* this call. The corruption of
+`obj.fs` to exactly `1` must therefore have happened **earlier** — some prior write/close (from this
+same probe's own earlier chunk in the session, or from another file handle entirely) leaves the FIL
+struct in this state, and only the *next* `f_write()` against it trips over it.
+
+**Sharper hypothesis, worth chasing next**: `esp_vfs_fat_register()` allocates ONE contiguous block
+sized `sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)` (this file's own header comment, `sdMount.cpp`
+— `max_files=3`, bumped in TASK-416 specifically because the playlist index, the audio decoder, and
+`fileBrowser.h` each hold a handle). Three `FIL` structs sit back-to-back in one heap block. A stray
+1-byte/small-int write landing at the wrong struct's `obj.fs` offset — from a **different** file
+handle's own I/O overrunning its slot — would produce exactly this signature: a small integer where a
+pointer belongs, in a FIL this call didn't itself touch. This session's boot log confirms
+`playerMode=player` was active (though not confirmed whether a playlist handle was actually open at
+panic time — worth checking directly). **Not yet confirmed**, but it is a specific, testable claim,
+unlike "concurrent remount," which this session's own evidence argues against as the direct trigger.
+
+**Methodology gap found and left unfixed (flagging, not this task's tooling to silently patch)**:
+`sdwrite`'s `FILE_WRITE` open mode does **not** truncate the existing file (confirmed live —
+`startSizeB` grew across successive calls in the same boot: 32768 → 131072 → panicked mid-512 →
+135168 → panicked mid-1024 → 212992 → panicked mid-2048). Every trial after the first ran against a
+file already containing (possibly corrupted) leftover state from the previous trial, not a clean
+fixture. The original 2026-08-15 characterisation table may or may not have had the same confound —
+undetermined from its own record. **Whoever chases the hypothesis above should call `sdclean` before
+every individual `sdwrite` trial**, not once per session, to get numbers that are actually comparable
+across chunk counts.
+
+**DUT left clean**: production firmware (`cyd2usb_winamp`) restored and verified via
+`run/task424-repro`'s own trap-guarded restore step (same pattern as `run/test-targeted`); monitor
+restarted. No fix attempted this session — the next step (confirm/refute the cross-handle-corruption
+hypothesis with `sdclean` between trials and a check for other open handles at panic time) needs
+another DUT session.
+
+**Near-miss, this session**: a first attempt at the `sdclean`-per-trial rerun was launched piped
+through `tee`/`grep` under an outer `timeout`; the outer timeout fired mid-probe (stdout was fully
+buffered under the pipe, so nothing in the log proved progress), and the `run/task424-repro` trap's
+own production-restore step did not get to finish before the process tree was killed — the DUT was
+found still running debug firmware afterward. Manually restored `cyd2usb_winamp` directly via `pio run
+-e cyd2usb_winamp -t upload` and confirmed via a clean production heartbeat (`build=Aug 26
+2026-11:37:01`, no debug-only fields) before continuing. Fixed the root cause in
+`task424_sdwrite_repro.py` (module-level `print = functools.partial(print, flush=True)`) and reran
+without a pipe, in the background, so no outer timeout could race the trap's own cleanup.
+
+#### TASK-424 sdclean-per-trial rerun, 2026-08-27 — new finding
+
+With `sdclean` now run before every trial (fixing the earlier methodology confound), the corruption
+signature changed shape in a way that redirects the investigation:
+
+| chunks | after fresh boot? | `sdclean` result | `sdwrite` `startSizeB` | outcome |
+|---|---|---|---|---|
+| 64 | yes (cold boot) | `removed:0` | `0` (clean) | OK, 24 576 B written |
+| 256 | no | `removed:1` | `1073676676` (garbage) | OK — but wrote only 1 024 B of a requested 256×512 |
+| 512 | no | `removed:1` | `1073676628` (garbage) | **PANIC** |
+| 1024 | yes (reboot after 512's panic) | `removed:1` | `4294967295` (`0xFFFFFFFF`) | **PANIC**, immediately at `"opened"` |
+| 2048 | yes (reboot after 1024's panic) | `removed:1` | `1073675756` (garbage) | OK, 69 632 B written |
+
+The decisive new fact: **every trial after the very first cold-boot trial reports a garbage
+`startSizeB`, including the first trial of a fresh reboot that follows a panic** — trial 1024 ran on a
+DUT that had just rebooted from the 512 panic, ran `sdclean` (which reported success, `removed:1`),
+and *still* opened the file to a `0xFFFFFFFF` size sentinel before panicking immediately. That reboot's
+own boot-time `sdmount` log line (`{"probe":"sdmount","tag":"boot","maxFiles":3,"mounted":true,...}`)
+reported a clean mount with no error. This does not fit the earlier in-RAM cross-handle-corruption
+hypothesis (three `FIL` structs in one heap block, TASK-416's `max_files=3`) as the *sole* mechanism —
+that hypothesis explains corruption of a live handle during a session, not a handle reading garbage on
+its very first open after a fresh boot and a successful mount and a successful `sdclean`. **The FAT
+directory entry for `/probebench.bin` itself is left corrupt on the SD card**, surviving power-cycle
+(reboot) and surviving a `sdclean` that reports success. `sdclean`'s `remove()` call is evidently not
+actually removing/recreating a clean directory entry — either it fails silently (its own JSON never
+distinguishes "removed the item" from "the FAT metadata for it is now sane"), or FatFs's directory
+scan is itself reading the same corrupted on-disk structure `sdclean` was supposed to fix. Both original
+hypotheses (concurrent remount, cross-handle heap corruption) may still explain how the corruption is
+*first introduced* mid-write, but neither explains why it *persists on disk* through a clean reboot and
+a successful-looking delete. That persistence is the new, sharper thing to chase — inspect the raw FAT
+directory entry for `/probebench.bin` (e.g., via a raw sector dump or `f_stat`/`f_unlink` return codes
+inside `cmdSdClean`, not just the wrapping JSON's `ok`/`removed` booleans) after a panic, before
+assuming `sdclean` actually cleared it.
+
+Also notable: trial 256's `sdwrite` accepted the call (`ok:true`) but wrote only 1 024 of the
+requested 131 072 bytes (`atChunk:2`, no `shortWrite` flag set) — another instance of TASK-424's
+already-documented "accepted but not delivered" silent-truncation failure mode, now co-occurring with
+the garbage `startSizeB` on the very same call.
+
+DUT left clean this rerun too: production restored, `SUCCESS` in ~23s, monitor restarted — verified
+via the script's own log, not just assumed.
+
 ### TASK-452 — retire the arena from the FILE path (successor to the withdrawn TASK-443)
 
 **Scope, deliberately small.** `aeConnectFile()` stops calling `mb_arena_acquire()`; the decoder
