@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# run/task424-repro — flash debug, run task424_sdwrite_repro.py, always restore
+# production. Not a registered test id (TASK-424 has no T_ id) — mirrors
+# run/test-targeted's safety net (BP-020/021) for a raw diagnostic probe
+# instead of a suite/serialdbg registered test.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+_PORT_EXPLICIT="${PORT:-}"
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  local restore_pt; restore_pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
+  echo ""
+  echo "[task424-repro] restoring $ENV_PROD (rc=$rc so far)"
+  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$restore_pt") || {
+    echo "ERROR [task424-repro]: prod restore failed" >&2
+    rc=99
+  }
+  echo "[task424-repro] restarting monitor"
+  tmux new-session -d -s "$SESSION" \
+    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$restore_pt'" \
+    2>/dev/null || true
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[task424-repro] step 1/4 — killing monitor"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[task424-repro] step 2/4 — flashing $ENV_DEBUG to $PORT"
+(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+
+echo "[task424-repro] step 3/4 — waiting ${BOOT_WAIT}s for boot"
+sleep "$BOOT_WAIT"
+
+echo "[task424-repro] step 4/4 — running probe"
+(cd "$PIO_DIR" && "$VENV_PY" tools/task424_sdwrite_repro.py --port "$PORT") || _RC=$?
