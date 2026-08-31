@@ -269,9 +269,7 @@ _cleanup() {
     rc=99
   }
   echo "[player-gate] restarting monitor"
-  tmux new-session -d -s "$SESSION" \
-    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$restore_pt'" \
-    2>/dev/null || echo "WARN [player-gate]: monitor start failed" >&2
+  restart_monitor "$restore_pt"
   # run/test's step-6 lesson (TASK-434 item 1): a rig condition must be re-stated
   # AFTER the restore, because the restore's flash output is the last thing in the
   # log and a reader who greps for the verdict finds neither PASS nor FAIL.

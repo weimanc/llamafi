@@ -17,6 +17,10 @@ ENV_PROD="cyd2usb_winamp"
 # every test script's trap restores production, and that must stay production.
 ENV_DEBUG="${DUT_ENV:-cyd2usb_winamp_debug}"
 BOOT_WAIT="${BOOT_WAIT:-8}"
+# Shared by restart_monitor() below, run/monitor-start and run/monitor-read —
+# all three must agree on the path or the log is written somewhere nobody reads.
+MONITOR_LOG="${MONITOR_LOG:-/tmp/spotify-mon-serial.log}"
+MONITOR_HISTORY="${MONITOR_HISTORY:-50000}"
 
 # The live device lookup, unconditionally — no $PORT override short-circuit.
 # Split out of resolve_port() (ADR-062/TASK-547) so a caller that specifically
@@ -101,6 +105,48 @@ restore_port() {
   fi
   echo "WARN [restore_port]: could not re-scan for CH340 at restore time — using cached $at_start" >&2
   echo "$at_start"
+}
+
+# The ONE place that (re)creates the serial monitor session. TASK-554.
+#
+# Every trap-guarded script used to inline `tmux new-session` here and stop
+# there — which starts a working monitor but never attaches `pipe-pane`, so the
+# disk log stops being appended the moment any run/* script restores. Nothing
+# fails and nothing warns: run/monitor-read prefers the disk log whenever it is
+# non-empty (run/monitor-read:16), so it goes on serving whatever was last
+# written, indefinitely. Measured 2026-08-31: monitor-read returned a
+# three-day-old heartbeat twice in one session and it was read as proof the DUT
+# was on production firmware. The board was fine; the evidence was not.
+#
+# This is the load-bearing half of the DUT-safety promise's *verification*
+# side, so it lives next to restore_port() rather than in any one script.
+#
+# Never fails the caller: it runs inside EXIT traps under `set -e`, where a
+# nonzero return would abort the rest of the cleanup. Warns and returns 0.
+#
+#   $1  port to open; falls back to a live scan if empty
+restart_monitor() {
+  local port="${1:-}"
+  if [ -z "$port" ]; then
+    port=$(_scan_ch340_port 2>/dev/null) || port=""
+  fi
+  if [ -z "$port" ]; then
+    echo "WARN [restart_monitor]: no CH340 port found — monitor not started" >&2
+    return 0
+  fi
+  if ! tmux new-session -d -s "$SESSION" \
+        "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$port'" 2>/dev/null; then
+    echo "WARN [restart_monitor]: tmux session '$SESSION' did not start" >&2
+    return 0
+  fi
+  # Session-scoped, best-effort, and deliberately not relied upon — pane
+  # capacity is fixed at creation. See run/monitor-start's own note (LL-128).
+  tmux set-option -t "$SESSION" history-limit "$MONITOR_HISTORY" >/dev/null 2>&1 || true
+  # The half that was missing everywhere but monitor-start. Append (-o … >>) so
+  # consecutive sessions across a flash cycle stay in one timeline.
+  tmux pipe-pane -o -t "$SESSION" "cat >> '$MONITOR_LOG'" 2>/dev/null || \
+    echo "WARN [restart_monitor]: pipe-pane failed — disk log not running" >&2
+  return 0
 }
 
 # TASK-342: TLS-pin preflight before compiling — mirrors run/test's step-0

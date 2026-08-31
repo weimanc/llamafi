@@ -19,9 +19,7 @@ _cleanup() {
     rc=99
   }
   echo "[task424-repro] restarting monitor"
-  tmux new-session -d -s "$SESSION" \
-    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$restore_pt'" \
-    2>/dev/null || true
+  restart_monitor "$restore_pt"
   exit "$rc"
 }
 trap _cleanup EXIT INT TERM

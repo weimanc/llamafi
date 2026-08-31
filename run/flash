@@ -14,6 +14,5 @@ echo "[flash] 2/3 — flashing $ENV_PROD to $PORT"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT")
 
 echo "[flash] 3/3 — restarting monitor"
-tmux new-session -d -s "$SESSION" \
-  "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+restart_monitor "$PORT"
 echo "[flash] done"

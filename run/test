@@ -58,9 +58,7 @@ _cleanup() {
   if [ "$settings_restored" = "1" ]; then
     echo "[test] monitor already restarted by the settings-restore step above — skipping"
   else
-    tmux new-session -d -s "$SESSION" \
-      "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$restore_pt'" \
-      2>/dev/null || echo "WARN [test]: monitor start failed" >&2
+    restart_monitor "$restore_pt"
   fi
   # TASK-434 item 1: the harness exits SETUP_FAIL_EXIT (3) for a RIG condition —
   # WiFi never came up, wrong firmware flashed, port busy. Re-state it AFTER the

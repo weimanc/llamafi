@@ -38,8 +38,7 @@ _kill_monitor() {
 }
 
 _start_monitor() {
-  tmux new-session -d -s "$SESSION" \
-    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+  restart_monitor "$PORT"
   _MONITOR_KILLED=0
 }
 

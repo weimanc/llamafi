@@ -20,8 +20,7 @@ trap '_cleanup' EXIT
 
 _start_monitor_local() {
   PORT="$(resolve_port)"
-  tmux new-session -d -s "$SESSION" \
-    "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+  restart_monitor "$PORT"
 }
 
 if tmux has-session -t "$SESSION" 2>/dev/null; then

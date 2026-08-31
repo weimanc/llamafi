@@ -13,6 +13,5 @@ echo "[flash-fs] 2/3 — uploading SPIFFS to $PORT"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t uploadfs --upload-port "$PORT")
 
 echo "[flash-fs] 3/3 — restarting monitor"
-tmux new-session -d -s "$SESSION" \
-  "cd '$PIO_DIR' && '$PIO' device monitor -e '$ENV_PROD' -p '$PORT'"
+restart_monitor "$PORT"
 echo "[flash-fs] done"
