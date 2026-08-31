@@ -419,12 +419,67 @@ is a standing diagnostic tool for a still-open task, not a spike, and the prefix
 gate as a false positive (`TASK-424` appears incidentally elsewhere in `tasks-archive.md`, which the
 check's regex can't distinguish from an actual archived-task row).
 
-#### TASK-424 `startSizeB` is a measurement artifact, 2026-08-31
+#### TASK-424 — the "garbage size" symptom is TWO different signatures, 2026-08-31
 
-Re-assessed while validating TASK-548's "blocked on TASK-424" claim (`app/tools/sd_health_probe.py`,
-run on a healthy card). **The garbage `startSizeB` is almost certainly not filesystem corruption**,
-and the 2026-08-27 conclusion above ("the FAT directory entry itself is left corrupt on the SD card,
-surviving power-cycle") does not survive the check:
+Re-assessed while validating TASK-548's "blocked on TASK-424" claim (`app/tools/sd_health_probe.py`
+plus a full fixture re-push). **This task has been conflating two unrelated failures under one
+"reports a ~1 GB size" description since its original filing.** Decoding the actual values separates
+them cleanly:
+
+| reported value | hex | what it is |
+|---|---|---|
+| 1073678476 (original filing) | `0x3FFF088C` | **ESP32 DRAM address** |
+| 1073628004 (2026-08-15) | `0x3FFE4364` | ESP32 DRAM address |
+| 1073676676 / 1073676628 / 1073675756 (2026-08-27) | `0x3FFF0184` / `0x3FFF0154` / `0x3FFEFDEC` | ESP32 DRAM addresses |
+| 4294967295 | `0xFFFFFFFF` | `(size_t)-1` — **an error return** |
+
+ESP32 internal DRAM is `0x3FFB0000`–`0x3FFFFFFF`. Every one of the "~1 GB" values falls inside it.
+Those are **pointers being read where a size belongs** — an uninitialised struct read, not a size at
+all. `0xFFFFFFFF` is categorically different: it is `-1`, i.e. the size lookup ran and *failed*.
+
+**Signature A — `0x3FFxxxxx`, a measurement artifact.** Produced by `cmdSdWrite`, which reads
+`f.size()` **immediately after `SD.open()` with nothing written or flushed**. `cmdSdPut`, three
+functions away in the same file, already documents exactly this:
+
+```c
+f.flush();                 // size() reads the FIL, which is stale until the
+const size_t total = f.size();   // write is pushed through — 0 B otherwise
+```
+
+A freshly opened-or-truncated file has nothing pushed through it, so this read returns whatever
+happens to be in the struct — reliably, on every boot. **That fully explains the 2026-08-27
+"persists across reboot, survives `sdclean`" finding, with no on-disk damage required**, and it
+retires that finding's conclusion. Confirmed empirically: `sdput` (which flushes) reported exactly
+correct sizes on 61 consecutive calls, and a 60-call append run was clean at every step.
+
+**Signature B — `0xFFFFFFFF`, a real and persistent defect.** Found by re-pushing the fixture tree
+2026-08-31. `/probe200/entry_001`–`130` truncated and rewrote perfectly; `entry_131`–`200` **every
+one** returned `sizeB=0xFFFFFFFF` on create, through 3 attempts each, **despite `cmdSdPut`'s
+flush**. `f.write()` reported the full byte count (`ok:true`) while the size lookup returned `-1`.
+This is not the stale-read artifact — it is a genuine per-file failure that survives truncation, and
+the clean split at a fixed file boundary (rather than a size or a session-operation count) says the
+damage is **per-file and persistent on the card**, most likely inflicted by the earlier failed push
+and not repairable by rewriting the same path.
+
+**What this means for the task.** The original "damaged directory entry" instinct was right *for
+signature B* and wrong for signature A, which is what most of the recorded observations actually are.
+**Correction to the commit made earlier today** (`a395024`), which claimed the artifact explanation
+covered the symptom generally: it does not — it covers signature A only. Signature B is real.
+
+**Cheap decisive tests, neither done yet**: (1) add an `f.flush()` before `cmdSdWrite`'s
+`startSizeB` print — signature A should vanish without touching the card; (2) for signature B, delete
+one affected file (`SD.remove`) and re-create it under a *new* name, to establish whether the damage
+is bound to the directory entry or to the path.
+
+The panic itself (`LoadProhibited` at `validate()`, `EXCVADDR=0x00000001`) is untouched by any of
+this and remains the task's real defect.
+
+<details>
+<summary>Superseded 2026-08-31 — the original single-cause framing, kept for provenance</summary>
+
+The garbage `startSizeB` is almost certainly not filesystem corruption, and the 2026-08-27
+conclusion above ("the FAT directory entry itself is left corrupt on the SD card, surviving
+power-cycle") does not survive the check:
 
 | what was read | how | result |
 |---|---|---|
@@ -456,6 +511,8 @@ directory entry. That reading appears in this task's original filing, in the 202
 re-characterisation, and in the 2026-08-27 rerun — and it is what TASK-548 relied on to declare
 itself blocked. **Cheap decisive test if anyone wants certainty**: add an `f.flush()` before
 `cmdSdWrite`'s `startSizeB` print and re-run; the garbage should vanish without touching the card.
+
+</details>
 
 ### TASK-452 — retire the arena from the FILE path (successor to the withdrawn TASK-443)
 
