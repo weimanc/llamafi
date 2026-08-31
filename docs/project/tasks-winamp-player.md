@@ -335,6 +335,15 @@ pointer belongs, in a FIL this call didn't itself touch. This session's boot log
 panic time — worth checking directly). **Not yet confirmed**, but it is a specific, testable claim,
 unlike "concurrent remount," which this session's own evidence argues against as the direct trigger.
 
+> **⚠ CORRECTED 2026-08-31 — the paragraph immediately below is WRONG.** `FILE_WRITE` is `#define
+> FILE_WRITE "w"` in the framework's own `FS.h`, and `"w"` truncates. The real explanation for the
+> growing/garbage `startSizeB` is in the "`startSizeB` is a measurement artifact" subsection at the
+> end of this task, below: `cmdSdWrite` reads `f.size()` **immediately after
+> `SD.open()` with nothing flushed**, and `cmdSdPut`'s own comment three functions away already
+> documents that exact read as stale ("size() reads the FIL, which is stale until the write is pushed
+> through — 0 B otherwise"). Left in place rather than deleted because the wrong inference was acted
+> on downstream (TASK-548).
+
 **Methodology gap found and left unfixed (flagging, not this task's tooling to silently patch)**:
 `sdwrite`'s `FILE_WRITE` open mode does **not** truncate the existing file (confirmed live —
 `startSizeB` grew across successive calls in the same boot: 32768 → 131072 → panicked mid-512 →
@@ -409,6 +418,44 @@ via the script's own log, not just assumed.
 is a standing diagnostic tool for a still-open task, not a spike, and the prefix was also tripping the
 gate as a false positive (`TASK-424` appears incidentally elsewhere in `tasks-archive.md`, which the
 check's regex can't distinguish from an actual archived-task row).
+
+#### TASK-424 `startSizeB` is a measurement artifact, 2026-08-31
+
+Re-assessed while validating TASK-548's "blocked on TASK-424" claim (`app/tools/sd_health_probe.py`,
+run on a healthy card). **The garbage `startSizeB` is almost certainly not filesystem corruption**,
+and the 2026-08-27 conclusion above ("the FAT directory entry itself is left corrupt on the SD card,
+surviving power-cycle") does not survive the check:
+
+| what was read | how | result |
+|---|---|---|
+| `sdwrite`'s `startSizeB` | `f.size()` **immediately after `SD.open()`**, nothing written or flushed | garbage (`0xFFFFFFFF`, ~1 GB values) |
+| `sdput`'s `sizeB` | `f.write()` → **`f.flush()`** → `f.size()` | **exactly correct, every one of 61 consecutive calls** |
+
+`cmdSdPut` already carries the explanation in its own source, three functions from `cmdSdWrite`:
+
+```c
+f.flush();                 // size() reads the FIL, which is stale until the
+const size_t total = f.size();   // write is pushed through — 0 B otherwise
+```
+
+`cmdSdWrite` does no such flush before printing `startSizeB`. So the two commands were never
+measuring the same thing, and the "persists across reboot / survives `sdclean`" property follows
+trivially: a freshly-created-or-truncated file has nothing pushed through it yet, so its unflushed
+`f.size()` is garbage *by construction*, on every boot, forever — no on-disk damage required.
+
+**Independent confirmation the card is healthy**: `/playlists` lists all 7 fixtures at their exact
+host sizes; a 60-call append run produced exactly correct sizes at every step (922, 1822, … 5422) with
+0 bad appends; `sdread` on a known-good host-era fixture is clean. (`zeroReads` is not a corruption
+signal — it tracks the read loop wrapping past EOF, and the known-good control reads
+`zeroReads=100=wraps=100`.)
+
+**What survives unchanged**: the panic itself. `LoadProhibited` at `validate()` with
+`EXCVADDR=0x00000001` is real, reproduced 3× on 2026-08-27, and is still TASK-424's actual defect.
+**What does not survive**: the inference that a ~1 GB reported size is evidence of a damaged
+directory entry. That reading appears in this task's original filing, in the 2026-08-15
+re-characterisation, and in the 2026-08-27 rerun — and it is what TASK-548 relied on to declare
+itself blocked. **Cheap decisive test if anyone wants certainty**: add an `f.flush()` before
+`cmdSdWrite`'s `startSizeB` print and re-run; the garbage should vanish without touching the card.
 
 ### TASK-452 — retire the arena from the FILE path (successor to the withdrawn TASK-443)
 
