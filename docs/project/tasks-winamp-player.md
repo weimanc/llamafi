@@ -289,7 +289,7 @@ playlist and MP3 files are already staged and committed to the repo
 this to re-push once the write path is trustworthy.
 
 **Fresh live reproduction and instrumentation, 2026-08-27** (`run/task424-repro` +
-`app/tools/task424_sdwrite_repro.py`, both committed — a raw diagnostic probe, not a registered T_
+`app/tools/sdwrite_repro.py`, both committed — a raw diagnostic probe, not a registered T_
 id, following the safety pattern of `run/test-targeted`: flash debug, probe, always restore
 production). Confirmed the bug is **still live, unfixed, and produces the identical fault signature**
 as the original filing:
@@ -358,7 +358,7 @@ own production-restore step did not get to finish before the process tree was ki
 found still running debug firmware afterward. Manually restored `cyd2usb_winamp` directly via `pio run
 -e cyd2usb_winamp -t upload` and confirmed via a clean production heartbeat (`build=Aug 26
 2026-11:37:01`, no debug-only fields) before continuing. Fixed the root cause in
-`task424_sdwrite_repro.py` (module-level `print = functools.partial(print, flush=True)`) and reran
+`sdwrite_repro.py` (module-level `print = functools.partial(print, flush=True)`) and reran
 without a pipe, in the background, so no outer timeout could race the trap's own cleanup.
 
 #### TASK-424 sdclean-per-trial rerun, 2026-08-27 — new finding
@@ -402,6 +402,13 @@ the garbage `startSizeB` on the very same call.
 
 DUT left clean this rerun too: production restored, `SUCCESS` in ~23s, monitor restarted — verified
 via the script's own log, not just assumed.
+
+**Renamed 2026-08-31**: `app/tools/task424_sdwrite_repro.py` → `app/tools/sdwrite_repro.py`. The
+`task<NNN>_*` prefix is the SPIKE gate's own naming convention for scoped, disposable spikes
+(`check_spike_retirement()`, M-TOOLING §4 rule 2) that get retired once their task is archived — this
+is a standing diagnostic tool for a still-open task, not a spike, and the prefix was also tripping the
+gate as a false positive (`TASK-424` appears incidentally elsewhere in `tasks-archive.md`, which the
+check's regex can't distinguish from an actual archived-task row).
 
 ### TASK-452 — retire the arena from the FILE path (successor to the withdrawn TASK-443)
 

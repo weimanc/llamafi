@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""task424_sdwrite_repro.py — fresh live reproduction of TASK-424's SD write panic.
+"""sdwrite_repro.py — fresh live reproduction of TASK-424's SD write panic.
 
 Not a registered T_ id (this is a raw repro/diagnostic probe, not a regression
 test). Connects to an already-debug-flashed DUT and re-runs the exact chunk
@@ -9,7 +9,7 @@ point before any fix attempt — per this project's own "measure fresh, don't
 trust stale numbers" discipline.
 
 Usage:
-    python3 tools/task424_sdwrite_repro.py --port /dev/ttyUSB0
+    python3 tools/sdwrite_repro.py --port /dev/ttyUSB0
 """
 import argparse
 import functools

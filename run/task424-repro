@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run/task424-repro — flash debug, run task424_sdwrite_repro.py, always restore
+# run/task424-repro — flash debug, run sdwrite_repro.py, always restore
 # production. Not a registered test id (TASK-424 has no T_ id) — mirrors
 # run/test-targeted's safety net (BP-020/021) for a raw diagnostic probe
 # instead of a suite/serialdbg registered test.
@@ -36,4 +36,4 @@ echo "[task424-repro] step 3/4 — waiting ${BOOT_WAIT}s for boot"
 sleep "$BOOT_WAIT"
 
 echo "[task424-repro] step 4/4 — running probe"
-(cd "$PIO_DIR" && "$VENV_PY" tools/task424_sdwrite_repro.py --port "$PORT") || _RC=$?
+(cd "$PIO_DIR" && "$VENV_PY" tools/sdwrite_repro.py --port "$PORT") || _RC=$?
