@@ -52,6 +52,16 @@ if ! "$PYTHON" gate/check_suite_serialdbg_names.py; then
     exit 1
 fi
 
+# 4c. serial-failure classifier — TASK-556.
+# runner.py used to label every serial.SerialException `port-busy` and name the
+# tmux monitor; a device that VANISHED mid-open (CH340 re-enumeration) got the
+# same label as genuine contention, and that wrong label misdirected the same
+# investigation more than once on 2026-08-31. Pure logic, no DUT, sub-second.
+if ! "$PYTHON" test_serial_classify.py; then
+    echo "FAIL: test_serial_classify.py (TASK-556 classifier) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —

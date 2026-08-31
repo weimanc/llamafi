@@ -51,6 +51,91 @@ from suite.serialdbg.shell import t093, t094, t095                        # noqa
 SETUP_FAIL_EXIT = 3
 
 
+def _port_holders(port: str) -> str:
+    """Best-effort: who currently has this port open. Empty string if nobody,
+    or if we cannot tell. Used only to make a message accurate, never to
+    decide anything."""
+    import os
+    import shutil
+    import subprocess
+    if not shutil.which("fuser"):
+        return ""
+    try:
+        real = os.path.realpath(port)
+        out = subprocess.run(["fuser", "-v", real], capture_output=True,
+                             text=True, timeout=5)
+        # fuser prints the table on stderr and exits 1 when nothing holds it.
+        return (out.stderr or "").strip() if out.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _classify_serial_failure(port: str, exc: Exception):
+    """Split serial.SerialException into distinguishable rig conditions.
+
+    TASK-556. This used to be one blanket `port-busy` naming the tmux monitor.
+    That label is right for genuine contention (LL-054, and the TASK-440
+    retraction where the harness had bypassed run/*), but it is wrong — and
+    actively misleading — for a device that DISAPPEARED mid-open, which is what
+    a CH340 re-enumeration produces. `device reports readiness to read but
+    returned no data` is pyserial's message for a tty that hung up: poll() says
+    readable, read() returns b''. Reporting that as "another process holds the
+    port" sent more than one investigation down the wrong path on 2026-08-31.
+
+    Returns (reason_slug, hint_text).
+    """
+    import os
+    text = str(exc).lower()
+    holders = _port_holders(port)
+
+    # The node itself is gone: re-enumeration, unplug, or a stale by-id target.
+    if not os.path.exists(port) or not os.path.exists(os.path.realpath(port)):
+        return ("device-vanished",
+                f"{port} does not resolve to an existing device right now — the "
+                f"CH340 re-enumerated or was unplugged mid-run.\n"
+                f"Check: ls -l /dev/serial/by-id/ ; dmesg | tail -20\n"
+                f"This is NOT port contention; nothing needs killing.")
+
+    # Present, but the fd hung up under us.
+    if ("returned no data" in text or "disconnected" in text
+            or "errno 19" in text or "no such device" in text):
+        hint = (f"The device at {port} went away mid-open (fd hung up), rather "
+                f"than being held by someone else — the CH340 re-enumerating "
+                f"produces exactly this.\n"
+                f"Check: dmesg | grep -i ch341 | tail ; ls -l /dev/serial/by-id/\n"
+                f"See TASK-557 for the standing investigation.")
+        if holders:
+            hint += f"\nNote: something DOES hold the port too:\n{holders}"
+        return ("device-vanished", hint)
+
+    if "permission denied" in text or "errno 13" in text:
+        return ("port-permissions",
+                f"Permission denied opening {port} — check group membership "
+                f"(dialout/uucp) rather than assuming contention.")
+
+    # Genuine contention — the original, still-correct case.
+    busy_signal = ("busy" in text or "exclusively lock" in text
+                   or "errno 16" in text)
+    if busy_signal or holders:
+        hint = (f"Another process holds {port} — the tmux monitor "
+                f"(run/monitor-stop) or a peer session.")
+        if holders:
+            hint += f"\n{holders}"
+        if not busy_signal:
+            # Matched on the holder alone. Say so: the exception itself did not
+            # report contention, and silently assuming it did is the exact
+            # over-broad reasoning TASK-556 exists to remove.
+            hint += ("\nNOTE: classified from the holder above, NOT from the "
+                     "exception text, which is unrecognised. If killing the "
+                     "holder does not fix it, treat the exception as unclassified "
+                     "and report it verbatim.")
+        return ("port-busy", hint)
+
+    return ("port-error",
+            f"Unclassified serial failure on {port}. Neither a vanished device "
+            f"nor a detectable holder — report the exception text verbatim.")
+
+
 def _setup_fail(reason: str, message: str, tail=None):
     """Report a rig condition and exit with SETUP_FAIL_EXIT. Never returns."""
     print("", flush=True)
@@ -104,9 +189,8 @@ def main():
     except SetupFailure as e:
         _setup_fail(e.reason, str(e), getattr(e, "tail", None))
     except serial.SerialException as e:
-        _setup_fail("port-busy", f"{e}\n"
-                    f"Another process holds {args.port} — the tmux monitor "
-                    f"(run/monitor-stop) or a peer session.")
+        _reason, _hint = _classify_serial_failure(args.port, e)
+        _setup_fail(_reason, f"{e}\n{_hint}")
     # Warmup ping: flush any residual DUT serial output before first test.
     try:
         dut.cmd("help", timeout=4.0)
