@@ -42,7 +42,72 @@ MONITOR_HISTORY="${MONITOR_HISTORY:-50000}"
 # (no udev, or a stripped-down environment) — that path is the one still
 # exposed to enumeration-order drift, which is exactly why restore_port()
 # below exists as a second layer under it.
+
+# Every distinct CH340 tty currently attached, one per line, deduped.
+# TASK-552. Deduping is by RESOLVED target, not by symlink name, and that is
+# load-bearing: udev publishes more than one by-path name for a single device
+# (measured on this box: pci-…-usb-0:1:1.0-port0 AND pci-…-usbv2-0:1:1.0-port0,
+# both -> ttyUSB0). Counting symlinks would report two DUTs when one is plugged
+# in, which is exactly the wrong answer to build a multi-DUT guard on.
+_ch340_distinct_ttys() {
+  local link p
+  {
+    for link in /dev/serial/by-id/usb-1a86_*; do
+      [ -e "$link" ] || continue
+      readlink -f "$link"
+    done
+    for p in /dev/ttyUSB*; do
+      [ -e "$p" ] || continue
+      udevadm info -q property "$p" 2>/dev/null | grep -q "ID_VENDOR_ID=1a86" \
+        && echo "$p"
+    done
+  } 2>/dev/null | sort -u
+}
+
+# Pick one board by USB topology. TASK-552 / ADR-062's named fallback: these
+# boards report SerialNumber=0, so by-id names "the CH340 attached", not a
+# specific unit — useless once two are present. by-path is tied to the physical
+# port instead, so it survives both re-enumeration and a second board.
+# DUT_PORT_PATH is matched as a substring, so a caller can pass a short
+# discriminator ("usb-0:1") rather than the full pci-… name.
+_scan_ch340_by_path() {
+  local want="${DUT_PORT_PATH:-}" link target
+  [ -n "$want" ] || return 1
+  [ -d /dev/serial/by-path ] || return 1
+  for link in /dev/serial/by-path/*; do
+    [ -e "$link" ] || continue
+    case "${link##*/}" in *"$want"*) ;; *) continue ;; esac
+    target=$(readlink -f "$link") || continue
+    udevadm info -q property "$target" 2>/dev/null | grep -q "ID_VENDOR_ID=1a86" \
+      || continue
+    echo "$link"
+    return 0
+  done
+  echo "ERROR: DUT_PORT_PATH='$want' matched no attached CH340 under /dev/serial/by-path" >&2
+  return 1
+}
+
 _scan_ch340_port() {
+  # Explicit topology selector wins when set — the two-DUT case.
+  if [ -n "${DUT_PORT_PATH:-}" ]; then
+    _scan_ch340_by_path
+    return $?
+  fi
+
+  # Refuse to guess between two boards. Before TASK-552 this returned whichever
+  # by-id symlink globbed first, which with two attached is a coin flip that
+  # decides which board gets flashed — silently, and the loser is whatever the
+  # other run was using.
+  local n
+  n=$(_ch340_distinct_ttys | grep -c .) || n=0
+  if [ "$n" -gt 1 ]; then
+    echo "ERROR: $n CH340 devices attached — refusing to guess which is the DUT." >&2
+    _ch340_distinct_ttys | sed 's/^/  /' >&2
+    echo "  Select one: DUT_PORT_PATH=<substring of a /dev/serial/by-path name>, or PORT=/dev/ttyUSBn" >&2
+    ls /dev/serial/by-path/ 2>/dev/null | sed 's/^/    by-path: /' >&2
+    return 1
+  fi
+
   local by_id="/dev/serial/by-id" link
   if [ -d "$by_id" ]; then
     for link in "$by_id"/usb-1a86_*; do

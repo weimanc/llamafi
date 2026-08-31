@@ -89,18 +89,74 @@ def resolve_port(explicit: Optional[str] = None) -> str:
         got = out.stdout.strip()
         if out.returncode == 0 and got:
             return got
-        print(f"  [dut] WARNING: run/port found no CH340 (rc={out.returncode}) — "
-              f"falling back to /dev/ttyUSB0", flush=True)
+        # TASK-552: run/port exits nonzero when it REFUSES to choose — notably
+        # when 2+ CH340s are attached and no PORT/DUT_PORT_PATH selects one.
+        # Falling back to /dev/ttyUSB0 there would reinstate exactly the silent
+        # coin flip the shell-side guard exists to prevent, and on a two-board
+        # rig that is a 50% chance of flashing the wrong board. A resolver that
+        # guesses wrong in silence is worse than no resolver (see the comment
+        # above): when run/port has decided it cannot answer, propagate that.
+        raise SetupFailure(
+            "port-ambiguous",
+            f"run/port declined to resolve a port (rc={out.returncode}). "
+            f"{out.stderr.strip() or 'no detail'} — "
+            f"set PORT=/dev/ttyUSBn or DUT_PORT_PATH=<by-path substring> to choose.")
+    except SetupFailure:
+        raise
     except Exception as e:
-        print(f"  [dut] WARNING: run/port failed ({e}) — falling back to /dev/ttyUSB0",
-              flush=True)
+        print(f"  [dut] WARNING: run/port failed to execute ({e}) — "
+              f"falling back to /dev/ttyUSB0", flush=True)
     return "/dev/ttyUSB0"
 
 
 # ── serial helpers ────────────────────────────────────────────────────────────
 
-_DUT_RESET_GAP_FILE = pathlib.Path("/tmp/esp32_dut_last_reset")
 _DUT_DRD_WINDOW_S   = 12.0
+# No fallback to the pre-TASK-552 global /tmp/esp32_dut_last_reset. Nothing
+# writes it any more, so it can only ever be stale — and a stale timestamp
+# yields "gap already elapsed, no wait", which is the same answer as having no
+# file at all while *looking* like the guard consulted something real. Dropped
+# on @Architect review rather than carried as a comforting no-op.
+
+
+def _reset_gap_file(port: str) -> pathlib.Path:
+    """Per-port DRD timestamp path (TASK-552).
+
+    This used to be one global /tmp/esp32_dut_last_reset. With a single DUT that
+    is correct; with two attached, one board's open would make the other board's
+    open sit out a 12 s gap it never needed, and — worse — two runs could each
+    believe the other's timestamp was their own. The gap is a property of the
+    physical device being reset, so key it by device.
+
+    Normalised through realpath deliberately: the same board is addressed as
+    /dev/ttyUSB0 by some callers and /dev/serial/by-id/usb-1a86_… by others
+    (ADR-062 made by-id the default). Keying on the raw string would give one
+    device two gap files and silently defeat the guard for whichever form was
+    used second. realpath collapses both onto the same ttyUSBn.
+
+    KNOWN WEAKNESS, not fully solved: if the CH340 re-enumerates (ttyUSB0 ->
+    ttyUSB1) the key changes and the next open skips the gap even though the
+    same physical board may have reset seconds ago. The first draft of this
+    called that "accepted" on the reasoning that a re-enumeration is itself a
+    bus reset; @Architect review pushed back, and dmesg on this rig shows
+    re-enumeration is frequent rather than exceptional, so the hole is real
+    rather than theoretical. The durable fix is to key on the /dev/serial/by-path
+    topology name (stable across re-enumeration, tied to the physical port)
+    instead of the realpath. Deliberately not done in the same change as the
+    port-resolution work — see TASK-552's row.
+
+    What this gap actually protects against is an open question: do NOT re-derive
+    it from _DUT_DRD_WINDOW_S's name. DoubleResetDetector left the firmware in
+    ddf6433 (2026-06-11), so BP-018's stated DRD rationale is stale; the residual
+    hazard is TASK-376's "back-to-back resets drop this CYD into download mode".
+    TASK-555 is re-deriving the rule or retiring it.
+    """
+    try:
+        real = os.path.realpath(port)
+    except Exception:
+        real = port
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", real).strip("_") or "unknown"
+    return pathlib.Path(f"/tmp/esp32_dut_last_reset_{slug}")
 # Post-reset WiFi wait. BOOT_WAIT in run/test* does not cover this — opening
 # the serial port asserts DTR and reboots the DUT, so this window alone decides
 # how long a storm boot gets to reach GOT_IP. Raise on stormy days (LL-096):
@@ -204,9 +260,12 @@ class Dut:
         self.ser.timeout = timeout
         self.ser.dtr = False
         self.ser.rts = False
-        # BP-018: enforce gap between serial opens to avoid DRD double-reset
+        # BP-018: enforce gap between serial opens to avoid DRD double-reset.
+        # Per-port since TASK-552 — see _reset_gap_file(). Held on the instance
+        # because close() writes the same file this read.
+        self._gap_file = _reset_gap_file(port)
         try:
-            last_ts = float(_DUT_RESET_GAP_FILE.read_text())
+            last_ts = float(self._gap_file.read_text())
             gap = time.time() - last_ts
             if gap < _DUT_DRD_WINDOW_S:
                 wait = _DUT_DRD_WINDOW_S - gap
@@ -630,6 +689,6 @@ class Dut:
     def close(self):
         self.ser.close()
         try:
-            _DUT_RESET_GAP_FILE.write_text(str(time.time()))
+            self._gap_file.write_text(str(time.time()))
         except Exception:
             pass
