@@ -1812,6 +1812,36 @@ def t_pmt_04(dut: Dut):
     print(f"  baseline arenaStats: acquires={base_acq} releases={base.get('releases')} "
           f"active={base.get('active')} fails={base.get('fails')} hwm={base.get('hwm')}")
 
+    # TASK-553: this test asserts an acquire EDGE (acquires must move), and that
+    # edge is unobservable if the arena is already held when we start —
+    # mb_arena_acquire() early-returns on `if (s_owned) return true;` BEFORE it
+    # increments the counter (app/src/mem/arena/mb_arena.cpp), so a second
+    # acquire in the same boot is invisible by design, not broken.
+    #
+    # Measured 2026-08-31: run alone from a fresh boot this reads
+    # acquires=0 active=0 and PASSES (0->1, then releases 0->1 on exit). Run
+    # third in a suite behind T_PLR_25 — which plays five real tracks and does
+    # NOT release on its way out — baseline reads acquires=1 active=1 and the
+    # assertion fails with "acquires did not move", which looks exactly like a
+    # product regression and is not one. The test's 2026-08-17 validation was
+    # five consecutive FRESH-BOOT runs, so the precondition was always met and
+    # never stated.
+    #
+    # Report the precondition instead of reporting a false regression. SKIP
+    # rather than FAIL: nothing here says the firmware is wrong. A stronger fix
+    # would reboot to force a clean arena and re-baseline, at the cost of
+    # another ~100 s settle — left for @VE, see TASK-553.
+    if base.get("active"):
+        skip("T_PMT_04",
+             f"precondition: the arena is ALREADY held at baseline "
+             f"(acquires={base_acq} active={base.get('active')} "
+             f"hwm={base.get('hwm')}). mb_arena_acquire() is idempotent and does "
+             f"not re-count, so the 0->1 edge this test asserts cannot be "
+             f"observed. Something earlier in this boot acquired and did not "
+             f"release — T_PLR_25 is the known one. Run it from a fresh boot: "
+             f"NO_WIFI=1 DUT_ENV=cyd2usb_player ./run/test-targeted T_PMT_04")
+        return
+
     if not _pmt_goto(dut, 2, "T_PMT_04"):
         return
 
