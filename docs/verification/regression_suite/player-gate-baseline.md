@@ -95,6 +95,21 @@ and not failed — re-declare the row when it holds.
 `T_PLR_25_playback` on leg B. `T_PLR_27`–`41` are reserved/blocked (`test_plan.md` §
 `T_PLR_27`–`41`) and are deliberately absent — a blocked id in a pass set is a permanent red.
 
+### Divergence from this baseline, 2026-08-31 — `T_PMT_04`
+
+**The `B | T_PMT_04 | PASS` row above is left exactly as recorded**: this document is a dated
+baseline, and rewriting a past measurement destroys the only thing a baseline is for. Read it as
+"what leg B measured on the baseline date", not as current state.
+
+A leg-B re-run on 2026-08-31 (`NO_WIFI=1 DUT_ENV=cyd2usb_player ./run/test-targeted
+T_PLR_25,T_PMT_04,T_PLR_14`) scored **`T_PLR_25` PASS, `T_PLR_14` PASS, `T_PMT_04` FAIL**. The
+failure is not the playback-start flake described below — playback started normally and the playlist
+loaded 5 rows. It fails `acquires did not move during REAL playback: 1 -> 1` because the arena is
+already held at baseline (`acquires=1 releases=0 active=1 hwm=23216`). Tracked as **TASK-553**;
+`test_plan.md`'s `T_PMT_04` row carries the detail. Anyone re-running this gate should expect that
+one red until TASK-553 resolves, and should not read it as a regression introduced by whatever they
+are testing.
+
 ### Known flake, declared
 
 `T_PMT_04` failed 1 of 5 consecutive fresh-boot runs on `cyd2usb_player` (2026-08-17): playback

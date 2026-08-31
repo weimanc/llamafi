@@ -204,7 +204,12 @@ must not start until this is understood.
 **Owner:** Developer · **Deps:** none (TASK-408 supplies the repro) · **Gate:** the `sdwrite` command
 completes 2 048 chunks single-open, twice, on both cards, with no panic and a correct `endSizeB` ·
 **Priority:** P2 (blocks TASK-420/421 only) · **Status:** OPEN — **re-characterised 2026-08-15 with a
-measured mechanism; the model in the paragraphs above is wrong in two ways.** No fix yet.
+measured mechanism; the model in the paragraphs above is wrong in two ways.** The panic is still
+unfixed. **Read the 2026-08-31 sections at the end of this task before the older ones**: much of the
+"corruption" evidence recorded above is a measurement artifact that has since been identified and
+fixed (`startSizeB` was reading an uninitialised `_stat`, so every "~1 GB size" was an ESP32 DRAM
+pointer), and this task no longer blocks TASK-548, which closed on its own evidence. What remains
+genuinely open is the panic itself plus one real per-file failure signature (`0xFFFFFFFF`).
 
 #### TASK-424 re-characterisation (2026-08-15, `cyd2usb_winamp_debug`, 32 GB SDHC)
 
