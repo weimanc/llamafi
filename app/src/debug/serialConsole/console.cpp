@@ -99,7 +99,7 @@ const SerialCmd kCmds[] = {
   { "sdmount", cmdSdMount, "TASK-408: live mount attempt at N slots, optional SPI Hz", "[maxFiles] [freqHz]" },
   { "sdumount", cmdSdUmount, "TASK-408: unmount, report heap actually returned", "" },
   { "sdclean", cmdSdClean, "TASK-408: delete sdprobe fixtures (/probelist, /probebench.bin)", "" },
-  { "sdwrite", cmdSdWrite, "TASK-408: isolated sequential write of N 512B chunks", "[chunks=64] [heapCheckEvery=0]" },
+  { "sdwrite", cmdSdWrite, "TASK-408: isolated sequential write of N 512B chunks (append=1 opens FILE_APPEND for the short-burst fixture build)", "[chunks=64] [heapCheckEvery=0] [append=0]" },
   { "sdls", cmdSdLs, "TASK-408: list a directory with sizes", "[dir=/] [q=quiet | n=quiet,no stat]" },
   { "sdopendir", cmdSdOpenDir, "TASK-521: raw opendir() with errno/timing/heap — which mechanism fails", "[dir=/]" },
   { "sdslots", cmdSdSlots, "TASK-521: how many open-file slots are free right now", "<file>" },

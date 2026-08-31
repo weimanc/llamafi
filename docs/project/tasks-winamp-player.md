@@ -477,10 +477,49 @@ signature B* and wrong for signature A, which is what most of the recorded obser
 **Correction to the commit made earlier today** (`a395024`), which claimed the artifact explanation
 covered the symptom generally: it does not — it covers signature A only. Signature B is real.
 
-**Cheap decisive tests, neither done yet**: (1) add an `f.flush()` before `cmdSdWrite`'s
-`startSizeB` print — signature A should vanish without touching the card; (2) for signature B, delete
-one affected file (`SD.remove`) and re-create it under a *new* name, to establish whether the damage
-is bound to the directory entry or to the path.
+**Signature A is now fixed — and the proposed `f.flush()` fix was wrong.** Reading the framework
+source settled the mechanism exactly:
+
+```c
+size_t VFSFileImpl::size() const {        // vfs_api.cpp:438
+  if (_written) _getStat();               // re-stats ONLY after a write
+  return _stat.st_size;                   // otherwise: whatever _stat holds
+}
+void VFSFileImpl::flush() { fflush(_f); fsync(fileno(_f)); }   // :411 — never touches _stat/_written
+```
+
+The constructor populates `_stat` **only** on the "file already exists" branch (its
+`stat(temp,&_stat)` call — the file is `libraries/FS/src/vfs_api.cpp` inside the
+`framework-arduinoespressif32` package, not in this repo, so it carries no citable repo path);
+the create-new branch never stats, and `_stat` is not in
+the member init list. So `size()` on a freshly created file returns **uninitialised memory** — which
+is why every value decoded to a DRAM address. A flush would have changed nothing: what makes
+`cmdSdPut`'s size correct is its *`write()`* setting `_written`, not its flush. `cmdSdPut`'s comment
+credited the flush and has been corrected; that wrong model is what this task reasoned through for
+weeks. Corroboration that was in the logs all along: `endSizeB` on the *same line* was always sane
+(24064, 512, 69120) because it reopens `FILE_READ` on an existing file, which does populate `_stat`.
+
+**Fix**: `cmdSdWrite` derives `startSizeB` instead of reading it — `"w"` truncates at open so the
+start size is 0 by definition, and in append mode `_stat` really is populated when the file
+pre-existed. The `SD.exists()` lookup is short-circuited on `append` so the truncating path (the one
+the panic repro drives) keeps this function's "nothing but open / write x N / close" contract.
+**DUT-verified 2026-08-31**: `startSizeB:0` on all trials, with `sdclean` reporting `removed:1`
+beforehand — i.e. the file existed and the old code would have printed garbage there.
+
+**Still open for signature B**: delete one affected file (`SD.remove`) and re-create it under a *new*
+name, to establish whether the damage is bound to the directory entry or to the path.
+
+**Unconfirmed observation worth one experiment.** The verification run — the one build that briefly
+had an *unconditional* `SD.exists()` in front of the open — panicked at **all four** chunk counts it
+reached (64/256/512/1024), where the 2026-08-27 run panicked at two of five (512/1024) and completed
+64/256/2048. That is consistent with "an extra FatFs operation before the open makes the fault more
+reproducible", which would be a strong hint about the panic's actual trigger. **It is not evidence
+yet** — different binary, different card contents after the TASK-548 re-push, a USB re-enumeration
+mid-session, and this task's own 2026-08-15 table already records `64 | PANIC`, so chunk count is
+known not to be the variable and run-to-run variance is documented. The clean experiment is a
+deliberate A/B on one build: same card state, `sdwrite N` with and without a preceding `SD.exists()`,
+several trials each. The short-circuit is in place today precisely so the default path stays
+confounder-free, so this has to be an opt-in probe rather than a side effect.
 
 The panic itself (`LoadProhibited` at `validate()`, `EXCVADDR=0x00000001`) is untouched by any of
 this and remains the task's real defect.

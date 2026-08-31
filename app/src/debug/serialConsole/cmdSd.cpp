@@ -230,8 +230,13 @@ void cmdSdPut(const char *args) {
     return;
   }
   const size_t wrote = olen ? f.write(bin, olen) : 0;
-  f.flush();                 // size() reads the FIL, which is stale until the
-  const size_t total = f.size();   // write is pushed through — 0 B otherwise
+  f.flush();                       // durability: fflush + fsync
+  // What makes this size() trustworthy is the write() above, NOT the flush:
+  // File::size() re-stats only when `_written` is set, which write() sets and
+  // flush() does not touch (vfs_api.cpp:438-447, :411-419). Corrected 2026-08-31
+  // — this comment used to credit the flush, and cmdSdWrite's startSizeB bug was
+  // read through that wrong model for weeks. See the note in cmdSdWrite below.
+  const size_t total = f.size();
   f.close();
   Serial.printf("{\"ok\":%s,\"cmd\":\"sdput\",\"op\":\"%c\",\"wrote\":%u,\"sizeB\":%u,\"path\":\"%s\"}\n",
                 (wrote == olen) ? "true" : "false", op,
@@ -593,6 +598,15 @@ void cmdSdWrite(const char *args) {
   }
   static uint8_t wbuf[512];
   memset(wbuf, 0xA5, sizeof(wbuf));
+  // Must be sampled BEFORE the open: FILE_WRITE is "w" and truncates.
+  // Short-circuited on `append` deliberately: in truncating mode the start size
+  // is 0 by definition and no lookup is needed, which keeps this function's
+  // stated contract intact for the path the TASK-424 panic repro drives —
+  // "nothing but open / write x N / close" (see the header comment above). An
+  // unconditional SD.exists() here would put an extra FatFs operation in front
+  // of every isolated-write trial, which is precisely the confounder that
+  // contract exists to exclude.
+  const bool existed = append ? SD.exists("/probebench.bin") : false;
   // Append mode builds the read fixture in short bursts: sustained single-open
   // writes are what fail on this card, short open/write/close bursts are not.
   File f = SD.open("/probebench.bin", append ? FILE_APPEND : FILE_WRITE);
@@ -600,9 +614,34 @@ void cmdSdWrite(const char *args) {
     Serial.println("{\"ok\":false,\"cmd\":\"sdwrite\",\"error\":\"open failed\"}");
     return;
   }
+  // TASK-424, 2026-08-31. `startSizeB` used to be a bare `f.size()` taken right
+  // after the open, which is not a size at all on a freshly created file:
+  //
+  //   size_t VFSFileImpl::size() const {          // vfs_api.cpp:438
+  //     if (_written) _getStat();                 // only re-stats AFTER a write
+  //     return _stat.st_size;                     // else: whatever _stat holds
+  //   }
+  //
+  // and the constructor fills `_stat` only on the "file already exists" branch
+  // (`stat(temp,&_stat)`, vfs_api.cpp:295) — the create-new branch never stats,
+  // and `_stat` is not in the member init list. So the value read back was
+  // uninitialised memory. That is the whole origin of this task's "~1 GB file
+  // size" symptom: every recorded value (1073678476, 1073628004, 1073676676 …)
+  // decodes to 0x3FFExxxx/0x3FFFxxxx — an ESP32 DRAM address, i.e. a stale
+  // pointer sitting in the unpopulated struct. `endSizeB` below never showed it
+  // because it reopens FILE_READ on an existing file, which does populate _stat.
+  //
+  // An `f.flush()` here does NOT fix it — flush() only does fflush+fsync and
+  // never touches `_stat` or `_written` (vfs_api.cpp:411-419). What makes
+  // cmdSdPut's size correct is its *write* setting `_written`, not its flush.
+  //
+  // So derive the value rather than reading it: "w" truncates at open, making
+  // the start size 0 by definition, and in append mode `_stat` really is
+  // populated whenever the file pre-existed.
+  const unsigned startSizeB = (append && existed) ? (unsigned)f.size() : 0u;
   Serial.printf("{\"probe\":\"sdwrite\",\"phase\":\"opened\",\"chunks\":%d,"
                 "\"append\":%d,\"startSizeB\":%u}\n",
-                chunks, append, (unsigned)f.size());
+                chunks, append, startSizeB);
   size_t total = 0;
   unsigned long t0 = millis();
   for (int i = 0; i < chunks; i++) {
