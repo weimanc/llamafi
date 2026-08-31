@@ -306,6 +306,11 @@ _flash() { # $1 = env
   fi
   echo "[player-gate] flashing $1 to $PORT"
   (cd "$PIO_DIR" && "$PIO" run -e "$1" -t upload --upload-port "$PORT")
+# TASK-559: esptool just hard-reset the DUT. Record it where lib/dut.py's
+# DRD guard can see it, so the harness open below waits out the remainder of
+# the window instead of landing inside it (BOOT_WAIT=8 < _DUT_DRD_WINDOW_S=12).
+stamp_reset_gap "$PORT"
+
   # BP-018-class: the upload's end-of-flash reset and the next serial open both
   # toggle DTR; too close together they trip the ESP32 double-reset-detector and
   # produce a stuck, non-clean boot (run/browser-player measured this).

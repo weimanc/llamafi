@@ -172,6 +172,37 @@ restore_port() {
   echo "$at_start"
 }
 
+# Stamp the DRD reset-gap file that lib/dut.py reads, after anything that
+# resets the DUT. TASK-559.
+#
+# The gap exists because two resets close together put this CYD somewhere bad
+# (BP-018; TASK-376 recorded a silent port / download mode). But the guard in
+# lib/dut.py only ever wrote its timestamp in Dut.close(), so it knew about
+# dut.py's OWN opens and nothing else — and the single most common reset pair
+# in this whole workflow is the one it could not see:
+#
+#   pio upload  -> esptool "Hard resetting via RTS pin"   RESET 1
+#   sleep $BOOT_WAIT                                       (8 s by default)
+#   Dut(...)    -> serial open asserts DTR                 RESET 2
+#
+# 8 < _DUT_DRD_WINDOW_S (12.0). Every trap-guarded script has been opening the
+# port inside the window its own repo mandates, on every run, for as long as
+# BOOT_WAIT has been 8. Stamping here closes it at the root: dut.py's existing
+# guard then sees the flash's reset and waits out the remainder by itself, so
+# BOOT_WAIT stops being load-bearing for reset safety.
+#
+# Path must match lib/dut.py's _reset_gap_file(): realpath, then every run of
+# non-alphanumerics collapsed to "_", leading/trailing "_" stripped.
+#   $1  port that was just reset (defaults to a live scan)
+stamp_reset_gap() {
+  local port="${1:-}" real slug
+  [ -n "$port" ] || port=$(_scan_ch340_port 2>/dev/null) || return 0
+  real=$(readlink -f "$port" 2>/dev/null) || real="$port"
+  slug=$(printf '%s' "$real" | sed 's/[^A-Za-z0-9]\+/_/g; s/^_//; s/_$//')
+  [ -n "$slug" ] || slug=unknown
+  printf '%s' "$(date +%s.%N)" > "/tmp/esp32_dut_last_reset_${slug}" 2>/dev/null || true
+}
+
 # The ONE place that (re)creates the serial monitor session. TASK-554.
 #
 # Every trap-guarded script used to inline `tmux new-session` here and stop
