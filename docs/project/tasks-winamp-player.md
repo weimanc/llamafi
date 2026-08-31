@@ -288,6 +288,17 @@ playlist and MP3 files are already staged and committed to the repo
 (`app/tools/fixtures/sd/mp3/short5/`, `app/tools/fixtures/sd/playlists/short5.m3u`) for whoever fixes
 this to re-push once the write path is trustworthy.
 
+> **⚠ CORRECTED 2026-08-31 — this attribution was wrong; TASK-424 did not cause the failed push.**
+> Two independent reasons. (1) **Category error**: `sd_put.py` is one open/write/close per 90 B call —
+> it *is* TASK-415's documented workaround for TASK-424's sustained-write defect, so it was never
+> subject to it. (2) **The real cause was in the uploader**: `Dut.cmd()` returned the first JSON line
+> carrying a `cmd` key, so a late ack could satisfy the *next* `sdput` and a dropped call passed
+> unnoticed. The tell was in the damage itself — the 4 bad MP3s were short by **exact multiples of the
+> 90 B upload chunk** (−90, −90, −900, −90 B), which no filesystem corruption produces. Fixed in
+> `sd_put.py` (`d7706b4`); on re-push all 5 MP3s landed byte-exact and **`T_PLR_25` now PASSES**
+> ("auto-advanced 5/5 real short files, no WDT"). See TASK-548. The `sizeB` values this paragraph read
+> as corruption were the `0x3FFxxxxx` DRAM-pointer artifact — see the two-signatures subsection below.
+
 **Fresh live reproduction and instrumentation, 2026-08-27** (`run/task424-repro` +
 `app/tools/sdwrite_repro.py`, both committed — a raw diagnostic probe, not a registered T_
 id, following the safety pattern of `run/test-targeted`: flash debug, probe, always restore
