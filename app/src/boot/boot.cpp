@@ -164,6 +164,34 @@ void setup()
 
   Serial.begin(115200);
   BOOTPHASE(0, "reset");        // earliest point anything can be said
+  // TASK-572. WHY this boot happened, which nothing in the firmware has ever
+  // said. Host-side counting sees THAT a boot occurred and never the cause —
+  // exactly the discrimination TASK-557 has failed to get across four
+  // measurement windows ("was that reset ours, or the board falling over?").
+  //
+  // Deliberately its OWN line rather than a field on phase 0: phase 0 is the
+  // first thing emitted after Serial.begin() with no settle, so it is the line
+  // most exposed to first-bytes-lost, and lengthening it raises that risk.
+  // `[bootreason]` does not contain the substring `[boot]`, so it cannot be
+  // mistaken for a reboot banner by lib/dut.py's detector — same normative
+  // constraint as `[bootphase]`, checked the same way.
+  //
+  // HONEST LIMIT, do not over-read this: on ESP32 a DTR/EN-pin reset reports
+  // ESP_RST_POWERON — esp_system.h marks ESP_RST_EXT "not applicable for
+  // ESP32". So it does NOT separate our own port-open reset from a real power
+  // cycle, which is the one pair TASK-557 most wants. What it DOES separate is
+  // software reset, panic, both watchdogs, brownout and deep-sleep wake — and a
+  // BROWNOUT here would settle the marginal-supply question outright.
+  {
+    static const char *kResetNames[] = {
+      "UNKNOWN", "POWERON", "EXT", "SW", "PANIC",
+      "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO",
+    };
+    const esp_reset_reason_t rr = esp_reset_reason();
+    const char *name = ((unsigned)rr < (sizeof(kResetNames) / sizeof(kResetNames[0])))
+                         ? kResetNames[(unsigned)rr] : "OUT_OF_RANGE";
+    Serial.printf("[bootreason] %d %s\n", (int)rr, name);
+  }
 
 #ifdef SD_BOOT_MOUNT
   // TASK-408 (2026-08-07): mount SD here, synchronously, and hold the session for
