@@ -1573,8 +1573,10 @@ interactions:
       (1) `get wifiCfg` (cmdGet.cpp:199) — the purpose-built diagnostic for TASK-426's dead-SSID
       wedge — prints a bare `[wifiCfg] …` line plus a JSON ack carrying NO fields (cmdGet.cpp:214).
       Dut.read_json() discards every line not starting with `{` (lib/dut.py:673-676), so the
-      harness's own API returns nothing from it. Health check H4 must read it via
-      drain_log_lines(). It is also a standing violation of M-TESTARCH §4 I1 (every `get` reply
+      harness's own API returns nothing from it. Health check T_DH_02 (renamed from "H4" at review 1 --
+      H1/H2 are live hypothesis labels) must read it via drain_log_lines(), and must then drain the
+      trailing JSON ack or it desynchronises the next read_json() by one reply. It is also a standing
+      violation of M-TESTARCH §4 I1 (every `get` reply
       is a versioned JSON object); making the payload JSON is additive-only under BP-024 and is
       the design's OQ2.
 
@@ -1587,12 +1589,18 @@ interactions:
 
       (3) A THIRD coupling, found at review and the most dangerous of the three: introducing a new
       exit code for "the board is not a valid subject" breaks the consumers that only know exit 3.
-      run/player-gate:338 special-cases SETUP_FAIL_EXIT only, its log parser (:118) matches
-      PASS|FAIL|SKIP|FLAKE so NOT-RUN lines are dropped, and _compare_leg (:135-140) then reports
-      every declared id as MISSING -> REGRESS. A device-health failure would surface as a firmware
-      regression -- the exact inversion the design exists to prevent, produced by the design's own
-      change. Exit 4 must land WITH all six consumers (player-gate :118/:135-140/:338, run/test:69,
-      run/test-targeted:37, run/test-sync:29), never before them.
+      THIS INVERSION HAS SINCE HAPPENED FOR REAL, on a different token: results.py:127 writes
+      FLAKY-PASS, the gate's parser matched FLAKE, FLAKE != FLAKY, so the line was dropped, the cell
+      scored MISSING and the gate printed REGRESS for a regression that never happened -- worst
+      polarity, since the UNRESOLVED flake parsed and the RESOLVED one did not. Fixed as TASK-573
+      (DONE 2026-09-01). So this row's consumer list was already wrong once, which strengthens rather
+      than weakens the requirement.
+      RE-MEASURED after TASK-573: the NOT-RUN half is DONE ahead of time -- the parser
+      (run/player-gate:129) matches FLAKY-PASS|NOT-RUN|PASS|FAIL|SKIP|FLAKE longest-first, _compare_leg
+      (:157-161) has its own *:NOT-RUN arm that scores rc=1, and --selftest carries cases at :273-275
+      and :299-301. What REMAINS is the EXIT CODE only: run/player-gate:422 (handles rc 3, lets 4 fall
+      through), run/test:69, run/test-targeted:37, run/test-sync:29. NOT-RUN may be emitted today
+      without breaking the gate; exit 4 may not, and must land WITH those four.
 
       Ordering consequence to verify at implementation: class-ordered execution changes the
       suite's run order, and this suite has known order-dependence. TASK-553 is a MECHANISM, not an
@@ -1603,29 +1611,66 @@ interactions:
       pre-declared-flaky baseline, before the runner obeys it.
 
       Scope note (review 1, 2026-09-01): per-app FEATURE blocking was DROPPED. TESTS is
-      dict[str, callable] (suite/serialdbg/__init__.py:24-33) called directly at runner.py:239, so
-      per-test metadata is a value-type change across 7 family modules + runner.py + ve_suite_base.py.
+      dict[str, callable] (suite/serialdbg/__init__.py:24-33) called directly at runner.py:239.
+      CORRECTED at the must-fix pass (2026-09-01): ve_suite_base.py is NOT a consumer -- it imports
+      Dut, resolve_port and the lib/results.py verbs, never TESTS or build_all_tests, and
+      build_all_tests() has exactly ONE caller in the tree (runner.py:155). Of the four runner.py
+      sites cited in earlier drafts, only :239 touches the VALUE; :165 and :178/:180 read keys.
+      CARRIER DECIDED: a function attribute set by a decorator (fn._meta), NOT a wrapped registry
+      value. Decisive reason -- app/tools/gate/check_player_binding.py:200 regexes the LITERAL entry
+      '"T_PMT_00"\s*:\s*t_pmt_00' and runs as a blocking run/check gate; wrapping the value reds the
+      build. That consumer was named nowhere in the design before this pass. An attribute also costs
+      zero call-site changes and lands family-by-family, with an undecorated default of
+      (cls=FEATURE, scope=unknown, effect=mutating) -- conservative on all three axes.
 
-      CORRECTED (review 2, same day): the claim that app attribution "is not derivable" was wrong and
-      generalised from shell.py to the whole suite. Measured: the family module attributes 117 of 213
-      ids to exactly one app, id prefixes inside shell.py attribute ~21 more, and the ~75 residue is
-      largely not app-scoped at all -- it IS the CORE class. So attribution is ~65% derivable, and
+      CORRECTED (review 2, same day; NUMBERS RE-MEASURED at the must-fix pass): the claim that app
+      attribution "is not derivable" was wrong and generalised from shell.py to the whole suite.
+      Measured: the family module attributes 117 of 213 ids to exactly one app (shell.py holds the
+      other 96); id prefixes inside shell.py attribute 17 more, NOT ~21 (T_WX 5, T_CX 5, T_GOL 4,
+      T_MA 3 -- T_TBFB(5) and T_BI(4) are real prefixes but not app names). So the seedable total is
+      134 of 213 (63%), which is a CEILING; the earlier "138" was an arithmetic slip that had
+      propagated into an unsatisfiable exit criterion. Residue is 79, not ~75, and "largely not
+      app-scoped" is NOT established -- it was read off category labels. At least 15 of the 79 are
+      demonstrably app-scoped: T-SET-01/02/03/06/07/08 are Settings tests and Settings IS an
+      APP_ORDER name (app_ids_gen.py:4), and 9 ids reach Stock via _switch_to_stock or a Stock
+      literal (T-BUSY-01/-01b/-05, T-CDWN-02/-03, T-SET-03, T-UART-01, T-ERR-06/-07 -- note T-BUSY-02
+      and -03 do NOT, so "T-BUSY-* are Stock" is 3-of-5). So shell|boot|taskbar => CORE is a DEFAULT
+      WITH OVERRIDE, never an identity. And
       the registry record is decided ONCE as (cls, scope): cls gates (this row's original subject),
-      scope selects (TASK-570 -- `run/test-targeted --scope LocalPlayer`, seeded from module+prefix
-      with a gate asserting seed vs declaration, and app/src/apps/<name>App.cpp supplying the
-      source-file -> app link for free). Blocking now applies to RIG/HEALTH/CORE only; APP-class
+      scope selects (TASK-570 -- `run/test-targeted --scope LocalPlayer`, seeded from module+prefix).
+      TWO CORRECTIONS at the must-fix pass. (i) The scope ENUM contained both `Spotify` (an APP_ORDER
+      name) and `spotify` (non-app chrome) -- a case-only distinction in a CLI value, silently
+      wrong under any .lower(). The non-app value is renamed `spotify-chrome`, and the enum gate must
+      be case-sensitive and reject any two values differing only by case. Adjudication rule for the
+      ~25-30 chrome ids: if the id would still exist were the Spotify app deleted it is
+      spotify-chrome (and almost certainly CORE); if not, it is Spotify. (ii) The gate is NOT
+      seed==declaration equality -- that would reject the CORRECT scope for T_PMT_01..04, the
+      Spotify->WebRadio cross-mode cells that live in player.py and that run/player-gate:188
+      _assert_crossmode exists to require, and likely T_PLE_* in webradio.py. The seed is a DEFAULT;
+      a declaration OVERRIDES it and must carry a one-word reason. The gate asserts: every id
+      resolves, every override has a reason, no scope is outside the enum.
+      SOURCE-FILE LINK CORRECTED: it is NOT `app/src/apps/<name>App.cpp`. appRegistry.h registers 13
+      apps; app/src/apps/ holds 11 -- stockApp.cpp is at app/src/stock/ and aquariumApp.cpp at
+      app/src/aquarium/. An `app/src/apps/*App.cpp` glob MISSES Stock, the 30-id second-largest
+      family. The specification is `find app/src -name '*App.cpp'`, asserting len(matches) ==
+      len(APP_ORDER) so a new app under a new directory fails loudly instead of losing its ids. Blocking now applies to RIG/HEALTH/CORE only; APP-class
       blocking is dropped outright, so per-app blocking granularity is moot rather than deferred.
 
       A THIRD consumer of the same record: failure triage (TASK-571). A descent must run INSIDE the
-      session that observed the failure -- reopening the port resets the board (lib/dut.py:314-316)
+      session that observed the failure -- reopening the port resets the board (lib/dut.py:287,
+      self.ser.open(); :313-316 is _wait_for_ready's docstring DESCRIBING the effect, not the site)
       and a reset clears TASK-426's wedge, so a standalone post-mortem triage script would report on
       a different boot. This is the same constraint that made run/dut-health pre-flight-only.
 
       THIRD REVIEW (2026-09-01) -- DUT state is evidence, and the record gains a third field:
 
       (a) Reset is not the only state-destroyer. _switch_to_stock (suite/serialdbg/_helpers.py:195-207)
-      issues `set stockMode 0` AND `switchApp` -- it mutates a persisted setting and the active app
-      with no reset involved. So every ladder step declares an EFFECT: read-only | mutating |
+      issues `set stockMode 0` AND `switchApp` -- it mutates the app's launch-view setting and the
+      active app with no reset involved. WORD CORRECTED at the must-fix pass: the setting is NOT
+      persisted -- the helper's own docstring says "TASK-247: force List launch view first (in-RAM
+      only, not persisted)". The mutation point STANDS and is unaffected: `effect` is about whether a
+      step destroys the state under investigation in THIS session, not about surviving a reboot, and
+      an in-RAM mutation is if anything more dangerous because it leaves no trace to notice. So every ladder step declares an EFFECT: read-only | mutating |
       resetting. The record is (cls, scope, effect), settled in ONE pass. A triage descent executes
       read-only steps ONLY and must NAME any mutating step it skipped; T_DH_03 (app-switch liveness)
       is therefore admissible in pre-flight health but inadmissible in a descent. Admissibility is
@@ -1634,7 +1679,26 @@ interactions:
       (b) BOOT GENERATION becomes first-class, HOST-SIDE ONLY. `[bootphase] 0 reset` is emitted once
       per boot (boot.cpp:166) and the harness holds the port open all session, so ANY reset -- even a
       spontaneous TASK-557-class one -- lands in a stream already being read. A host-side counter in
-      Dut therefore covers every case an RTC counter would. An RTC-backed counter was proposed (the
+      Dut therefore covers every case an RTC counter would.
+      THREE CONSTRAINTS ON THE COUNTER, added at the must-fix pass, all load-bearing:
+      (i) GLOBALLY UNIQUE, not per-Dut. A per-session counter starting at 1 prints gen=1 on BOTH
+      sides of this row's own reference case (the cross-session "re-plug fixed it" comparison), i.e.
+      it asserts sameness where there is none -- worse than no tag. Tag is <run-id>.<n>; preferred
+      run-id source is a per-port persisted counter, exactly the _reset_gap_file(port) pattern
+      (lib/dut.py:123-160, per-port since TASK-552).
+      (ii) gen=? WHEN NO BOOT WAS OBSERVED. Under DUT_BOOT_GATE=warn, _wait_for_ready RETURNS with
+      boot_seen==False (lib/dut.py:327, :393-395), so the design's claim that boot is observed "by
+      construction" after it returns is FALSE in that configuration. A gen=? observation is
+      comparable to nothing, and the warn downgrade stamps the run summary.
+      (iii) HOOK POINT IS _TeeSerial.readline (lib/dut.py:247-256) -- the one place every byte passes.
+      It must NOT land in read_json(), which discards every line not starting with `{`
+      (lib/dut.py:673-676) and would reproduce this row's own get wifiCfg finding one layer down.
+      KNOWN BLIND SPOT, declared not fixed: reset_input_buffer() has 44 call sites across app/tools/
+      and run/ (10 inside dut.py, plus shell.py:507 and :2652), and _TeeSerial.__getattr__
+      (lib/dut.py:261-262) forwards it straight to the raw serial, so a buffered [bootphase] 0 is
+      discarded unseen and the counter UNDER-COUNTS -- precisely when a test decided the stream was
+      untrustworthy. Fix if taken: an explicit _TeeSerial.reset_input_buffer() that drains via
+      readline first. Until then the blind spot must be stated in the counter's own docstring. An RTC-backed counter was proposed (the
       RTC_NOINIT_ATTR g_casRetryCookie precedent at boot.cpp:116-117 is real, and SERIAL_DEBUG-only)
       and DECLINED: it is a boot-path change for a capability already derivable, which would
       contradict the reasoning that withdrew TASK-562. Firmware cost of this row: ZERO.
@@ -1648,9 +1712,38 @@ interactions:
       at the moment it is made. Reference case: the 2026-09-01 "the re-plug fixed it" retraction, a
       pre-replug boot compared against a post-replug boot when recovery had happened 33 min earlier.
 
-      Optional, NOT load-bearing (TASK-572): esp_reset_reason() as a field on the existing
-      [bootphase] 0 line -- verified absent from app/src/. Host counting sees THAT a boot happened,
-      never WHY; that is the discrimination TASK-557 lacks. One printf argument, no new state.
+      TASK-572 -- DONE 2026-09-01, DUT-verified, and it landed DIFFERENTLY from the design's sketch:
+      as its OWN line `[bootreason] <n> <NAME>` emitted right after phase 0, NOT as a field on
+      [bootphase] 0. Better reasoning than the design had: phase 0 is the first line after
+      Serial.begin() with no settle (most exposed to first-bytes-lost), and [bootreason] does not
+      contain "[boot]" so it cannot be misread as a reboot banner by _wait_for_ready's detector. A
+      host parser must look for a SECOND line. @PM also re-prioritised it P2 and scheduled it FIRST
+      (bundled with TASK-424 on one debug flash), against the design's P4. Honest limit: on ESP32 a
+      DTR/EN reset reports POWERON (ESP_RST_EXT is "not applicable for ESP32"), so it does NOT
+      separate our port-open reset from a real power cycle -- the one pair TASK-557 most wants. It
+      DOES separate SW/PANIC/INT_WDT/TASK_WDT/BROWNOUT/DEEPSLEEP.
+
+      MUST-FIX PASS (2026-09-01) -- further bindings recorded on this row:
+      * HEALTH IDS LIVE IN A SEPARATE REGISTRY DICT (HEALTH_TESTS), not build_all_tests(). In
+        build_all_tests() they enter default_tests (runner.py:165) and run TWICE -- including the one
+        mutating check T_DH_03; kept out with no other change, `run/test-targeted T_DH_01` aborts
+        "Unknown tests" at runner.py:178-180. The id resolver consults both. A PASSING health check
+        writes no RESULTS row (it is reported in the [health] premise line); a FAILING one writes one
+        FAIL row so the reason survives into the log the gate parsers read, with exit 4 and the rest
+        NOT-RUN.
+      * @VE BINDING RULINGS: HEALTH stays outside the flake policy but gains a `health_instability:`
+        key in flaky.yaml (owner/task/review_by/evidence, NO retry semantics, ids stay UNDECLARED to
+        flake()); DUT_HEALTH=warn|skip => run/player-gate must REFUSE to emit a verdict; NOT-RUN and
+        FLAKY-PASS are forbidden as documentation status tokens (asserted by C6); exit 4 is an OPT-IN
+        PARAMETER to print_results, never a change to results.py:176's shared default (six callers,
+        five of them unrelated suites); mode I must never write RESULTS[tid] and the exit code derives
+        from in-sequence verdicts only.
+      * INVERSION TEST REQUIRED (the gating property had no negative test at all): host-only, stub a
+        class-N failure and assert NO id of class N+1 carries any verdict other than NOT-RUN.
+        Parameterised over RIG/HEALTH/CORE/APP. Assertion is on the ABSENCE of any other verdict, not
+        the presence of NOT-RUN. This is the machine form of the design's thesis.
+      * CUT, with re-proposal conditions: triage mode D (--triage) and mode I (--isolate-on-fail),
+        and the --class / --upto selectors. --scope ships. See the design's section 20.
     risk: medium
     test_coverage: []
     notes: |

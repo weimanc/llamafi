@@ -9,12 +9,19 @@
 > §15 (what is dropped to pay for them) added; §4.2's "not derivable" claim corrected by measurement.
 > (3) Third review: **DUT state is evidence** — §16 adds generations, a read-only/mutating/resetting
 > classification for every ladder step, and the rule that evidence does not cross a boot boundary.
+> (4) **Must-fix pass, 2026-09-01** — three further independent reviews (adversarial, @Developer, @VE)
+> returned APPROVE/BUILDABLE/VERIFIABLE **WITH CHANGES**. Every finding was re-measured against the
+> tree before applying; three did not hold (§17). Numbers corrected, the registry record's carrier
+> changed from a wrapped value to a function attribute, the seed/declaration gate inverted, the
+> generation counter made globally unique, @VE's rulings recorded as binding (§18), @PM's two
+> overrides recorded (§19), and the cut features fixed as cut (§20).
 > Companion to: [M-TESTARCH](M-TESTARCH-test-architecture.md) (§2b's tiers are the *other* axis — see §3),
 > [M-TESTARCH boot-window observability](M-TESTARCH-boot-window-observability.md) (the RIG layer this
 > builds on top of), [M-TOOLING](M-TOOLING-host-tool-architecture.md) §3 (the `lib/`↔`suite/` layering)
 > Feeds: one ADR — **owed on acceptance, not written yet**; id allocated at creation (§10)
 > Tracked-as: TASK-564, TASK-565, TASK-566, TASK-570, TASK-571 (TASK-567/569 deferred,
-> TASK-568 to @QM; TASK-572 optional)
+> TASK-568 to @QM; TASK-572 **DONE**, TASK-573 **DONE**). **Build order is @PM's, not this
+> document's — see §19.**
 > Registers: serialdbg-001 (extended — health surface) · X067
 
 **Every claim below was measured against the working tree on 2026-09-01.** Line references and
@@ -56,7 +63,7 @@ The honest inventory:
 | `Dut.__init__` → `_wait_for_ready()` + `_verify_debug_firmware()` (`app/tools/lib/dut.py:307-312`) | connection, boot observation, WiFi, correct binary, first Spotify poll | **Yes** — raises `SetupFailure`, `app/tools/suite/serialdbg/runner.py:189` converts it to `[SETUP-FAIL]` + exit 3, no tests run |
 | `run/test` step 0 — TLS-pin preflight (`run/test:80-98`) | certificate freshness before a 30–90 min run | No — explicitly warn-only, by design |
 | `run/player-gate` two ordered legs (`run/player-gate:4-20`) | build variants at one commit | Yes, but this is the *variant* axis, not health |
-| `run/player-gate:158-176` — `_assert_crossmode` | a leg's id list must contain a cross-mode cell | **Yes** — refuses with exit 2. The closest existing thing to a precedence rule, and it is about *suite composition*, not the board |
+| `run/player-gate:188` — `_assert_crossmode` | a leg's id list must contain a cross-mode cell | **Yes** — refuses with exit 2. The closest existing thing to a precedence rule, and it is about *suite composition*, not the board |
 
 Above the `Dut` constructor there is nothing. `app/tools/suite/serialdbg/runner.py:225-246` iterates
 `selected` and runs every id as a peer:
@@ -169,10 +176,31 @@ health failure. `T_DH_02` is the check that would have run `get wifiCfg` without
 to. `T_DH_03` is the human's observed symptom, which today **nothing tests at all**.
 
 **Cut — a loop()-liveness check.** The first draft had one (`[bootphase] 6 ready` observed, else a
-heartbeat line). It is redundant: after `_wait_for_ready()` returns, boot has been observed by
-construction — that is the function's postcondition and TASK-560 made it a hard one. The check
-restated it, and its real value lives inside TASK-564's per-phase deadlines instead. Its proposed
-bound was also the first crack in the budget (§below).
+heartbeat line). It is redundant *in the default configuration*: after `_wait_for_ready()` returns
+under `DUT_BOOT_GATE=fail`, boot has been observed, because the not-observed branch raises
+`SetupFailure("boot-not-observed")` (`app/tools/lib/dut.py:334`, `:397`). The check restated it, and
+its real value lives inside TASK-564's per-phase deadlines instead. Its proposed bound was also the
+first crack in the budget (§below).
+
+> **Correction (must-fix pass) — "by construction" was false, and §16 leaned on it.** Under
+> **`DUT_BOOT_GATE=warn`** the same branch **prints a warning and `return`s with `boot_seen == False`**
+> (`app/tools/lib/dut.py:327`, `:393-395`). So `_wait_for_ready()` returning is *not* a postcondition
+> that a boot was observed; it is one only when the gate is at its default. Two consequences, both
+> binding:
+>
+> 1. **The generation tag must not claim `gen=1` when no boot was observed.** §16.2's counter starts
+>    at 1 "for the boot the constructor caused" — under `DUT_BOOT_GATE=warn` there may have been no
+>    such boot, and stamping `gen=1` anyway asserts a boot identity the harness does not have. The
+>    session must instead carry **`gen=?`** (unknown) until a `[bootphase] 0` is actually seen, and
+>    every observation made before that point is tagged `gen=?`, not `gen=1`. A `gen=?` observation is
+>    **never comparable** to any other observation under §16.5's P2 — which is exactly right, because
+>    nothing is known about which boot produced it.
+> 2. **`DUT_BOOT_GATE=warn` stamps the run summary** the same way `DUT_HEALTH=warn|skip` does (§6 R1),
+>    with `boot not observed`. A downgraded gate must never be silently absent from a result someone
+>    later quotes.
+>
+> This is the same class of defect the document exists to name: a claim about a lower layer, asserted
+> from a function's happy path, relied on by a higher layer.
 
 **Deferred — a heap/stack floors check (`T_DH_04`, TASK-569).** The draft cited
 `docs/architecture/mem_manifest.yaml` for the floors. That file does not exist; it is
@@ -189,7 +217,7 @@ first, which is TASK-569's actual content.
 
 **Cost, in honest wall-clock.** The three checks are a handful of round-trips — call it **≤ 10 s of
 commands**. That is not what `run/dut-health` costs. Every `Dut` open resets the board
-(`app/tools/lib/dut.py:314-316`), so the wall-clock figure is *boot + checks*, and TASK-561 measured
+(`app/tools/lib/dut.py:287` — `self.ser.open()`; `:313-316` is `_wait_for_ready`'s docstring *describing* the effect, not the site causing it), so the wall-clock figure is *boot + checks*, and TASK-561 measured
 **46 s to console on a NO_AP_FOUND boot**. The honest number for a standalone health run is
 therefore **~15 s typical, up to ~60 s on a degraded boot**, and that is what belongs in `CLAUDE.md`
 and in §9, not a "20 s" that quietly excludes the boot it causes. Inside a suite run the checks are
@@ -246,30 +274,46 @@ responsive-but-not-ready branch → HEALTH, `shell-unresponsive` → HEALTH; `de
 mute-board `boot-not-observed` stay RIG. `DUT_BOOT_GATE=warn` keeps working unchanged and gains a
 sibling, `DUT_HEALTH=warn` (§6 R2).
 
-### 4.1 Exit 4 is not free — four scripts and one parser must be taught it first
+### 4.1 Exit 4 is not free — the consumers must be taught it first
 
 **This is the change most likely to cause the exact inversion the document exists to prevent, and it
 was missed in the first draft.** `run/player-gate` special-cases only `rc == $SETUP_FAIL_EXIT`
-(`run/player-gate:338`); an exit-4 leg falls through to `return 0`. Its log parser matches only
-`PASS|FAIL|SKIP|FLAKE` (`run/player-gate:118`), so `NOT-RUN` lines are dropped, every declared id
-resolves to `MISSING`, and `_compare_leg` (`run/player-gate:135-140`) prints **REGRESS** for each.
-The first artifact a human would see from a HEALTH failure is the gate claiming a firmware
-regression.
+(`run/player-gate:422`); an exit-4 leg falls through and is treated as a completed leg.
 
-So exit 4 lands **with** its consumers, never before them, and the consumer list is enumerated rather
-than assumed:
+**The inversion this section predicts has since happened for real, and that is the strongest evidence
+in the document.** `lib/results.py:127` writes `FLAKY-PASS`; `run/player-gate`'s parser matched
+`FLAKE`, and `FLAKE` ≠ `FLAKY`, so the whole line was dropped, the cell scored `MISSING`, and the gate
+printed **REGRESS** for a firmware regression that never happened — with the worst possible polarity,
+since the *unresolved* flake parsed and the *resolved* one did not. Filed and fixed as **TASK-573**
+(DONE 2026-09-01). Two things follow. First, this design's own consumer list was **already wrong
+once**, for a token that shipped years before `NOT-RUN` was proposed — so EC-G7 below is not a
+precaution, it is a repair. Second, the fix landed `NOT-RUN` support **ahead of time**, which changes
+what is left to do.
 
-| Consumer | What it does today | Required change |
+Re-measured 2026-09-01, after TASK-573:
+
+| Consumer | State today | Required change |
 |---|---|---|
-| `run/player-gate:338` | `rc == 3` → no verdict | add rc 4 → no verdict, distinct message |
-| `run/player-gate:118` | `_parse_runner_log` regex | add `NOT-RUN` to the alternation |
-| `run/player-gate:135-140` | `_compare_leg` | `NOT-RUN` must not adjudicate as `MISSING`/REGRESS |
+| `run/player-gate:129` `_parse_runner_log` | **DONE (TASK-573)** — alternation is `FLAKY-PASS\|NOT-RUN\|PASS\|FAIL\|SKIP\|FLAKE`, longest-first, status side allows `-` | none |
+| `run/player-gate:157-161` `_compare_leg` | **DONE (TASK-573)** — `*:NOT-RUN` is its own arm, prints `NOT-RUN … the gate verified nothing for this cell`, `rc=1` | none |
+| `run/player-gate:273-275`, `:299-301` `--selftest` | **DONE (TASK-573)** — parser and comparator cases for `NOT-RUN` exist | add the exit-4 leg case |
+| `run/player-gate:422` | `rc == 3` → no verdict; 4 falls through | add rc 4 → **no verdict**, distinct message |
 | `run/test:69` | `[ "$rc" = "3" ]` | add the 4 arm with the health wording |
 | `run/test-targeted:37` | same | same |
 | `run/test-sync:29` | same | same |
 
-`run/player-gate --selftest` already carries the gate's own negative tests (BP-068); the exit-4 and
-`NOT-RUN` paths get cases there, which costs no DUT time.
+So the remaining work is the **exit code**, not the vocabulary. `NOT-RUN` may be emitted by the runner
+today without breaking the gate; **exit 4 may not**, and EC-G7 still forbids shipping an exit-4 code
+path before `run/player-gate:422` and the three `run/` scripts are taught it.
+
+`run/player-gate --selftest` carries the gate's own negative tests (BP-068); the exit-4 path gets a
+case there, which costs no DUT time.
+
+**One more consumer, and it is a `run/check` gate.** See §13.3's warning about the registry record's
+carrier: `app/tools/gate/check_player_binding.py:200` regexes the *literal* registry entry
+`"T_PMT_00"\s*:\s*t_pmt_00` in `player.py`, and runs as a blocking gate inside `run/check`. It is not
+a consumer of the exit code, but it *is* a consumer of the registry's source text, and no earlier
+draft of this document named it.
 
 ### 4.2 Per-app blocking is dropped — the registry cannot express it
 
@@ -277,20 +321,39 @@ Rule 5 originally blocked only the failing app's FEATURE tests
 (`NOT-RUN(blocked-by=APP/A2:Stock)`). Two obstacles, both structural:
 
 - `TESTS` is `dict[str, callable]` (`app/tools/suite/serialdbg/__init__.py:24-33`) and the value is
-  called directly (`app/tools/suite/serialdbg/runner.py:239`). Adding *any* per-test metadata is a
-  value-type change on an interface shared by 7 family modules, `app/tools/suite/serialdbg/runner.py` (`:154`, `:164`, `:178`,
-  `:239`) and `ve_suite_base.py`. That is the price of E1 as a whole and it is payable — but it is a
-  refactor, not a field.
+  called directly (`app/tools/suite/serialdbg/runner.py:239`). Adding per-test metadata by *wrapping
+  the value* is a value-type change on an interface shared by 7 family modules and `runner.py`.
+  That is a refactor, not a field.
 - Per-app blocking needs a **second** field, app attribution.
+
+> **Corrected at the must-fix pass, twice over.**
+>
+> **(a) `ve_suite_base.py` is not a consumer.** `build_all_tests()` has exactly **one** caller in the
+> tree — `app/tools/suite/serialdbg/runner.py:155` (`grep -rn build_all_tests app/tools/ run/`).
+> `ve_suite_base.py` imports `Dut`, `resolve_port` and the `lib/results.py` verbs; it never imports
+> `TESTS` or `build_all_tests`. It appears in every earlier version of this cost estimate — §4.2, §5
+> E1, §13.3 and X067 — and it does not belong in any of them. The blast radius is one file smaller
+> than stated.
+>
+> **(b) The four cited `runner.py` sites are three, and two of the line numbers were off by one.**
+> Measured: `:155` (build), `:165` (`default_tests` iterates **keys**), `:178`/`:180` (`unknown`
+> checks **keys**), `:239` (`all_tests[tid](dut)` — the **only** site that touches the value). Three
+> of the four are key-only and are indifferent to the value's type.
+>
+> Together these two corrections are why §13.3 now chooses a **function attribute** over a wrapped
+> value: with only one call site touching the value, wrapping it buys nothing that a `fn._meta`
+> attribute does not, and wrapping breaks a `run/check` gate that an attribute does not (§13.3).
 
 **CORRECTED at second review (§13.2) — the original bullet said app attribution "is not derivable",
 and that was wrong in a way that mattered.** It generalised from `shell.py` (a genuine multi-app
 catch-all) to the whole suite. Measured: the family module attributes **117 of 213** ids to exactly
-one app, id prefixes inside `shell.py` attribute **~21** more, and the ~75 residue is largely **not
-app-scoped at all** — it is the CORE class. Attribution is ~65 % derivable.
+one app and id prefixes inside `shell.py` attribute **17** more — **134 of 213, 63 %**, which is the
+ceiling. (Re-counted at the must-fix pass: the prefix figure was "~21" and the total "138"; and the
+claim that the 79-id residue is "largely not app-scoped" was read off category labels and is **not
+established** — at least 15 of it is app-scoped, including all six `T-SET-*`. See §13.2.)
 
-The consequence is a decision, not a re-parking: §13.3 makes the registry record `(cls, scope)` in
-**one** pass. Gating needs `cls`; selection needs `scope`; discovering that after paying the refactor
+The consequence is a decision, not a re-parking: §13.3 makes the registry record `(cls, scope,
+effect)` in **one** pass, carried as a function attribute. Gating needs `cls`; selection needs `scope`; discovering that after paying the refactor
 once would have meant paying it twice.
 
 **Rule 5 is dropped entirely** (§15) — blocking applies to RIG, HEALTH and CORE only. An APP failure
@@ -337,7 +400,47 @@ Two consequent changes in `lib/results.py`, both small and both required:
   (`app/tools/lib/results.py:153-156`);
 - `rc = 0 if failed == 0 else 1` (`:176`) must be bypassed for the health case — a run with zero
   FAILs and 200 `NOT-RUN` must exit **4**, not 0. This is the single line where "silently green" is
-  most likely to reappear.
+  most likely to reappear. **@VE ruling, binding (§18): exit 4 is an opt-in parameter to
+  `print_results`, never a change to `:176`'s shared default.** `print_results` has **six** callers
+  (`test_flaky_policy.py:313`/`:337`, `ve_suite_base.py`, `test_tls_yield_reliability.py:460`,
+  `test_task488_partb.py:495`, `test_heatmap_reliability.py:630`, `app/tools/suite/serialdbg/runner.py:254`), five of which know
+  nothing about health classes; changing the default silently re-codes five unrelated suites.
+
+### 4.5 Where the health ids live — a separate registry, and why it cannot be `build_all_tests()`
+
+**Added at the must-fix pass, on @VE's ruling that health ids must be *addressable* but not
+*filterable out*.** Both halves are required and they pull in opposite directions:
+
+- **Addressable**: `run/test-targeted T_DH_01` must work, or a health check cannot be debugged without
+  running a suite around it.
+- **Not filterable out**: `run/test --tests <list-without-T_DH_*>` must not be a way to skip the
+  gate. Health runs because the run runs, not because someone selected it.
+
+Putting them in `build_all_tests()` gives neither, and breaks two things concretely:
+
+1. `default_tests` is built by iterating `all_tests`'s keys (`app/tools/suite/serialdbg/runner.py:165`),
+   so every `T_DH_*` id would enter the default selection and **run a second time** — once as the
+   gate, once as a peer test. The one mutating check (`T_DH_03`) would run twice, which is exactly the
+   double-mutation §4.4 refused to accept from the flake policy.
+2. If they are kept *out* of `build_all_tests()` and nothing else changes, `run/test-targeted T_DH_01`
+   hits the unknown-id guard (`app/tools/suite/serialdbg/runner.py:178-180`) and aborts `Unknown tests: ['T_DH_01']`.
+
+**Decision: a separate module-level `HEALTH_TESTS` dict**, merged into neither `build_all_tests()` nor
+`default_tests`, and consulted by:
+
+- the runner's **gate phase**, which runs it unconditionally before `selected` (and never via
+  `run_with_flake_retry`, §4.4);
+- the **id resolver**, which looks in `HEALTH_TESTS` as well as `all_tests` so an explicit
+  `--tests T_DH_01` resolves — running that id **standalone, in the gate phase, with no suite after
+  it**, which is `run/dut-health` reached by another name.
+
+**Do health ids enter `RESULTS`?** **Yes, but only on failure, and never as PASS.** A passing health
+gate is reported in the `[health]` premise line (E5) and contributes no `RESULTS` row — otherwise
+every run's pass count inflates by three and the `NOT-RUN` bookkeeping in §4 rule 7 stops adding up. A
+**failing** health check writes one `RESULTS[T_DH_0x] = "FAIL: …"` row so that `print_results`, the
+gate parsers, and any archived log all carry the reason; the exit code is 4, not 1, and the remaining
+ids are `NOT-RUN`. This keeps `run/player-gate`'s parser (which reads `RESULTS` rows out of the log)
+able to see *why* a leg produced no verdict.
 
 
 ## 5. Mechanical enforcement — what protects the next agent
@@ -349,9 +452,11 @@ answer. Five mechanisms, ordered by how much of the failure they actually remove
 entry carries a class; `runner.py` groups, orders and gates on it. An unclassified id defaults to
 FEATURE (the safe default — it blocks nothing and is blocked by everything). A T0 gate asserts that
 every id in the CORE set is *explicitly* classified, so the small consequential set cannot drift into
-existence by default. *Cost*: **not one field.** `TESTS` is `dict[str, callable]` and the value is called directly, so
-this is a value-type change on an interface shared by 7 family modules, `app/tools/suite/serialdbg/runner.py` (`:154`, `:164`,
-`:178`, `:239`) and `ve_suite_base.py` — a refactor across 213 ids, plus R3's baseline. See §4.2.
+existence by default. *Cost*: **not one field, but smaller than the first estimate.** Carried as a
+function attribute (`fn._meta`, §13.3), `TESTS` stays `dict[str, callable]`, no call site changes, and
+the work is 213 decorations landable family-by-family — plus R3's baseline. The wrapped-value variant
+originally priced here would have been a value-type change across 7 family modules and would have red
+a `run/check` gate; see §4.2 and §13.3.
 
 **E2 — The verdict names the class.** `[HEALTH-FAIL]`, `NOT-RUN(blocked-by=…)`, exit 4. A reader —
 human or agent — cannot get from this output to "the firmware has 200 bugs" or to "the cable is bad",
@@ -371,7 +476,7 @@ missing but because nothing pointed at it. A cheap obvious first step beats a po
 remembered. *Cost*: a thin wrapper over E1's health family.
 
 > **It is pre-flight, not post-mortem, and this is a hard constraint — not a caveat.** Opening the
-> port asserts DTR and resets the ESP32 (`app/tools/lib/dut.py:314-316`), and per TASK-426 **a reset
+> port asserts DTR and resets the ESP32 (`app/tools/lib/dut.py:287`), and per TASK-426 **a reset
 > is precisely what clears the dead-SSID wedge**. So running `run/dut-health` *after* forming a
 > theory about a misbehaving board destroys the state it was invoked to diagnose, shows a healthy
 > board, and manufactures a fifth wrong conclusion — the failure mode of §1, with a tool's authority
@@ -415,8 +520,11 @@ wrong sentence *contradicted by the same output that would have to be quoted to 
   against the artefact rather than against memory. Four of the trigger's claims were retracted only
   after a human challenged them; three of the four are falsifiable from an E5 line alone.
 - **By discoverability (E4).** The counterfactual is not "the agent should have known the rule"; it is
-  "the agent should have run one command". Name the command, put it in the script table, make it 20
-  seconds.
+  "the agent should have run one command". Name the command, put it in the script table, and keep it
+  cheap — **~15 s typical, up to ~60 s on a degraded boot** (§3.1; the tool's own open resets the
+  board, so the boot is part of the price). This sentence said "make it 20 seconds" through three
+  revisions after W2 corrected the figure everywhere else; it is the last copy of a number the
+  document had already retracted.
 - **By practice (a BP, QM-owned).** Proposed, not adopted here — per AGENTS.md the Architect does not
   self-promote practices: *an infrastructure or environment cause may not be asserted until
   `run/dut-health` has been run and its output quoted.* Checkable trigger: an infra-cause claim in a
@@ -515,12 +623,14 @@ writing, that a dead-SSID board is a rig condition.
 | M-TESTBASE P4 / `get idle` (TASK-518) | landed | **Reused directly.** `T_DH_03` and CORE's quiescence rows are clients of it. No new firmware primitive is needed for anything in §3.1. |
 | M-TESTARCH §2.3 conformance matrices | rows A5/A6 built | **The APP class is that matrix.** This design does not create an app taxonomy; it says the matrix rows *are* class APP and inherit the gating semantics. A5/A6 stay T0. |
 
-**Condensed order** (scope cut applied at first review; §13/§14 folded in at the second):
+**Condensed order** (scope cut applied at first review; §13/§14 folded in at the second). **This is the
+design's reasoning about dependencies, not the schedule — @PM's board overrides it on two points
+(§19): TASK-572 goes first, and 570 precedes 565.**
 **564** (`[bootphase]` consumer) → **565** (the slimmed HEALTH family `T_DH_01..03` +
 `run/dut-health` + E3's derived sentence + E5's premise line) → **566 + 570 as one registry pass**
 (the `(cls, scope)` record — classification inert → on-paper order diff → baseline → class-ordered
 runner + `NOT-RUN` + exit 4 landing **with** §4.1's six consumers; and the `--scope`/`--class`/
-`--upto` selectors on the same record) → **571** (triage modes P, D, I) → **569** (`T_DH_04`,
+`--upto` selectors on the same record — **`--class`/`--upto` since cut, §20**) → **571** (triage — **mode P only**; D and I cut, §20) → **569** (`T_DH_04`,
 advisory, once real floors exist) → **567** (SKIP adjudication) → **568** (QM: LL + proposed BP).
 566's order switch is gated on 557.
 
@@ -557,31 +667,57 @@ either review's scope and it is the one a developer sees on every failing run.
 
 ---
 
-## 9. Exit criteria
+## 9. Exit criteria — gating (**EC-G**)
 
-1. No `SetupFailure` prints "this is a RIG condition" for a device-side fault. Provable by reading
-   `_setup_fail()`: the sentence is selected by `cls`, and no call site types it.
-2. A run whose board is unhealthy exits **4**, prints `[HEALTH-FAIL] <id>`, and reports every other id
-   as `NOT-RUN`, with zero FAILs. Negative-tested against a stubbed serial (BP-068), no DUT needed.
-3. `run/dut-health` exists and its output alone answers all three of §3.1's questions. Wall-clock is
-   stated honestly wherever it is documented — **~15 s typical, up to ~60 s on a degraded boot**,
-   because the tool's own open resets the board (TASK-561 measured 46 s to console on a
-   NO_AP_FOUND boot). A "20 s" figure that excludes the boot it causes is not acceptable in
-   `CLAUDE.md` or here.
-4. `run/dut-health` prints its reset warning (§5 E4) **before** its verdict, on every run,
-   unconditionally.
-5. Every DUT run's first output block states the board's premise (E5), including the last
-   `[bootphase]` reached.
-6. Every registry id carries a class; the CORE set is explicitly classified, not defaulted; a T0 gate
-   asserts both.
-7. Exit 4 is understood by every consumer enumerated in §4.1 — four `run/` scripts, one log parser,
-   one comparator — with `--selftest` cases for the exit-4 and `NOT-RUN` paths. **No exit-4 code path
-   ships before this row is green**, or a HEALTH failure surfaces as `REGRESS` from
-   `run/player-gate`.
-8. Before the runner's execution order changes: the class-ordered id sequence has been diffed against
-   today's on paper, the inverted pairs enumerated, and the 0→1-edge-assertion tests (R3's
-   `mb_arena_acquire` shape) listed; plus a ≥3-run pre-declared-flaky baseline (R3).
-9. `run/check` 11/11 and `run/check-docs` 6/6 at every step.
+*(Prefixed at the must-fix pass; see §21 and EC-D's note.)*
+
+- **EC-G1.** No `SetupFailure` prints "this is a RIG condition" for a device-side fault. Provable by
+  reading `_setup_fail()` (`app/tools/suite/serialdbg/runner.py:139-151`): the sentence is selected by
+  `cls`, and no call site types it.
+- **EC-G2.** A run whose board is unhealthy exits **4**, prints `[HEALTH-FAIL] <id>`, and reports
+  every other id as `NOT-RUN`, with zero FAILs. Negative-tested against a stubbed serial (BP-068),
+  no DUT needed.
+- **EC-G3.** `run/dut-health` exists and its output alone answers all three of §3.1's questions.
+  Wall-clock is stated honestly wherever it is documented — **~15 s typical, up to ~60 s on a degraded
+  boot**, because the tool's own open resets the board (TASK-561 measured 46 s to console on a
+  NO_AP_FOUND boot). A "20 s" figure that excludes the boot it causes is not acceptable in
+  `CLAUDE.md` or here.
+- **EC-G4.** `run/dut-health` prints its reset warning (§5 E4) **before** its verdict, on every run,
+  unconditionally.
+- **EC-G5.** Every DUT run's first output block states the board's premise (E5), including the last
+  `[bootphase]` reached and the generation tag (`gen=N`, or `gen=?` when boot was not observed —
+  §3.1's correction).
+- **EC-G6.** Every registry id carries a class; the CORE set is explicitly classified, not defaulted;
+  a T0 gate asserts both.
+- **EC-G7.** Exit 4 is understood by every consumer enumerated in §4.1 — `run/player-gate:422` plus
+  `run/test:69`, `run/test-targeted:37`, `run/test-sync:29` — with a `--selftest` case for the exit-4
+  leg. (The `NOT-RUN` parser, comparator and selftest rows landed early with TASK-573.) **No exit-4
+  code path ships before this criterion is green**, or a HEALTH failure surfaces as `REGRESS` from
+  `run/player-gate` — which, per §4.1, is not hypothetical: it happened, for `FLAKY-PASS`.
+- **EC-G8 — the inversion test. NEW at the must-fix pass, and it is the machine form of this
+  document's thesis.** *(The gating property had no negative test. Every other criterion asserts the
+  machinery exists; none asserted the property the machinery is for.)*
+
+  A **host-only** test, no DUT, in `run/player-gate --selftest`'s sibling position for the runner
+  (the `test_serial_classify.py` stub-the-serial pattern, BP-068): **stub a class-N failure and assert
+  that no id of class N+1 carries any verdict other than `NOT-RUN`.** Parameterised over the ladder,
+  so it runs four times:
+
+  | Stubbed failure | Assertion |
+  |---|---|
+  | RIG | zero results printed at all; exit 3 |
+  | HEALTH | every CORE/APP/FEATURE id is `NOT-RUN(blocked-by=HEALTH/…)`; **zero** PASS, FAIL, SKIP or FLAKY-PASS among them; exit 4 |
+  | CORE | the failing id is FAIL; every APP/FEATURE id is `NOT-RUN(blocked-by=CORE/…)`; exit 1 |
+  | APP | the failing id is FAIL; FEATURE ids run normally (blocking was dropped, §4.2 — this arm asserts the *drop*, so it cannot silently come back) |
+
+  The assertion is on the **absence of any other verdict**, not on the presence of `NOT-RUN` — a
+  weaker form would pass a runner that emitted both. Without this criterion the property is enforced
+  by inspection only, which is precisely the standard §5 rejects for everything else.
+- **EC-G9.** Before the runner's execution order changes: the class-ordered id sequence has been
+  diffed against today's on paper, the inverted pairs enumerated, and the 0→1-edge-assertion tests
+  (R3's `mb_arena_acquire` shape) listed; plus a ≥3-run pre-declared-flaky baseline (R3), subject to
+  @VE's three binding preconditions on the switch (§18).
+- **EC-G10.** `run/check` 11/11 and `run/check-docs` 6/6 at every step.
 
 ---
 
@@ -624,7 +760,7 @@ either review's scope and it is the one a developer sees on every failing run.
 - **~~OQ6 — Per-app FEATURE blocking.~~ CLOSED at second review, and not by answering it.** §15
   drops APP-class blocking outright — blocking applies to RIG/HEALTH/CORE only — so the question is
   moot rather than open. The premise it rested on was also wrong: §13.2 measures app attribution as
-  ~65 % derivable, not underivable. Per-app *selection* is now first-class (§13); per-app *blocking*
+  63 % derivable (134 of 213), not underivable. Per-app *selection* is now first-class (§13); per-app *blocking*
   is gone.
 - **OQ7 — A no-reset attach path for `run/dut-health`.** It would make the tool a genuine post-mortem
   instrument instead of a pre-flight one (§5 E4). Not proposed: suppressing the open-reset is the
@@ -641,11 +777,11 @@ the tree before applying** — none was taken on the reviewer's word, and every 
 
 | # | Item | Applied |
 |---|---|---|
-| G1 | exit 4 silently breaks `run/player-gate` | **The most important find in the review.** New §4.1 enumerates all six consumers; exit criterion 7 forbids shipping an exit-4 path before they are taught. Verified: `run/player-gate:338` handles only rc 3, `:118`'s regex drops `NOT-RUN`, `:135-140` then prints REGRESS. A HEALTH failure would have surfaced as a firmware regression — this document's own inversion, produced by this document's own change. |
+| G1 | exit 4 silently breaks `run/player-gate` | **The most important find in the review.** New §4.1 enumerates all six consumers; EC-G7 forbids shipping an exit-4 path before they are taught. Verified at the time: `run/player-gate` handled only rc 3, its regex dropped `NOT-RUN`, and `_compare_leg` then printed REGRESS. (The parser/comparator half has since landed with TASK-573; see §4.1 for the current state and for the live instance of this inversion.) A HEALTH failure would have surfaced as a firmware regression — this document's own inversion, produced by this document's own change. |
 | W1 | H3's citation wrong, bound unsatisfiable | Verified: the file is `app/mem_manifest.yaml` (not `docs/architecture/`) and holds `ceiling:`/`headroom:`/`buffers:` only. Check **deferred** to TASK-569, advisory, and explicitly **not** a member of the class (§3.1). R2 rewritten so "derivable bound" and "no boot+0 time-dependent signal" are *entry rules*, not mitigations. |
-| W2 | ≤20 s budget self-contradictory | §3.1 restated: ~10 s of commands inside a suite run; **~15 s typical / ~60 s degraded** standalone, because the tool's own open resets the board. Exit criterion 3 pins the honest figure for `CLAUDE.md` too. |
+| W2 | ≤20 s budget self-contradictory | §3.1 restated: ~10 s of commands inside a suite run; **~15 s typical / ~60 s degraded** standalone, because the tool's own open resets the board. EC-G3 pins the honest figure for `CLAUDE.md` too. |
 | W3 | `run/dut-health` destroys the state it diagnoses | **Fixed first, as instructed.** E4 re-framed as pre-flight with two mandatory obligations (a printed reset warning before the verdict; "read the monitor first" for a wedged board). §5.1's bullet re-argued around *same-boot* evidence, which is the only form that holds. OQ7 records the no-reset path as deliberately not proposed. |
-| G2 | registry cannot express per-app blocking | Rule 5 dropped to all-or-nothing; new §4.2 states the value-type refactor cost across 7 modules + `app/tools/suite/serialdbg/runner.py:154`/`:164`/`:178`/`:239` + `ve_suite_base.py`, and why app attribution is not derivable (`shell.py` is a multi-app catch-all). Per-app granularity → OQ6, free once the APP class is generated from `APP_ORDER`. E1's cost line corrected from "one field" to "a refactor". |
+| G2 | registry cannot express per-app blocking | Rule 5 dropped to all-or-nothing; new §4.2 states the value-type refactor cost across 7 modules + `runner.py` + `ve_suite_base.py`, and why app attribution is not derivable (`shell.py` is a multi-app catch-all). **Both halves later corrected**: attribution *is* 63 % derivable (§13.2), `ve_suite_base.py` was never a consumer, and the carrier is a function attribute rather than a wrapped value, so the "value-type refactor" price was never owed (§4.2, §13.3, §17). Per-app granularity → OQ6, free once the APP class is generated from `APP_ORDER`. E1's cost line corrected from "one field" to "a refactor". |
 | C1 | TASK-567 regresses TASK-553 | Verified at `tasks-architecture.md:241` — 553's fix *was* a precondition-explained SKIP. Vocabulary gains `precondition-not-establishable-in-suite-order`; §4.3 records `T_PMT_04` as its reference case and notes it sits in the same function as a genuine `not-applicable-variant` skip (`app/tools/suite/serialdbg/player.py:1801`/`:1808`). 567 deferred. |
 | W4 | OQ5 "three scripts" undercount | Re-measured: **14** files build a raw `serial.Serial` outside `lib/dut.py`, **9** with a private `class Dut`; six are `run/`-invoked, plus `run_sync_tests.py` taking all of T097–T116 off the ladder. §7 corrected, with the provenance of the wrong number named (TASK-563's row, counting a different property). |
 | G3 | HEALTH × flake undefined | New §4.4: the class is **outside** the flake policy — no declaration, no `run_with_flake_retry`, internal bounded retries only. `lib/results.py:153-156` gains a `NOT-RUN` bucket and `:176`'s `rc = 0 if failed == 0` is called out as the single line where "silently green" would reappear. |
@@ -665,7 +801,7 @@ now R3's lead: the inert stage makes the reorder's blast radius predictable **on
 the class-ordered id sequence against today's with zero DUT time. Also folded in: TASK-553 is a
 *mechanism*, not an anecdote — `mb_arena_acquire()`'s `if (s_owned) return true;` makes **any** 0→1
 edge assertion order-fragile, and enumerating the others is now part of 566's inert stage (exit
-criterion 8) rather than an unowned follow-up.
+EC-G9) rather than an unowned follow-up.
 
 **One push-back, on framing rather than substance.** The review is right that ~250 sites need
 three-way adjudication and that 567 must wait. But the 74 "other" skips it surfaced — the masked FAILs
@@ -710,47 +846,140 @@ and it is keyed by *feature*, so "I changed this file" still does not resolve.
 §4.2 said per-app attribution "is not derivable" and parked it as OQ6. Measured properly, that is
 too strong, and the correction changes the decision:
 
+*(Re-counted at the must-fix pass. The prefix figure was a "~21" estimate and the seedable total and
+one denominator were wrong; the residue claim was asserted from a category label rather than
+measured. All figures below are reproducible — `len(build_all_tests())` and each family module's
+`len(TESTS)`.)*
+
 | Mechanism | Attributes | Notes |
 |---|---:|---|
-| **Family module name** | **117 / 213** | `clock`(14) `teletext`(3) `planeradar`(9) `stock`(30) `webradio`(30) `player`(31) each map to exactly one app |
-| **Id prefix, inside `shell.py`** | **~21** | `T_WX`→Weather, `T_CX`→Crypto, `T_GOL`→Life, `T_MA`→Matrix |
-| **App-name literal in the body (AST)** | 63 / 210, **18 ambiguous** | Weak, as §4.2 assumed — a switch round-trip names two apps. Use as a *cross-check*, never as the source |
-| **Declaration** | the residue, ~75 | almost all in `shell.py` |
+| **Family module name** | **117 / 213** | `clock`(14) `teletext`(3) `planeradar`(9) `stock`(30) `webradio`(30) `player`(31) each map to exactly one app. `shell.py` holds the other 96 |
+| **Id prefix, inside `shell.py`** | **17** | `T_WX`(5)→Weather, `T_CX`(5)→Crypto, `T_GOL`(4)→Life, `T_MA`(3)→Matrix. Not ~21: `T_TBFB`(5) is taskbar and `T_BI`(4) is boot — real prefixes, but **not app names**, so they seed `scope`, not an app |
+| **App-name literal in the body (AST)** | 63 / 213, **18 ambiguous** | Weak, as §4.2 assumed — a switch round-trip names two apps. Use as a *cross-check*, never as the source |
+| **Declaration** | the residue, **79** | all in `shell.py` |
 
-So **~138 of 213 (65 %) can be seeded mechanically**, and the residue is the interesting part:
-**the ~75 unattributable ids are mostly not app-scoped in the first place** — taskbar, app-switch,
-boot, Spotify chrome, busy-gate. They are the CORE class. **Attribution and classification are the
-same act for that residue**, which is why doing them in one pass is not merely convenient but correct.
+So **134 of 213 (63 %) can be seeded mechanically** — that is the **ceiling**, and EC-D2 is written
+against it (§13.6). 117 + 17 = 134; the earlier "138" and the "210" denominator in the AST row were
+both arithmetic slips, and 138 had propagated into an exit criterion that could therefore never be
+satisfied.
 
-`shell.py` being a multi-app catch-all remains true; it is an argument for *declaring* those 75, not
-for abandoning attribution for the other 138.
+**The residue is 79, and "largely not app-scoped" is not established.** That claim was read off the
+category labels — taskbar, app-switch, boot, Spotify chrome, busy-gate — and two of those labels are
+wrong:
+
+- **`T-SET-01/02/03/06/07/08` (6 ids) are Settings-app tests**, and **`Settings` is an `APP_ORDER`
+  name** (`app/tools/app_ids_gen.py:4`). They are app-scoped by any reading.
+- **9 residue ids reach into Stock** — `T-BUSY-01`, `-01b`, `-05`, `T-CDWN-02`, `-03`, `T-SET-03`,
+  `T-UART-01`, `T-ERR-06`, `T-ERR-07` — via `_switch_to_stock` or a `Stock` literal. (`T-BUSY-02` and
+  `-03` do **not**; the reviewer's blanket "`T-BUSY-*` are Stock" is 3-of-5, not 5-of-5.)
+
+So at least **15 of the 79** are demonstrably app-scoped, and `Stock` — the 30-id second-largest
+family — has residue members that a naive `shell.py ⇒ CORE` rule would misclassify. **Restated as a
+measurement**: *most of the 79 (52 of them, by an AST scan) name no `APP_ORDER` app in their body at
+all and are plausibly CORE; ~15 are demonstrably app-scoped; the rest name two or more apps and are
+genuinely ambiguous.* The `scope: shell|boot|taskbar ⇒ CORE` invariant in §13.3 is therefore a
+**default with an override**, not an identity — which is exactly the change §13.3 now makes to the
+seed/declaration gate.
+
+`shell.py` being a multi-app catch-all remains true; it is an argument for *declaring* those 79, not
+for abandoning attribution for the other 134.
 
 ### 13.3 The field, decided once — `(cls, scope)`
 
-Per the instruction not to re-park this: the registry value becomes a small record carrying **both**
-fields, in the single refactor §4.2 already priced (7 family modules +
-`app/tools/suite/serialdbg/runner.py:154`/`:164`/`:178`/`:239` + `ve_suite_base.py`). Deciding one
-field now and retrofitting the second later would pay that price twice.
+Per the instruction not to re-park this: **all three fields are decided in one pass.** Deciding one
+field now and retrofitting the others later would pay the migration cost twice.
 
 ```
-cls    : RIG | HEALTH | CORE | APP | FEATURE                          — §3,  gating
-scope  : an APP_ORDER name, or one of shell|boot|taskbar|spotify|rig  — §13,  selection
-effect : read-only | mutating | resetting                             — §16,  triage admissibility
+cls    : RIG | HEALTH | CORE | APP | FEATURE                                — §3,  gating
+scope  : an APP_ORDER name, or one of shell|boot|taskbar|spotify-chrome|rig — §13,  selection
+effect : read-only | mutating | resetting                                   — §16,  triage admissibility
 ```
 
 *(`effect` was added at the third review, before any of this was implemented. Settling all three
 fields in one pass is the same argument as §13.3's original two — see §16.7.)*
 
-Rules, so the second field does not become the next drifted index:
+#### The carrier is a function attribute, not a wrapped value
 
-- **`scope` is seeded, not typed, wherever it is derivable.** A generator emits the module- and
-  prefix-derived attribution; a declaration is required only where the seed is silent. This is
-  `check_settings_wiring.py`'s pattern (M-TESTARCH §2.2) and `gen_get_keys.py`'s parse-don't-mirror
-  rule (LL-114).
-- **A gate asserts seed and declaration agree** where both exist. A test declared `scope: Stock`
-  living in `webradio.py` fails the gate rather than silently mis-selecting.
-- **`scope: shell|boot|taskbar` implies `cls: CORE`** unless explicitly overridden — which is the
-  §13.2 finding turned into an invariant, and it means most of the CORE set classifies itself.
+**Changed at the must-fix pass, and this is the most consequential change in it.** Earlier drafts made
+the registry *value* a record — `TESTS: dict[str, (fn, cls, scope, effect)]`. Do not. Use a decorator
+that sets an attribute on the function:
+
+```python
+@meta(cls="FEATURE", scope="LocalPlayer", effect="mutating")
+def t_plr_25(dut): ...
+# fn._meta is read by the runner; TESTS stays dict[str, callable]
+TESTS = {"T_PLR_25": t_plr_25, ...}
+```
+
+Four reasons, in order of force:
+
+1. **A wrapped value reds `run/check`.** `app/tools/gate/check_player_binding.py:200` regexes the
+   *literal registry entry* — `re.search(r'"T_PMT_00"\s*:\s*t_pmt_00', pb)` — and runs as a blocking
+   gate. Its own comment records that this exact strictness was added deliberately, because a
+   substring check let an *unregistered* test look registered. Wrapping the value to
+   `("T_PMT_00": (t_pmt_00, ...))` fails that regex and breaks the build; a decorator leaves the entry
+   text byte-identical. **No earlier draft of this document named that consumer**, and it is a gate,
+   not a script.
+2. **Zero call-site changes.** Only `app/tools/suite/serialdbg/runner.py:239` touches the value
+   (§4.2); `:165` and `:178`/`:180` read keys. `all_tests[tid](dut)` keeps working unchanged.
+3. **Landable family-by-family**, with an undecorated function defaulting to
+   `(cls=FEATURE, scope=unknown, effect=mutating)` — the conservative default on all three axes: it
+   blocks nothing, selects into nothing, and is inadmissible in a descent. A half-migrated suite is
+   therefore *correct*, merely less useful, which is what makes R3's inert stage genuinely inert.
+4. **`fn.__name__`/`inspect` still work**, so `check_player_binding.py` and any future source-level
+   gate keep seeing the same shapes.
+
+The one thing a wrapped value would give and an attribute does not is metadata on a non-function
+value. Nothing in `TESTS` is a non-function value today, and if that changes, the decorator can be
+supplemented rather than replaced.
+
+#### Seed and declaration: the seed is a **default**, the declaration **overrides** it
+
+**Changed at the must-fix pass.** The earlier rule — *"a gate asserts seed and declaration agree"* —
+is wrong, and it would reject correct data on day one:
+
+- **`T_PMT_01..04` live in `player.py` but are Spotify→WebRadio cross-mode cells.** The module seed
+  says `Player`; the honest scope is the cross-mode pair. An equality gate rejects the correct value.
+  These are the cells `run/player-gate:188` `_assert_crossmode` exists to require — the suite's
+  *most* deliberate cross-module placements are exactly the ones the gate would fail.
+- The same is likely true of `T_PLE_*` cells sitting in `webradio.py`, and of the 15 residue ids §13.2
+  measures as app-scoped inside `shell.py` — where the seed is not merely different but **silent**.
+
+A gate that fires on the suite's most deliberate placements teaches implementers to weaken the gate.
+So:
+
+- **`scope`, `cls` and `effect` are seeded, not typed, wherever derivable.** A generator emits the
+  module- and prefix-derived attribution. This is `check_settings_wiring.py`'s pattern
+  (M-TESTARCH §2.2) and `gen_get_keys.py`'s parse-don't-mirror rule (LL-114).
+- **A declaration overrides its seed, and must carry a one-word reason.** `scope="WebRadio",
+  scope_reason="cross-mode"` — the reason is what distinguishes a considered placement from a typo,
+  and it is greppable.
+- **The gate asserts three things, none of them equality**: (a) **every id resolves** to a scope,
+  seeded or declared — no id is left unattributed; (b) **every override carries a reason**; (c) **no
+  scope is outside the enum**. An override with a reason is *data*, not a violation.
+- **`scope: shell|boot|taskbar` defaults `cls: CORE`** — a default, not an invariant (§13.2 measured
+  15 app-scoped ids inside `shell.py`). An override to `APP`/`FEATURE` carries a reason like any
+  other.
+
+#### The enum: `Spotify` and `spotify` may not both exist
+
+**Fixed at the must-fix pass.** The enum as drafted contained `Spotify` (an `APP_ORDER` name — the
+app in slot 0, displayed as "Winamp") **and** `spotify` (meaning "Spotify-related chrome that is not
+the app's conformance rows"). A **case-only distinction in a CLI value** is a defect: `--scope
+spotify` on a case-insensitive shell habit, or a `.lower()` anywhere in the resolver, silently selects
+the wrong set, and no error is ever printed. Renamed:
+
+| Value | Meaning | Resolution rule |
+|---|---|---|
+| `Spotify` | the `APP_ORDER` app in slot 0 | An id whose subject is the app itself — its conformance rows (A1–A7), its own view, its playback surface |
+| `spotify-chrome` | Spotify-adjacent shell machinery that is **not** the app | An id whose subject is the *shell's* handling of Spotify — poll/queue plumbing, token state, the `[TASK-407] playerMode` envelope, busy-gate interactions triggered from the Spotify slot |
+
+**The adjudication rule, so the ~25–30 chrome ids do not get sorted by feel**: *if the id would still
+exist were the Spotify app deleted, it is `spotify-chrome` (and almost certainly `cls: CORE`); if it
+would not, it is `Spotify` (`cls: APP` or `FEATURE`).* Apply the rule per id, record the count in
+TASK-570's landing note, and let the gate's "every id resolves" clause catch anything skipped. The
+enum gate must also assert **case-sensitively** and reject any two values differing only by case —
+the defect must not be reintroducible.
 
 ### 13.4 "How do I get testing?" — the answer is a selector, and the file→scope map is free
 
@@ -764,21 +993,42 @@ app/src/apps/localPlayerApp.cpp     ← the file the developer changed
    → run/test-targeted --scope LocalPlayer
 ```
 
-**The first link is free.** `app/src/apps/` holds exactly one `<name>App.{h,cpp}` per registered app
-(13 apps, verified), so source-file → app is a naming convention already enforced by the app
-registry. Nothing needs to be added to the firmware side at all.
+**The first link is nearly free — but not from `app/src/apps/`.** *(Corrected at the must-fix pass;
+the earlier text said `app/src/apps/` holds one `<name>App.{h,cpp}` per registered app, "13 apps,
+verified", and the word "verified" was doing work no measurement supported.)*
+
+Measured: `appRegistry.h`'s X-macro registers **13** apps; `app/src/apps/` holds **11**
+`<name>App.cpp`. The two strays are **`app/src/stock/stockApp.cpp`** and
+**`app/src/aquarium/aquariumApp.cpp`** — they predate the `apps/` directory and were never moved. A
+`app/src/apps/*App.cpp` glob therefore **misses Stock**, which at 30 ids is the second-largest family
+in the suite, and misses Aquarium.
+
+The convention still holds; only the directory assumption was wrong. The map is:
+
+```
+find app/src -name '*App.cpp'   →  13 files, one per APP_ORDER entry
+   basename minus 'App.cpp', capitalised  →  the APP_ORDER name
+   validated against app_ids_gen.APP_ORDER (generated from appRegistry.h) — never a typed table
+```
+
+The **`find`/`**` glob is the specification**, not `app/src/apps/`. The generator must assert
+`len(matches) == len(APP_ORDER)` and that the derived names are exactly `APP_ORDER` — an app added
+under a new directory then fails the seeder loudly instead of silently losing its ids, which is the
+failure this correction exists to prevent. Nothing needs to be added to the firmware side.
 
 Concretely, the selector surface:
 
 | Selector | Meaning |
 |---|---|
 | `--scope LocalPlayer` | every id attributed to that app |
-| `--scope <path>` | resolve the path to a scope first (`app/src/apps/*App.cpp` → app; `app/src/shell/**` → shell; `app/src/debug/**` → shell) |
-| `--class CORE` | every id in a class — "run the machinery, not the features" |
-| `--upto APP` | the ladder from RIG through APP, which is the *right-level* answer |
+| `--scope <path>` | resolve the path to a scope first (`app/src/**/*App.cpp` → app — **not** `app/src/apps/`, see above; `app/src/shell/**` → shell; `app/src/debug/**` → shell) |
+| ~~`--class CORE`~~ | **CUT** — see §20 |
+| ~~`--upto APP`~~ | **CUT** — see §20 |
 
-`--upto` is the one that answers question 2. A developer who changed an app wants RIG → HEALTH →
-CORE → that app's APP rows, and does **not** want 74 FEATURE cells for eleven other apps.
+`--upto` was the selector that answered question 2, and it is the one the scope cut hurts most: a
+developer who changed an app wants RIG → HEALTH → CORE → that app's APP rows and not 74 FEATURE cells
+for eleven other apps. **@PM cut both `--class` and `--upto` from TASK-570** (§19). `--scope` ships;
+the re-proposal condition for the other two is in §20.
 
 ### 13.5 "Which level does my change belong at?" — answered from ADR-060, not invented
 
@@ -791,23 +1041,37 @@ new structure:
 | `run/`, `app/tools/lib/` | — (harness) | **RIG** | it changes how the board is addressed |
 | `app/src/boot/`, WiFi cascade | L4 / L1 | **HEALTH** | it changes whether the board becomes a valid subject |
 | `app/src/shell/`, `debug/`, `appShell` | **L2** | **CORE** | it changes machinery every app test uses |
-| `app/src/apps/<X>App.*` | **L3** | **APP** (`scope: X`), then FEATURE | the conformance rows first, then behaviour unique to X |
+| `app/src/**/<x>App.*` (11 under `apps/`, plus `stock/`, `aquarium/`) | **L3** | **APP** (`scope: X`), then FEATURE | the conformance rows first, then behaviour unique to X |
 | `app/src/util/`, `player/m3u` | L0 / L1 | **T1 host tier**, not a DUT class at all | M-TESTARCH §2b's rule: the lowest *tier* that can falsify |
 
 The last row is the one worth putting in front of a developer, because it is the tier axis answering
 a class question: some changes should not produce a DUT test at all.
 
-### 13.6 Exit criteria — developer workflow
+### 13.6 Exit criteria — developer workflow (**EC-D**)
 
-1. `run/test-targeted --scope <app|path>` and `--class`/`--upto` exist and are documented in
-   `CLAUDE.md`'s run-script table with a worked example starting from a changed file.
-2. `scope` is **seeded** for ≥ 138 ids with no hand-typed value, and a gate fails when a declaration
-   contradicts its seed.
-3. Every id has a `scope`; ids with no derivable app carry an explicit non-app scope, and the
-   `shell|boot|taskbar ⇒ CORE` invariant is asserted, not assumed.
-4. From a changed file under `app/src/apps/`, the id set is obtained in **one command**, with no
-   reference to `test_plan.md`.
-5. The `(cls, scope)` record lands in **one** registry pass — no second migration.
+*(Prefixed at the must-fix pass. Four independently-numbered "exit criterion N" lists — §9, §13.6,
+§14.5, §16.6 — collided in every cross-reference; each list now carries a prefix and cross-references
+use it. See §21.)*
+
+- **EC-D1.** `run/test-targeted --scope <app|path>` exists and is documented in `CLAUDE.md`'s
+  run-script table with a worked example starting from a changed file. (`--class`/`--upto` are CUT,
+  §20; this criterion is met without them.)
+- **EC-D2.** **Self-adjusting, not a fixed count** *(rewritten at the must-fix pass — the old text
+  demanded "≥ 138 ids seeded", and 134 is the arithmetic ceiling, so it was unsatisfiable by
+  construction).* The criterion is now: **every id whose module or prefix is app-derivable is
+  seeded, and there are zero hand-typed `scope` values among them.** Today that resolves to 134 of
+  213 (117 by module + 17 by prefix, §13.2), and it keeps resolving correctly when a family is added,
+  split, or renamed — which a literal count does not. The seeder prints the number it actually seeded;
+  a drop is a gate failure, not a documentation edit.
+- **EC-D3.** Every id resolves to a `scope` — seeded or declared. Every declaration that **overrides**
+  a seed carries a one-word reason. No value is outside the enum, and the enum gate is
+  **case-sensitive** and rejects any two values differing only by case (`Spotify` vs `spotify`,
+  §13.3). The `shell|boot|taskbar ⇒ CORE` **default** is applied and its overrides are enumerable.
+- **EC-D4.** From a changed `*App.cpp` anywhere under `app/src/`, the id set is obtained in **one
+  command**, with no reference to `test_plan.md`.
+- **EC-D5.** The `(cls, scope, effect)` record lands in **one** registry pass, carried as a function
+  attribute — no second migration, and `run/check` stays 11/11 (`check_player_binding.py:200` still
+  matches the literal registry entry, §13.3).
 
 ---
 
@@ -821,12 +1085,13 @@ exactly the tribal knowledge §1 proves unreliable.
 
 ### 14.1 The constraint that decides the design
 
-**A triage tool that opens the port resets the board** (`app/tools/lib/dut.py:314-316`), and per
+**A triage tool that opens the port resets the board** (`app/tools/lib/dut.py:287`), and per
 TASK-426 a reset clears the very wedge being investigated. §5's E4 states this for `run/dut-health`;
 it applies with **full force** here, because triage runs *by definition* after something went wrong.
 
-The consequence is the design: **the descent must happen inside the session that observed the
-failure** — stated as property P1 in §16.4, and it is only half the answer: §16.3 covers the other
+*(Mode D is CUT — §20. What follows is retained because it is the reason the cut is safe and the
+condition on any re-proposal, not because a descent is being built.)* The consequence is the design:
+**the descent must happen inside the session that observed the failure** — stated as property P1 in §16.4, and it is only half the answer: §16.3 covers the other
 half, which is that a step can destroy the evidence by *mutating* without resetting anything. Not a separate script — a runner flag. The port is already open, the board is in the
 failed state, and no reset intervenes. A standalone `run/dut-triage` invoked afterwards would answer
 about a different boot, with a tool's authority behind it. That is the §1 failure mode with better
@@ -836,10 +1101,10 @@ tooling.
 
 | Mode | What it does | Cost | Verdict |
 |---|---|---|---|
-| **P — Passive** | Every FAIL carries the session's health verdict, its `last-phase=`, and the failing test's own `(cls, scope)`. Nothing re-runs. | ~0 | **BUILD FIRST.** Answers "was the board a valid subject when this run started" for free |
-| **D — In-session descent** (`--triage`) | On the first FAIL, re-run the **read-only** HEALTH and CORE steps (§16.3 — mutating steps are inadmissible and are named as skipped), **in the same open session**, then report the lowest failing level | ~10 s, once per run | **BUILD.** The honest answer to "at what level did this start failing" |
-| **I — Isolation re-run** (`--isolate-on-fail`) | After all other tests, reboot and re-run the failed id alone; report `fails alone` vs `fails only in sequence` | ~60–90 s per failed id | **BUILD, opt-in, last.** The only thing that answers the TASK-553 case |
-| **A — Automatic re-descent per FAIL** | Descend after every FAIL, always | 10–20 s × N failures | **REJECT** — see below |
+| **P — Passive** | Every FAIL carries the session's health verdict, its `last-phase=`, the generation tag, and the failing test's own `(cls, scope)`. Nothing re-runs. | ~0 | **BUILD FIRST — and it is now the only one in scope.** Answers "was the board a valid subject when this run started" for free |
+| **D — In-session descent** (`--triage`) | On the first FAIL, re-run the **read-only** HEALTH and CORE steps (§16.3 — mutating steps are inadmissible and are named as skipped), **in the same open session**, then report the lowest failing level | ~10 s, once per run | ~~BUILD~~ → **CUT by @PM (§19/§20).** Re-propose when TASK-557 closes. The reasoning for cutting it is better than this section's for building it: it runs further steps inside an already-failed session on a rig whose stability is unresolved |
+| **I — Isolation re-run** (`--isolate-on-fail`) | After all other tests, reboot and re-run the failed id alone; report `fails alone` vs `fails only in sequence` | ~60–90 s per failed id | ~~BUILD, opt-in, last~~ → **CUT (§20).** Still the only thing that answers the TASK-553 case; one known instance does not pay for it on a single serialised DUT |
+| **A — Automatic re-descent per FAIL** | Descend after every FAIL, always | 10–20 s × N failures | **REJECT** — a design rejection, not a scope cut; see below |
 
 **Why A is rejected**, three reasons, any one sufficient: (i) `T_DH_03` mutates app state, so
 descending mid-suite contaminates every subsequent test — the harness would manufacture the
@@ -877,21 +1142,28 @@ risk this section must not create.
 TASK-553's failure was neither the board nor the code: `mb_arena_acquire()` early-returns on
 `if (s_owned) return true;` before incrementing, so **any** test asserting a 0→1 edge fails when a
 prior test left the arena held. It took a day to work out by hand. Mode I answers it in ~90 s, and
-§9's exit criterion 8 already requires enumerating the tests with that shape — that list is exactly
+§9's EC-G9 already requires enumerating the tests with that shape — that list is exactly
 the set for which mode I should be **suggested automatically** in the descent's last line.
 
-### 14.5 Exit criteria — triage
+### 14.5 Exit criteria — triage (**EC-T**)
 
-1. Every FAIL in every run carries the session health verdict, `last-phase=`, and the test's
-   `(cls, scope)` — mode P, unconditional.
-2. `--triage` descends **in the session that observed the failure**, without reopening the port, and
-   names the lowest failing level. Negative-tested against a stubbed serial (BP-068).
-3. The descent's output states explicitly when order-dependence has **not** been excluded, and names
-   `--isolate-on-fail` as the way to exclude it.
-4. `--isolate-on-fail` runs after all other tests, reboots, re-runs the failed id alone, and reports
-   `fails alone` / `fails only in sequence`.
-5. No triage entry point exists that resets the board before reading it. Provable by inspection:
-   there is no standalone triage script.
+*(Prefixed at the must-fix pass; see §21. **Modes D and I are CUT** by @PM — §19/§20 — so EC-T2/T3/T4
+are conditions on their re-proposal, not on this block. EC-T1 and EC-T5 are in scope now.)*
+
+- **EC-T1** *(in scope)*. Every FAIL in every run carries the session health verdict, `last-phase=`,
+  the generation tag, and the test's `(cls, scope)` — mode P, unconditional.
+- **EC-T2** *(cut; condition on re-proposal)*. `--triage` descends **in the session that observed the
+  failure**, without reopening the port, and names the lowest failing level. Negative-tested against a
+  stubbed serial (BP-068).
+- **EC-T3** *(cut)*. The descent's output states explicitly when order-dependence has **not** been
+  excluded, and names `--isolate-on-fail` as the way to exclude it.
+- **EC-T4** *(cut)*. `--isolate-on-fail` runs after all other tests, reboots, re-runs the failed id
+  alone, and reports `fails alone` / `fails only in sequence`. **Binding on re-proposal (@VE, §18):
+  it must never write `RESULTS[tid]`, and the run's exit code derives from in-sequence verdicts
+  only** — an isolation re-run is a diagnostic, not a second chance at a verdict.
+- **EC-T5** *(in scope, and it is met by construction while D and I are cut)*. No triage entry point
+  exists that resets the board before reading it. Provable by inspection: there is no standalone
+  triage script.
 
 ---
 
@@ -912,7 +1184,12 @@ The instruction was not to re-inflate scope. Explicitly:
 **Still not built, unchanged**: a production serial console; a no-reset attach path (OQ7); per-app
 FEATURE blocking (OQ6 — now moot, since §15 drops APP blocking); `run/dut-triage` as a standalone
 script; automatic per-FAIL descent; T_DH_04 until real floors exist (TASK-569); the SKIP adjudication
-(TASK-567).
+(TASK-567 — its 74 masked-FAIL bucket has since been split out as **TASK-574**, P2, on the grounds
+this section's push-back argued for: they are false greens *today* and have no dependency on 566's
+baseline).
+
+**Further cuts applied at the must-fix pass** — mode D, mode I, `--class` and `--upto` — are in
+**§20**, each with the condition for re-proposing it. §20 supersedes this list where they overlap.
 
 **Net change to cost.** §13's field is the *same* refactor §4.2 already priced — one record instead
 of one scalar, decided once. New work is the selector CLI, the scope seeder + its gate, and modes
@@ -961,9 +1238,65 @@ programme:
    `open()` (C1 of the boot-window design), which is why `_wait_for_ready()` is built to observe that
    boot at all.
 
-Between them these cover every case a counter would. **The generation counter is therefore a host-side
-integer in `Dut`, incremented on each observed `[bootphase] 0`, starting at 1 for the boot the
-constructor caused.** Cost: a few lines, in the file TASK-564 is already editing. Firmware cost: zero.
+Between them these cover every case a counter would. **The generation counter is therefore host-side,
+in `Dut`, incremented on each observed `[bootphase] 0`.** Cost: a few lines, in the file TASK-564 is
+already editing. Firmware cost: zero.
+
+#### The tag must be globally unique, not per-`Dut`
+
+**Fixed at the must-fix pass, and the defect was fatal to the section's own reference case.** A
+per-`Dut` counter starting at 1 makes **every session's first boot `gen=1`**. §16.1's reference case —
+"the re-plug fixed it", a pre-re-plug boot compared against a post-re-plug boot — is a *cross-session*
+comparison, so under a per-session counter **both sides print `gen=1`**. The tag would then assert
+sameness where there is none: strictly worse than no tag, because it supplies false reassurance to
+exactly the inference §16 exists to make visible.
+
+**The tag is therefore `<run-id>.<n>`**, where `<run-id>` is unique per `Dut` session and `<n>` is the
+within-session boot counter. Two acceptable sources for `<run-id>`, in preference order:
+
+1. **Persist a monotonic counter per port**, exactly as the reset-gap stamp already does —
+   `_reset_gap_file(port)` (`app/tools/lib/dut.py:123-160`, per-port since TASK-552) is the existing
+   pattern, the existing location, and the existing failure handling (`FileNotFoundError`/`ValueError`
+   → carry on). Preferred: it makes tags comparable across runs, which is what a cross-session
+   comparison needs.
+2. **A per-session random/timestamp token** if persistence is judged not worth it. Weaker — it makes
+   two tags *visibly different* without making them *orderable* — but it still kills the false
+   `gen=1 == gen=1`, which is the actual defect.
+
+Either way: **`gen=?` when boot was not observed** (§3.1's `DUT_BOOT_GATE=warn` correction), and a
+`gen=?` observation is never comparable to anything under §16.5's P2.
+
+#### Where the counter hooks in — and the blind spot it must declare
+
+**Added at the must-fix pass.** §16.2's chain ("`[bootphase] 0` lands in a stream the harness is
+already reading") has a hole, and an implementer who does not know about it will ship an
+under-counting counter that silently misses exactly the spontaneous mid-session resets the counter
+exists to catch.
+
+- **The single hook point is `_TeeSerial.readline`** (`app/tools/lib/dut.py:247-256`). It is the one
+  place every byte the harness reads passes through — it already rings-buffers and tees to the log
+  file there, so scanning the same `text` for `[bootphase] 0` is one `if`. Every other candidate is
+  wrong.
+- **It must NOT land in `read_json()`.** `read_json` (`app/tools/lib/dut.py:673-676`) **discards every
+  line that does not start with `{`**, and `[bootphase] 0` does not. Putting the counter there would
+  reproduce this document's own `get wifiCfg` finding (§2.2a) one layer down — the information
+  arriving, and the model having nowhere to put it. Recorded explicitly because it is the obvious
+  place to put it if you are reading the runner rather than the transport.
+- **Known blind spot, declared not fixed: `reset_input_buffer()`.** Measured 2026-09-01: **44 call
+  sites** across `app/tools/` and `run/` — **10 of them inside `dut.py` itself**, plus
+  `app/tools/suite/serialdbg/shell.py:507` and `:2652`. `_TeeSerial.__getattr__`
+  (`app/tools/lib/dut.py:261-262`) forwards *any* unknown attribute straight to the raw serial, so
+  `reset_input_buffer` never passes through `readline` and a `[bootphase] 0` sitting in the OS buffer
+  is **discarded unseen**. The counter therefore **under-counts**, and it under-counts precisely at
+  the moments a test decided the stream was untrustworthy — which correlates with the moments a board
+  is misbehaving.
+
+  **The fix is small and is named here so it is not rediscovered**: give `_TeeSerial` an **explicit
+  `reset_input_buffer()`** that drains via its own `readline` (bounded, non-blocking) before
+  delegating, so discarded lines are still scanned. It is not required for TASK-564 to land — but the
+  blind spot **must be stated in the counter's own docstring**, and a `gen=N` that has passed through
+  a buffer reset must not be presented as an exact boot count. A counter that is silently wrong is the
+  §1 failure with a number attached.
 
 **What I am not doing, and why it matters**: an RTC counter is a boot-path change, and this design has
 already dropped one of those (TASK-562) on the grounds that the harness causes the boot it observes,
@@ -974,18 +1307,49 @@ genuinely cannot see, re-open it then, with that case as evidence.
 **One firmware line is worth it, and it is a different thing.** `esp_reset_reason()` appears **nowhere
 in `app/src/`** (verified). Host-side counting can say *that* a boot happened; it cannot say *why* —
 power-on vs DTR vs software vs TWDT vs brownout. That is precisely the discrimination TASK-557 has
-been unable to make. Adding the reason as a **field on the `[bootphase] 0` line that already ships**
-is one printf argument: no new state, no new control flow, nothing dispatched during `setup()`. That
-is categorically unlike TASK-562, which proposed *executing commands* against half-initialised state.
-Filed as **TASK-572, P4, explicitly not load-bearing** — the design works without it.
+been unable to make. Adding the reason is one printf: no new state, no new control flow, nothing
+dispatched during `setup()`. That is categorically unlike TASK-562, which proposed *executing
+commands* against half-initialised state. Filed as **TASK-572, explicitly not load-bearing** — the
+design works without it.
+
+> **Status corrected at the must-fix pass: TASK-572 is DONE (2026-09-01, DUT-verified), and it landed
+> differently from the sketch above in two ways an implementer must not carry forward.**
+>
+> 1. **It is its own line, not a field on `[bootphase] 0`.** Shipped as `[bootreason] <n> <NAME>`,
+>    emitted from `setup()` immediately after phase 0. The reasoning is good and supersedes this
+>    section's: phase 0 is the first line after `Serial.begin()` with no settle, so it is the line most
+>    exposed to first-bytes-lost, and `[bootreason]` deliberately does not contain `[boot]` so it
+>    cannot be misread as a reboot banner by `_wait_for_ready`'s own detector. Any host-side parser
+>    must look for a **second line**.
+> 2. **@PM re-prioritised it P2 and scheduled it FIRST**, not P4 — bundled with TASK-424 into one
+>    debug-flash session at ~zero marginal cost (§19). This document said P4; the board is right and
+>    the document was wrong about the cost, not the value.
+>
+> **Honest limit, recorded at its call site and worth repeating here**: on ESP32 a DTR/EN reset
+> reports `POWERON` (`esp_system.h` marks `ESP_RST_EXT` "not applicable for ESP32"), so it does
+> **not** separate our port-open reset from a real power cycle — the one pair TASK-557 most wants. It
+> does separate SW / PANIC / INT_WDT / TASK_WDT / BROWNOUT / DEEPSLEEP, and a `BROWNOUT` observation
+> would settle the marginal-supply question outright.
 
 ### 16.3 The state-effect classification — a property of every step, not a note on one check
 
 The review is right that reset is not the only state-destroyer, and that R5's "`T_DH_03` runs last and
 restores" was an instinct applied to one check rather than a property of the ladder. Verified:
 `_switch_to_stock` (`app/tools/suite/serialdbg/_helpers.py:195-207`) issues **`set stockMode 0`
-*and* `switchApp`** — so it mutates a *setting* as well as the active app, with no reset anywhere in
-sight. A descent built from steps like that would silently destroy the state under investigation.
+*and* `switchApp`** — so it mutates the app's launch-view setting as well as the active app, with no
+reset anywhere in sight. A descent built from steps like that would silently destroy the state under
+investigation.
+
+> **Word corrected at the must-fix pass: the setting is *not persisted*.** Earlier text said
+> `_switch_to_stock` "mutates a **persisted** setting"; the helper's own docstring says the opposite —
+> *"TASK-247: force List launch view first (**in-RAM only, not persisted**)"*. The same wrong word was
+> duplicated in **X067**, and is corrected there too.
+>
+> **The mutation point stands, and is unaffected.** `effect: mutating` is about whether a step
+> destroys the state under investigation *in this session*, not about whether it survives a reboot. An
+> in-RAM mutation is if anything the *more* dangerous kind here, because it leaves no trace on the
+> device to notice afterwards. The correction is to the evidence, not the conclusion — recorded
+> because this document's whole subject is claims that outran their measurement.
 
 **Every ladder step and every health check carries one of three effect values, declared alongside
 `(cls, scope)`:**
@@ -1070,18 +1434,27 @@ placing `gen=4` evidence next to `gen=5` evidence with both tags visible in the 
 not make the claim impossible. It makes it *visibly* an inference across a boundary, which is the
 most this layer can honestly do.
 
-### 16.6 Exit criteria — state and generations
+### 16.6 Exit criteria — state and generations (**EC-S**)
 
-1. Every step in the RIG/HEALTH/CORE ladder declares an effect (read-only / mutating / resetting)
-   alongside `(cls, scope)`; a T0 gate asserts every step has one.
-2. Mode D's descent executes **read-only steps only**. Provable by inspection of the effect field —
-   no reviewer judgement required.
-3. A descent that skips a mutating check **names it and says why**. `T_DH_03` is the reference case.
-4. Every observation in a run's output carries `gen=N`, and the counter increments visibly when
-   `[bootphase] 0` is observed mid-session.
-5. Mode I's report shows both generation tags for the comparison it makes.
-6. No new firmware state. The generation counter is host-side; TASK-572's reset-reason field is a
-   printf argument on an existing line, and the design passes without it.
+*(Prefixed at the must-fix pass; see §21.)*
+
+- **EC-S1** *(in scope)*. Every step in the RIG/HEALTH/CORE ladder declares an effect
+  (read-only / mutating / resetting) alongside `(cls, scope)`; a T0 gate asserts every step has one.
+  The **undecorated default is `mutating`** (§13.3) — the conservative value, so a step nobody has
+  classified is never admitted to a descent by omission.
+- **EC-S2** *(condition on mode D's re-proposal, §20)*. Mode D's descent executes **read-only steps
+  only**. Provable by inspection of the effect field — no reviewer judgement required.
+- **EC-S3** *(condition on mode D's re-proposal)*. A descent that skips a mutating check **names it
+  and says why**. `T_DH_03` is the reference case.
+- **EC-S4** *(in scope)*. Every observation in a run's output carries a generation tag, and the
+  counter increments visibly when `[bootphase] 0` is observed mid-session. The tag is **globally
+  unique**, not per-session (§16.2) — a cross-session comparison must show two different tags. An
+  observation made when boot was not observed carries **`gen=?`** and is comparable to nothing. The
+  counter's docstring states the `reset_input_buffer()` blind spot (§16.2).
+- **EC-S5** *(condition on mode I's re-proposal)*. Mode I's report shows both generation tags for the
+  comparison it makes.
+- **EC-S6** *(in scope)*. No new firmware state. The generation counter is host-side; TASK-572 landed
+  as a single extra printf line (`[bootreason]`, DONE) and the design passes without it.
 
 ### 16.7 What this displaces
 
@@ -1095,3 +1468,125 @@ The reason this earns its place without displacing anything is that it arrived *
 shape was implemented. Had it come after TASK-570 landed, it would have been a third pass over 213
 ids, and I would have been arguing to defer it. That timing is luck, and it is the argument for
 settling the record's full shape — `(cls, scope, effect)` — before a line of it is written.
+
+---
+
+## 17. Must-fix pass — what the reviewers got wrong
+
+*Added 2026-09-01. Three independent reviews (adversarial, @Developer, @VE) returned APPROVE /
+BUILDABLE / VERIFIABLE **WITH CHANGES**. Every finding was re-measured against the tree before it was
+applied — the standing rule in this programme, and it earned its keep again: **three findings did not
+hold.** Recording them matters as much as recording the fixes, because "two reviewers agreed" has
+already produced a false claim in this document's history, and the corrective is measurement, not
+consensus.*
+
+| Claim | Verdict | Measurement |
+|---|---|---|
+| **§2 says precedence exists in "three disconnected places"; `run/player-gate:158-176` `_assert_crossmode` is a missing fourth** | **Already fixed — the finding is stale.** §2 has said "**four** disconnected places" since review 1, and `_assert_crossmode` has been the table's fourth row since then (it is item W5 in §12). Only the line number had drifted: the function is at `run/player-gate:188`, not `:158-176`, after TASK-573 inserted comments above it | `grep -n '_assert_crossmode()' run/player-gate` |
+| **`T-BUSY-*` are Stock tests** | **Partly.** 3 of 5 — `T-BUSY-01`, `-01b`, `-05` reach Stock via `_switch_to_stock`; `T-BUSY-02` and `-03` do not. Applied as measured (§13.2) rather than as stated; a blanket rule would have mis-seeded two ids | AST scan of `shell.py`'s `TESTS` bodies for `_switch_to_stock` / `\bStock\b` |
+| **Exit 4's consumer list is six items of pending work** | **Half of it is already done.** TASK-573 landed `NOT-RUN` in `run/player-gate`'s parser (`:129`), its comparator (`:157-161`) and its `--selftest` (`:273-275`, `:299-301`) ahead of time. What remains is the **exit code**, at `run/player-gate:422` plus the three `run/` scripts. §4.1 is rewritten around the measured state | `grep -n 'NOT-RUN' run/player-gate` |
+
+Two further corrections the reviewers did **not** raise, found while verifying theirs:
+
+- **`ve_suite_base.py` was never a consumer of the registry** — it appears in four separate cost
+  estimates (§4.2, §5 E1, §13.3, X067) and imports `TESTS` in none of them (§4.2). The blast radius
+  was one file smaller than every estimate in this document said.
+- **TASK-572 landed as `[bootreason]`, its own line — not as a field on `[bootphase] 0`** as §16.2
+  proposed, and for a better reason than §16.2 had (§16.2's correction box). A host parser written
+  from the old text would look for the wrong thing.
+
+**The pattern across all five.** Every one is a claim that outran its measurement by exactly one step:
+a count taken from a category label, a consumer list taken from a previous draft, a status taken from
+a filing rather than from the tree. That is the same failure §1 describes, committed by this document
+about itself, which is the strongest available argument that §5's mechanisms — E3's derived sentence,
+E5's premise line, EC-G8's inversion test — have to be *machinery* and not prose.
+
+---
+
+## 18. @VE rulings — binding
+
+*Recorded verbatim in force, not as advice. Where a ruling contradicts an earlier section, the ruling
+wins and the section has been edited.*
+
+1. **HEALTH stays outside the flake policy** (§4.4 unchanged) — **but it gains a
+   `health_instability:` key in `docs/verification/flaky.yaml`.** The key carries `owner`, `task`,
+   `review_by` and `evidence`, and carries **no retry semantics whatsoever**. Health ids remain
+   `UNDECLARED` to `flake()`; nothing in `run_with_flake_retry` ever consults this key. It exists so
+   that a health check observed to be unstable has an owner and a review date instead of a folk
+   memory — the same discipline `flaky.yaml` imposes on tests, without the mechanism that would be
+   wrong here.
+2. **`DUT_HEALTH=warn|skip` ⇒ `run/player-gate` must refuse to emit a verdict.** A gate run whose
+   health premise was downgraded is not a gate run. It exits without a PASS/REGRESS verdict and says
+   why — the same shape as its existing `SETUP_FAIL` refusal (`run/player-gate:422-424`), and the same
+   reasoning as `ALLOW_NO_CROSSMODE`'s "this run is NOT a gate run" banner (`:188+`).
+3. **`NOT-RUN` and `FLAKY-PASS` are forbidden as documentation status tokens** — they are *result*
+   vocabulary, and C6 asserts it. A doc row saying a test is `NOT-RUN` would collide with a runner
+   verdict of the same name in every grep, and the id-binding gate is the place that can see it.
+4. **Exit 4 is an opt-in parameter to `print_results`, never a change to `app/tools/lib/results.py:176`'s shared
+   default** (§4.4). Six callers; five are unrelated suites.
+5. **Mode I must never write `RESULTS[tid]`, and the run's exit code derives from in-sequence verdicts
+   only** (EC-T4). An isolation re-run is a diagnostic about *order*, not a second attempt at a
+   verdict; letting it overwrite a result would turn "fails only in sequence" into a green run, which
+   is the flake policy's own worst failure mode rebuilt in a new place.
+6. **Three preconditions bind the TASK-566 order switch** (adopted by @PM on the board, recorded here
+   because EC-G9 must not read as if a 3-run baseline alone suffices): (a) an **interleaved A/B at one
+   commit**, not sequential 3+3; (b) the undeclared flake candidates promoted into `flaky.yaml` or
+   dismissed **before run 1**, not adjudicated from the results; (c) the 0→1-edge enumeration
+   delivered as a **precondition**, not as an output. Any one unmet and the switch does not run.
+
+---
+
+## 19. @PM overrides — the board, not this document, sets the order
+
+*Recorded so an implementer following §7's "condensed order" does not contradict the board. Where they
+differ, **the board wins**; §7 is retained as the design's own reasoning about dependencies, not as a
+schedule.*
+
+| Point | This document said | @PM ruled | Why the board is right |
+|---|---|---|---|
+| **TASK-572** (reset reason) | P4, optional, last-ish | **P2, and it goes FIRST** — bundled with TASK-424 into one debug-flash session | The cost estimate here was per-task; @PM's is per-*session*. 572 is one printf riding an existing flash, so its marginal cost is ~zero and its value (arming the *next* TASK-557 flap with reset-cause discrimination) is time-sensitive. **Now DONE, 2026-09-01, DUT-verified** |
+| **Order of 565 and 570** | 565 → 570 | **570 → 565** | @Developer's finding, and it is correct: the HEALTH family is the **first consumer** of the `(cls, scope, effect)` record, so building 565 first guarantees a retrofit. One pass, not two — which is the same argument §13.3 makes for settling all three fields at once, applied one level up |
+
+Everything else in §7's ordering stands, including the one call this document is most confident about
+(TASK-564 as `[bootphase]`'s consumer) and the one constraint that overrides all scheduling: **566's
+order switch is held until TASK-557 closes or signs off**, with §18's three preconditions on top.
+
+---
+
+## 20. Cut — and the condition for re-proposing each
+
+*Fixed as cut at the must-fix pass, so scope cannot re-inflate by a later reader treating an unmarked
+section as live. Each row names the condition under which it may come back — an open question is
+cheaper to re-open than a half-built feature is to finish.*
+
+| Cut | Where it is described | Re-propose when |
+|---|---|---|
+| **Mode D — in-session descent (`--triage`)** | §14.2, §14.3, EC-T2/T3, EC-S2/S3 | **TASK-557 closes.** @PM's reasoning is the right one and is stronger than this document's case for building it: mode D executes further steps inside a session that has already failed, on a rig whose stability is *unresolved and non-stationary*. That is the procedure that produced four inconclusive measurement windows in TASK-557 itself |
+| **Mode I — isolation re-run (`--isolate-on-fail`)** | §14.2, §14.4, EC-T4, EC-S5 | **Mode D is live and a second order-dependence case appears.** Mode I is the only thing that answers the TASK-553 shape, so the case for it is real — but at ~60–90 s per failed id on a single serialised DUT (OQ-D), one known instance does not pay for it. Binding on re-proposal: EC-T4's `RESULTS` prohibition and §18 ruling 5 |
+| **`--class <CLS>` selector** | §13.4 | **After `--scope` has been in use long enough to show whether class-filtering is actually wanted.** `--scope` is the selector that answers the developer's real question ("I changed this file"); `--class` answers a question mostly asked by the harness, which does not need a CLI to ask it |
+| **`--upto <CLS>` selector** | §13.4 | **With `--class`, or when a measured `run/test-targeted` cycle time shows FEATURE cells for other apps are the dominant cost.** This is the cut that costs the most — `--upto` was §13's answer to "test at the right level" — and it should be the first thing re-proposed if the selector work lands well |
+| **Mode A — automatic per-FAIL descent** | §14.2 | **Never, as specified.** Rejected on three independent grounds (§14.2), any one sufficient. Not a scope cut; a design rejection |
+| **Standalone `run/dut-triage`** | §14.2, EC-T5 | **Never, as specified.** It is E4's reset trap with a name that invites post-mortem use (§14.1). A no-reset attach path (OQ7) would change the analysis, and that is OQ7's row, not this one's |
+
+Also still not built, unchanged from §15: a production serial console; per-app FEATURE blocking
+(moot, not deferred — §4.2); `T_DH_04` until real floors exist (TASK-569); the SKIP adjudication
+(TASK-567, whose 74 masked-FAIL bucket is a live defect and is now **TASK-574**).
+
+---
+
+## 21. Exit-criterion numbering
+
+Four independently-numbered lists existed — §9, §13.6, §14.5, §16.6 — each starting at 1, and
+cross-references between them ("exit criterion 8") were ambiguous by construction. Every list is now
+prefixed, and every cross-reference uses the prefix:
+
+| List | Prefix | Subject |
+|---|---|---|
+| §9 | **EC-G** | gating — the precedence property itself |
+| §13.6 | **EC-D** | developer workflow — selection |
+| §14.5 | **EC-T** | triage (mostly conditions on re-proposal, §20) |
+| §16.6 | **EC-S** | state and generations |
+
+The prefixes are two letters and do not collide with `T0–T4`, `L0–L4`, `C1–C6`, `P0–P4`, `A1–A7`,
+`S1–S6`, `D0–D9` or the `T_<FAMILY>_NN` id space — the same audit §3 applies to the class names, run
+again here, and this time including `H`.
