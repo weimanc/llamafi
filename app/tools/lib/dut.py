@@ -5,7 +5,8 @@ Extracted VERBATIM from run_serialdbg_tests.py, which was simultaneously the
 project's primary regression suite AND its DUT library: `Dut` already had 16
 importers, every one of them reaching into a 10 229-line module to get it, and
 several reaching past the public surface for `_switch_to`, `_restore_spotify`,
-`_DUT_WIFI_WAIT_S` and `_PORTAL_INDICATORS`.
+`_DUT_WIFI_WAIT_S` and `_PORTAL_INDICATORS` (the latter since deleted by
+TASK-555 — the firmware it watched for went away in ddf6433).
 
 Two things are NEW here rather than moved, both of them the point of the task:
 
@@ -194,9 +195,13 @@ def _is_ip_line(line: str) -> bool:
     return "IP address:" in line or "STA_GOT_IP" in line
 
 
-_PORTAL_INDICATORS  = (
-    "Forcing config mode", "configuring access point", "SpotifyDIY", "WiFiManager"
-)
+# _PORTAL_INDICATORS removed by TASK-555. It matched WiFiManager's force-portal
+# banners, and WiFiManager + DoubleResetDetector left this firmware in ddf6433
+# ("remove WiFiManager/DRD; on-device connect UI", 2026-06-11) — a week after
+# BP-018 was adopted on 2026-06-04. Nothing in app/src has printed those strings
+# since; the only surviving mentions are three stale comments. The tuple, the
+# portal_seen branch and its RTS-pulse recovery were therefore unreachable for
+# ~3 months while still reading as live safety machinery.
 # TASK-434 item 4: how many raw serial lines to keep for the abort dump. Kept
 # unconditionally, not only under --log-file: the sessions that hit a setup
 # failure are exactly the ones running without a log file, and "check serial
@@ -283,6 +288,11 @@ class Dut:
         # TASK-434 item 4: wrap unconditionally now — the ring buffer is the
         # point, the file is optional.
         self.ser = _TeeSerial(self.ser, log_file)
+        # Wall-time of the open that reset the DUT. Its only consumer was the
+        # portal-recovery branch TASK-555 deleted, so it is unread today — kept
+        # deliberately, not by oversight: TASK-557's next-steps ask for exactly
+        # this (the harness's own open timestamp, to correlate against udev
+        # events and to kill the BOOT_WAIT/app-boot timing degeneracy).
         self._port_open_time = time.monotonic()
         # Serial stream is NOT thread-safe. All methods that touch self.ser must be
         # called from the thread that constructed this Dut. Never read self.ser from
@@ -301,12 +311,17 @@ class Dut:
             e.tail = self.ser.tail()
             raise
 
-    def _wait_for_ready(self, _recovery_attempt: int = 0):
+    def _wait_for_ready(self):
         """CH341 driver asserts DTR during open() regardless of userspace settings,
         which resets the ESP32.  Detect the reboot signature and wait for the DUT
         to reach steady-state (WiFi up + first SUCCESSFUL Spotify poll + queue fetch)
         before returning.  Retries once via 'reconnect' if the startup poll fails.
-        Detects WiFiManager force-portal and auto-recovers via RTS pulse (BP-018 / LL-051)."""
+
+        TASK-555: the WiFiManager force-portal detection and its RTS-pulse
+        auto-recovery used to live here and are gone — the firmware they watched
+        for was removed in ddf6433 (2026-06-11), so the branch had been
+        unreachable for ~3 months. The `_recovery_attempt` parameter went with
+        it; no caller ever passed it."""
         orig_timeout = self.ser.timeout
         self.ser.timeout = 0.5
         boot_seen = False
@@ -384,7 +399,6 @@ class Dut:
         self.ser.timeout = 1.0
         # Wait for WiFi, watching for portal indicators (BP-018 / LL-051)
         ip_seen = False
-        portal_seen = False
         extended = False   # TASK-434 item 2: one bounded second wait, below
         deadline = time.monotonic() + _DUT_WIFI_WAIT_S
         while time.monotonic() < deadline:
@@ -392,29 +406,6 @@ class Dut:
             if _is_ip_line(line):
                 ip_seen = True
                 break
-            if any(ind in line for ind in _PORTAL_INDICATORS):
-                portal_seen = True
-                break
-        if portal_seen:
-            elapsed = time.monotonic() - self._port_open_time
-            wait_s = max(0.0, _DUT_DRD_WINDOW_S - elapsed)
-            print(f"  [Dut] PORTAL DETECTED — auto-recovering "
-                  f"(waiting {wait_s:.0f}s for DRD window)…", flush=True)
-            if wait_s > 0:
-                time.sleep(wait_s)
-            self.ser.rts = True
-            time.sleep(0.1)
-            self.ser.rts = False
-            self.ser.timeout = orig_timeout
-            if _recovery_attempt >= 1:
-                raise SetupFailure(
-                    "portal-recurred",
-                    "[Dut] Portal recurred after auto-recovery — manual intervention required.\n"
-                    "Hold the reset button for 15 s to clear the DRD counter, "
-                    "then re-run the test script."
-                )
-            self._wait_for_ready(_recovery_attempt=1)
-            return
         if not ip_seen:
             if _NO_WIFI:
                 # Opt-in, never the default: a WiFi failure is a real result for
