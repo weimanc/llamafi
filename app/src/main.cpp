@@ -261,6 +261,19 @@ void prepareForReboot() {
 
 void loop()
 {
+  // M-TESTARCH boot-window observability (TASK-561), phase 6 of 7. Emitted
+  // once, from the first loop() iteration: this is the exact instant the
+  // serial console becomes answerable, because handleSerialCommands() below
+  // is its only pump in the whole firmware. Everything before this line —
+  // SPIFFS, settings, display, the WiFi cascade, up to 5 s of NTP — happens
+  // with the console deaf, which is why a fixed host-side sleep could never
+  // be right. Phases 0-5 are emitted from setup() in boot/boot.cpp.
+  static bool s_bootPhaseReadyEmitted = false;
+  if (!s_bootPhaseReadyEmitted) {
+    s_bootPhaseReadyEmitted = true;
+    Serial.printf("[bootphase] %d %s\n", 6, "ready");
+  }
+
   unsigned long _loopStart = millis();
 
   drainInjectionQueue();   // serialdbg-001: pops one injection step per iter (TASK-056e)

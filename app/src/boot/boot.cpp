@@ -137,6 +137,15 @@ static void mb_heap_probe(const char *tag) {
 static inline void mb_heap_probe(const char *) {}   // no-op (production / non-debug)
 #endif
 
+// M-TESTARCH boot-window observability (TASK-561). One line per setup() stage
+// boundary. The token `[bootphase]` is NORMATIVE — do NOT respell it as
+// `[boot] phase=N`: lib/dut.py's reboot detector matches `"[boot]" in line`, so
+// that spelling would be read as a reboot signature. Ships in ALL builds, like
+// the boot banner: this changes what the firmware SAYS, not what it DOES.
+// Generalises the ad-hoc `[boot] spotify=off` token below, which was invented
+// for one variant and never extended.
+#define BOOTPHASE(n, name) Serial.printf("[bootphase] %d %s\n", (n), (name))
+
 void setup()
 {
   // Extend TWDT from 5→15s: dataTask TLS handshakes (webradio station list,
@@ -154,6 +163,7 @@ void setup()
   g_loopTaskHandle = xTaskGetCurrentTaskHandle();
 
   Serial.begin(115200);
+  BOOTPHASE(0, "reset");        // earliest point anything can be said
 
 #ifdef SD_BOOT_MOUNT
   // TASK-408 (2026-08-07): mount SD here, synchronously, and hold the session for
@@ -237,6 +247,7 @@ void setup()
   // no LEDC channel is configured. Take over GPIO21 now so ledcWrite() works.
   SettingsStorage::load();
   TouchCalStorage::load();
+  BOOTPHASE(1, "fs");           // SPIFFS mounted, settings + cal loaded
   if (g_calData.valid)
     ts.setCalibration(g_calData.xMin, g_calData.xMax, g_calData.yMin, g_calData.yMax);
   analogReadResolution(12);        // TASK-151: ensure 12-bit ADC for LDR on GPIO34
@@ -266,6 +277,7 @@ void setup()
   renderTaskbar(tft, currentAppId, winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
                 false, shell::activeError(), shell::activeConnecting());
   winampDisplay.setTitle("STARTING UP...");
+  BOOTPHASE(2, "display");      // chrome painted
 
   refreshToken[0] = '\0';
   fetchConfigFile(refreshToken, clientId, clientSecret);
@@ -286,6 +298,7 @@ void setup()
   // that shim was never actually wired into the build (wrong file path, no
   // #include anywhere), making the whole stage permanently dead code. NVS is
   // the real first stage now.
+  BOOTPHASE(3, "wifi");         // entering the cascade — the UNBOUNDED stage
   bool wifiConnected  = false;
   bool wifiCredsKnown = false;
   {
@@ -549,6 +562,7 @@ void setup()
   // identical behaviour. The epoch wait below is TZ-independent.
   winampDisplay.setTitle("TIME: SYNCING...");  // M-BOOT-UI (TASK-364) §2
   configTzTime(g_settings.posixTz, "pool.ntp.org", "time.google.com", "time.cloudflare.com");
+  BOOTPHASE(4, "time");         // entering the NTP wait (up to 5 s)
   unsigned long ntpStart = millis();
   unsigned long ntpDeadline = ntpStart + 5000;
   while (time(nullptr) < 1700000000UL && millis() < ntpDeadline) {
@@ -691,6 +705,7 @@ void setup()
 #endif
   mb_heap_probe("post-spotifyTask");  // TASK-261 Phase 0 milestone M2
   dataTask::begin();
+  BOOTPHASE(5, "services");     // spotifyTask / logServer / dataTask up
   mb_heap_probe("post-dataTask");     // TASK-261 Phase 0 milestone M3
 
   // Boot: init the Spotify app via the App interface, then draw taskbar.
