@@ -30,8 +30,13 @@ tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 echo "[task424-repro] step 2/4 — flashing $ENV_DEBUG to $PORT"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
 
-echo "[task424-repro] step 3/4 — waiting ${BOOT_WAIT}s for boot"
-sleep "$BOOT_WAIT"
+stamp_reset_gap "$PORT"
+# TASK-563: no blind boot sleep. The post-flash reset gap is stamped above
+# and enforced by lib/dut.py, which waits out the remainder on open
+# (TASK-559); readiness is then decided by watching the boot the open
+# itself causes, not by guessing. BOOT_WAIT never described this boot
+# anyway -- TASK-561 measured 46 s to console on a NO_AP_FOUND boot
+# against a BOOT_WAIT of 8.
 
 echo "[task424-repro] step 4/4 — running probe"
 (cd "$PIO_DIR" && "$VENV_PY" tools/sdwrite_repro.py --port "$PORT") || _RC=$?

@@ -314,8 +314,12 @@ stamp_reset_gap "$PORT"
   # BP-018-class: the upload's end-of-flash reset and the next serial open both
   # toggle DTR; too close together they trip the ESP32 double-reset-detector and
   # produce a stuck, non-clean boot (run/browser-player measured this).
-  echo "[player-gate] ${BOOT_WAIT}s boot wait + 15s DRD gap"
-  sleep "$BOOT_WAIT"; sleep 15
+  # TASK-563: no blind boot sleep. The post-flash reset gap is stamped above
+  # and enforced by lib/dut.py, which waits out the remainder on open
+  # (TASK-559); readiness is then decided by watching the boot the open
+  # itself causes, not by guessing. BOOT_WAIT never described this boot
+  # anyway -- TASK-561 measured 46 s to console on a NO_AP_FOUND boot
+  # against a BOOT_WAIT of 8.
 }
 
 # $1=leg $2=env $3=id list -> writes $OUT_DIR/leg$1.{log,results,ran}

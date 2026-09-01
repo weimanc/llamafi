@@ -46,8 +46,12 @@ echo "[test-sync] step 2/6 — flashing $ENV_DEBUG to $PORT"
 stamp_reset_gap "$PORT"
 
 
-echo "[test-sync] step 3/6 — waiting ${BOOT_WAIT}s for boot + WiFi"
-sleep "$BOOT_WAIT"
+# TASK-563: no blind boot sleep. The post-flash reset gap is stamped above
+# and enforced by lib/dut.py, which waits out the remainder on open
+# (TASK-559); readiness is then decided by watching the boot the open
+# itself causes, not by guessing. BOOT_WAIT never described this boot
+# anyway -- TASK-561 measured 46 s to console on a NO_AP_FOUND boot
+# against a BOOT_WAIT of 8.
 
 echo "[test-sync] step 4/6 — running sync/drift/playlist suite (T097-T116)"
 (cd "$PIO_DIR" && "$VENV_PY" tools/run_sync_tests.py --port "$PORT") \

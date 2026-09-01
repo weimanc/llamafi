@@ -35,6 +35,12 @@ echo "[wr-gate] 2/4 — flashing $ENV_GATE to $PORT"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_GATE" -t upload --upload-port "$PORT")
 
 echo "[wr-gate] 3/4 — waiting ${BOOT_WAIT}s for boot + WiFi"
+# DO NOT delete this sleep (TASK-563). Unlike the run/test* scripts, this one
+# drives a tool that opens a RAW serial.Serial rather than lib.dut.Dut, so it
+# never consults the reset-gap file and stamp_reset_gap() would be a no-op
+# here. This sleep is therefore the ONLY thing separating esptool's reset
+# from the port open -- removing it re-opens TASK-559 in this script.
+# Fix properly by migrating the tool onto Dut (design OQ5), not by deleting.
 sleep "$BOOT_WAIT"
 
 echo "[wr-gate] 4/4 — running ${TRIALS} cold-entry trials (hold >= ${HOLD_SECS}s)"
