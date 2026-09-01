@@ -88,6 +88,17 @@ if ! "$PYTHON" test_boot_gate.py; then
     exit 1
 fi
 
+# 4e. passive triage, mode P — TASK-571.
+# Every FAIL now carries the session health verdict, last-phase, gen tag and the
+# id's (cls, scope). That record is a STRING run/player-gate parses with a
+# line-oriented sed, and TASK-573 was a live gate defect where exactly such a
+# status string silently failed to parse — so the format is pinned here rather
+# than discovered on a gate run. Also pins that modes D and I stay unbuilt.
+if ! "$PYTHON" test_triage_context.py; then
+    echo "FAIL: test_triage_context.py (TASK-571 mode P) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —

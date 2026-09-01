@@ -22,6 +22,12 @@ instead of by a literal id list — either a scope name or the path of the file
 you changed. `--class`/`--upto` are deliberately NOT implemented: @PM cut both
 from TASK-570 on all three reviewers' recommendation (design §20).
 
+Passive triage (mode P, TASK-571, M-TESTARCH §14.2/EC-T1) is ALWAYS ON and has
+no flag: every FAIL carries the session health verdict, `last-phase=`, `gen=`
+and the id's own `(cls, scope)`, read from what the session already observed.
+Modes D (`--triage`, in-session descent) and I (`--isolate-on-fail`) are CUT
+(design §20) — there is no flag, no stub and no code path for either.
+
 Requirements:
     pip install pyserial
     DUT flashed with cyd2usb_winamp_debug (or another testable variant —
@@ -53,7 +59,7 @@ except ImportError:
     sys.exit("pip install pyserial")
 
 import suite.serialdbg as _suite                                          # noqa: E402
-from suite.serialdbg import _meta                                          # noqa: E402
+from suite.serialdbg import _meta, _triage                                 # noqa: E402
 from suite.serialdbg.shell import t093, t094, t095                        # noqa: E402
 
 SETUP_FAIL_EXIT = 3
@@ -193,6 +199,7 @@ def main():
     if unknown:
         sys.exit(f"Unknown tests: {unknown}. Available: {list(all_tests)}")
 
+    all_meta = None
     if args.scope:
         # TASK-570 / M-TESTARCH §13.4. Resolve BEFORE opening the port: a typo
         # in a selector must not cost a board reset to find out about.
@@ -200,14 +207,25 @@ def main():
             scope = _meta.resolve_selector(args.scope)
         except ValueError as e:
             sys.exit(f"--scope: {e}")
-        meta = _suite.build_all_meta()
-        in_scope = [t for t in selected if meta[t]["scope"] == scope]
+        all_meta = _suite.build_all_meta()
+        in_scope = [t for t in selected if all_meta[t]["scope"] == scope]
         if not in_scope:
             sys.exit(f"--scope {args.scope} -> scope '{scope}' selects none of the "
                      f"{len(selected)} candidate ids. Scopes present: "
-                     + ", ".join(sorted({r['scope'] for r in meta.values()})))
+                     + ", ".join(sorted({r['scope'] for r in all_meta.values()})))
         print(f"[scope] {args.scope} -> {scope}: {len(in_scope)} of {len(selected)} ids")
         selected = in_scope
+
+    if all_meta is None:
+        # Mode P needs the record too. Build it BEFORE the port is opened: a
+        # registry error must not cost a board reset to discover, and it is the
+        # same reason --scope resolves its selector up here.
+        try:
+            all_meta = _suite.build_all_meta()
+        except Exception as e:
+            print(f"[triage] registry unavailable ({type(e).__name__}: {e}) — "
+                  f"FAILs will carry no (cls, scope)")
+            all_meta = {}
 
     print(f"Connecting to {args.port} @ {args.baud}…")
     if args.log_file:
@@ -234,6 +252,11 @@ def main():
                     f"Usually it is mute (wedged, wrong firmware, or the open's "
                     f"reset did not take) rather than contended.\n"
                     f"Check: dmesg | tail ; ls -l /dev/serial/by-id/")
+    # Mode P (TASK-571): from here on every FAIL carries the session's health
+    # verdict, last-phase, gen tag and the id's (cls, scope). Installed after
+    # the Dut exists and before any test runs, so no FAIL can escape without it.
+    _triage.install(dut, all_meta)
+
     # Warmup ping: flush any residual DUT serial output before first test.
     try:
         dut.cmd("help", timeout=4.0)

@@ -32,6 +32,21 @@ INTERPRETATION NOTES (things the policy text does not state, decided here):
     code; treating a twice-observed failure as green would defeat the point.
   - A test that calls fail() directly is a FAIL even if declared flaky. Declaring
     an id does not blanket-excuse it; only flake() consults the declaration.
+
+PASSIVE TRIAGE — MODE P (TASK-571, M-TESTARCH §14.2/EC-T1):
+
+  Every FAIL carries the session's health verdict, its `last-phase=`, the
+  generation tag and the failing id's own `(cls, scope)`. Nothing re-runs and
+  nothing is issued to the device: mode P reads state the session has ALREADY
+  observed, so it cannot perturb the run it is reporting on. Modes D
+  (in-session descent) and I (isolation re-run) are CUT by @PM (design §20) and
+  are deliberately not built, stubbed or referenced here.
+
+  This layer only holds the HOOK. `lib/` never imports a suite (M-TOOLING), so
+  the context STRING is built by suite/serialdbg/_triage.py and installed with
+  set_fail_context() by the runner once the session exists. With no provider
+  installed — every host-side unit test, and every other suite — fail() behaves
+  exactly as it did before.
 """
 
 from __future__ import annotations
@@ -44,6 +59,51 @@ from . import flaky as _flaky
 # ── result tracking ──────────────────────────────────────────────────────────
 
 RESULTS: dict[str, str] = {}
+
+# ── mode P: the fail-context hook (TASK-571) ─────────────────────────────────
+
+#: Present in an annotated FAIL record. Also the idempotence guard: a record
+#: that already carries the marker is never annotated twice.
+TRIAGE_MARKER = "[triage]"
+
+#: tid -> single-line context, or None. Installed by the runner; never by lib/.
+_FAIL_CONTEXT: Optional[Callable[[str], Optional[str]]] = None
+
+
+def set_fail_context(provider: Optional[Callable[[str], Optional[str]]]) -> None:
+    """Install (or, with None, remove) the mode-P context provider."""
+    global _FAIL_CONTEXT
+    _FAIL_CONTEXT = provider
+
+
+def fail_context(tid: str) -> str:
+    """The suffix to append to a FAIL record for `tid` — `""` if there is none.
+
+    Fails SILENTLY and returns `""` on any provider error. Mode P is a
+    reporting affordance; a broken one must never change a run's verdict, and a
+    traceback out of fail() would do exactly that.
+    """
+    if _FAIL_CONTEXT is None:
+        return ""
+    try:
+        ctx = _FAIL_CONTEXT(tid)
+    except Exception:
+        return ""
+    if not ctx:
+        return ""
+    # One line, always. run/player-gate parses the summary with a line-oriented
+    # sed (`^  <id>: <STATUS>...`); a newline here would push the remainder onto
+    # a line that regex cannot account for. TASK-573 was exactly this class of
+    # defect — a status string that silently failed to parse.
+    return "  " + " ".join(str(ctx).split())
+
+
+def _annotate(tid: str, record: str) -> str:
+    """Append the mode-P context to a FAIL record, once."""
+    if TRIAGE_MARKER in record:
+        return record
+    return record + fail_context(tid)
+
 
 # tid -> reason, set by flake() and consumed by run_with_flake_retry(). A tid
 # left in here at summary time never got its mandated retry.
@@ -64,8 +124,9 @@ def pass_(tid: str, detail: str = ""):
 
 
 def fail(tid: str, reason: str):
-    RESULTS[tid] = f"FAIL: {reason}"
-    print(f"  [FAIL] {tid}  {reason}")
+    record = _annotate(tid, f"FAIL: {reason}")
+    RESULTS[tid] = record
+    print(f"  [FAIL] {tid}  {record[len('FAIL: '):]}")
 
 
 def skip(tid: str, reason: str):
@@ -120,27 +181,29 @@ def run_with_flake_retry(tid: str, run_once: Callable[[], None]) -> None:
     r2 = RESULTS.get(tid, "")
 
     if reason2 is not None:
-        RESULTS[tid] = (f"FAIL: declared flake REPRODUCED on retry — "
-                        f"attempt1 FLAKE({reason1}) | attempt2 FLAKE({reason2})")
+        RESULTS[tid] = _annotate(tid, f"FAIL: declared flake REPRODUCED on retry — "
+                                      f"attempt1 FLAKE({reason1}) | attempt2 FLAKE({reason2})")
         print(f"  [FAIL] {tid}  declared flake reproduced on retry — not a flake, a failure")
     elif r2 == "PASS":
         RESULTS[tid] = f"FLAKY-PASS: attempt1 FLAKE({reason1}) | attempt2 PASS"
         print(f"  [FLAKY-PASS] {tid}  passed on retry — reported separately, NOT counted as PASS")
     elif r2.startswith("SKIP"):
-        RESULTS[tid] = f"FAIL: attempt1 FLAKE({reason1}) | attempt2 {r2} (retry could not run)"
+        RESULTS[tid] = _annotate(
+            tid, f"FAIL: attempt1 FLAKE({reason1}) | attempt2 {r2} (retry could not run)")
         print(f"  [FAIL] {tid}  retry SKIPped — a declared flake cannot be resolved by a skip")
     else:
-        RESULTS[tid] = (f"FAIL: attempt1 FLAKE({reason1}) | attempt2 "
-                        f"{r2 or 'no result recorded'}")
+        RESULTS[tid] = _annotate(tid, f"FAIL: attempt1 FLAKE({reason1}) | attempt2 "
+                                      f"{r2 or 'no result recorded'}")
         print(f"  [FAIL] {tid}  failed on retry")
 
 
 def _finalize() -> None:
     """Convert any never-retried declared flake into a FAIL."""
     for tid, reason in list(_PENDING_FLAKE.items()):
-        RESULTS[tid] = (f"FAIL: declared flake was never retried — this suite's dispatch "
-                        f"loop does not call run_with_flake_retry(); policy requires one "
-                        f"retry with both outcomes reported. Original claim: {reason}")
+        RESULTS[tid] = _annotate(
+            tid, f"FAIL: declared flake was never retried — this suite's dispatch "
+                 f"loop does not call run_with_flake_retry(); policy requires one "
+                 f"retry with both outcomes reported. Original claim: {reason}")
     _PENDING_FLAKE.clear()
 
 
