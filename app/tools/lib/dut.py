@@ -181,6 +181,118 @@ _DUT_BOOT_GATE      = os.environ.get("DUT_BOOT_GATE", "fail").strip().lower()
 # run/lib.sh's ENV_DEBUG, which reads the same variable — set it once and the
 # flash and the guard agree by construction.
 _DUT_ENV            = os.environ.get("DUT_ENV", "cyd2usb_winamp_debug")
+
+
+# ── the boot-phase stream (TASK-561's producer, consumed here by TASK-564) ────
+# `[bootphase] N name`, emitted once per stage boundary of setup() from
+# app/src/boot/boot.cpp (phases 0-5) and from main.cpp's loop() (phase 6). The
+# token is NORMATIVE on both sides — boot.cpp:141 says so, and `[boot] phase=N`
+# would be swallowed by the reboot detector below.
+#
+# Names and numbers are transcribed from the emitting call sites, NOT from doc
+# prose: boot.cpp:166/278/308/329/593/736 and main.cpp:274.
+_BOOT_PHASE_NAMES = {
+    0: "reset",     # first line after Serial.begin()
+    1: "fs",        # SD (SD_BOOT_MOUNT) + SPIFFS mounted, settings + cal loaded
+    2: "display",   # chrome painted
+    3: "wifi",      # entering the cascade — the UNBOUNDED stage
+    4: "time",      # entering the NTP wait
+    5: "services",  # spotifyTask / logServer / dataTask up
+    6: "ready",     # FIRST line of loop() — the console becomes answerable here
+}
+_BOOT_PHASE_RE = re.compile(r"\[bootphase\]\s+(\d+)\s+(\S+)")
+
+# Per-phase deadlines. The value at key N bounds the wait for phase N *from the
+# moment phase N-1 was observed* (phase 0 is measured from the port open). This
+# is the interface M-TESTARCH §2 argued the magic numbers were downstream of:
+# one flat wall-clock guess cannot be right for a boot whose third stage is
+# unbounded and whose other six are sub-second.
+#
+# EVERY number below is derived from a firmware constant or from measured boots
+# in the tmux monitor's disk log — none is a round number picked for comfort:
+#
+#   0  2.0s  — the incumbent constant (TASK-560's window), unchanged. Phase 0 is
+#             the first printf after Serial.begin(); 18 logged boots put it at
+#             ~60 ms after the ROM banner.
+#   1  30.0s — SD.begin() under SD_BOOT_MOUNT (both debug envs define it),
+#             tft.init(), the NFC probe, then `SPIFFS.begin(false) ||
+#             SPIFFS.begin(true)` — that second call FORMATS a 1.4 MB partition,
+#             which is the only genuinely slow thing in the stage and has no
+#             firmware bound at all. Measured <=0.7 s on all 18 logged boots, so
+#             30 s only ever fires on the format path, which is itself a rig
+#             anomaly worth naming.
+#   2  10.0s — chrome paint: bounded TFT writes, no I/O. Same 0.7 s bucket.
+#   3  10.0s — one SPIFFS config-file read. Same 0.7 s bucket.
+#   4  90.0s — THE unbounded one: the whole WiFi cascade lives in phase 3.
+#             Firmware worst case, summed from boot.cpp: 10 000 ms (NVS attempt)
+#             + 300 ms (TASK-404 settle) + WIFI_MAX_SAVED(5) x 10 000 ms
+#             (per-candidate probe, boot.cpp:477) + 15 000 ms (TASK-290
+#             re-association settle) = 75.3 s. Measured worst: 46.4 s, on the
+#             NO_AP_FOUND boot TASK-561 caught on its first live run. 90 s is
+#             the firmware bound plus ~20%, so a slow-WiFi boot cannot become a
+#             false setup failure — the constraint this task was given.
+#   5  20.0s — the NTP wait, bounded in firmware at `ntpStart + 5000`
+#             (boot.cpp:595), plus spotifyTask/logServer/dataTask begin().
+#             Measured worst 5.7 s.
+#   6  30.0s — Spotify app init, taskbar render, and TASK-260's boot-into-
+#             persisted-player-mode switchApp. Measured worst ~3.7 s.
+#
+# Worst-case total to phase 6 is therefore ~192 s, but only on a board that is
+# simultaneously reformatting SPIFFS and failing every WiFi candidate. A healthy
+# boot reaches phase 6 in ~8 s and a NO_AP_FOUND boot in ~48 s.
+_BOOT_PHASE_DEADLINE_S = {
+    0:  2.0,
+    1: 30.0,
+    2: 10.0,
+    3: 10.0,
+    4: 90.0,
+    5: 20.0,
+    6: 30.0,
+}
+# Grace for picking the stream up when phase 0 itself was missed. boot.cpp:170
+# records why that happens: phase 0 is the first thing emitted after
+# Serial.begin() with no settle, so it is the line most exposed to
+# first-bytes-lost. Sized to phase 1's budget — the next line we could see.
+_BOOT_PHASE_GRACE_S = _BOOT_PHASE_DEADLINE_S[1]
+
+
+def _run_id_file(port: str) -> pathlib.Path:
+    """Per-port monotonic run counter, for the generation tag's `<run-id>` half.
+
+    Same shape, same directory and same failure handling as _reset_gap_file()
+    above — deliberately, because it is the pattern this project already trusts
+    for per-device host-side state (TASK-552).
+
+    Why persisted rather than a per-session random token (design §16.2, which
+    allows either): a run id that increments makes two tags ORDERABLE, and the
+    reference case §16.1 exists for — "the re-plug fixed it", a pre-re-plug boot
+    compared against a post-re-plug boot — is a cross-SESSION comparison. A
+    per-session counter starting at 1 would print `gen=1` on both sides and
+    assert sameness where there is none, which is strictly worse than no tag.
+    """
+    try:
+        real = os.path.realpath(port)
+    except Exception:
+        real = port
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", real).strip("_") or "unknown"
+    return pathlib.Path(f"/tmp/esp32_dut_run_id_{slug}")
+
+
+def _next_run_id(port: str) -> str:
+    """Bump and return this session's run id. Never raises."""
+    f = _run_id_file(port)
+    try:
+        n = int(f.read_text().strip()) + 1
+    except (FileNotFoundError, ValueError, OSError):
+        n = 1
+    try:
+        f.write_text(str(n))
+    except OSError:
+        # Unwritable /tmp: fall back to a token that is at least VISIBLY
+        # different from another session's, which is the defect that actually
+        # matters (design §16.2's second acceptable source).
+        return f"t{int(time.time())}"
+    return str(n)
 def _is_ip_line(line: str) -> bool:
     """Does this serial line mean the DUT has a link?
 
@@ -220,11 +332,38 @@ class SetupFailure(RuntimeError):
     around Dut construction in the other app/tools/ runners keeps working
     unchanged, while main() can catch this specifically and exit with
     SETUP_FAIL_EXIT instead of the bare traceback that TASK-434 documents
-    three misreads from. `reason` is the machine-greppable slug."""
+    three misreads from. `reason` is the machine-greppable slug.
+
+    TASK-564 adds two stamped fields, `last_phase` and `gen`. They are NOT
+    constructor arguments: every raise site inside the readiness path would then
+    have to remember to pass them, and the one that forgot would be the one that
+    fired. Dut.__init__ stamps them instead, at the same single place it already
+    attaches the serial tail — so every SetupFailure that escapes construction
+    carries "which boot phase did it die in" and "which boot are we talking
+    about", whether or not its raise site knew either. Stamping is idempotent
+    and only ever adds; nothing consumes the message text positionally
+    (runner.py:189 passes str(e) straight through to _setup_fail)."""
 
     def __init__(self, reason: str, message: str):
         super().__init__(message)
         self.reason = reason
+        self.last_phase = None    # "3 wifi" — stamped by Dut.__init__
+        self.gen = None           # "7.1" / "?" — stamped by Dut.__init__
+
+    def stamp(self, last_phase: Optional[str], gen: Optional[str]) -> "SetupFailure":
+        self.last_phase = last_phase
+        self.gen = gen
+        return self
+
+    def __str__(self):
+        base = super().__str__()
+        if self.last_phase is None and self.gen is None:
+            # Raised before a Dut existed (resolve_port's port-ambiguous). There
+            # is no boot to name, so do not invent a `last-phase=?` that reads
+            # like the readiness path ran and learned nothing.
+            return base
+        return (f"{base}\n"
+                f"last-phase={self.last_phase or 'none'} gen={self.gen or '?'}")
 
 
 class _TeeSerial:
@@ -237,12 +376,37 @@ class _TeeSerial:
       * `log_path` — append to a plain-text file (the pre-existing --log-file).
       * ring buffer — the last _SETUP_FAIL_TAIL_LINES lines, always kept
         (TASK-434 item 4). Costs a bounded deque and buys the abort dump for
-        runs that had no log file, which is most of the ones that abort."""
+        runs that had no log file, which is most of the ones that abort.
 
-    def __init__(self, ser, log_path: Optional[str] = None):
+    Third job since TASK-564: the GENERATION COUNTER. See boot_count's docstring
+    below for what it can and cannot be trusted to say. It lives here, and only
+    here, because readline() is the one place every byte the harness reads
+    passes through — read_json() would have been the obvious-looking home and is
+    wrong, because it discards every line that does not start with `{` and
+    `[bootphase] 0` does not."""
+
+    def __init__(self, ser, log_path: Optional[str] = None,
+                 run_id: Optional[str] = None):
         self._ser = ser
         self._log = open(log_path, "a", buffering=1) if log_path else None
         self._ring = collections.deque(maxlen=_SETUP_FAIL_TAIL_LINES)
+        # ── generation counter (TASK-564, design §16.2 / EC-S4) ──────────────
+        # Counts observed `[bootphase] 0` lines, i.e. boots this session SAW.
+        #
+        # UNDER-COUNTS, KNOWN AND DECLARED, NOT FIXED. _TeeSerial.__getattr__
+        # forwards any unknown attribute straight to the raw serial, so the 44
+        # `reset_input_buffer()` call sites across app/tools/ and run/ (10 of
+        # them inside this very file) never pass through readline(): a
+        # `[bootphase] 0` sitting in the OS buffer when one of them fires is
+        # discarded UNSEEN. So `gen=N` is "boots observed", never "boots that
+        # happened", and it under-counts precisely at the moments a caller had
+        # decided the stream was untrustworthy — which correlates with the
+        # moments a board is misbehaving. Do not present it as an exact boot
+        # count. The named fix (design §16.2) is an explicit
+        # _TeeSerial.reset_input_buffer() that drains via its own readline
+        # before delegating; deliberately out of scope here.
+        self.run_id = run_id or "?"
+        self.boot_count = 0
 
     def readline(self, *a, **kw):
         line = self._ser.readline(*a, **kw)
@@ -253,7 +417,32 @@ class _TeeSerial:
                 self._log.write(text)
                 if not line.endswith(b"\n"):
                     self._log.write("\n")
+            # One `if`, on the one path every read line takes. EC-S4 wants the
+            # increment VISIBLE in the run log: a spontaneous mid-session reset
+            # (the TASK-557 class, a TWDT, a brownout) leaves no mark in the
+            # results today, which is exactly what makes it an invisible
+            # confound rather than an event.
+            if "[bootphase] 0" in text:
+                self.boot_count += 1
+                print(f"  [Dut] gen={self.gen_tag()} — [bootphase] 0 observed"
+                      + ("" if self.boot_count == 1 else
+                         "  << UNEXPECTED: the board reset mid-session"),
+                      flush=True)
         return line
+
+    def gen_tag(self) -> str:
+        """`<run-id>.<n>`, or `?` when no boot has been observed.
+
+        Globally unique, not per-session (design §16.2): a per-session counter
+        starting at 1 makes EVERY session's first boot `gen=1`, so a
+        cross-session comparison — which is the shape of the reference case in
+        §16.1 — would print the same tag on both sides and assert sameness where
+        there is none. `?` is not a placeholder to be tidied away later: under
+        DUT_BOOT_GATE=warn there may genuinely have been no observed boot, and a
+        `?` observation is comparable to nothing."""
+        if self.boot_count == 0:
+            return "?"
+        return f"{self.run_id}.{self.boot_count}"
 
     def tail(self):
         return list(self._ring)
@@ -287,7 +476,9 @@ class Dut:
         self.ser.open()
         # TASK-434 item 4: wrap unconditionally now — the ring buffer is the
         # point, the file is optional.
-        self.ser = _TeeSerial(self.ser, log_file)
+        # TASK-564: and it carries the generation counter, so the run id has to
+        # be minted before the first byte is read.
+        self.ser = _TeeSerial(self.ser, log_file, run_id=_next_run_id(port))
         # Wall-time of the open that reset the DUT. Its only consumer was the
         # portal-recovery branch TASK-555 deleted, so it is unread today — kept
         # deliberately, not by oversight: TASK-557's next-steps ask for exactly
@@ -304,12 +495,45 @@ class Dut:
         # here, at the one place that still has the live _TeeSerial. main()'s
         # handler prints it — by the time it runs, run/test* is moments away
         # from reflashing prod over the evidence.
+        # TASK-564: the last boot phase observed, so a setup failure can say
+        # which stage of setup() it died in. Set here rather than in
+        # _wait_for_ready() so the stamp below is valid even for a failure
+        # raised before that method runs.
+        self._last_phase = None
         try:
             self._wait_for_ready()
             self._verify_debug_firmware()
         except SetupFailure as e:
             e.tail = self.ser.tail()
+            # TASK-564: one stamp site for every readiness-path failure —
+            # boot-not-observed, boot-phase-timeout, shell-unresponsive,
+            # wifi-not-connected and _verify_debug_firmware's
+            # prod-firmware-flashed alike. See SetupFailure's docstring for why
+            # this is not a constructor argument.
+            e.stamp(self.last_phase(), self.gen_tag())
             raise
+
+    def gen_tag(self) -> str:
+        """This session's generation tag (TASK-564, design §16.2/§16.5).
+
+        Every observation a run records should carry it, so that comparing two
+        observations across a boot boundary is VISIBLY a cross-generation
+        inference rather than an invisible confound. `?` means no boot was
+        observed and the observation is comparable to nothing."""
+        return getattr(self.ser, "gen_tag", lambda: "?")()
+
+    def last_phase(self) -> Optional[str]:
+        """`"<n> <name>"` for the last `[bootphase]` seen, or None."""
+        p = getattr(self, "_last_phase", None)
+        return None if p is None else f"{p[0]} {p[1]}"
+
+    def _note_phase(self, n: int, name: str) -> None:
+        """Record an observed `[bootphase] N name`.
+
+        Trusts the number, not our table, for the name — the firmware is the
+        authority on its own stream and a respelling there should show up in the
+        harness output rather than be silently normalised away."""
+        self._last_phase = (n, name or _BOOT_PHASE_NAMES.get(n, "?"))
 
     def _wait_for_ready(self):
         """CH341 driver asserts DTR during open() regardless of userspace settings,
@@ -324,10 +548,24 @@ class Dut:
         it; no caller ever passed it."""
         orig_timeout = self.ser.timeout
         self.ser.timeout = 0.5
+        # Belt and braces: __init__ sets this, but the host-only stub tests
+        # (test_boot_gate.py) drive _wait_for_ready() on an object.__new__'d Dut.
+        self._last_phase = None
         boot_seen = False
-        deadline = time.monotonic() + 2.0
+        # TASK-564: `[bootphase] 0 reset` is now the primary boot signature. It
+        # is emitted BEFORE `[boot] git=…` (boot.cpp:166 vs :227), so on current
+        # firmware it is what we see first. The legacy `[boot]`/`ets Jul` match
+        # stays as an alternate: it is what a board flashed with pre-TASK-561
+        # firmware says, and it is also what we see if phase 0's line was lost
+        # to the no-settle-after-Serial.begin() hazard boot.cpp:170 names.
+        deadline = time.monotonic() + _BOOT_PHASE_DEADLINE_S[0]
         while time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
+            m = _BOOT_PHASE_RE.search(line)
+            if m:
+                self._note_phase(int(m.group(1)), m.group(2))
+                boot_seen = True
+                break
             if "[boot]" in line or "ets Jul" in line:
                 boot_seen = True
                 break
@@ -384,8 +622,9 @@ class Dut:
             else:
                 detail = ("The shell is mute too, so the board is not up at all: "
                           "no boot banner and no response to `get heap`.")
-            msg = (f"no boot banner ('[boot]' / 'ets Jul') within "
-                   f"{2.0:.0f}s of opening the port. {detail}\n"
+            msg = (f"no boot signature ('[bootphase] 0' / '[boot]' / 'ets Jul') "
+                   f"within {_BOOT_PHASE_DEADLINE_S[0]:.0f}s of opening the port. "
+                   f"{detail}\n"
                    f"Opening the port asserts DTR and resets the ESP32, so a boot "
                    f"is expected here; not seeing one means the reset did not take, "
                    f"the board was mid-boot already, or it is wedged.\n"
@@ -395,13 +634,25 @@ class Dut:
                       f"(DUT_BOOT_GATE=warn)", flush=True)
                 return
             raise SetupFailure("boot-not-observed", msg)
-        print("  [Dut] reboot detected — waiting for DUT ready…", flush=True)
+        print(f"  [Dut] reboot detected ({self.last_phase() or 'legacy banner'}) "
+              f"— waiting for the boot-phase stream to reach 6 ready…", flush=True)
         self.ser.timeout = 1.0
+        # TASK-564: the real readiness gate. Phase 6 is the FIRST line of
+        # loop(), and handleSerialCommands() is pumped nowhere else in the
+        # firmware — so before it the console is deaf by construction, and after
+        # it every remaining timeout in this method is about something other
+        # than "the board has not finished booting". That distinction is what
+        # the flat 2 s window could never draw.
+        ip_seen = self._wait_for_bootphase_6()
         # Wait for WiFi, watching for portal indicators (BP-018 / LL-051)
-        ip_seen = False
         extended = False   # TASK-434 item 2: one bounded second wait, below
         deadline = time.monotonic() + _DUT_WIFI_WAIT_S
-        while time.monotonic() < deadline:
+        # `not ip_seen` guard (TASK-564): the phase wait above consumes the boot
+        # stream up to phase 6, and setup()'s `IP address:` / `STA_GOT_IP` lines
+        # are inside that window — so without this the harness would sit out the
+        # full 25 s + 75 s + `get ip` cascade on a board that had already told
+        # it the link was up, and blame WiFi for it.
+        while not ip_seen and time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
             if _is_ip_line(line):
                 ip_seen = True
@@ -440,7 +691,9 @@ class Dut:
                         "shell-unresponsive",
                         "DUT shell unresponsive for 90 s (--no-wifi) — "
                         "the boot cascade is still running or the DUT is wedged")
-                print("  [Dut] shell responsive — proceeding.", flush=True)
+                print(f"  [Dut] shell responsive — proceeding. "
+                      f"gen={self.gen_tag()} last-phase={self.last_phase()}",
+                      flush=True)
                 return
             # TASK-434 item 2, per VE's amendment: ONE bounded second wait on
             # the SAME boot — explicitly not the portal branch's RTS reset.
@@ -505,7 +758,8 @@ class Dut:
             time.sleep(0.5)
             self.ser.timeout = orig_timeout
             self.ser.reset_input_buffer()
-            print("  [Dut] DUT ready (spotify=off variant — poll wait skipped).", flush=True)
+            print(f"  [Dut] DUT ready (spotify=off variant — poll wait skipped). "
+                  f"gen={self.gen_tag()} last-phase={self.last_phase()}", flush=True)
             return
         # TASK-363 (M-SPOTIFY-BOOT-GATE, ADR-054 decision 4 / Finding 5): playerMode-aware
         # readiness. On a device persisted in WebRadio mode, spotifyTask boots idle and
@@ -532,7 +786,8 @@ class Dut:
             self.ser.timeout = orig_timeout
             self.ser.reset_input_buffer()
             print(f"  [Dut] DUT ready (playerMode={player_mode_offline} — Spotify idle by "
-                  "design, poll wait skipped).", flush=True)
+                  f"design, poll wait skipped). gen={self.gen_tag()} "
+                  f"last-phase={self.last_phase()}", flush=True)
             return
         # Wait for first successful Spotify poll (ok 200) AND queue fetch completion.
         # 60s window covers backoff after a failed startup poll.
@@ -566,7 +821,94 @@ class Dut:
         time.sleep(0.5)
         self.ser.timeout = orig_timeout
         self.ser.reset_input_buffer()
-        print("  [Dut] DUT ready.", flush=True)
+        print(f"  [Dut] DUT ready. gen={self.gen_tag()} "
+              f"last-phase={self.last_phase()}", flush=True)
+
+    def _wait_for_bootphase_6(self) -> bool:
+        """Advance the boot-phase state machine to `[bootphase] 6 ready`.
+
+        Returns whether an IP line was seen on the way — setup()'s
+        `IP address:` / `STA_GOT_IP` are emitted inside this window, and the
+        caller's WiFi wait would otherwise never see them.
+
+        Each hop gets its OWN deadline (_BOOT_PHASE_DEADLINE_S) rather than
+        sharing one wall-clock budget. That is the whole point of consuming the
+        stream: phase 3's cascade is bounded at 75.3 s by firmware constants
+        while every other stage is sub-second, so a single number is either far
+        too tight for the WiFi stage or so loose it gates nothing. TASK-561
+        measured a 46 s boot on its first live run — under the flat 2 s window
+        the harness declared itself ready mid-cascade.
+
+        Timeouts raise SetupFailure("boot-phase-timeout"), honouring
+        DUT_BOOT_GATE=warn exactly like the boot-not-observed gate above: this
+        lands while TASK-557 (rig instability) is open, and a gate that cannot
+        be turned down gets reverted wholesale by the next person it
+        inconveniences.
+        """
+        ip_seen = False
+        while True:
+            if self._last_phase is None:
+                # Phase 0's line was lost (boot.cpp:170's first-bytes hazard) or
+                # this is pre-TASK-561 firmware. Give the stream one grace
+                # window to show up at all before deciding which.
+                budget, want = _BOOT_PHASE_GRACE_S, None
+            else:
+                want = self._last_phase[0] + 1
+                budget = _BOOT_PHASE_DEADLINE_S.get(want, _BOOT_PHASE_DEADLINE_S[6])
+            deadline = time.monotonic() + budget
+            got = None
+            while time.monotonic() < deadline:
+                line = self.ser.readline().decode(errors="replace").strip()
+                if not line:
+                    continue
+                if _is_ip_line(line):
+                    ip_seen = True
+                m = _BOOT_PHASE_RE.search(line)
+                if m:
+                    got = (int(m.group(1)), m.group(2))
+                    break
+            if got is None:
+                if self._last_phase is None:
+                    # No `[bootphase]` at all. Pre-TASK-561 firmware, or a build
+                    # that predates it. Do NOT fail: the stream ships in all
+                    # builds today, but failing here would turn "you flashed an
+                    # old binary" into an unreadable phase timeout instead of
+                    # the ELF/`get heap` verdict _verify_debug_firmware() is
+                    # about to give, which is the legible one.
+                    print("  [Dut] WARN no [bootphase] stream — pre-TASK-561 "
+                          "firmware? Falling back to the legacy readiness gates.",
+                          flush=True)
+                    return ip_seen
+                msg = (f"boot stalled at [bootphase] {self.last_phase()}: no phase "
+                       f"{want} ({_BOOT_PHASE_NAMES.get(want, '?')}) within "
+                       f"{budget:.0f}s.\n"
+                       f"That bound is derived, not guessed — see "
+                       f"_BOOT_PHASE_DEADLINE_S. Stuck at 1 fs is a SPIFFS/SD "
+                       f"wedge; at 3 wifi it is the connect cascade (raise "
+                       f"DUT_WIFI_WAIT / see TASK-426); at 5 services it is a "
+                       f"task that failed to start. Reaching 6 ready is what "
+                       f"makes the serial console answerable at all, so nothing "
+                       f"below this point could have run.\n"
+                       f"Set DUT_BOOT_GATE=warn to downgrade this to a warning.")
+                if _DUT_BOOT_GATE == "warn":
+                    print(f"  [Dut] WARN boot-phase-timeout — {msg} "
+                          f"(DUT_BOOT_GATE=warn)", flush=True)
+                    return ip_seen
+                raise SetupFailure("boot-phase-timeout", msg)
+            if got[0] == 0 and self._last_phase is not None:
+                # The board reset while we were watching it boot. _TeeSerial has
+                # already bumped and printed the generation; restart the state
+                # machine so the deadlines below apply to the NEW boot rather
+                # than being measured from a boot that no longer exists.
+                print(f"  [Dut] WARN board reset mid-boot (was at "
+                      f"{self.last_phase()}) — restarting the phase gate",
+                      flush=True)
+                ip_seen = False
+            self._note_phase(got[0], got[1])
+            if got[0] >= 6:
+                print(f"  [Dut] [bootphase] 6 ready — console answerable "
+                      f"(gen={self.gen_tag()})", flush=True)
+                return ip_seen
 
     def cmd_drain(self, cmd_str: str, timeout: float = 5.0) -> list[dict]:
         """Send a command; read all JSON responses until one has 'last': True."""

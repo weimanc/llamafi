@@ -1397,6 +1397,27 @@ milestone level:
 - **`BOOT_WAIT`=8 was never derived from anything.** The first live use of TASK-561's `[bootphase]`
   stream measured **46 s** from reset to console-answerable on a WiFi-degraded boot — a 5.75×
   overshoot of the constant the whole design was written about, previously invisible.
+- **The 2 s boot window is gone — the harness now reads the boot** (TASK-564, `[bootphase]`'s first
+  consumer). `Dut._wait_for_ready()` waits for `[bootphase] 6 ready`, the instant `loop()` first
+  runs and therefore the instant `handleSerialCommands()` becomes answerable at all, with a separate
+  deadline per stage. Every one is derived rather than chosen: phase 4's **90 s** clears the WiFi
+  cascade's summed firmware worst case of **75.3 s** (10 s NVS attempt + 0.3 s TASK-404 settle +
+  `WIFI_MAX_SAVED`(5) x 10 s per-candidate probe + 15 s TASK-290 re-association settle), so the 46 s
+  `NO_AP_FOUND` boot above is no longer anywhere near the edge; phase 5's 20 s clears the NTP wait's
+  firmware bound of `ntpStart + 5000`; the sub-second stages get 10-30 s, the 30 s going to phase 1
+  because `SPIFFS.begin(true)` may format a 1.4 MB partition and has no bound at all. A stall now
+  names its stage — `boot-phase-timeout`, `last-phase=3 wifi` — instead of surfacing as "the DUT was
+  not ready", and `DUT_BOOT_GATE=warn` downgrades it like the boot-observation gate.
+- **A spontaneous mid-session reset is now a printed event rather than an invisible confound**
+  (TASK-564, design §16.2/EC-S4). `_TeeSerial.readline()` — the one place every byte the harness
+  reads passes through — counts observed `[bootphase] 0` lines into a generation tag `<run-id>.<n>`,
+  the run id being a per-port monotonic counter in `/tmp` on the `_reset_gap_file()` pattern. It is
+  **globally unique on purpose**: a per-session counter would print `gen=1` on both sides of the
+  cross-session comparison §16.1 exists for and assert sameness where there is none. `gen=?` when no
+  boot was observed, and a `?` observation compares to nothing. Host-side only — no firmware state,
+  no RTC counter. **Declared limit**: the 44 `reset_input_buffer()` call sites bypass `readline()`,
+  so the count is "boots observed", never "boots that happened", and it under-counts precisely when
+  a caller had decided the stream was untrustworthy.
 - **BP-018's stated rationale was void** (TASK-555): the `DoubleResetDetector`/`WiFiManager`
   mechanism it cites left the firmware one week *after* the BP was adopted, leaving ~3 months of
   unreachable code reading as live safety code. The 12 s gap is kept as an explicitly unverified
