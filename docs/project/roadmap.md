@@ -1345,7 +1345,10 @@ an arena-contiguity frame first; the cause was visible in every capture as `Refr
 immediately above `[boot] spotify=off`. That is now **BP-063** (account for the memory before
 proposing a mechanism), with **BP-061** and **BP-062** from the same stretch.
 
-**Remaining order.** `424 → 420/421` is the only hard chain left; 424 was re-characterised 2026-08-15
+**Remaining order.** `424 → 420/421` is the only hard chain left. **TASK-424 is scheduled 2026-09-01
+into DUT block 1** of the M-TESTARCH sequence (bundled with TASK-572, same debug flash) after @PM
+ruled it had been starved through four deferrals — see its row in `tasks-winamp-player.md`. The rest
+of this milestone stays paused. 424 was re-characterised 2026-08-15
 and is **worse than filed** — the write path does not merely panic, it silently truncates
 (`f.write()` returns 0 mid-run and the flushed size is smaller than the accepted bytes), so a
 playlist save built on it would lose rows quietly. 419 and 422-D are independent and startable now.
@@ -1362,6 +1365,65 @@ ids; Spotify's 403 is still externally blocked (TASK-243).
 **Decision:** [ADR-059](../architecture/decisions/ADR-059.md) ·
 **Tasks:** TASK-408..423, plus TASK-424/425/427..435 and TASK-442..452 filed from the work
 (active entries now live in [tasks-winamp-player.md](tasks-winamp-player.md))
+
+---
+
+### M-TESTARCH — test architecture: make the harness trustworthy before trusting its verdicts
+
+**Added to the roadmap 2026-09-01. This milestone had been running for weeks with no roadmap entry
+at all** — @PM records that as a documentation-health failure of mine, not a discovery. The roadmap
+had no entry for M-ARCH, M-TESTBASE, M-SRCLAYOUT, M-DOCLIFE or M-TOOLING either; those live only on
+the task boards. Only M-TESTARCH is written up here, because it is the one with an active schedule
+this document needs to carry. The others remain a known gap.
+
+The suite reports outcomes it cannot justify. Three failure modes, all evidenced: a rig fault reads
+as a firmware regression; an assertion that failed is recorded as a non-result (74 masked `skip()`
+sites); and a declared flake passing on its own mandated retry is scored as a regression by
+`run/player-gate` (a live parser defect, TASK-573). The milestone imposes a precedence hierarchy —
+**RIG > HEALTH > CORE > APP > FEATURE** — so a failure is attributed to the lowest layer that is
+actually broken, and everything above it is reported `NOT-RUN` rather than green.
+
+**Designs:** [boot-window observability](../architecture/designs/M-TESTARCH-boot-window-observability.md) ·
+[precedence hierarchy](../architecture/designs/M-TESTARCH-precedence-hierarchy.md) (`d2fd907`, §1–16) ·
+[test architecture](../architecture/designs/M-TESTARCH-test-architecture.md) (umbrella)
+
+**Status:** **IN PROGRESS.** Ten tasks landed 2026-09-01, all DUT-verified — TASK-548, 552, 553,
+554, 555, 556, 559, 560, 561, 563. The substantive findings from that day, worth carrying at
+milestone level:
+
+- **The harness had been opening the serial port inside its own mandated 12 s reset window on every
+  run** (TASK-559): `BOOT_WAIT` was 8, the guard only stamped in `Dut.close()`, so the most common
+  reset pair in the whole workflow — flash → open — was invisible to it. Nine scripts now stamp.
+- **`BOOT_WAIT`=8 was never derived from anything.** The first live use of TASK-561's `[bootphase]`
+  stream measured **46 s** from reset to console-answerable on a WiFi-degraded boot — a 5.75×
+  overshoot of the constant the whole design was written about, previously invisible.
+- **BP-018's stated rationale was void** (TASK-555): the `DoubleResetDetector`/`WiFiManager`
+  mechanism it cites left the firmware one week *after* the BP was adopted, leaving ~3 months of
+  unreachable code reading as live safety code. The 12 s gap is kept as an explicitly unverified
+  precaution with a written retirement criterion.
+- **TASK-557 (rig instability) is UNRESOLVED and non-stationary.** Four measurement windows; the
+  phenomenon stopped on its own at 23:22 on 2026-08-31 and the confound-free interleaved A/B
+  consequently had no discriminating power (0/12, 0/12). DTR is exonerated as a *sufficient* cause.
+  A human-run cable/powered-hub null test is still the decisive experiment.
+
+**Scheduled order** (@PM ruling 2026-09-01, adopting @Developer's order over the design's, after
+three independent reviews returned APPROVE/BUILDABLE/VERIFIABLE-WITH-CHANGES and ~20 must-fixes):
+
+> **TASK-573** (gate parser defect) → **@Architect applies the must-fixes** ‖ **TASK-574** (74 masked
+> FAILs, @VE) → **DUT block 1: TASK-572 + TASK-424** → **564** → **570** → **565** → **566**
+> (partial) → **571** (mode P)
+
+Full rationale, the contested-priority rulings and the explicit not-doing list are in
+[tasks-architecture.md § M-TESTARCH ▶ SCHEDULED ORDER](tasks-architecture.md).
+
+**Exit criteria for the milestone** (not for this block): a RIG or HEALTH fault can no longer be
+reported as a FEATURE regression; no `skip()` site records a failed assertion; and the class-ordered
+switch has passed @VE's three binding preconditions. **The order switch is HELD until TASK-557
+closes or signs off** — it reorders a suite with proven order-dependence (TASK-553) on a rig whose
+stability is unexplained.
+
+**Deps:** M-TESTBASE phase 1 (player gate) · **Risk:** the milestone's own measuring instrument is
+the thing under repair, so every intermediate result is provisional until TASK-573 lands.
 
 ---
 

@@ -142,11 +142,14 @@ never starts, naming the vacuum, so it cannot go green without a real acquire. *
 
 > **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**
 > — start there, not with this table. **Steps 1–5 are all done** (488+497, 471+472+529+530,
-> 475 phase 1, 478, 458+495, in that order). **Next is M-WINAMP-PLAYER** (still paused, 12 entries
-> in `tasks-winamp-player.md`) or TASK-424 (SD write panic) if DUT time is scarce.
+> 475 phase 1, 478, 458+495, in that order). **Next is the M-TESTARCH precedence block**, which has
+> its own ordered sequence in that file's *▶ SCHEDULED ORDER* subsection (@PM ruling 2026-09-01):
+> **573 → [Architect must-fixes] ‖ 574 → DUT block 1 (572 + 424) → 564 → 570 → 565 → 566 (partial)
+> → 571 (mode P)**. TASK-424 is no longer parked behind it — it rides DUT block 1.
 >
 > **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496, 488, 497. **Landed
-> 2026-08-21/22:** TASK-471, 472, 478, 529, 530, 495, 458.
+> 2026-08-21/22:** TASK-471, 472, 478, 529, 530, 495, 458. **Landed 2026-09-01:** TASK-548, 552,
+> 553, 554, 555, 556, 559, 560, 561, 563 — ten, all DUT-verified. TASK-562 withdrawn at review.
 
 > **Drift warning:** hand-maintained, same as the player board. The split file is the entry; this is
 > a label. If they disagree, the split file wins.
@@ -162,7 +165,7 @@ search the task id in that file.
 | task | pri | status | title |
 |---|---|---|---|
 | **[TASK-407](tasks-winamp-player.md#task-407--gsettingsplayermode-reverts-to-webradio-between-dut-sessions-with-no-manual-trigger-found)** | P4 | OPEN | `g_settings.playerMode` reverts to WebRadio between DUT sessions wi… |
-| **[TASK-424](tasks-winamp-player.md#task-424--sd-write-path-panics-in-fatfs-card-independent)** | P2 | OPEN | SD write path panics in FatFs (card-independent) |
+| **[TASK-424](tasks-winamp-player.md#task-424--sd-write-path-panics-in-fatfs-card-independent)** | P2 | **OPEN — SCHEDULED, DUT block 1** | SD write path panics in FatFs (card-independent). De-starved by @PM 2026-09-01 after four deferrals; bundled with TASK-572 in one debug-flash session. |
 | **[TASK-452](tasks-winamp-player.md#task-452--retire-the-arena-from-the-file-path-successor-to-the-withdrawn-task-443)** | P3 | OPEN | retire the arena from the FILE path (TASK-443 withdrawn, see archive) |
 | **[TASK-444](tasks-winamp-player.md#task-444--mbarenafree-can-call-libc-free-on-a-pointer-inside-an-already-freed-arena)** | P2 | DONE | `mb_arena_free()` can call libc `free()` on a pointer inside an alr… |
 | **[TASK-445](tasks-winamp-player.md#task-445--mbarenahs-header-comment-misdescribes-which-sites-call-the-arena)** | P3 | DONE | `mb_arena.h`'s header comment misdescribes which sites call the arena |

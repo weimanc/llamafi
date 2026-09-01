@@ -203,13 +203,44 @@ must not start until this is understood.
 
 **Owner:** Developer · **Deps:** none (TASK-408 supplies the repro) · **Gate:** the `sdwrite` command
 completes 2 048 chunks single-open, twice, on both cards, with no panic and a correct `endSizeB` ·
-**Priority:** P2 (blocks TASK-420/421 only) · **Status:** OPEN — **re-characterised 2026-08-15 with a
+**Priority:** P2 (blocks TASK-420/421 only) · **Scheduled:** **DUT block 1, next DUT session**, bundled
+with TASK-572 (one `printf` in `boot/boot.cpp` — same debug build, same session). Does **not** wait on
+the M-TESTARCH precedence chain. · **Status:** OPEN — **re-characterised 2026-08-15 with a
 measured mechanism; the model in the paragraphs above is wrong in two ways.** The panic is still
 unfixed. **Read the 2026-08-31 sections at the end of this task before the older ones**: much of the
 "corruption" evidence recorded above is a measurement artifact that has since been identified and
 fixed (`startSizeB` was reading an uninitialised `_stat`, so every "~1 GB size" was an ESP32 DRAM
 pointer), and this task no longer blocks TASK-548, which closed on its own evidence. What remains
 genuinely open is the panic itself plus one real per-file failure signature (`0xFFFFFFFF`).
+
+#### @PM ruling — was TASK-424 being starved? 2026-09-01
+
+**Asked directly, answered directly: yes, and until today that was correct. It stops being correct now.**
+
+Open since 2026-08-15 at P2, repeatedly deprioritised in favour of test-infrastructure work —
+including by @PM earlier today. Three reasons that was the right call, and one reason it no longer is.
+
+*Why the deferral was right.* (1) 424 blocks TASK-420/421 and **nothing else**; that chain sits inside
+M-WINAMP-PLAYER, which is paused by a standing decision, so the cost of delay did not compound the way
+TASK-488's did. (2) Its own evidence base was **actively degrading through misattribution**: the
+"~1 GB size" corruption was an uninitialised `_stat` (`4647219`), the `sd_put` failure attributed to it
+was corrected on 2026-08-31, and the "garbage size" symptom turned out to be two unrelated signatures.
+Every one of those retractions was *produced by* the tooling work that kept displacing it. Chasing a
+firmware panic with a harness that misreports is how a fifth artifact gets manufactured. (3) The rig
+itself was flapping (TASK-557), and 424's gate is a **sustained-write** test — the single test shape
+most easily confounded by a board that re-enumerates mid-run.
+
+*Why it is scheduled now.* The residual defect is **firmware-side and rig-independent**:
+`validate()` faulting at `ff.c:3465` with `EXCVADDR=0x00000001`, reproduced 3× on 2026-08-27 on both
+cards and both clock rates. It does not need the precedence hierarchy, the HEALTH class, or the class
+ordering to be investigated. The three preconditions that justified waiting are now met — the
+measurement artifacts are identified and fixed, and the rig has been quiet since 23:22 on 2026-08-31.
+Continuing to defer it past this point would be deferring on **momentum**, not on reasoning, which is
+what starvation actually is.
+
+*Guard against a fifth slip.* This task has now been deprioritised four times. It is scheduled into a
+named session (DUT block 1), not into "next available DUT time". If it slips again, the slip must be
+recorded here with the reason, or the P2 is dishonest and should be dropped to P3 openly instead.
 
 #### TASK-424 re-characterisation (2026-08-15, `cyd2usb_winamp_debug`, 32 GB SDHC)
 
