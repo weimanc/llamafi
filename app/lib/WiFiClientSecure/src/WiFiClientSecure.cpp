@@ -90,7 +90,26 @@ WiFiClientSecure &WiFiClientSecure::operator=(const WiFiClientSecure &other)
 void WiFiClientSecure::stop()
 {
     if (sslclient->socket >= 0) {
-        close(sslclient->socket);
+        // PATCH-TLS-1 (TASK-424) — was `close()`. See LOCAL_PATCHES.md.
+        //
+        // `sslclient->socket` is an lwIP socket number, allocated by
+        // `lwip_socket()` and released by `lwip_close()` everywhere else in this
+        // library (start_ssl_client's error paths, its stale-socket guard, and
+        // stop_ssl_socket). Plain `close()` is the *VFS* close and resolves the
+        // number in a different namespace: lwIP numbers here start at 0
+        // (LWIP_SOCKET_OFFSET == FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS == 0), and
+        // so do VFS descriptors. So stop() on socket 0 closes VFS fd 0 — which on
+        // this firmware is the first file opened, i.e. the SD file.
+        //
+        // That close lands in vfs_fat_close(), which f_close()es and memsets the
+        // FIL out from under an in-flight write. Measured on the DUT: an all-zero
+        // FIL plus fcntl(0, F_GETFD) == -1 / errno 9, with __wrap_close naming
+        // this call site. Downstream that shows up as f_write() returning 0 with
+        // no disk error (silent truncation) and, when the freed slot is re-opened
+        // underneath the same pointer, as validate() faulting at ff.c:3465 with
+        // EXCVADDR=0x00000001 — the whole of TASK-424, investigated for weeks as
+        // an SD/FatFs defect.
+        lwip_close(sslclient->socket);
         sslclient->socket = -1;
         _connected = false;
         _peek = -1;

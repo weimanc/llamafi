@@ -24,6 +24,12 @@ from lib.dut import Dut, SetupFailure, resolve_port  # noqa: E402
 
 CHUNK_COUNTS = [64, 256, 512, 1024, 2048]
 
+# TASK-424: `sdfilwatch` watches the FIL's own `obj.fs` word after every chunk
+# and stops the loop the moment it changes, so a trial that would have panicked
+# returns a JSON line instead of a backtrace. That makes several trials per boot
+# possible, which the panicking `sdwrite` mode never allowed.
+MODES = ("sdwrite", "filwatch")
+
 
 def read_raw_for(dut: Dut, seconds: float) -> list[str]:
     """Print+collect every raw line for a fixed window — sdwrite emits several
@@ -47,7 +53,18 @@ def read_raw_for(dut: Dut, seconds: float) -> list[str]:
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--port", default=resolve_port())
+    p.add_argument("--mode", choices=MODES, default="sdwrite",
+                   help="sdwrite = the original panicking repro; "
+                        "filwatch = TASK-424 FIL instrumentation (stops before the fault)")
+    p.add_argument("--chunks", default="",
+                   help="comma-separated chunk counts (default: %s)"
+                        % ",".join(str(c) for c in CHUNK_COUNTS))
+    p.add_argument("--status-every", type=int, default=64,
+                   help="filwatch: emit a FIL status line every N chunks (0 = off)")
     args = p.parse_args()
+
+    counts = ([int(c) for c in args.chunks.split(",") if c.strip()]
+              if args.chunks else list(CHUNK_COUNTS))
 
     print(f"Connecting to {args.port}…", flush=True)
     try:
@@ -60,7 +77,7 @@ def main():
     except Exception:
         pass
 
-    for n in CHUNK_COUNTS:
+    for n in counts:
         # TASK-424, 2026-08-27 finding: `sdwrite`'s FILE_WRITE open mode does
         # NOT truncate — startSizeB grows across successive calls in the same
         # boot unless the fixture is removed first. Without this, later
@@ -71,8 +88,12 @@ def main():
         dut.send("sdclean")
         read_raw_for(dut, 8.0)
 
-        print(f"\n--- sdwrite {n} ---")
-        dut.send(f"sdwrite {n}")
+        if args.mode == "filwatch":
+            cmd = f"sdfilwatch {n} {args.status_every}"
+        else:
+            cmd = f"sdwrite {n}"
+        print(f"\n--- {cmd} ---")
+        dut.send(cmd)
         # 2048 chunks * 512B at the historical ~1.2 MB/s is well under a
         # second; the window is generous because a panic-triggered reboot
         # prints its own boot banner over several seconds, and that banner

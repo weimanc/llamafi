@@ -17,5 +17,6 @@ void cmdSdSlots(const char *);
 void cmdSdLs(const char *);
 void cmdSdRead(const char *);
 void cmdSdWrite(const char *);
+void cmdSdFilWatch(const char *);
 void cmdSdClean(const char *);
 void cmdSdProbe(const char *);

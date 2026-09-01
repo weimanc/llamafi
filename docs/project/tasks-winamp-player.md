@@ -186,6 +186,113 @@ task-identity half becomes a runtime assert. Per-task tables live in the workstr
 
 ### TASK-424 — SD write path panics in FatFs (card-independent)
 
+> **Title is wrong and kept only so old references resolve.** The write path does not panic *in
+> FatFs*, and the defect is not in the SD stack at all.
+
+#### RESOLUTION 2026-09-01 — a file-descriptor namespace collision in `WiFiClientSecure::stop()`
+
+**The defect.** `WiFiClientSecure::stop()` (`app/lib/WiFiClientSecure/src/WiFiClientSecure.cpp`) released the TLS socket with
+the plain `close()`. `sslclient->socket` is an **lwIP socket number** — every other socket call in
+that library allocates and frees it with `lwip_socket()` / `lwip_close()`, which bypass the VFS
+entirely. `close()` is the **VFS** close and resolves the same integer in a different namespace.
+
+The two namespaces overlap at the bottom, and nothing separates them:
+`LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS`, `FD_SETSIZE = MEMP_NUM_NETCONN`, so the
+offset is **0** — lwIP hands out socket 0 first. VFS descriptors also start at 0, and this firmware
+leaves fd 0 free, so **the first file it opens is VFS fd 0** (measured: an SD file opened on a clean
+boot reports `fd:0`). So `stop()` on lwIP socket 0 executed `close(0)` against the VFS and closed
+the SD file.
+
+**Why that produced exactly the two symptoms this task chased for six weeks.** `close(0)` lands in
+`vfs_fat_close()`, which `f_close()`es the file and `memset`s its `FIL` to zero. For a write already
+in flight:
+
+* `obj.fs == NULL` → `validate()` returns `FR_INVALID_OBJECT` → `f_write()` returns **0** with no
+  `sd_diskio` error. That is this task's "Correction 2" (silent data loss, `f.write()` returns 0, the
+  decisive negative that "FatFs fails before touching the card"). It was right, and this is why.
+* If the freed slot is re-opened underneath the same pointer, the next `f_write()` faults in
+  `validate()` — `ff.c:3465`, `EXCVADDR=0x00000001`. That is the panic.
+
+It also explains why **chunk count was never the variable** (2026-08-15's own Correction 1): the
+trigger is an asynchronous TLS `stop()`, so a trial fails if one happens to land inside it. Observed
+fault chunks across this session: 3053, 296, 704, 11, 240, 880, 45 — no pattern, exactly as expected.
+
+**Fix**: `lwip_close(sslclient->socket)`, matching the rest of the library. Recorded as **PATCH-TLS-1**
+in [`app/lib/WiFiClientSecure/LOCAL_PATCHES.md`](../../app/lib/WiFiClientSecure/LOCAL_PATCHES.md)
+(new file; it also documents the pre-existing inline `PATCH-003`). The vendored file was byte-identical
+to the framework's before this patch, so **this is an upstream Arduino-ESP32 2.0.17 bug, not a local
+divergence** — re-apply after any platform bump, same rule as PATCH-SD-1.
+
+**How it was found — three steps, each one measurement.**
+
+1. **`sdfilwatch`** (new debug command, `cmdSd.cpp`; kept as the standing regression probe for this
+   defect). It locates the live `FIL` without needing esp_vfs_fat's private types —
+   `esp_vfs_fat_register()` allocates one contiguous `vfs_fat_ctx_t` whose last member is
+   `FIL files[]`, with `FATFS fs` earlier in the same block, and `obj.fs` is `FIL`'s first word — so
+   the `FATFS*` that `f_getfree()` returns is a base to scan forward from, and any word equal to it
+   is an open file's slot. The loop re-reads that word after every chunk and **stops before the next
+   `f_write()` dereferences it**, so a trial that would have panicked returns JSON instead of a
+   backtrace. First catch: `atChunk:3053`, and the whole `FIL` was zero, not just `obj.fs` — a
+   `memset`, and esp_vfs_fat has exactly one (`file_cleanup()`, called only from `vfs_fat_close()`
+   and a failed `vfs_fat_open()`).
+2. **`fcntl(fd, F_GETFD)` at fault time**, after switching the probe to `fopen()` so it owns the
+   descriptor: `fdCheck:-1 fd:0 errno:9 (EBADF)`. The descriptor was genuinely closed, and it was
+   fd **0**.
+3. **`-Wl,--wrap=close`** on the debug env, logging `__builtin_return_address(0)` for any close of
+   an fd below the socket range. One caller, every time, mostly on `spotifyTask`:
+   `0x4011b2e7` → `WiFiClientSecure::stop()` in `app/lib/WiFiClientSecure/src/WiFiClientSecure.cpp` (resolved with `addr2line`
+   against the run's own ELF — the inline decoder is untrustworthy here, TASK-432). Both the wrap
+   flag and `app/src/debug/closeWatch.cpp` were removed after the identification; reinstate with
+   `-DCLOSE_WATCH -Wl,--wrap=close` on the debug env plus a `__wrap_close` that logs
+   `__builtin_return_address(0)` if this ever needs re-running.
+
+**A wrong fix was tried first and is recorded rather than hidden.** The first patch set
+`ssl_client->socket = -1` at the end of `ssl_init()`, on the theory that its `memset` left the field
+at 0 and `stop()`'s `if (socket >= 0)` guard then closed fd 0. It changed nothing on the DUT — both
+constructors assign `socket` immediately after `ssl_init()`, so the context is never left at 0 by
+that path. That patch was reverted. It is only because the fix was *verified on the DUT rather than
+declared* that the real cause was found; this task's own history is full of confident models that a
+measurement would have retired sooner.
+
+**Verification (DUT, `cyd2usb_winamp_debug`, 32 GB SDHC, 2026-09-01).** Trials are `sdclean` →
+`reconnect` (forces a Spotify poll, which fails and drives the `client.stop()` path) →
+`sdfilwatch 4096`:
+
+| build | trials | FIL corruptions | panics | closes of a non-socket fd |
+|---|---|---|---|---|
+| before the fix | 8 | 3 | 2 | 40+ (all `WiFiClientSecure::stop()`, fd 0) |
+| after the fix | 8 | **0** | **0** | **0** |
+
+**Gate**: `sdwrite 2048` single-open, run 3× (gate asks for twice), each after `sdclean` and with a
+concurrent forced Spotify poll: **no panic, `bytes` and `endSizeB` both exactly 1 048 576, and
+`startSizeB:0`.** PASS.
+
+**Gate clause NOT met — second card.** The gate reads "on both cards". Only the 32 GB SDHC card is in
+the board; the 2 GB SDSC card was not available this session. Reporting it unmet rather than
+redefining the gate. The residual risk is low and stated plainly: the defect and its fix are entirely
+in the TLS descriptor path and touch nothing card-specific, and this task's own record already
+establishes that the failure reproduced on both cards and at both 4 and 20 MHz — i.e. the symptom was
+never card-dependent, consistent with a cause that has nothing to do with the card. A second-card
+re-run is worth doing opportunistically, not worth blocking on.
+
+**Consequences.**
+
+* **TASK-420/421 (`pledit-edit-001` / `m3u-001`, playlist save) are unblocked.** The write path they
+  assume now works.
+* **`sdprobe`'s short-burst bench-fixture loop can be reverted to a plain single-open write.** This
+  task's own note already asks for that once the defect is fixed — it was a workaround, not a design.
+  Same for TASK-415's short open/write/close pattern in `sd_put.py`, though that one is also doing
+  useful chunk-level verification and does not have to change.
+* **This was never SD-specific.** Any file this firmware holds open across a failing TLS request was
+  exposed — the audio decoder's file handle, the playlist index, `fileBrowser.h`. Nothing else had a
+  long enough single-open write to notice.
+* **LL candidate for @QM** (not self-promoted, flagged here per the AGENTS protocol): *an integer is
+  not a descriptor until you know whose namespace it is in.* Six weeks of investigation treated a
+  cross-subsystem descriptor collision as filesystem corruption, because the symptom appeared
+  entirely inside FatFs. The generalisable check is cheap — `-Wl,--wrap=close` named the caller in
+  one DUT cycle after weeks of hypotheses, and would have done so at any point.
+
+
 Split out of TASK-408, where it was found and characterised but not filed. Sustained writes to a
 single open file panic the firmware: `f_write()` → `validate()` faults `LoadProhibited` because
 `obj->fs` reads NULL immediately after `ff_req_grant()` returns. Reproduced on **both** cards tested
@@ -203,9 +310,14 @@ must not start until this is understood.
 
 **Owner:** Developer · **Deps:** none (TASK-408 supplies the repro) · **Gate:** the `sdwrite` command
 completes 2 048 chunks single-open, twice, on both cards, with no panic and a correct `endSizeB` ·
-**Priority:** P2 (blocks TASK-420/421 only) · **Scheduled:** **DUT block 1, next DUT session**, bundled
-with TASK-572 (one `printf` in `boot/boot.cpp` — same debug build, same session). Does **not** wait on
-the M-TESTARCH precedence chain. · **Status:** OPEN — **re-characterised 2026-08-15 with a
+**Priority:** P2 (blocks TASK-420/421 only) · **Scheduled:** DUT block 1, 2026-09-01 (ran as scheduled;
+no fifth slip). · **Status:** **DONE 2026-09-01 — root-caused and fixed. It was never an SD or FatFs
+defect.** One line in the vendored `WiFiClientSecure` (PATCH-TLS-1): `stop()` released an lwIP socket
+number with the VFS `close()`, closing whatever unrelated file held that descriptor. **Read the
+"resolution" section at the end of this task first** — every model in the paragraphs below is
+superseded by it, and they are kept only for provenance. Gate: PASS, with one clause unmet (second
+card — see the resolution). Unblocks TASK-420/421. Everything below this line is the historical
+record. · **Superseded status:** re-characterised 2026-08-15 with a
 measured mechanism; the model in the paragraphs above is wrong in two ways.** The panic is still
 unfixed. **Read the 2026-08-31 sections at the end of this task before the older ones**: much of the
 "corruption" evidence recorded above is a measurement artifact that has since been identified and

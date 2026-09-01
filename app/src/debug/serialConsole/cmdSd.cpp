@@ -24,6 +24,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <fcntl.h>       // TASK-424: F_GETFD, to ask whether our own fd is still registered
 #include "debug/serialConsole/consoleShared.h"   // kSdCsPin/.../s_sdReady/sdMountAttempt
 
 static const char *sdCardTypeName(sdcard_type_t t) {
@@ -670,6 +671,209 @@ void cmdSdWrite(const char *args) {
                 "\"elapsedMs\":%lu,\"kBps\":%.1f}\n",
                 (unsigned)total, (unsigned)endSize, elapsedMs,
                 elapsedMs ? ((float)total / 1024.0f) / ((float)elapsedMs / 1000.0f) : 0.0f);
+}
+
+// ─────────────────────── TASK-424 instrumentation ───────────────────────
+// `sdwrite`'s panic is `validate()` (ff.c:3465) faulting with
+// EXCVADDR=0x00000001 — the FIL's `obj.fs` holds the literal integer 1 where a
+// `FATFS*` belongs. Every session so far inferred that from the crash dump.
+// Nothing has ever *watched* that word while the writes run, so we still don't
+// know which chunk turns it, whether anything around it changes with it, or
+// whether the same word first goes to 0 (which is what a `f.write()` returning
+// 0 with no sd_diskio error looks like: validate() rejects a NULL fs with
+// FR_INVALID_OBJECT instead of faulting on it).
+//
+// The FIL is reachable without esp_vfs_fat's private types.
+// `esp_vfs_fat_register()` allocates ONE contiguous `vfs_fat_ctx_t` whose final
+// member is `FIL files[max_files]`, with `FATFS fs` sitting earlier in the same
+// block (sd_diskio.cpp's sdcard_mount passes &fs straight out of it). `obj.fs`
+// is FIL's first word. So: take the FATFS* that f_getfree() hands back, scan
+// forward through the block for any word equal to it, and each hit is an open
+// file's slot — the exact 4 bytes that go bad.
+//
+// The loop then re-reads that word after every chunk and stops the moment it
+// changes, BEFORE the next f_write() dereferences it. A clean stop is the
+// point: a panic prints a backtrace, this prints the value, the chunk index,
+// and the surrounding struct.
+static void sdDumpWords(const char *tag, const uint32_t *from, int words) {
+  char buf[320];
+  int off = snprintf(buf, sizeof(buf), "{\"probe\":\"sdfilwatch\",\"dump\":\"%s\","
+                     "\"at\":\"0x%08x\",\"w\":[", tag, (unsigned)(uintptr_t)from);
+  for (int i = 0; i < words && off < (int)sizeof(buf) - 16; i++) {
+    off += snprintf(buf + off, sizeof(buf) - off, "%s\"0x%08x\"", i ? "," : "",
+                    (unsigned)from[i]);
+  }
+  snprintf(buf + off, sizeof(buf) - off, "]}");
+  Serial.println(buf);
+}
+
+// Scan forward from the FATFS* for words holding that same pointer. Bounded by
+// DRAM's top so a mount near the end of the heap can't walk off the mapped
+// region. Returns the number of hits, writing up to `cap` addresses out.
+static int sdFindFilSlots(const FATFS *fs, uint32_t **out, int cap) {
+  const uint32_t target = (uint32_t)(uintptr_t)fs;
+  uint32_t *p = (uint32_t *)(uintptr_t)fs;
+  int n = 0;
+  for (int i = 0; i < 6144 && n < cap; i++) {
+    uintptr_t a = (uintptr_t)(p + i);
+    if (a >= 0x3FFFFFF0u) break;
+    if (p[i] == target) out[n++] = p + i;
+  }
+  return n;
+}
+
+void cmdSdFilWatch(const char *args) {
+  int chunks = 512, statusEvery = 0;
+  sscanf(args, "%d %d", &chunks, &statusEvery);
+  if (chunks < 0) chunks = 0;
+  if (!s_sdReady) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdfilwatch\",\"error\":\"not mounted\"}");
+    return;
+  }
+
+  DWORD freeClust = 0;
+  FATFS *fs = nullptr;
+  unsigned long tg = millis();
+  // Same call SDFS::totalBytes()/usedBytes() make, and sdprobe already exercises
+  // those on this card, so the free-cluster scan is known not to trip the WDT here.
+  FRESULT gr = f_getfree("0:", &freeClust, &fs);
+  Serial.printf("{\"probe\":\"sdfilwatch\",\"phase\":\"fatfs\",\"res\":%d,"
+                "\"fs\":\"0x%08x\",\"fsId\":%u,\"fsType\":%u,\"pdrv\":%u,"
+                "\"filSizeB\":%u,\"getfreeMs\":%lu}\n",
+                (int)gr, (unsigned)(uintptr_t)fs,
+                fs ? (unsigned)fs->id : 0u, fs ? (unsigned)fs->fs_type : 0u,
+                fs ? (unsigned)fs->pdrv : 0u, (unsigned)sizeof(FIL),
+                (unsigned long)(millis() - tg));
+  if (gr != FR_OK || !fs) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdfilwatch\",\"error\":\"no FATFS\"}");
+    return;
+  }
+
+  // Slots occupied BEFORE our own open — i.e. handles some other part of the
+  // firmware is holding. The cross-handle-corruption hypothesis in TASK-424
+  // needs this number on the record for every run, not assumed to be zero.
+  uint32_t *pre[8];
+  const int nPre = sdFindFilSlots(fs, pre, 8);
+  for (int i = 0; i < nPre; i++) {
+    Serial.printf("{\"probe\":\"sdfilwatch\",\"phase\":\"preOpen\",\"slot\":%d,"
+                  "\"addr\":\"0x%08x\",\"offFromFs\":%d}\n",
+                  i, (unsigned)(uintptr_t)pre[i],
+                  (int)((uintptr_t)pre[i] - (uintptr_t)fs));
+  }
+  Serial.printf("{\"probe\":\"sdfilwatch\",\"phase\":\"preOpenCount\",\"open\":%d}\n", nPre);
+
+  // fopen() rather than SD.open(): VFSFileImpl is a thin wrapper over exactly
+  // this call, so the code path is unchanged, but holding the FILE* ourselves
+  // gives us fileno() — and the fd number is the datum that separates "someone
+  // closed our descriptor" from "someone stomped the memory". esp_vfs_close()
+  // frees the global fd-table entry as well as calling into fatfs, so if the
+  // FIL is zeroed while fcntl(fd, F_GETFD) still succeeds, the memset did NOT
+  // come from a close of *our* fd.
+  FILE *fp = fopen("/sd/probebench.bin", "w");
+  if (!fp) {
+    Serial.printf("{\"ok\":false,\"cmd\":\"sdfilwatch\",\"error\":\"open failed\","
+                  "\"errno\":%d}\n", errno);
+    return;
+  }
+  const int ourFd = fileno(fp);
+
+  uint32_t *post[8];
+  const int nPost = sdFindFilSlots(fs, post, 8);
+  // Our slot is the one that appeared across the open. If the set didn't grow
+  // (shouldn't happen, but say so rather than watching the wrong address) we
+  // bail instead of guessing.
+  uint32_t *mine = nullptr;
+  for (int i = 0; i < nPost; i++) {
+    bool seen = false;
+    for (int j = 0; j < nPre; j++) if (pre[j] == post[i]) seen = true;
+    if (!seen) { mine = post[i]; break; }
+  }
+  Serial.printf("{\"probe\":\"sdfilwatch\",\"phase\":\"opened\",\"chunks\":%d,"
+                "\"slotsAfterOpen\":%d,\"mine\":\"0x%08x\",\"offFromFs\":%d,\"fd\":%d}\n",
+                chunks, nPost, (unsigned)(uintptr_t)mine,
+                mine ? (int)((uintptr_t)mine - (uintptr_t)fs) : -1, ourFd);
+  if (!mine) {
+    Serial.println("{\"ok\":false,\"cmd\":\"sdfilwatch\",\"error\":\"slot not identified\"}");
+    fclose(fp);
+    return;
+  }
+
+  volatile uint32_t *watch = (volatile uint32_t *)mine;
+  const FIL *fil = (const FIL *)mine;
+  const uint32_t target = (uint32_t)(uintptr_t)fs;
+  sdDumpWords("filAtOpen", (const uint32_t *)mine, 12);
+
+  static uint8_t wbuf[512];
+  memset(wbuf, 0xA5, sizeof(wbuf));
+  size_t total = 0;
+  int badChunk = -1;
+  uint32_t badValue = 0;
+  unsigned shortAt = 0;
+  bool wasShort = false;
+  unsigned long t0 = millis();
+  for (int i = 0; i < chunks; i++) {
+    size_t n = fwrite(wbuf, 1, sizeof(wbuf), fp);
+    total += n;
+    const uint32_t now = *watch;
+    if (now != target) {
+      badChunk = i;
+      badValue = now;
+      Serial.printf("{\"probe\":\"sdfilwatch\",\"FILCORRUPT\":true,\"atChunk\":%d,"
+                    "\"objFs\":\"0x%08x\",\"expected\":\"0x%08x\",\"writeRet\":%u,"
+                    "\"bytesSoFar\":%u}\n",
+                    i, (unsigned)now, (unsigned)target, (unsigned)n, (unsigned)total);
+      errno = 0;
+      const int fdFlags = fcntl(ourFd, F_GETFD);
+      Serial.printf("{\"probe\":\"sdfilwatch\",\"fdCheck\":%d,\"fd\":%d,"
+                    "\"errno\":%d,\"stillOpen\":%s,\"atMs\":%lu}\n",
+                    fdFlags, ourFd, errno, fdFlags >= 0 ? "true" : "false",
+                    (unsigned long)millis());
+      sdDumpWords("filAtFault", (const uint32_t *)mine, 12);
+      // Neighbouring slots in the same files[] array: a stomp that overran one
+      // handle's FIL into the next shows up here and a targeted 4-byte write
+      // does not.
+      if ((uintptr_t)mine >= (uintptr_t)fs + sizeof(FIL))
+        sdDumpWords("filPrev", (const uint32_t *)((uintptr_t)mine - sizeof(FIL)), 8);
+      sdDumpWords("filNext", (const uint32_t *)((uintptr_t)mine + sizeof(FIL)), 8);
+      break;   // do NOT write again — the next f_write() is the panic
+    }
+    if (n != sizeof(wbuf)) {
+      wasShort = true;
+      shortAt = (unsigned)i;
+      Serial.printf("{\"probe\":\"sdfilwatch\",\"shortWrite\":%u,\"atChunk\":%d,"
+                    "\"objFs\":\"0x%08x\",\"filErr\":%u,\"filFlag\":\"0x%02x\"}\n",
+                    (unsigned)n, i, (unsigned)now, (unsigned)fil->err,
+                    (unsigned)fil->flag);
+      break;
+    }
+    if (statusEvery > 0 && ((i + 1) % statusEvery) == 0) {
+      Serial.printf("{\"probe\":\"sdfilwatch\",\"chunk\":%d,\"objFs\":\"0x%08x\","
+                    "\"objId\":%u,\"fsId\":%u,\"fptr\":%u,\"clust\":%u,\"sect\":%u,"
+                    "\"flag\":\"0x%02x\",\"err\":%u}\n",
+                    i, (unsigned)now, (unsigned)fil->obj.id, (unsigned)fs->id,
+                    (unsigned)fil->fptr, (unsigned)fil->clust, (unsigned)fil->sect,
+                    (unsigned)fil->flag, (unsigned)fil->err);
+    }
+    esp_task_wdt_reset();
+  }
+  unsigned long elapsedMs = millis() - t0;
+  // Closing a FIL whose obj.fs is garbage would fault in the same validate(),
+  // so skip the close on a caught corruption and say so — the slot leaks for
+  // the rest of this boot, which is acceptable in a probe that is about to be
+  // rebooted anyway.
+  if (badChunk < 0) fclose(fp);
+
+  size_t endSize = 0;
+  if (badChunk < 0) {
+    File chk = SD.open("/probebench.bin", FILE_READ);
+    if (chk) { endSize = chk.size(); chk.close(); }
+  }
+  Serial.printf("{\"ok\":true,\"cmd\":\"sdfilwatch\",\"bytes\":%u,\"endSizeB\":%u,"
+                "\"elapsedMs\":%lu,\"corruptAtChunk\":%d,\"objFsAtFault\":\"0x%08x\","
+                "\"shortWrite\":%s,\"shortAtChunk\":%u,\"closed\":%s}\n",
+                (unsigned)total, (unsigned)endSize, elapsedMs, badChunk,
+                (unsigned)badValue, wasShort ? "true" : "false", shortAt,
+                badChunk < 0 ? "true" : "false");
 }
 
 // Removes the sdprobe fixtures. A watchdog reboot during the bench-file write leaves

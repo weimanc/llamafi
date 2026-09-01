@@ -39,4 +39,6 @@ stamp_reset_gap "$PORT"
 # against a BOOT_WAIT of 8.
 
 echo "[task424-repro] step 4/4 — running probe"
-(cd "$PIO_DIR" && "$VENV_PY" tools/sdwrite_repro.py --port "$PORT") || _RC=$?
+# Extra args pass straight through to the probe (e.g. --mode filwatch
+# --chunks 512,1024,2048) so the mode selection lives in one place.
+(cd "$PIO_DIR" && "$VENV_PY" tools/sdwrite_repro.py --port "$PORT" "$@") || _RC=$?
