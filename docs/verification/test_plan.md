@@ -5203,6 +5203,11 @@ there. This is the VE record of *why*.
   in-code note at the `skip()` call and in the SKIP text itself. **Flip trigger:** the ruling is
   accepted and a `cyd2usb_player` build plays a track — at that moment `t_plr_09` gates on the
   variant and `fail()`s on `cyd2usb_player`, keeping `skip()` only for `cyd2usb_winamp_debug`.
+  **TASK-574 update (2026-09-01):** the flip trigger named above has *not* fired — TASK-443 was
+  **withdrawn**, and its narrower successor **TASK-452** ("retire the arena from the FILE path") is
+  still OPEN. The SKIP therefore stands unchanged. The in-code comment at `app/tools/suite/serialdbg/player.py:507` and the
+  SKIP text still name TASK-443 and should be re-pointed at TASK-452 the next time that file is
+  edited.
 
 **Driver correction (independent of the ruling, already applied).** `test_playorder_player.py` and
 `test_fbrowser_player.py` carried a `RebootDetected` / `MAX_ATTEMPTS = 3` retry loop that restarted
@@ -5214,6 +5219,44 @@ under test into a green run, so a reset is now a **hard FAIL on first occurrence
 Their "playback confirmed — arena acquired, MP3 decoding" line was also false on two counts (neither
 script reads `arenaStats`; post-ruling the FILE arm acquires nothing) and now says only what is
 observed.
+
+---
+
+## SKIP-verdict adjudication (TASK-574, 2026-09-01)
+
+All **256** `skip()` call sites in `app/tools/suite/serialdbg/` were adjudicated against the
+question "if this condition were caused by the firmware being broken, would a reader want the run to
+go red?". Full table with a per-site justification:
+[`regression_suite/skip-adjudication-task574.md`](regression_suite/skip-adjudication-task574.md).
+
+**Outcome: 240 genuine preconditions (A), 0 masked FAILs converted (B), 16 ambiguous (C).**
+
+**No test's verdict semantics changed.** Nothing was converted from `skip()` to `fail()`, so no
+currently-green cell can turn red as a result of this task, and the pre-declared pass set in
+[`regression_suite/player-gate-baseline.md`](regression_suite/player-gate-baseline.md) is unaffected
+(`T_PLR_01`–`26`, `T_PMT_00`–`04` all keep the verdict semantics they had). Any future red in those
+cells is a new regression, exactly as before.
+
+The two shapes the review flagged as likely masked FAILs did not survive scrutiny:
+
+- **`"lastPlaylistDraw did not advance"`** (6 sites — `T172`, `T182`, `T_MA_03`, `T_GOL_03`,
+  `T_WX_03`, `T_CX_03`) is genuinely playback-dependent: `_lastDrawMs` only moves on a PLEDIT
+  **seqno** bump, and `seqno` only advances on a successful Spotify queue poll. The existing reason
+  string is substantially correct. Five of these six tests have **no `pass_()` of their own** — they
+  can only PASS (from inside `_check_residue`) or SKIP, never FAIL, which is real coverage debt.
+  **Recommended fix**, to be filed as its own task: re-point the residue check at
+  `get pleditRepaints` (the ADR-059 D12 repaint counter), which `SpotifyApp::resume()`'s
+  `invalidatePlaylist()` guarantees will advance regardless of playback; add an `appId` assertion on
+  the switch-back for the four that fire a bare taskbar tap; then convert all six to `fail()`.
+- **`"drill-in did not fire"` / `"could not switch to <App>"`** are preconditions by the suite's own
+  established convention: each transition is asserted with `fail()` in the test that *owns* it
+  (`T174` drill-in, `T200`/`T201` HEAT toggle, `T202` tile drill, `T_MA_01`/`T_GOL_01`/`T231` app
+  switch) and skipped as setup everywhere else.
+
+The 16 (C) sites are listed for human adjudication in §3.3 of the table document. The two most
+consequential are `T-CDWN-02` (`app/tools/suite/serialdbg/shell.py:1933`) and `T-BUSY-01b` (`app/tools/suite/serialdbg/shell.py:1689`), where the
+skipped condition **is** the test's stated primary assertion; both need one extra in-test
+discriminator (proving the busy window was really open) before the skip can honestly become a fail.
 
 ---
 
