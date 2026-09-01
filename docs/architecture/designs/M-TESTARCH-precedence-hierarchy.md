@@ -3,13 +3,18 @@
 > Owner: Architect
 > Status: proposed
 > Date: 2026-09-01
-> Revised: 2026-09-01 — independent review returned APPROVE WITH CHANGES; nine must-fixes and a scope
-> cut applied. See §12 for what changed and the one thing I push back on.
+> Revised: 2026-09-01 — (1) independent review returned APPROVE WITH CHANGES; nine must-fixes and a
+> scope cut applied (§12). (2) Second review, from a **feature developer/tester's** point of view:
+> the design served attribution and not the daily loop. §13 (selection), §14 (failure triage) and
+> §15 (what is dropped to pay for them) added; §4.2's "not derivable" claim corrected by measurement.
+> (3) Third review: **DUT state is evidence** — §16 adds generations, a read-only/mutating/resetting
+> classification for every ladder step, and the rule that evidence does not cross a boot boundary.
 > Companion to: [M-TESTARCH](M-TESTARCH-test-architecture.md) (§2b's tiers are the *other* axis — see §3),
 > [M-TESTARCH boot-window observability](M-TESTARCH-boot-window-observability.md) (the RIG layer this
 > builds on top of), [M-TOOLING](M-TOOLING-host-tool-architecture.md) §3 (the `lib/`↔`suite/` layering)
 > Feeds: one ADR — **owed on acceptance, not written yet**; id allocated at creation (§10)
-> Tracked-as: TASK-564, TASK-565, TASK-566, TASK-569 (TASK-567 deferred, TASK-568 to @QM)
+> Tracked-as: TASK-564, TASK-565, TASK-566, TASK-570, TASK-571 (TASK-567/569 deferred,
+> TASK-568 to @QM; TASK-572 optional)
 > Registers: serialdbg-001 (extended — health surface) · X067
 
 **Every claim below was measured against the working tree on 2026-09-01.** Line references and
@@ -196,10 +201,13 @@ additive-only (~10 s), because the boot has already been paid for by the constru
   (§2.2a) — and it must then **drain the trailing JSON ack**, which `drain_log_lines` leaves in the
   buffer. Leaving it desynchronises the next `read_json()` by one reply: the TASK-548 bug class,
   and the reason this is written down rather than left to the implementer.
-- `T_DH_03` is the only check that mutates device state, so it must restore the entry app and report
-  entry/exit `appId`. The `[TASK-407] entry/exit playerMode` snapshot
-  (`app/tools/suite/serialdbg/runner.py:214`/`:249`) is the existing precedent for exactly that shape.
-  It runs last, so a failure inside it cannot leave the board on an unexpected app for the run.
+- `T_DH_03` is the only check that mutates device state, so it is declared **`effect: mutating`**
+  (§16.3), must restore the entry app, and must report entry/exit `appId`. The
+  `[TASK-407] entry/exit playerMode` snapshot (`app/tools/suite/serialdbg/runner.py:214`/`:249`) is
+  the existing precedent for exactly that shape. It runs last, so a failure inside it cannot leave
+  the board on an unexpected app for the run. **Because it mutates, it is admissible here — a
+  pre-flight check runs before the board's state is evidence — and inadmissible in a triage descent
+  (§16.3). Same check, different context, different verdict.**
 
 
 ## 4. Gating semantics
@@ -273,13 +281,21 @@ Rule 5 originally blocked only the failing app's FEATURE tests
   value-type change on an interface shared by 7 family modules, `app/tools/suite/serialdbg/runner.py` (`:154`, `:164`, `:178`,
   `:239`) and `ve_suite_base.py`. That is the price of E1 as a whole and it is payable — but it is a
   refactor, not a field.
-- Per-app blocking needs a **second** field, app attribution, which is not derivable. `shell.py` is
-  an explicit multi-app catch-all holding the Weather, Crypto, Life, Matrix and taskbar cells, so
-  neither the module name nor the id prefix identifies an app.
+- Per-app blocking needs a **second** field, app attribution.
 
-Not worth a second unbacked field on a first landing. **Rule 5 is all-or-nothing**, and per-app
-granularity is recorded as OQ6 for when the APP class is actually generated from `APP_ORDER` (§2.3's
-matrix), at which point the attribution exists by construction and the field is free.
+**CORRECTED at second review (§13.2) — the original bullet said app attribution "is not derivable",
+and that was wrong in a way that mattered.** It generalised from `shell.py` (a genuine multi-app
+catch-all) to the whole suite. Measured: the family module attributes **117 of 213** ids to exactly
+one app, id prefixes inside `shell.py` attribute **~21** more, and the ~75 residue is largely **not
+app-scoped at all** — it is the CORE class. Attribution is ~65 % derivable.
+
+The consequence is a decision, not a re-parking: §13.3 makes the registry record `(cls, scope)` in
+**one** pass. Gating needs `cls`; selection needs `scope`; discovering that after paying the refactor
+once would have meant paying it twice.
+
+**Rule 5 is dropped entirely** (§15) — blocking applies to RIG, HEALTH and CORE only. An APP failure
+is a genuine test result and blocking FEATURE on it bought little, so per-app *blocking* granularity
+(OQ6) is moot rather than deferred, while per-app *selection* becomes first-class in §13.
 
 ### 4.3 The `SKIP` narrowing is deferred, and it is bigger than the draft said
 
@@ -466,7 +482,9 @@ failure is loud (FAIL + exit 1 + a NOT-RUN block naming it), and the summary pri
 in the same line as the pass count. A shrinking `NOT-RUN` count is a gate; an invisible one is a
 fiction — the same argument M-TESTARCH §6.1 made for the id-binding ledger.
 
-**R5 — Recovery, wedge risk, and the diagnostic that destroys its own evidence.** Nothing here
+**R5 — Recovery, wedge risk, and the diagnostic that destroys its own evidence.** *(Generalised at
+the third review: what follows was a mitigation on one check; §16.3 makes it a declared property of
+every ladder step, and §16.4 makes session-scoping a property of the descent.)* Nothing here
 changes flash, reset, or restore paths, and no firmware change is proposed at all beyond §11 OQ2's
 optional `wifiCfg` JSON. Two of the three health checks are read-only console reads; `T_DH_03` mutates
 app state, so it restores the entry app and runs last. `run/dut-health` opens the port once and
@@ -497,18 +515,28 @@ writing, that a dead-SSID board is a rig condition.
 | M-TESTBASE P4 / `get idle` (TASK-518) | landed | **Reused directly.** `T_DH_03` and CORE's quiescence rows are clients of it. No new firmware primitive is needed for anything in §3.1. |
 | M-TESTARCH §2.3 conformance matrices | rows A5/A6 built | **The APP class is that matrix.** This design does not create an app taxonomy; it says the matrix rows *are* class APP and inherit the gating semantics. A5/A6 stay T0. |
 
-**Condensed order** (scope cut applied at review): **564** (`[bootphase]` consumer) → **565**
-(the slimmed HEALTH family `T_DH_01..03` + `run/dut-health` + E3's derived sentence + E5's premise
-line) → **566** (classification inert → baseline → class-ordered runner + `NOT-RUN` + exit 4, landing
-**with** §4.1's four scripts and one parser) → **569** (`T_DH_04` heap/stack floors, advisory, once
-real floors exist) → **567** (SKIP adjudication, after 566 has a baseline) → **568** (QM: LL + the
-proposed BP). 566's order switch is gated on 557.
+**Condensed order** (scope cut applied at first review; §13/§14 folded in at the second):
+**564** (`[bootphase]` consumer) → **565** (the slimmed HEALTH family `T_DH_01..03` +
+`run/dut-health` + E3's derived sentence + E5's premise line) → **566 + 570 as one registry pass**
+(the `(cls, scope)` record — classification inert → on-paper order diff → baseline → class-ordered
+runner + `NOT-RUN` + exit 4 landing **with** §4.1's six consumers; and the `--scope`/`--class`/
+`--upto` selectors on the same record) → **571** (triage modes P, D, I) → **569** (`T_DH_04`,
+advisory, once real floors exist) → **567** (SKIP adjudication) → **568** (QM: LL + proposed BP).
+566's order switch is gated on 557.
+
+**566 and 570 are one pass, not two.** §13.3's whole point is that the registry record is decided
+once; sequencing them apart would pay §4.2's refactor twice. 570 may *land* after 566 — the selectors
+are additive — but the record's shape is settled before either starts.
 
 **What ships first, and it is deliberately small**: E3 and E5. Both are host-only, both are a few
 dozen lines, and between them they delete the worst artefact in the system (the harness calling a
 device fault a rig condition) and add the thing whose absence made every previous investigation
 unfalsifiable (a run that states its own premise). Neither needs the class machinery to be worth
 landing.
+
+**And mode P (§14.2) joins them.** Attaching the session's health verdict and `last-phase=` to every
+FAIL is the same evidence E5 already gathers, printed in a second place. It is the cheapest thing in
+either review's scope and it is the one a developer sees on every failing run.
 
 ---
 
@@ -521,6 +549,11 @@ landing.
 - It does not claim to prevent an agent from asserting a wrong cause. It makes the wrong assertion
   contradicted by the output it would have to cite (§5.1), which is the strongest available mechanism
   and is worth less than it sounds.
+- *(Added at second review.)* It does not build a standalone post-mortem triage script, does not
+  descend automatically after every FAIL, and does not block on the APP class. §15 is the full list,
+  with what was dropped to pay for §13/§14.
+- *(Added at third review.)* It does not add RTC-backed firmware state for boot identity — the
+  generation counter is host-side, derived from a token that already ships (§16.2).
 
 ---
 
@@ -588,10 +621,11 @@ landing.
   boot-window design's OQ5, corrects its count (6 scripts + the whole `run/test-sync` suite, from 14
   raw-`serial.Serial` files), and does not answer it. Migrating them onto `Dut` is the obvious answer
   and remains that document's row, not this one's.
-- **OQ6 — Per-app FEATURE blocking.** Dropped from §4 rule 5 because the registry cannot attribute a
-  test to an app (`shell.py` is a multi-app catch-all). It becomes free once the APP class is
-  generated from `APP_ORDER` per M-TESTARCH §2.3, because attribution then exists by construction.
-  Revisit there, not before.
+- **~~OQ6 — Per-app FEATURE blocking.~~ CLOSED at second review, and not by answering it.** §15
+  drops APP-class blocking outright — blocking applies to RIG/HEALTH/CORE only — so the question is
+  moot rather than open. The premise it rested on was also wrong: §13.2 measures app attribution as
+  ~65 % derivable, not underivable. Per-app *selection* is now first-class (§13); per-app *blocking*
+  is gone.
 - **OQ7 — A no-reset attach path for `run/dut-health`.** It would make the tool a genuine post-mortem
   instrument instead of a pre-flight one (§5 E4). Not proposed: suppressing the open-reset is the
   boot-window design's Option E, rejected on C1, and TASK-557's standing advice is not to touch the
@@ -641,3 +675,423 @@ SKIP is the document's own thesis reproduced inside individual test bodies, and 
 its row now names that bucket as the first thing to look at when it is picked up, rather than treating
 the three categories as equal work. If any of those 74 turn out to be masking a real regression, that
 is a finding that should not wait on a baseline.
+
+---
+
+## 13. The feature developer is a first-class user
+
+*Added 2026-09-01 after a second review, from a feature developer/tester's point of view. The
+verdict was that this design serves **attribution** well and the **daily loop** barely at all, and
+that is correct. §1–§12 were written from the failure in §1 — an agent misattributing a wedged
+board — and every mechanism in them answers "who is to blame". None answers "what should I run".*
+
+Four questions, taken as the requirement:
+
+1. Does the hierarchy make it obvious **how to get testing**?
+2. Does it help get testing **at the right level**?
+3. Can a developer test **their own scope** without the full suite?
+4. Can they **triage a failure** by relying on the hierarchy? (→ §14)
+
+### 13.1 Where selection stands today — measured
+
+`run/test-targeted` takes a literal id list (`run/test-targeted:11-15`); `--tests` is a
+comma-separated string of ids (`app/tools/suite/serialdbg/runner.py:170`). **There is no selector of
+any other kind.** A developer who has changed `app/src/apps/localPlayerApp.cpp` has no path to an id
+set except reading `docs/verification/test_plan.md` (5 231 lines) or grepping the suite. The
+hierarchy as designed in §3 does not change this: class is a *gate*, not a *filter*.
+
+An index does partly exist and is worth naming so it is not rebuilt: `feature_inventory.yaml` carries
+`test_ids:` on **44 of 82 features, referencing 363 distinct ids**. It is unusable as a selector for
+three reasons — no runner reads it, it is hand-maintained and measurably drifted (C6: 41 orphans),
+and it is keyed by *feature*, so "I changed this file" still does not resolve.
+
+### 13.2 Correction: app attribution is substantially derivable. §4.2 overstated the difficulty.
+
+§4.2 said per-app attribution "is not derivable" and parked it as OQ6. Measured properly, that is
+too strong, and the correction changes the decision:
+
+| Mechanism | Attributes | Notes |
+|---|---:|---|
+| **Family module name** | **117 / 213** | `clock`(14) `teletext`(3) `planeradar`(9) `stock`(30) `webradio`(30) `player`(31) each map to exactly one app |
+| **Id prefix, inside `shell.py`** | **~21** | `T_WX`→Weather, `T_CX`→Crypto, `T_GOL`→Life, `T_MA`→Matrix |
+| **App-name literal in the body (AST)** | 63 / 210, **18 ambiguous** | Weak, as §4.2 assumed — a switch round-trip names two apps. Use as a *cross-check*, never as the source |
+| **Declaration** | the residue, ~75 | almost all in `shell.py` |
+
+So **~138 of 213 (65 %) can be seeded mechanically**, and the residue is the interesting part:
+**the ~75 unattributable ids are mostly not app-scoped in the first place** — taskbar, app-switch,
+boot, Spotify chrome, busy-gate. They are the CORE class. **Attribution and classification are the
+same act for that residue**, which is why doing them in one pass is not merely convenient but correct.
+
+`shell.py` being a multi-app catch-all remains true; it is an argument for *declaring* those 75, not
+for abandoning attribution for the other 138.
+
+### 13.3 The field, decided once — `(cls, scope)`
+
+Per the instruction not to re-park this: the registry value becomes a small record carrying **both**
+fields, in the single refactor §4.2 already priced (7 family modules +
+`app/tools/suite/serialdbg/runner.py:154`/`:164`/`:178`/`:239` + `ve_suite_base.py`). Deciding one
+field now and retrofitting the second later would pay that price twice.
+
+```
+cls    : RIG | HEALTH | CORE | APP | FEATURE                          — §3,  gating
+scope  : an APP_ORDER name, or one of shell|boot|taskbar|spotify|rig  — §13,  selection
+effect : read-only | mutating | resetting                             — §16,  triage admissibility
+```
+
+*(`effect` was added at the third review, before any of this was implemented. Settling all three
+fields in one pass is the same argument as §13.3's original two — see §16.7.)*
+
+Rules, so the second field does not become the next drifted index:
+
+- **`scope` is seeded, not typed, wherever it is derivable.** A generator emits the module- and
+  prefix-derived attribution; a declaration is required only where the seed is silent. This is
+  `check_settings_wiring.py`'s pattern (M-TESTARCH §2.2) and `gen_get_keys.py`'s parse-don't-mirror
+  rule (LL-114).
+- **A gate asserts seed and declaration agree** where both exist. A test declared `scope: Stock`
+  living in `webradio.py` fails the gate rather than silently mis-selecting.
+- **`scope: shell|boot|taskbar` implies `cls: CORE`** unless explicitly overridden — which is the
+  §13.2 finding turned into an invariant, and it means most of the CORE set classifies itself.
+
+### 13.4 "How do I get testing?" — the answer is a selector, and the file→scope map is free
+
+The chain that does not exist today, and each link's cost:
+
+```
+app/src/apps/localPlayerApp.cpp     ← the file the developer changed
+   → LocalPlayer                     (filename convention, validated against APP_ORDER — no new metadata)
+   → scope: LocalPlayer              (§13.3's field)
+   → 31 ids                          (registry query)
+   → run/test-targeted --scope LocalPlayer
+```
+
+**The first link is free.** `app/src/apps/` holds exactly one `<name>App.{h,cpp}` per registered app
+(13 apps, verified), so source-file → app is a naming convention already enforced by the app
+registry. Nothing needs to be added to the firmware side at all.
+
+Concretely, the selector surface:
+
+| Selector | Meaning |
+|---|---|
+| `--scope LocalPlayer` | every id attributed to that app |
+| `--scope <path>` | resolve the path to a scope first (`app/src/apps/*App.cpp` → app; `app/src/shell/**` → shell; `app/src/debug/**` → shell) |
+| `--class CORE` | every id in a class — "run the machinery, not the features" |
+| `--upto APP` | the ladder from RIG through APP, which is the *right-level* answer |
+
+`--upto` is the one that answers question 2. A developer who changed an app wants RIG → HEALTH →
+CORE → that app's APP rows, and does **not** want 74 FEATURE cells for eleven other apps.
+
+### 13.5 "Which level does my change belong at?" — answered from ADR-060, not invented
+
+The classes describe tests. A *change* is a source file, and this project already has a level model
+for source files: ADR-060 D2a's L0–L4, measured in M-LEVELS. The mapping is one table and needs no
+new structure:
+
+| Changed file lives in | ADR-060 level | Test at class | Because |
+|---|---|---|---|
+| `run/`, `app/tools/lib/` | — (harness) | **RIG** | it changes how the board is addressed |
+| `app/src/boot/`, WiFi cascade | L4 / L1 | **HEALTH** | it changes whether the board becomes a valid subject |
+| `app/src/shell/`, `debug/`, `appShell` | **L2** | **CORE** | it changes machinery every app test uses |
+| `app/src/apps/<X>App.*` | **L3** | **APP** (`scope: X`), then FEATURE | the conformance rows first, then behaviour unique to X |
+| `app/src/util/`, `player/m3u` | L0 / L1 | **T1 host tier**, not a DUT class at all | M-TESTARCH §2b's rule: the lowest *tier* that can falsify |
+
+The last row is the one worth putting in front of a developer, because it is the tier axis answering
+a class question: some changes should not produce a DUT test at all.
+
+### 13.6 Exit criteria — developer workflow
+
+1. `run/test-targeted --scope <app|path>` and `--class`/`--upto` exist and are documented in
+   `CLAUDE.md`'s run-script table with a worked example starting from a changed file.
+2. `scope` is **seeded** for ≥ 138 ids with no hand-typed value, and a gate fails when a declaration
+   contradicts its seed.
+3. Every id has a `scope`; ids with no derivable app carry an explicit non-app scope, and the
+   `shell|boot|taskbar ⇒ CORE` invariant is asserted, not assumed.
+4. From a changed file under `app/src/apps/`, the id set is obtained in **one command**, with no
+   reference to `test_plan.md`.
+5. The `(cls, scope)` record lands in **one** registry pass — no second migration.
+
+---
+
+## 14. Failure triage — descending the ladder after a targeted run
+
+Requirement B, and it runs in the **opposite direction** to §4. Gating descends bottom-up and stops
+at the first failure, which is right for a full ordered run. The common developer case is a *targeted*
+run — `run/test-targeted T_PLR_25` fails — where the ladder below was never executed and nothing says
+whether the cause is the code, the board, a prerequisite, or suite order. Today that answer requires
+exactly the tribal knowledge §1 proves unreliable.
+
+### 14.1 The constraint that decides the design
+
+**A triage tool that opens the port resets the board** (`app/tools/lib/dut.py:314-316`), and per
+TASK-426 a reset clears the very wedge being investigated. §5's E4 states this for `run/dut-health`;
+it applies with **full force** here, because triage runs *by definition* after something went wrong.
+
+The consequence is the design: **the descent must happen inside the session that observed the
+failure** — stated as property P1 in §16.4, and it is only half the answer: §16.3 covers the other
+half, which is that a step can destroy the evidence by *mutating* without resetting anything. Not a separate script — a runner flag. The port is already open, the board is in the
+failed state, and no reset intervenes. A standalone `run/dut-triage` invoked afterwards would answer
+about a different boot, with a tool's authority behind it. That is the §1 failure mode with better
+tooling.
+
+### 14.2 The four modes, and what I would build
+
+| Mode | What it does | Cost | Verdict |
+|---|---|---|---|
+| **P — Passive** | Every FAIL carries the session's health verdict, its `last-phase=`, and the failing test's own `(cls, scope)`. Nothing re-runs. | ~0 | **BUILD FIRST.** Answers "was the board a valid subject when this run started" for free |
+| **D — In-session descent** (`--triage`) | On the first FAIL, re-run the **read-only** HEALTH and CORE steps (§16.3 — mutating steps are inadmissible and are named as skipped), **in the same open session**, then report the lowest failing level | ~10 s, once per run | **BUILD.** The honest answer to "at what level did this start failing" |
+| **I — Isolation re-run** (`--isolate-on-fail`) | After all other tests, reboot and re-run the failed id alone; report `fails alone` vs `fails only in sequence` | ~60–90 s per failed id | **BUILD, opt-in, last.** The only thing that answers the TASK-553 case |
+| **A — Automatic re-descent per FAIL** | Descend after every FAIL, always | 10–20 s × N failures | **REJECT** — see below |
+
+**Why A is rejected**, three reasons, any one sufficient: (i) `T_DH_03` mutates app state, so
+descending mid-suite contaminates every subsequent test — the harness would manufacture the
+order-dependence class of bug it is meant to diagnose; (ii) a transient at a lower level would
+relabel a genuine FAIL as a health problem, which is the §1 misattribution *inverted* and no better;
+(iii) 20 failures × 15 s is 5 minutes of a run spent re-asserting the same answer. Mode D descends
+**once per run, on the first failure**, which captures the diagnostic value without any of this.
+
+**Why a standalone `run/dut-triage` is rejected**: §14.1. It is E4's trap with a name that invites
+post-mortem use. The in-session flag supersedes it, and §5's `run/dut-health` remains the pre-flight
+tool it was re-framed as.
+
+### 14.3 The verdict a descent produces
+
+One block, naming the lowest level that failed:
+
+```
+[triage] T_PLR_25 FAILed (gen=1). Descending — read-only steps only.
+  RIG      ok    (this session opened the port and observed boot; last-phase=6 ready)
+  HEALTH   ok    T_DH_01 T_DH_02 pass, re-checked after the failure (gen=1)
+                 T_DH_03 NOT re-checked — mutating, would overwrite the failed state
+  CORE     ok    get idle quiescence (read-only). Tap dispatch NOT re-checked — mutating.
+  →  lowest failing level is the test itself (FEATURE/LocalPlayer).
+     Not the board, not the machinery. Suite order not excluded — re-run with
+     --isolate-on-fail to separate "fails alone" from "fails only in sequence".
+```
+
+The last line matters as much as the verdict: **a clean descent does not prove the code is wrong**,
+because order-dependence sits below the test and above CORE, and only mode I can see it. Saying so
+prevents the descent becoming a new source of confident wrong conclusions — which, given §1, is the
+risk this section must not create.
+
+### 14.4 Order-dependence is a first-class outcome, not a footnote
+
+TASK-553's failure was neither the board nor the code: `mb_arena_acquire()` early-returns on
+`if (s_owned) return true;` before incrementing, so **any** test asserting a 0→1 edge fails when a
+prior test left the arena held. It took a day to work out by hand. Mode I answers it in ~90 s, and
+§9's exit criterion 8 already requires enumerating the tests with that shape — that list is exactly
+the set for which mode I should be **suggested automatically** in the descent's last line.
+
+### 14.5 Exit criteria — triage
+
+1. Every FAIL in every run carries the session health verdict, `last-phase=`, and the test's
+   `(cls, scope)` — mode P, unconditional.
+2. `--triage` descends **in the session that observed the failure**, without reopening the port, and
+   names the lowest failing level. Negative-tested against a stubbed serial (BP-068).
+3. The descent's output states explicitly when order-dependence has **not** been excluded, and names
+   `--isolate-on-fail` as the way to exclude it.
+4. `--isolate-on-fail` runs after all other tests, reboots, re-runs the failed id alone, and reports
+   `fails alone` / `fails only in sequence`.
+5. No triage entry point exists that resets the board before reading it. Provable by inspection:
+   there is no standalone triage script.
+
+---
+
+## 15. What I would NOT build, and what I am dropping to pay for this
+
+The instruction was not to re-inflate scope. Explicitly:
+
+**Dropped from current scope to fund §13/§14:**
+
+- **APP-class blocking (§4 rule 5) — dropped entirely.** After §4.2 reduced it to all-or-nothing it
+  was already weak; an APP failure is a genuine test result, and blocking FEATURE on it buys little.
+  **Blocking now applies to RIG, HEALTH and CORE only.** This removes a branch from the runner and a
+  case from the gate, and it is the cleanest thing to give up.
+- **OQ3 (a generated CORE matrix)** stays closed at ~15 ids, and §13.3's
+  `scope: shell|boot|taskbar ⇒ CORE` invariant means the CORE set largely derives itself, which
+  weakens the case for a matrix further.
+
+**Still not built, unchanged**: a production serial console; a no-reset attach path (OQ7); per-app
+FEATURE blocking (OQ6 — now moot, since §15 drops APP blocking); `run/dut-triage` as a standalone
+script; automatic per-FAIL descent; T_DH_04 until real floors exist (TASK-569); the SKIP adjudication
+(TASK-567).
+
+**Net change to cost.** §13's field is the *same* refactor §4.2 already priced — one record instead
+of one scalar, decided once. New work is the selector CLI, the scope seeder + its gate, and modes
+P/D/I. Against that, APP blocking is removed. This is close to cost-neutral on the runner and adds
+one generator, which is the shape of every gate this project has shipped.
+
+---
+
+## 16. DUT state is evidence: generations, and what each ladder step destroys
+
+*Added 2026-09-01 after a third review. The question: "you raised that resets would clear the DUT
+state and make root-causing impossible — how do we ensure walking the ladder doesn't clear it? Do we
+need to treat the reset as part of the harness / DUT state?" It is the most important question raised
+against this design, because §14 introduces a tool that runs **after** something has gone wrong, and
+every such tool is one careless step away from destroying the thing it was invoked to explain.*
+
+### 16.1 The reference case — the fourth claim, which §1 lists but does not use
+
+§1 records four wrong attributions. Three of them are cited elsewhere in this document. The fourth —
+**"the re-plug fixed it"** — is the one this section exists for, and it was not a careless claim: it
+was a **cross-generation comparison**. Evidence from a boot *before* the re-plug was compared against
+evidence from a boot *after* it, and causation inferred, when the recovery had in fact happened 33
+minutes earlier. Every individual observation was accurate. The inference was unsound because the two
+observations described **different boots**, and nothing in the data said so.
+
+This is the same shape as the `get wifiCfg` finding in §2.2(a): **the information existed and the
+model had nowhere to put it.** A boot identity on each observation would not have made that claim
+harder to believe — it would have made it *unsayable*, because the comparison would visibly have had
+two different generation tags in it.
+
+### 16.2 Decision: generation is first-class; the counter is host-side; **no firmware counter**
+
+The review suggested an RTC-backed counter, on the `RTC_NOINIT_ATTR g_casRetryCookie` /
+`g_casRetryOff` precedent (`app/src/boot/boot.cpp:116-117`, TASK-426). Verified: the precedent is
+real, and it is **`#ifdef SERIAL_DEBUG`-only** (`:115`), which would make it cheap to justify. I am
+still declining it, and the reasoning is a chain of three facts already established in this
+programme:
+
+1. **`[bootphase] 0 reset` is emitted exactly once per boot** (`app/src/boot/boot.cpp:166`), as the
+   first thing after `Serial.begin()`.
+2. **The harness holds the port open for the whole session**, reading the stream continuously. So a
+   reset occurring *during* a session — a spontaneous one of the TASK-557 class, a TWDT, a brownout —
+   emits its `[bootphase] 0` **into a stream the harness is already reading**. It is observable
+   host-side, today, with no firmware change.
+3. **Across sessions the harness already knows**, because it caused the reset itself: DTR fires at
+   `open()` (C1 of the boot-window design), which is why `_wait_for_ready()` is built to observe that
+   boot at all.
+
+Between them these cover every case a counter would. **The generation counter is therefore a host-side
+integer in `Dut`, incremented on each observed `[bootphase] 0`, starting at 1 for the boot the
+constructor caused.** Cost: a few lines, in the file TASK-564 is already editing. Firmware cost: zero.
+
+**What I am not doing, and why it matters**: an RTC counter is a boot-path change, and this design has
+already dropped one of those (TASK-562) on the grounds that the harness causes the boot it observes,
+so the firmware need not tell it anything the stream already carries. Adding RTC state now would
+contradict that ruling for a capability that is derivable. If a later case shows a boot the harness
+genuinely cannot see, re-open it then, with that case as evidence.
+
+**One firmware line is worth it, and it is a different thing.** `esp_reset_reason()` appears **nowhere
+in `app/src/`** (verified). Host-side counting can say *that* a boot happened; it cannot say *why* —
+power-on vs DTR vs software vs TWDT vs brownout. That is precisely the discrimination TASK-557 has
+been unable to make. Adding the reason as a **field on the `[bootphase] 0` line that already ships**
+is one printf argument: no new state, no new control flow, nothing dispatched during `setup()`. That
+is categorically unlike TASK-562, which proposed *executing commands* against half-initialised state.
+Filed as **TASK-572, P4, explicitly not load-bearing** — the design works without it.
+
+### 16.3 The state-effect classification — a property of every step, not a note on one check
+
+The review is right that reset is not the only state-destroyer, and that R5's "`T_DH_03` runs last and
+restores" was an instinct applied to one check rather than a property of the ladder. Verified:
+`_switch_to_stock` (`app/tools/suite/serialdbg/_helpers.py:195-207`) issues **`set stockMode 0`
+*and* `switchApp`** — so it mutates a *setting* as well as the active app, with no reset anywhere in
+sight. A descent built from steps like that would silently destroy the state under investigation.
+
+**Every ladder step and every health check carries one of three effect values, declared alongside
+`(cls, scope)`:**
+
+| Effect | Meaning | Admissible in a descent (§14 mode D)? |
+|---|---|---|
+| **read-only** | issues only `get`/`info` commands; no device state changes | **Yes** |
+| **mutating** | changes app, mode, settings, or injects input | **No** |
+| **resetting** | causes a reboot; ends the current generation | **No** — and it must say so |
+
+| Step | Effect | Note |
+|---|---|---|
+| RIG — `Dut()` open | **resetting** | exactly once, at session start; this is the generation boundary |
+| `T_DH_01` shell answers correct data | read-only | `info`, `get variant`, `get playerMode` |
+| `T_DH_02` network identity | read-only | `get ip`, `get wifiCfg` |
+| **`T_DH_03` app-switch liveness** | **mutating** | `switchApp` + restore |
+| CORE — `get idle` quiescence | read-only | |
+| CORE — tap/drag dispatch | **mutating** | injects input |
+| §14 mode I — isolation re-run | **resetting** | deliberately; see §16.5 |
+
+**The classification is per-(step × context), and that is the useful part.** The same check is
+admissible pre-flight and inadmissible in triage, because *pre-flight the board's state is not
+evidence, and post-failure it is*. `run/dut-health` runs before anything is under investigation, so a
+mutating check there costs nothing. The same check inside a descent would overwrite the failure it is
+explaining.
+
+**So `T_DH_03`'s cost under this rule, stated plainly**: it **stays** in the pre-flight HEALTH class
+(where it is the check that catches the human's observed app-switch wedge — its whole reason for
+existing), and it is **excluded from mode D's descent**. The descent must then say what it could not
+check:
+
+```
+  HEALTH   ok    T_DH_01 T_DH_02 pass (re-checked after the failure)
+                 T_DH_03 NOT re-checked — mutating, would overwrite the failed state
+```
+
+That line is not an apology. A descent that quietly omits a check is how "the board is fine" gets
+said about a board nobody fully looked at.
+
+### 16.4 Session scoping — the property that answers half the question
+
+This was previously derivable from §14.1 and is now stated as a property, because it is the answer to
+"how does walking the ladder avoid clearing state":
+
+> **P1 — The descent introduces no generation boundary.** Modes P and D run inside the `Dut` session
+> that observed the failure. The port is already open; the DTR pulse happened once, at that session's
+> start; nothing in the descent reopens it. **Every observation the descent makes carries the same
+> generation tag as the failure it is explaining.**
+
+That property is why §14 rejected a standalone `run/dut-triage` script, and it is the whole reason
+the descent is a runner flag. It also bounds what the descent can conclude: it can compare against
+the session's own start-of-run health block (same generation — a valid comparison), and it cannot
+compare against anything from a previous run without crossing a boundary.
+
+### 16.5 The rule: evidence does not cross a generation boundary — printed, not enforced
+
+Stated carefully, because the naive form is wrong:
+
+> **P2 — Two observations may be compared only if they carry the same generation tag, *or* the
+> comparison is a deliberate cross-generation experiment that names both tags.**
+
+The exception is not a loophole; it is §14's mode I. "Fails alone vs fails only in sequence" is
+**inherently** a cross-generation comparison — a fresh boot against an in-suite run — and it is
+sound precisely because the reset is the independent variable rather than an uncontrolled confound.
+TASK-553 could only ever have been settled that way. So the rule is not "never cross"; it is
+**"cross deliberately, and show both generations"**, and mode I's report must print both tags.
+
+**Enforcement: printed and labelled, not enforced — and I want to be plain that this is a weaker
+answer than §5's E3.** E3 makes a wrong sentence impossible because the sentence is *selected* by a
+field. Nothing comparable is available here: the failure mode is an inference drawn by a human or an
+agent from two accurate records, and no code path is traversed at the moment the mistake is made. So:
+
+- every recorded observation — health blocks, `[health]` premise lines, FAIL records, descent output —
+  carries `gen=N`;
+- the generation increments visibly in the run log the moment `[bootphase] 0` is seen, so an
+  unexpected mid-run reset is a **visible event** rather than an invisible confound (this alone is
+  new: today a spontaneous reset mid-session leaves no mark in the results at all);
+- mode I prints both tags side by side.
+
+What that buys is exactly what §16.1 asks for: the "re-plug fixed it" claim would have required
+placing `gen=4` evidence next to `gen=5` evidence with both tags visible in the same block. That does
+not make the claim impossible. It makes it *visibly* an inference across a boundary, which is the
+most this layer can honestly do.
+
+### 16.6 Exit criteria — state and generations
+
+1. Every step in the RIG/HEALTH/CORE ladder declares an effect (read-only / mutating / resetting)
+   alongside `(cls, scope)`; a T0 gate asserts every step has one.
+2. Mode D's descent executes **read-only steps only**. Provable by inspection of the effect field —
+   no reviewer judgement required.
+3. A descent that skips a mutating check **names it and says why**. `T_DH_03` is the reference case.
+4. Every observation in a run's output carries `gen=N`, and the counter increments visibly when
+   `[bootphase] 0` is observed mid-session.
+5. Mode I's report shows both generation tags for the comparison it makes.
+6. No new firmware state. The generation counter is host-side; TASK-572's reset-reason field is a
+   printf argument on an existing line, and the design passes without it.
+
+### 16.7 What this displaces
+
+**Nothing in scope, and that is a real answer rather than a dodge.** The generation counter is a
+host-side integer in `Dut`, in the file TASK-564 already edits. The effect classification is a third
+value on the record §13.3 already decided — declared in the same pass, not a fourth migration. Both
+were folded into existing rows (564, 570, 571) rather than given new ones; only the optional
+reset-reason line got an id, at P4.
+
+The reason this earns its place without displacing anything is that it arrived **before** the record's
+shape was implemented. Had it come after TASK-570 landed, it would have been a third pass over 213
+ids, and I would have been arguing to defer it. That timing is luck, and it is the argument for
+settling the record's full shape — `(cls, scope, effect)` — before a line of it is written.

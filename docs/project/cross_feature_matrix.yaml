@@ -1602,11 +1602,55 @@ interactions:
       diffing the class-ordered id sequence against today's with zero DUT time -- with a >=3-run
       pre-declared-flaky baseline, before the runner obeys it.
 
-      Scope note (review, 2026-09-01): per-app FEATURE blocking was DROPPED. TESTS is
+      Scope note (review 1, 2026-09-01): per-app FEATURE blocking was DROPPED. TESTS is
       dict[str, callable] (suite/serialdbg/__init__.py:24-33) called directly at runner.py:239, so
-      per-test metadata is a value-type change across 7 family modules + runner.py + ve_suite_base.py;
-      and app attribution is not derivable (shell.py is a multi-app catch-all). All-or-nothing for
-      now; per-app granularity becomes free once the APP class is generated from APP_ORDER.
+      per-test metadata is a value-type change across 7 family modules + runner.py + ve_suite_base.py.
+
+      CORRECTED (review 2, same day): the claim that app attribution "is not derivable" was wrong and
+      generalised from shell.py to the whole suite. Measured: the family module attributes 117 of 213
+      ids to exactly one app, id prefixes inside shell.py attribute ~21 more, and the ~75 residue is
+      largely not app-scoped at all -- it IS the CORE class. So attribution is ~65% derivable, and
+      the registry record is decided ONCE as (cls, scope): cls gates (this row's original subject),
+      scope selects (TASK-570 -- `run/test-targeted --scope LocalPlayer`, seeded from module+prefix
+      with a gate asserting seed vs declaration, and app/src/apps/<name>App.cpp supplying the
+      source-file -> app link for free). Blocking now applies to RIG/HEALTH/CORE only; APP-class
+      blocking is dropped outright, so per-app blocking granularity is moot rather than deferred.
+
+      A THIRD consumer of the same record: failure triage (TASK-571). A descent must run INSIDE the
+      session that observed the failure -- reopening the port resets the board (lib/dut.py:314-316)
+      and a reset clears TASK-426's wedge, so a standalone post-mortem triage script would report on
+      a different boot. This is the same constraint that made run/dut-health pre-flight-only.
+
+      THIRD REVIEW (2026-09-01) -- DUT state is evidence, and the record gains a third field:
+
+      (a) Reset is not the only state-destroyer. _switch_to_stock (suite/serialdbg/_helpers.py:195-207)
+      issues `set stockMode 0` AND `switchApp` -- it mutates a persisted setting and the active app
+      with no reset involved. So every ladder step declares an EFFECT: read-only | mutating |
+      resetting. The record is (cls, scope, effect), settled in ONE pass. A triage descent executes
+      read-only steps ONLY and must NAME any mutating step it skipped; T_DH_03 (app-switch liveness)
+      is therefore admissible in pre-flight health but inadmissible in a descent. Admissibility is
+      per-(step x context): pre-flight the board's state is not evidence, post-failure it is.
+
+      (b) BOOT GENERATION becomes first-class, HOST-SIDE ONLY. `[bootphase] 0 reset` is emitted once
+      per boot (boot.cpp:166) and the harness holds the port open all session, so ANY reset -- even a
+      spontaneous TASK-557-class one -- lands in a stream already being read. A host-side counter in
+      Dut therefore covers every case an RTC counter would. An RTC-backed counter was proposed (the
+      RTC_NOINIT_ATTR g_casRetryCookie precedent at boot.cpp:116-117 is real, and SERIAL_DEBUG-only)
+      and DECLINED: it is a boot-path change for a capability already derivable, which would
+      contradict the reasoning that withdrew TASK-562. Firmware cost of this row: ZERO.
+
+      (c) Rule: evidence does not cross a generation boundary -- PRINTED, NOT ENFORCED. Every
+      observation carries gen=N; the counter increments visibly when [bootphase] 0 is seen mid-session
+      (today a spontaneous reset leaves no mark in the results at all). The exception is deliberate:
+      mode I's "fails alone vs fails in sequence" IS a cross-generation experiment and must print both
+      tags. This is weaker than the cls-derived sentence in (2) above, and deliberately labelled as
+      such: the mistake is an inference drawn from two accurate records, so no code path is traversed
+      at the moment it is made. Reference case: the 2026-09-01 "the re-plug fixed it" retraction, a
+      pre-replug boot compared against a post-replug boot when recovery had happened 33 min earlier.
+
+      Optional, NOT load-bearing (TASK-572): esp_reset_reason() as a field on the existing
+      [bootphase] 0 line -- verified absent from app/src/. Host counting sees THAT a boot happened,
+      never WHY; that is the discrimination TASK-557 lacks. One printf argument, no new state.
     risk: medium
     test_coverage: []
     notes: |
@@ -1616,5 +1660,6 @@ interactions:
       implementation, and VE to attach test ids (T_DH_01..04 reserved for the health family; 01-03
       ship, 04 deferred to TASK-569 because app/mem_manifest.yaml is a static overlay budget and
       supplies no runtime heap or stack floor).
-      Tracked as TASK-564, TASK-565, TASK-566, TASK-569; TASK-567 deferred, TASK-568 with @QM.
+      Tracked as TASK-564, TASK-565, TASK-566, TASK-570, TASK-571 (+572 optional); 567/569 deferred,
+      TASK-568 with @QM.
       Design: docs/architecture/designs/M-TESTARCH-precedence-hierarchy.md
