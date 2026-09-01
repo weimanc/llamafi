@@ -203,6 +203,117 @@ stamp_reset_gap() {
   printf '%s' "$(date +%s.%N)" > "/tmp/esp32_dut_last_reset_${slug}" 2>/dev/null || true
 }
 
+# TASK-558 (A): reap `pio device monitor` processes that outlived their tmux
+# session. `tmux kill-session` kills the SESSION, not necessarily the pio
+# process tree hanging off its pane — and an escaped monitor is not idle: it
+# retries the port in a loop, and every single port open asserts DTR, which
+# resets the ESP32. Measured 2026-08-31: two orphaned monitors produced ~420
+# USB re-enumerations at a ~1.45 s period; killing them by PID gave 0
+# disconnects over the next 135 s. So this must run BEFORE a new session is
+# created, or the fresh monitor competes with the orphans for the port.
+#
+# CRITICAL — the match pattern is the bracket form '[p]io device monitor'.
+# A plain `pgrep -f 'pio device monitor'` (or any `pkill -f`) also matches the
+# CALLING SHELL, whose own /proc/self/cmdline contains that literal string
+# whenever the function is invoked from a `bash -c` one-liner or a script whose
+# argv mentions it — i.e. it kills itself. That happened three times while this
+# was being developed. The bracket expression never matches its own literal
+# text, so the caller is immune.
+#
+# Never fails the caller: it runs inside EXIT traps under `set -e`.
+#
+# Belt and braces on top of the bracket form: _self_ancestors lists this
+# process and every ancestor of it, and those PIDs are never signalled. The
+# bracket expression protects us from a script whose SOURCE mentions the
+# pattern; the ancestor skip additionally protects a caller invoked as e.g.
+# `bash -c '... pio device monitor ...'`, whose argv contains the bare string
+# and therefore genuinely does match.
+_self_ancestors() {
+  local pid=$$ parent
+  while [ -n "$pid" ] && [ "$pid" != "0" ] && [ "$pid" != "1" ]; do
+    echo "$pid"
+    # ps, not /proc/<pid>/stat: field 4 there is only reachable past a comm
+    # field that may itself contain spaces and parentheses.
+    parent=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ') || break
+    [ -n "$parent" ] || break
+    pid="$parent"
+  done
+}
+
+reap_orphan_monitors() {
+  local pids pid n=0 alive mine
+  pids=$(pgrep -f '[p]io device monitor' 2>/dev/null) || pids=""
+  [ -n "$pids" ] || return 0
+  mine=" $(_self_ancestors | tr '\n' ' ') "
+
+  for pid in $pids; do
+    case "$mine" in *" $pid "*) continue ;; esac
+    kill "$pid" 2>/dev/null && n=$((n + 1)) || true
+  done
+  [ "$n" -gt 0 ] || return 0
+
+  # Short grace for TERM, then SIGKILL only whatever is still there.
+  local i
+  for i in 1 2 3 4 5 6; do
+    alive=$(pgrep -f '[p]io device monitor' 2>/dev/null) || alive=""
+    [ -n "$alive" ] || break
+    sleep 0.25
+  done
+  alive=$(pgrep -f '[p]io device monitor' 2>/dev/null) || alive=""
+  for pid in $alive; do
+    case "$mine" in *" $pid "*) continue ;; esac
+    kill -9 "$pid" 2>/dev/null || true
+  done
+
+  echo "[reap] killed $n orphaned monitor process(es)" >&2
+  return 0
+}
+
+# TASK-558 (B): is a running monitor holding a tty fd that no longer refers to
+# the device we would open today?
+#
+# Second failure mode measured 2026-08-31: the CH340 re-enumerated ttyUSB1 ->
+# ttyUSB0, and the monitor kept its now-`(deleted)` ttyUSB1 fd. It captured
+# nothing for 8 minutes while the board was perfectly healthy — no kernel
+# event, no error, no exit, just silence. Read as a dead board.
+#
+# Returns 0 (TRUE = STALE) if some `pio device monitor` process holds a tty fd
+# that is `(deleted)`, or whose basename differs from what the by-id path
+# resolves to right now. Returns 1 for healthy, and for "no monitor running"
+# (nothing to be stale about). Never errors out: /proc reads on another user's
+# process fail with EACCES and are simply skipped.
+monitor_fd_stale() {
+  local pids pid line target base cur cur_base
+  pids=$(pgrep -f '[p]io device monitor' 2>/dev/null) || pids=""
+  [ -n "$pids" ] || return 1
+
+  cur=$(_scan_ch340_port 2>/dev/null) || cur=""
+  cur_base=""
+  if [ -n "$cur" ]; then
+    cur_base=$(readlink -f "$cur" 2>/dev/null) || cur_base="$cur"
+    cur_base="${cur_base##*/}"
+  fi
+
+  for pid in $pids; do
+    while IFS= read -r line; do
+      target="${line#*-> }"
+      [ "$target" != "$line" ] || continue
+      case "$target" in
+        *"/dev/ttyUSB"*|*"/dev/ttyACM"*) ;;
+        *) continue ;;
+      esac
+      case "$target" in
+        *"(deleted)"*) return 0 ;;
+      esac
+      base="${target##*/}"
+      if [ -n "$cur_base" ] && [ "$base" != "$cur_base" ]; then
+        return 0
+      fi
+    done < <(ls -l "/proc/$pid/fd" 2>/dev/null || true)
+  done
+  return 1
+}
+
 # The ONE place that (re)creates the serial monitor session. TASK-554.
 #
 # Every trap-guarded script used to inline `tmux new-session` here and stop
@@ -223,6 +334,10 @@ stamp_reset_gap() {
 #   $1  port to open; falls back to a live scan if empty
 restart_monitor() {
   local port="${1:-}"
+  # TASK-558: before anything else — an orphaned monitor from a previous
+  # session will fight the new one for the port, DTR-resetting the board on
+  # every retry.
+  reap_orphan_monitors
   if [ -z "$port" ]; then
     port=$(_scan_ch340_port 2>/dev/null) || port=""
   fi

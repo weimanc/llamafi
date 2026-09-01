@@ -7,6 +7,28 @@ source "$(dirname "$0")/lib.sh"
 N="${1:-200}"
 MONITOR_LOG="${MONITOR_LOG:-/tmp/spotify-mon-serial.log}"
 
+# TASK-558: a silent monitor is indistinguishable from a dead board here.
+# Both known causes are cheap to detect, so warn about them — on STDERR, so a
+# caller parsing stdout is unaffected — and then print the log anyway. This
+# WARNs, it never refuses, and the exit code is unchanged: the log may well be
+# exactly what the reader wants, it just is not necessarily live.
+warn_if_stale() {
+  local now mtime age
+  if [ -f "$MONITOR_LOG" ]; then
+    now=$(date +%s)
+    mtime=$(stat -c %Y "$MONITOR_LOG" 2>/dev/null || echo "$now")
+    age=$((now - mtime))
+    if [ "$age" -gt "${MONITOR_STALE_S:-90}" ]; then
+      echo "WARN [monitor-read]: log has not been written for ${age}s — the monitor may be blind (TASK-558); check: pgrep -f '[p]io device monitor' and its /proc/<pid>/fd" >&2
+    fi
+  fi
+  if monitor_fd_stale; then
+    echo "WARN [monitor-read]: a monitor process holds a stale/deleted tty — output below is NOT live" >&2
+  fi
+}
+
+warn_if_stale
+
 # LL-128: prefer the disk log. The tmux pane holds whatever fits in its
 # creation-time history-limit (2000 lines on this box, and the debug builds
 # wrap that fast); the log written by run/monitor-start's pipe-pane is bounded
