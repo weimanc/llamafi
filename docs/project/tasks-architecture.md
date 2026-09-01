@@ -257,7 +257,7 @@ unscheduled.
 
 | # | Do | DUT? | Why this position |
 |---|---|---|---|
-| **1** | **TASK-573** — `FLAKY-PASS` dropped by `run/player-gate` | no | A **live defect in the gate that produces TASK-566's baseline**. It is the only item that corrupts data *already being collected*. ~10 lines. Nothing else in this block is worth measuring until it is fixed. |
+| **1** | **TASK-573 — DONE 2026-09-01** — `FLAKY-PASS` dropped by `run/player-gate` | no | A **live defect in the gate that produces TASK-566's baseline**. It is the only item that corrupts data *already being collected*. ~10 lines. Nothing else in this block is worth measuring until it is fixed. |
 | **2** | **@Architect: apply the ~20 review must-fixes to the precedence design** | no | Not a slot after implementation — an edit to the governing doc. Per BP-065/BP-069 the doc governs the build; starting TASK-564 against a doc with 20 known defects builds the defects. Runs in parallel with 1 and 3. |
 | **3** | **TASK-574** — split the 74 masked-FAIL `skip()` sites out of TASK-567 | no | False greens **today**. @VE filed it on their own authority and is right to: it has no dependency on TASK-566's baseline, so parking it behind 566 was mis-sequencing, not prioritisation. @VE-owned, so it does not contend for @Developer or the DUT. |
 | **4** | **DUT block 1 — TASK-572 + TASK-424, one session** | yes | 572 is one `printf` arg in `boot/boot.cpp`; 424 needs a debug flash. Same build, same session, so 572 rides along at ~zero marginal cost. See the priority rulings below for why each is here. |

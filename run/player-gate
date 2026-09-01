@@ -114,8 +114,19 @@ _baseline_rows() {
 # "── Results ──" block of "  <id>: <STATUS>[: reason]" lines; that block only
 # exists if the run reached its summary, so an aborted leg yields nothing and
 # every declared id is then MISSING — which is a regression, correctly.
+#
+# TASK-573: the alternation must carry every token lib/results.py can WRITE, not
+# just the ones this gate expected. `FLAKY-PASS` (results.py:127, a declared flake
+# that passed on its mandated retry) was dropped outright — `FLAKE` != `FLAKY` —
+# so the cell read as MISSING and the gate printed REGRESS for a firmware
+# regression that never happened. Worst polarity: the UNRESOLVED flake
+# ("FLAKE(awaiting mandated retry)") parsed fine, the RESOLVED one did not.
+# `NOT-RUN` arrives with TASK-566 and is matched here ahead of time.
+# Order matters: longer tokens first, so the captured status is the FULL token
+# (`FLAKY-PASS`, never a `FLAKY`/`PASS` fragment). The status side allows `-`;
+# the id side deliberately does not.
 _parse_runner_log() {
-  sed -n 's/^  \([A-Za-z0-9_]\{1,\}\): \(PASS\|FAIL\|SKIP\|FLAKE\).*/\1 \2/p' "$1"
+  sed -n 's/^  \([A-Za-z0-9_]\{1,\}\): \(FLAKY-PASS\|NOT-RUN\|PASS\|FAIL\|SKIP\|FLAKE\).*/\1 \2/p' "$1"
 }
 
 # Compare one leg. $1=leg $2=file of ids that RAN $3=file of "id status" observed.
@@ -134,6 +145,20 @@ _compare_leg() {
         echo "    ok        $leg $id  $got (declared $exp)" ;;
       SKIP:PASS)
         echo "    improved  $leg $id  PASS where SKIP was declared — re-declare the row" ;;
+      PASS:FLAKY-PASS|SKIP:FLAKY-PASS)
+        # TASK-573: a declared flake that passed on its MANDATED retry gets its own
+        # outcome — visible, and non-fatal. lib/results.py's bucket-4 policy already
+        # reports FLAKY-PASS separately and does NOT count it as a pass, and
+        # docs/verification/flaky.yaml tracks each one with an owner and a review_by.
+        # Scoring it PASS would launder a flake into the pass set; scoring it REGRESS
+        # would call a passing test a firmware regression (which is exactly the bug
+        # this replaces). So: neither. Reported, not counted, rc unchanged.
+        echo "    flaky     $leg $id  FLAKY-PASS (declared $exp) — passed on its mandated retry; NOT counted as a pass" ;;
+      *:NOT-RUN)
+        # A declared cell that never ran means the gate verified nothing for it.
+        # That must never read green. (NOT-RUN arrives with TASK-566; inert today.)
+        echo "    NOT-RUN   $leg $id  declared $exp but never ran — the gate verified nothing for this cell"
+        rc=1 ;;
       *)
         echo "    REGRESS   $leg $id  observed $got, declared $exp"
         rc=1 ;;
@@ -149,6 +174,10 @@ _compare_leg() {
     case "$got" in
       PASS) echo "    unbaselined $leg $id  PASS — not in the pass set" ;;
       SKIP) echo "    unbaselined $leg $id  SKIP — not in the pass set" ;;
+      # TASK-573: same reasoning as the declared branch — a declared flake that
+      # passed on its retry is not a failure, so out here it is bookkeeping drift
+      # like PASS/SKIP, not a regression.
+      FLAKY-PASS) echo "    unbaselined $leg $id  FLAKY-PASS — not in the pass set; passed on its mandated retry, NOT counted as a pass" ;;
       *)    echo "    REGRESS   $leg $id  observed $got, not in the pass set"; rc=1 ;;
     esac
   done < "$obs"
@@ -205,7 +234,46 @@ EOF
     fi
   }
 
+  # Like _case, but ALSO asserts the verdict text contains a required substring —
+  # for outcomes whose whole point is that they are visible and correctly labelled.
+  _case_line() { # name expect_rc required_substring observed...
+    local name="$1" want="$2" needle="$3"; shift 3
+    : >"$tmp/obs"; printf '%s\n' "$@" >"$tmp/obs"
+    set +e; out="$(_compare_leg A "$tmp/ran" "$tmp/obs")"; rc=$?; set -e
+    if [ "$rc" = "$want" ] && printf '%s' "$out" | grep -qF -- "$needle"; then
+      echo "  [PASS] selftest $name (rc=$rc)"
+    else
+      echo "  [FAIL] selftest $name — rc=$rc want=$want, needle: $needle"
+      echo "$out" | sed 's/^/         /'
+      fails=$((fails+1))
+    fi
+  }
+
+  # TASK-573: the parser, on the real line shapes lib/results.py writes. The
+  # captured status must be the FULL token — a `FLAKY` fragment, or a dropped
+  # line, is the defect this fixes.
+  _pcase() { # name raw_log_line expected_parse
+    local name="$1" line="$2" want="$3" got
+    printf '%s\n' "$line" >"$tmp/raw.log"
+    got="$(_parse_runner_log "$tmp/raw.log")"
+    if [ "$got" = "$want" ]; then
+      echo "  [PASS] selftest $name"
+    else
+      echo "  [FAIL] selftest $name — parsed '$got' want '$want'"; fails=$((fails+1))
+    fi
+  }
+
   echo "── run/player-gate --selftest — negative tests of the comparator ──"
+  _pcase "parser: FLAKY-PASS line is captured whole, not dropped, not 'FLAKY'" \
+         '  T_PMT_04: FLAKY-PASS: attempt1 FLAKE(x) | attempt2 PASS' \
+         'T_PMT_04 FLAKY-PASS'
+  _pcase "parser: unresolved flake still parses as FLAKE" \
+         '  T_PMT_04: FLAKE(awaiting mandated retry): jitter' \
+         'T_PMT_04 FLAKE'
+  _pcase "parser: NOT-RUN line is captured whole" \
+         '  T_PMT_03: NOT-RUN: never dispatched' \
+         'T_PMT_03 NOT-RUN'
+  _pcase "parser: plain PASS still parses" '  T_PMT_00: PASS' 'T_PMT_00 PASS'
   _case "green run passes"              0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP"
   _case "declared PASS observed FAIL"   1 "T_PMT_00 PASS" "T_PMT_01 FAIL" "T_PLR_09 SKIP"
   _case "declared PASS went MISSING"    1 "T_PMT_00 PASS" "T_PLR_09 SKIP"
@@ -215,6 +283,22 @@ EOF
   _case "declared SKIP observed PASS is not a failure" \
                                         0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 PASS"
   _case "FLAKE is not a PASS"           1 "T_PMT_00 FLAKE" "T_PMT_01 PASS" "T_PLR_09 SKIP"
+  # TASK-573: the unresolved-flake line must KEEP regressing against a declared
+  # PASS — that behaviour is correct and the FLAKY-PASS fix must not weaken it.
+  _case "unresolved FLAKE still REGRESSes against a declared PASS" \
+                                        1 "T_PMT_00 PASS" "T_PMT_01 FLAKE" "T_PLR_09 SKIP"
+  # TASK-573: a declared flake that passed on its mandated retry is neither a pass
+  # nor a regression — it gets the `flaky` line and does not fail the leg.
+  _case_line "declared PASS observed FLAKY-PASS is reported, not fatal" 0 \
+             "flaky     A T_PMT_01  FLAKY-PASS (declared PASS)" \
+             "T_PMT_00 PASS" "T_PMT_01 FLAKY-PASS" "T_PLR_09 SKIP"
+  _case_line "declared SKIP observed FLAKY-PASS is reported, not fatal" 0 \
+             "flaky     A T_PLR_09  FLAKY-PASS (declared SKIP)" \
+             "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 FLAKY-PASS"
+  # TASK-573: a declared cell that never ran verified nothing — fatal (TASK-566).
+  _case_line "declared PASS observed NOT-RUN is fatal" 1 \
+             "NOT-RUN   A T_PMT_01  declared PASS but never ran" \
+             "T_PMT_00 PASS" "T_PMT_01 NOT-RUN" "T_PLR_09 SKIP"
   # an un-adjudicated baseline row (expected=resv) must not be read as declared
   printf 'T_PMT_00\nT_PMT_01\nT_PLR_09\nT_PLR_99\n' >"$tmp/ran"
   _case "un-adjudicated row is invisible, and its FAIL still fails" \
