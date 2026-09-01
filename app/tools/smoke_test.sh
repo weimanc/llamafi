@@ -62,6 +62,15 @@ if ! "$PYTHON" test_serial_classify.py; then
     exit 1
 fi
 
+# 4d. boot-observation gate — TASK-560.
+# _wait_for_ready() used to return silently when no boot banner appeared within
+# 2 s, skipping every readiness gate below it with no trace. The bannerless case
+# cannot be produced on hardware on demand, so the branch is stubbed here.
+if ! "$PYTHON" test_boot_gate.py; then
+    echo "FAIL: test_boot_gate.py (TASK-560 boot gate) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —

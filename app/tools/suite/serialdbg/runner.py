@@ -191,6 +191,19 @@ def main():
     except serial.SerialException as e:
         _reason, _hint = _classify_serial_failure(args.port, e)
         _setup_fail(_reason, f"{e}\n{_hint}")
+    except TimeoutError as e:
+        # TASK-560. Dut.__init__'s _verify_debug_firmware() raises a bare
+        # TimeoutError when the board never answers `get heap`. That is a rig
+        # condition like any other, but as a TimeoutError it skipped this
+        # classifier entirely and surfaced as an unlabelled traceback with exit
+        # 1 instead of a [SETUP-FAIL] block with exit 3 — the exact legibility
+        # hole TASK-434 was written to close, on a path nobody had enumerated.
+        _setup_fail("dut-unresponsive",
+                    f"{e}\n"
+                    f"The DUT did not answer the post-open firmware probe. "
+                    f"Usually it is mute (wedged, wrong firmware, or the open's "
+                    f"reset did not take) rather than contended.\n"
+                    f"Check: dmesg | tail ; ls -l /dev/serial/by-id/")
     # Warmup ping: flush any residual DUT serial output before first test.
     try:
         dut.cmd("help", timeout=4.0)

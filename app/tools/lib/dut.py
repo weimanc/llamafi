@@ -170,6 +170,12 @@ _DUT_WIFI_WAIT_2_S  = float(os.environ.get("DUT_WIFI_WAIT_2", "75"))
 # Set by main() from --no-wifi (or NO_WIFI=1). Module-level because Dut's
 # readiness check runs inside __init__, before any per-run state exists.
 _NO_WIFI            = os.environ.get("NO_WIFI", "") == "1"
+# TASK-560 escape hatch. "fail" (default) aborts when the port open did not
+# produce an observable boot; "warn" downgrades it to a printed warning. Exists
+# because this gate lands while TASK-557 (rig instability) is unresolved, and a
+# gate that cannot be turned down gets reverted wholesale by the next person it
+# inconveniences instead of being read.
+_DUT_BOOT_GATE      = os.environ.get("DUT_BOOT_GATE", "fail").strip().lower()
 # TASK-435 item 2: which build the ELF-hash guard verifies against. Mirrors
 # run/lib.sh's ENV_DEBUG, which reads the same variable — set it once and the
 # flash and the guard agree by construction.
@@ -311,9 +317,69 @@ class Dut:
                 boot_seen = True
                 break
         if not boot_seen:
+            # TASK-560. This used to `return` silently, and EVERY readiness gate
+            # lives below this point — the WiFi wait, TASK-434's bounded
+            # extension, the `get ip` fallback, the variant probe, the
+            # first-successful-poll wait. So a missed banner meant the harness
+            # declared itself ready in 2 s and began issuing commands with no
+            # record that anything had been skipped.
+            #
+            # Two distinct cases hide here, and only one was ever caught:
+            #
+            #   * Board mute. `_verify_debug_firmware()` below raises a bare
+            #     TimeoutError ~3 s later, so it does abort — but as a
+            #     TimeoutError, not a SetupFailure, which misses __init__'s
+            #     serial-tail attach and escapes runner.py's classifier
+            #     (TASK-556). The TASK-434 legibility hole on an unenumerated
+            #     path.
+            #   * Board RESPONSIVE BUT NOT READY — already in loop(), WiFi
+            #     down. `get heap` answers, the ELF check passes, and every gate
+            #     was skipped leaving no trace at all. This is the genuinely
+            #     silent one, and the one that turns into "the suite FAILed
+            #     tests whose precondition was never established".
+            #
+            # Probe for a live shell and report which case it is. Retried, not
+            # one-shot: a freshly-booted DUT can be slow (runner.py's warmup
+            # wraps its own `help` in a bare except for this reason) and the
+            # shell drops input for up to 3 s under render load
+            # (wait_shell_cooldown_clear).
+            self.ser.timeout = 1.0
+            shell_up = False
+            for _ in range(3):
+                self.ser.reset_input_buffer()
+                self.ser.write(b"get heap\n")
+                self.ser.flush()
+                probe_deadline = time.monotonic() + 3.0
+                while time.monotonic() < probe_deadline:
+                    line = self.ser.readline().decode(errors="replace").strip()
+                    if '"var":"heap"' in line:
+                        shell_up = True
+                        break
+                if shell_up:
+                    break
             self.ser.timeout = orig_timeout
             self.ser.reset_input_buffer()
-            return
+
+            if shell_up:
+                detail = ("The shell ANSWERS, so the board is running — but this "
+                          "open did not observe a boot, meaning it was already in "
+                          "loop(). Every readiness gate (WiFi, first-poll, variant) "
+                          "has been SKIPPED for this session, so any test result "
+                          "from it is untrustworthy.")
+            else:
+                detail = ("The shell is mute too, so the board is not up at all: "
+                          "no boot banner and no response to `get heap`.")
+            msg = (f"no boot banner ('[boot]' / 'ets Jul') within "
+                   f"{2.0:.0f}s of opening the port. {detail}\n"
+                   f"Opening the port asserts DTR and resets the ESP32, so a boot "
+                   f"is expected here; not seeing one means the reset did not take, "
+                   f"the board was mid-boot already, or it is wedged.\n"
+                   f"Set DUT_BOOT_GATE=warn to downgrade this to a warning.")
+            if _DUT_BOOT_GATE == "warn":
+                print(f"  [Dut] WARN boot-not-observed — {detail} "
+                      f"(DUT_BOOT_GATE=warn)", flush=True)
+                return
+            raise SetupFailure("boot-not-observed", msg)
         print("  [Dut] reboot detected — waiting for DUT ready…", flush=True)
         self.ser.timeout = 1.0
         # Wait for WiFi, watching for portal indicators (BP-018 / LL-051)
