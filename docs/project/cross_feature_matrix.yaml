@@ -1556,3 +1556,65 @@ interactions:
       fill risk from implementation, and VE to attach test ids. Tracked as TASK-560, TASK-561,
       TASK-563 (TASK-562 withdrawn at review, 2026-09-01).
       Design: docs/architecture/designs/M-TESTARCH-boot-window-observability.md
+
+  - id: X067
+    feature_a: serialdbg-001
+    feature_b: wifi-001
+    interaction_type: shared_state
+    description: |
+      RESERVED — M-TESTARCH precedence hierarchy (TASK-564..568). The DUT test suite has no
+      prerequisite axis: app/tools/suite/serialdbg/runner.py:225-246 runs all 213 ids as peers,
+      so a wedged or unassociated board produces N individual FAILs instead of one "the board is
+      not a valid subject" verdict. This row records the seam that a HEALTH class creates:
+      **the serial console's diagnostic surface becomes a precondition for every test result.**
+
+      Two concrete couplings, both measured 2026-09-01:
+
+      (1) `get wifiCfg` (cmdGet.cpp:199) — the purpose-built diagnostic for TASK-426's dead-SSID
+      wedge — prints a bare `[wifiCfg] …` line plus a JSON ack carrying NO fields (cmdGet.cpp:214).
+      Dut.read_json() discards every line not starting with `{` (lib/dut.py:673-676), so the
+      harness's own API returns nothing from it. Health check H4 must read it via
+      drain_log_lines(). It is also a standing violation of M-TESTARCH §4 I1 (every `get` reply
+      is a versioned JSON object); making the payload JSON is additive-only under BP-024 and is
+      the design's OQ2.
+
+      (2) `_setup_fail()` (runner.py:150-152) prints "This is a RIG condition, not a test result"
+      for EVERY SetupFailure — including `wifi-not-connected` (lib/dut.py:484) and the
+      responsive-but-not-ready branch of `boot-not-observed` (:397). A board sitting in TASK-426's
+      wedge is therefore reported to the operator as an infrastructure fault, in writing, on every
+      run where it happens. The fix is structural, not textual: SetupFailure gains a `cls`
+      (RIG | HEALTH) and the closing sentence is SELECTED by it rather than typed per call site.
+
+      (3) A THIRD coupling, found at review and the most dangerous of the three: introducing a new
+      exit code for "the board is not a valid subject" breaks the consumers that only know exit 3.
+      run/player-gate:338 special-cases SETUP_FAIL_EXIT only, its log parser (:118) matches
+      PASS|FAIL|SKIP|FLAKE so NOT-RUN lines are dropped, and _compare_leg (:135-140) then reports
+      every declared id as MISSING -> REGRESS. A device-health failure would surface as a firmware
+      regression -- the exact inversion the design exists to prevent, produced by the design's own
+      change. Exit 4 must land WITH all six consumers (player-gate :118/:135-140/:338, run/test:69,
+      run/test-targeted:37, run/test-sync:29), never before them.
+
+      Ordering consequence to verify at implementation: class-ordered execution changes the
+      suite's run order, and this suite has known order-dependence. TASK-553 is a MECHANISM, not an
+      anecdote: mb_arena_acquire() early-returns on `if (s_owned) return true;` BEFORE incrementing,
+      so ANY test asserting a 0->1 acquire edge is order-fragile by construction, not just T_PMT_04.
+      Classification must land inert -- which also makes the blast radius predictable on paper, by
+      diffing the class-ordered id sequence against today's with zero DUT time -- with a >=3-run
+      pre-declared-flaky baseline, before the runner obeys it.
+
+      Scope note (review, 2026-09-01): per-app FEATURE blocking was DROPPED. TESTS is
+      dict[str, callable] (suite/serialdbg/__init__.py:24-33) called directly at runner.py:239, so
+      per-test metadata is a value-type change across 7 family modules + runner.py + ve_suite_base.py;
+      and app attribution is not derivable (shell.py is a multi-app catch-all). All-or-nothing for
+      now; per-app granularity becomes free once the APP class is generated from APP_ORDER.
+    risk: medium
+    test_coverage: []
+    notes: |
+      RESERVED, NOT COMPLETE — Architect reservation at design time (BP-071). No new feature id;
+      this extends serialdbg-001 with a health surface. Developer to correct feature_a/feature_b
+      if the seam is better described against wifi-diag-001 or boot-ui-001, fill risk from
+      implementation, and VE to attach test ids (T_DH_01..04 reserved for the health family; 01-03
+      ship, 04 deferred to TASK-569 because app/mem_manifest.yaml is a static overlay budget and
+      supplies no runtime heap or stack floor).
+      Tracked as TASK-564, TASK-565, TASK-566, TASK-569; TASK-567 deferred, TASK-568 with @QM.
+      Design: docs/architecture/designs/M-TESTARCH-precedence-hierarchy.md

@@ -492,6 +492,22 @@ passive diagnostic and now gains a phase stream alongside it. One new interactio
   close R4 properly rather than documenting around it, and would give three more scripts the
   readiness gate. Out of scope here; it is a M-TESTARCH §3 "one DUT layer" question, and it deserves
   its own row rather than being smuggled into 563.
+  **Priority raised and SCOPE CORRECTED, 2026-09-01**: under the
+  [precedence hierarchy](M-TESTARCH-precedence-hierarchy.md) §7 these scripts bypass `Dut` and
+  therefore bypass the RIG *and* HEALTH classes entirely — the hole is no longer just the reset gap
+  (R4) but the whole ladder. **And "three" is an undercount for this purpose**: re-measured, 14 files
+  build a raw `serial.Serial` outside `lib/dut.py`, 9 with a private `class Dut`. Six are
+  `run/`-invoked — the three named above plus `test_fbrowser_player.py:273` and
+  `test_playorder_player.py:216` (**gate cells at `run/player-gate:386-387`**) — and
+  `app/tools/run_sync_tests.py:51`'s own `class Dut` takes all of `run/test-sync`'s T097–T116 off
+  the ladder too. The "three" was correct for *this* document's question (which scripts' blind sleep
+  is their only reset gap) and wrong when reused for "which scripts bypass the DUT layer". Still its
+  own row; now with a second, stronger reason and a corrected scope.
+
+**Consumer of `[bootphase]`, 2026-09-01.** TASK-561 shipped the stream and nothing reads it. That
+consumer is **TASK-564**, scoped in the [precedence hierarchy](M-TESTARCH-precedence-hierarchy.md) §7:
+gate `_wait_for_ready()` on `[bootphase] 6 ready` with per-phase deadlines, and attach `last-phase=`
+to every `SetupFailure`. The IFC this section owes (§9) should be written in that pass.
 
 ---
 

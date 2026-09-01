@@ -6,6 +6,9 @@
 > As-built: + restructured — 2026-08-16 (was: skeleton, same day)
 > Tracked-as: TASK-483
 > Companion to: [M-TOOLING](M-TOOLING-host-tool-architecture.md) F1/F2, [ADR-060](../decisions/ADR-060.md) D0
+> Second axis: [M-TESTARCH precedence hierarchy](M-TESTARCH-precedence-hierarchy.md) — §2b's tiers say
+> *where* a test runs; that document adds *whether it may run yet* (RIG → HEALTH → CORE → APP →
+> FEATURE) and the gating semantics that stop a class-N failure being reported as a class-N+1 failure.
 > Supersedes: the 2026-08-16 skeleton (63 lines). Its Known/Open items are dispositioned in §1 —
 > nothing was discarded silently.
 
