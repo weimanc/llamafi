@@ -49,6 +49,20 @@ Targeted (single feature):
 TESTS=T-SET-01,T-SET-02,T-SET-08 ./run/test-targeted
 ```
 
+Targeted by **scope** — start from the file you changed, not from an id list
+(TASK-570, [M-TESTARCH](../architecture/designs/M-TESTARCH-precedence-hierarchy.md) §13.4):
+```sh
+./run/test-targeted --scope app/src/apps/localPlayerApp.cpp   # file -> app -> its ids
+./run/test-targeted --scope LocalPlayer                       # or name the scope
+./run/test-targeted --scope spotify-chrome                    # non-app scopes:
+                                              # shell | boot | taskbar | spotify-chrome | rig
+SCOPE=Stock ./run/test-targeted T169,T170                     # combines: intersection
+```
+Scope names are case-sensitive (`Spotify` the app vs `spotify-chrome` the shell's
+Spotify plumbing); an unresolvable path or a mistyped scope aborts **before** the
+port is opened, so a typo never costs a board reset. `--class` and `--upto` were
+cut at review and do not exist (design §20).
+
 Quick smoke (< 2 min, always-passing):
 ```sh
 ./run/test-smoke
@@ -82,6 +96,7 @@ PORT=/dev/ttyUSB1 ./run/test-targeted T080,T083
 | `PORT` | auto-resolved | Skip udevadm lookup; use this port |
 | `BOOT_WAIT` | `8` | Seconds to wait after flashing debug firmware |
 | `TESTS` | (none) | Test IDs for `test-targeted` (comma-separated) |
+| `SCOPE` | (none) | Scope selector for `test-targeted` — app name, non-app scope, or a changed file's path (TASK-570). Same as `--scope` |
 
 ---
 

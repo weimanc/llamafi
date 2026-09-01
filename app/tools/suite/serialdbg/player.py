@@ -16,6 +16,7 @@ from lib.dut import Dut
 from lib.results import pass_, fail, skip, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
+from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
     _restore_spotify, _switch_to, _wait_shell_not_busy, _tap_and_wait_log,
     _tb_precondition, _TB_N, _tb_set_offset, _get_scroll, _do_drag,
@@ -1746,18 +1747,21 @@ def t_pmt_00(dut: Dut):
     pass_("T_PMT_00", f"{region} slot {slot_app} cycled {before} -> {after}")
 
 
+@meta(scope="Spotify", scope_reason="cross-mode")
 def t_pmt_01(dut: Dut):
     """T_PMT_01: Spotify -> WebRadio; full get-player vector correct after."""
     print("T_PMT_01  transition Spotify -> WebRadio")
     _pmt_edge(dut, "T_PMT_01", 0, 1)
 
 
+@meta(scope="WebRadio", scope_reason="cross-mode")
 def t_pmt_02(dut: Dut):
     """T_PMT_02: WebRadio -> Player; full get-player vector correct after."""
     print("T_PMT_02  transition WebRadio -> Player")
     _pmt_edge(dut, "T_PMT_02", 1, 2)
 
 
+@meta(scope_reason="cross-mode")
 def t_pmt_03(dut: Dut):
     """T_PMT_03: Player -> Spotify; vector correct + arena not stranded."""
     print("T_PMT_03  transition Player -> Spotify")

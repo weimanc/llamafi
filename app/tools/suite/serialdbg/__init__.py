@@ -31,3 +31,34 @@ def build_all_tests() -> dict:
         mod = importlib.import_module(f"suite.serialdbg.{name}")
         merged.update(mod.TESTS)
     return merged
+
+
+def build_all_meta() -> dict:
+    """id -> the (cls, scope, effect) record, seeded from the module/prefix and
+    overridden by any `@meta(...)` declaration. TASK-570, design §13.3.
+
+    Same registry, same ids, same order as build_all_tests() — this is a view
+    over it, never a second list to keep in step (LL-114: parse, don't mirror).
+
+    A family may also carry `META_OVERRIDES: dict[str, dict]` for registry
+    entries that are NOT functions and so cannot hold an attribute. There are
+    three today (shell.py's interactive T093/T094/T095 map to None and are
+    dispatched by name in runner.py); the design assumed there were none.
+    """
+    import importlib
+
+    from suite.serialdbg import _meta
+
+    out: dict = {}
+    for name in _FAMILY_MODULES:
+        mod = importlib.import_module(f"suite.serialdbg.{name}")
+        overrides = getattr(mod, "META_OVERRIDES", {})
+        for tid, fn in mod.TESTS.items():
+            out[tid] = _meta.resolve(tid, fn, name, overrides.get(tid))
+    return out
+
+
+def ids_for_scope(scope: str, meta: dict = None) -> list:
+    """Every id attributed to `scope`, in registry order."""
+    meta = meta if meta is not None else build_all_meta()
+    return [tid for tid, rec in meta.items() if rec["scope"] == scope]

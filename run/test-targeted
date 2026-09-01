@@ -2,15 +2,27 @@
 # run/test-targeted — targeted DUT validation loop (BP-021)
 # Usage: ./run/test-targeted T080,T083,T091
 #        TESTS=T080,T083 ./run/test-targeted
+#        ./run/test-targeted --scope LocalPlayer          (TASK-570: every id
+#          attributed to that app -- no test_plan.md lookup, no id list)
+#        ./run/test-targeted --scope app/src/apps/clockApp.cpp   (the file you
+#          changed; it resolves to the app, then to the app's ids)
+#        SCOPE=taskbar ./run/test-targeted                (env form)
+#        SCOPE=Stock ./run/test-targeted T169,T170        (both: intersection)
 #        BOOT_WAIT=12 ./run/test-targeted T-SET-01,T-SET-02
 #        LOG_FILE=/tmp/serial.log ./run/test-targeted T188,T192   (captures raw
 #          LOG_D/LOG_W lines alongside dbg command output, for diagnosing
 #          failures whose cause isn't visible in dbg output alone)
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+SCOPE="${SCOPE:-}"
+if [ "${1:-}" = "--scope" ]; then
+  SCOPE="${2:-}"
+  [ -n "$SCOPE" ] || { echo "Usage: $0 --scope <app|scope|path>" >&2; exit 1; }
+  shift 2
+fi
 TESTS="${TESTS:-${1:-}}"
-[ -n "$TESTS" ] || {
-  echo "Usage: $0 T080,T083  OR  TESTS=T080,T083 $0" >&2
+[ -n "$TESTS" ] || [ -n "$SCOPE" ] || {
+  echo "Usage: $0 T080,T083  OR  TESTS=T080,T083 $0  OR  $0 --scope <app|path>" >&2
   exit 1
 }
 _PORT_EXPLICIT="${PORT:-}"
@@ -43,7 +55,7 @@ _cleanup() {
 }
 trap _cleanup EXIT INT TERM
 
-echo "[test-targeted] running: $TESTS"
+echo "[test-targeted] running: ${TESTS:-<scope ${SCOPE}>}"
 
 echo "[test-targeted] step 1/6 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
@@ -63,7 +75,7 @@ stamp_reset_gap "$PORT"
 # anyway -- TASK-561 measured 46 s to console on a NO_AP_FOUND boot
 # against a BOOT_WAIT of 8.
 
-echo "[test-targeted] step 4/6 — running tests: $TESTS"
+echo "[test-targeted] step 4/6 — running tests: ${TESTS:-<scope ${SCOPE}>}"
 _LOG_ARGS=()
 if [ -n "${LOG_FILE:-}" ]; then
   echo "[test-targeted] raw serial log: $LOG_FILE"
@@ -74,5 +86,11 @@ fi
 # failure for everything else.
 _WIFI_ARGS=()
 [ "${NO_WIFI:-}" = "1" ] && _WIFI_ARGS+=(--no-wifi)
-(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" --tests "$TESTS" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}") \
+# TASK-570: --tests and --scope are both optional and compose (the runner
+# intersects them). Passing an empty --tests would select nothing, so the flag
+# is omitted entirely when only a scope was given.
+_SEL_ARGS=()
+[ -n "$TESTS" ] && _SEL_ARGS+=(--tests "$TESTS")
+[ -n "$SCOPE" ] && _SEL_ARGS+=(--scope "$SCOPE")
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_SEL_ARGS[@]}" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}") \
   || _TEST_RC=$?

@@ -52,6 +52,23 @@ if ! "$PYTHON" gate/check_suite_serialdbg_names.py; then
     exit 1
 fi
 
+# 4b2. the (cls, scope, effect) test record — TASK-570.
+# The record is SEEDED from the family module and id prefix and OVERRIDDEN by
+# hand only where the seed is wrong (M-TESTARCH §13.3). Every invariant of that
+# split fails silently: an id that resolves to no scope is simply never selected
+# by --scope, an override with no reason cannot be told from a typo, and a
+# case-only enum collision (`Spotify` vs `spotify`) selects the wrong set with no
+# error printed. The negative suite runs first — a gate nobody has seen fail is
+# not a gate (BP-068).
+if ! "$PYTHON" gate/test_check_test_meta.py; then
+    echo "FAIL: test_check_test_meta.py (TASK-570 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_test_meta.py; then
+    echo "FAIL: check_test_meta.py (TASK-570 record gate) FAILED" >&2
+    exit 1
+fi
+
 # 4c. serial-failure classifier — TASK-556.
 # runner.py used to label every serial.SerialException `port-busy` and name the
 # tmux monitor; a device that VANISHED mid-open (CH340 re-enumeration) got the

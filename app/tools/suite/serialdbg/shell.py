@@ -9,6 +9,28 @@ Weather/Crypto -- T_MA_*/T_GOL_*/T_WX_*/T_CX_*), a cross-feature dataTask
 test (T_X07_01), settings-nav (T-SET-*), ADR-042 UART/bgPoll validation
 (T-UART-01/T-BGPOLL-*), the shell-busy/cooldown gate (T-BUSY-*/T-CDWN-*),
 and the app-error-signal red taskbar bar (T-ERR-*).
+
+SCOPE DECLARATIONS (TASK-570, M-TESTARCH §13.3). This module has no module seed
+— it is the catch-all — so its residue seeds to `shell` and the @meta(...)
+declarations below override that where the seed is wrong. The rule they were
+adjudicated by, applied per id rather than by category label, is §13.3's:
+
+  * `Spotify` (27 ids, reason `winamp-view`) — the subject is a surface of the
+    Winamp window itself: posbar/transport/volume hit-testing, the PLEDIT rows
+    and their drag/scroll mechanics. Delete the Spotify app and the test has
+    nothing left to point at.
+  * `spotify-chrome` (11, reason `shell-poll`) — the subject is the SHELL's
+    handling of Spotify: poll backoff/reconnect, bgPoll suspension, the 403
+    activeError signal, the busy gate entered from the Spotify slot. These
+    survive the app's deletion, which is exactly §13.3's test.
+  * `Settings` (6, `settings-app`) and `taskbar` (7, `taskbar-surface`) — both
+    are app/shell surfaces the catch-all would otherwise mis-attribute; §13.2
+    measured the Settings ids as the clearest case.
+  * Everything left stays `shell`: the busy/cooldown gates, dispatch routing and
+    the UART/error-signal checks. They use whatever app is convenient as a
+    VEHICLE (Stock, mostly) — the subject is shell machinery, so a Stock literal
+    in the body is not an attribution. That is why the AST "app name in the body"
+    signal is a cross-check and never the source (§13.2).
 """
 
 import json
@@ -19,6 +41,7 @@ from lib.dut import Dut
 from lib.results import pass_, fail, skip, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
+from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
     _restore_spotify, _switch_to, _check_residue, _wait_shell_not_busy,
     _diag_snapshot, _tap_and_wait_log, _do_drag, _get_scroll,
@@ -33,6 +56,7 @@ from suite.serialdbg.webradio import _switch_to_webradio_capture_heap
 
 # ── T077 — dead zone between posbar and transport ─────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t077(dut: Dut):
     print("T077  Dead zone posbar/transport gap")
     dut.set_cooldown_zero()
@@ -49,6 +73,7 @@ def t077(dut: Dut):
 
 # ── T078 — zero-delta drag dispatches no ACT_VOLUME ──────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t078(dut: Dut):
     """T078: zero-delta drag does not commit ACT_VOLUME. [PARTIAL — requires Spotify playing for full verification]"""
     print("T078  Zero-delta drag → no ACT_VOLUME")
@@ -135,6 +160,7 @@ def t080(dut: Dut):
 
 # ── T081 — serial tap reproduces transport suite ──────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t081(dut: Dut):
     print("T081  Serial tap → transport (shape check; Spotify effect manual)")
     buttons = [("PREV", "PREV"), ("PLAY", "PLAY"), ("PAUSE", "PAUSE"),
@@ -156,6 +182,7 @@ def t081(dut: Dut):
 
 # ── T082 — serial drag reproduces volume drag ─────────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t082(dut: Dut):
     """T082: serial drag produces ACT_VOLUME enqueue events; debounce verified by count. [PARTIAL — requires Spotify playing for full verification]"""
     print("T082  Serial drag → ACT_VOLUME debounce (log count check)")
@@ -214,6 +241,7 @@ def t083(dut: Dut):
 # consecutiveFailures between the set and get commands, causing unexpected
 # values mid-sequence — first observed 2026-05-25
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t084(dut: Dut):
     print("T084  set/get backoff round-trip")
     # Set to 5
@@ -241,6 +269,7 @@ def t084(dut: Dut):
 
 # ── T085 — POSBAR tap → NONE when no track loaded ────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t085(dut: Dut):
     print("T085  POSBAR tap when no track (force songDuration=0)")
     # Force the `songDuration <= 0` precondition via the debug accessor
@@ -270,6 +299,7 @@ def t085(dut: Dut):
 
 # ── T096 — cmdDrag queue-drain completeness ───────────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t096(dut: Dut):
     print("T096  cmdDrag queue-drain completeness")
     dut.set_cooldown_zero()
@@ -328,6 +358,7 @@ def t096(dut: Dut):
 # responses (high network latency, TLS renegotiation) can push it past the 8 s
 # deadline — first observed 2026-05-25
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t087(dut: Dut):
     print("T087  Serial tap: SHUFFLE / REPEAT / VIS / LOGO regions")
     errors = []
@@ -390,6 +421,7 @@ def t087(dut: Dut):
 
 # ── T088 — DEADZONE positive cases ───────────────────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t088(dut: Dut):
     print("T088  DEADZONE positive cases — canvas corners + dead-zone samples")
     # g_shellBusy may be True from a prior transport/seek/volume action — wait before tapping.
@@ -473,6 +505,7 @@ def t090(dut: Dut):
 # commands, producing a non-zero value even after a successful reconnect —
 # first observed 2026-05-25
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t091(dut: Dut):
     print("T091  `reconnect` clears consecutiveFailures")
     _wait_shell_not_busy(dut, timeout_s=10.0)
@@ -501,6 +534,7 @@ def t091(dut: Dut):
 # [spotify.poll] log line past the 2000 ms observation window —
 # first observed 2026-05-25
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t092(dut: Dut):
     print("T092  `reconnect` triggers force poll ≤2000ms")
     # Drain any pending serial data before starting the clock
@@ -687,6 +721,7 @@ def t095(dut: Dut, interactive: bool):
 
 # ── T133 — CurrentlyPlaying zero-init guard ───────────────────────────────────
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t133(dut: Dut):
     """Static grep + 90 s runtime soak. Works with production or debug build."""
     print("T133  CurrentlyPlaying zero-init guard (static + 90s stability)")
@@ -719,6 +754,7 @@ def t133(dut: Dut):
 
 # ── T134 — Zone 1 hit-test: tap in PLEDIT content area reports hit="PLEDIT" ────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t134(dut: Dut):
     print("T134  Zone 1 hit-test: tap in PLEDIT content area")
     if not _restore_spotify(dut):
@@ -748,6 +784,7 @@ def t134(dut: Dut):
 
 # ── T135 — Drag-end fires: drag response arrives and dragState returns D_IDLE ──
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t135(dut: Dut):
     print("T135  Drag-end fires on synthetic swipe-up")
     # Pre-condition: dragState must be D_IDLE.
@@ -802,6 +839,7 @@ def t135(dut: Dut):
 
 # ── T136 — get scrollOffset returns 0 at initial state ────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t136(dut: Dut):
     # Merged into T137 setup as an explicit precondition assertion (TASK-112c).
     # Kept here as a no-op so the dispatch table entry still resolves; run T137 instead.
@@ -810,6 +848,7 @@ def t136(dut: Dut):
 
 # ── T137 — swipe-up increments scrollOffset ────────────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t137(dut: Dut):
     print("T137  swipe-up increments scrollOffset")
     if not dut.wait_for_queue(min_count=2):
@@ -841,6 +880,7 @@ def t137(dut: Dut):
 
 # ── T138 — swipe-down decrements scrollOffset ─────────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t138(dut: Dut):
     print("T138  swipe-down decrements scrollOffset")
     pre = _get_scroll(dut)
@@ -869,6 +909,7 @@ def t138(dut: Dut):
 
 # ── T139 — scrollOffset clamps at 0 (no underflow) ────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t139(dut: Dut):
     print("T139  scrollOffset clamps at 0 (no underflow)")
     xd, yd, xd2, yd2 = _c.pledit_swipe("down")
@@ -892,6 +933,7 @@ def t139(dut: Dut):
 
 # ── T140 — scrollOffset clamps at max ─────────────────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t140(dut: Dut):
     print("T140  scrollOffset clamps at max (count - PLEDIT_ROW_COUNT)")
     # Queue snapshot stores PLEDIT_ROW_COUNT (5) items; need >5 to have a non-zero max.
@@ -927,6 +969,7 @@ def t140(dut: Dut):
     pass_("T140", f"scrollOffset saturates at {val_sat}; extra swipe did not increment")
 
 
+@meta(scope="taskbar", scope_reason="taskbar-surface")
 def t147(dut: Dut):
     """T147: taskbar tap (via injectTouch) switches active app; get appId confirms round-trip."""
     import time
@@ -1693,6 +1736,7 @@ def t_busy_01b(dut: Dut):
 
 # ── T-BUSY-02 — Spotify PLAY tap triggers busy; clears ────────────────────────
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t_busy_02(dut: Dut):
     """T-BUSY-02: Spotify PLAY tap → shellBusy true → clears within 3 s."""
     print("T-BUSY-02  Spotify PLAY → amber → clears")
@@ -2066,6 +2110,7 @@ def _tc_drag_collect(dut: Dut, cmd: str, markers: list[str],
     return matched, drag_resp
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t149(dut: Dut):
     print("T149  POSBAR drag: ACT_SEEK committed at correct position")
     dut.cmd("set songDuration 120000")
@@ -2098,6 +2143,7 @@ def t149(dut: Dut):
     pass_("T149", f"posbarDragMs={committed_ms} ms; dragState=D_IDLE")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t150(dut: Dut):
     print("T150  POSBAR capture: Move above groove still updates posbarDragMs")
     dut.cmd("set songDuration 120000")
@@ -2131,6 +2177,7 @@ def t150(dut: Dut):
     pass_("T150", f"posbarDragMs={committed_ms} ms despite y-drift above groove; dragState=D_IDLE")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t151(dut: Dut):
     print("T151  VOLUME capture: Move below groove still emits ACT_VOLUME")
     rg = dut.cmd("get dragState")
@@ -2163,6 +2210,7 @@ def t151(dut: Dut):
     pass_("T151", f"dragState=D_IDLE; {len(lines)} ACT_VOLUME event(s) during y-drift below groove")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t152(dut: Dut):
     print("T152  PLEDIT scrollbar capture: Move into content area continues scrolling")
     if not _restore_spotify(dut):
@@ -2207,6 +2255,7 @@ def t152(dut: Dut):
     pass_("T152", f"scrollOffset 0→{post} during scrollbar→content drift; dragState=D_IDLE")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t153(dut: Dut):
     print("T153  Capture exclusivity: VOLUME drift into POSBAR row does not start seek")
     dut.cmd("set songDuration 120000")
@@ -2251,6 +2300,7 @@ def t153(dut: Dut):
     pass_("T153", f"posbarDragMs unchanged at {post_ms} ms; no seek initiated; dragState=D_IDLE")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t154(dut: Dut):
     print("T154  POSBAR tap: Press + Release seeks to pressed x position")
     dut.cmd("set songDuration 60000")
@@ -2282,6 +2332,7 @@ def t154(dut: Dut):
 
 # ── velocity-scroll-001 ────────────────────────────────────────────────────────
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t155(dut: Dut):
     """T155: 0-dy tap in dead zone fires PLEDIT hit (tap path, not scroll-end)."""
     print("T155  Tap within dead zone fires PLEDIT hit (0-dy)")
@@ -2308,6 +2359,7 @@ def t155(dut: Dut):
           f"hit=PLEDIT scrollOffset={post} (unchanged) dragState=D_IDLE — tap path confirmed")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t156(dut: Dut):
     """T156: dy=13 px drag outside dead zone → scroll-end (no tap, no PLAY_URI)."""
     print("T156  Release outside dead zone suppresses tap (dy=13 px)")
@@ -2337,6 +2389,7 @@ def t156(dut: Dut):
           f"dragState=D_IDLE cooldown={cooldown_ms} ms ≤ 220 — scroll-end confirmed, tap suppressed")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t157(dut: Dut):
     """T157: velocity ≈ 2.0 rows/s at dy=-13 px (effective=12 px, K=0.1667).
     Verified indirectly: tick 50×20ms at the final drag position produces
@@ -2375,6 +2428,7 @@ def t157(dut: Dut):
     pass_("T157", f"D_PLEDIT_SCROLL confirmed; scrollOffset={so} ∈ [1,3] → velocity≈2.0 rows/s")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t158(dut: Dut):
     """T158: tick 50×20ms (1 s equivalent) at dy=-13 advances scrollOffset ≥ 1."""
     print("T158  Tick integration: 1 s at dy=-13 → scrollOffset ≥ 1")
@@ -2399,6 +2453,7 @@ def t158(dut: Dut):
     pass_("T158", f"scrollOffset={so} ≥ 1 after tick 50×20ms at dy=-13 — integration confirmed")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t159(dut: Dut):
     """T159: scrollAccum is non-zero during drag, reset to 0.0000 on Release.
     Uses steps=3 so tick fires mid-drag (at Move@159, dy=-4, vel≈0.50) giving
@@ -2450,6 +2505,7 @@ def t159(dut: Dut):
           f"scrollAccum={accum_pre:.4f} mid-drag (non-zero) → 0.0000 after Release; dragState=D_IDLE")
 
 
+@meta(scope="Spotify", scope_reason="winamp-view")
 def t160(dut: Dut):
     """T160: tickScroll is a no-op when dragState is D_IDLE."""
     print("T160  tickScroll no-op when D_IDLE")
@@ -2504,6 +2560,7 @@ def t160(dut: Dut):
 
 
 
+@meta(scope="taskbar", scope_reason="taskbar-surface")
 def t162(dut: Dut):
     """T162: Tap taskbar slot 1 (|rawDy|=0 < TB_SCROLL_DEAD_ZONE_PX=3) → switchApp fires, tbScrollOffset unchanged."""
     print("T162  Tap taskbar slot 1 — switchApp fires, tbScrollOffset unchanged")
@@ -2525,6 +2582,7 @@ def t162(dut: Dut):
     pass_("T162", f"appId=Clock; tbScrollOffset={post} (unchanged at {baseline}) — tap/switchApp path confirmed")
 
 
+@meta(scope="taskbar", scope_reason="taskbar-surface")
 def t163(dut: Dut):
     """T163: Drag-up ≥50 px / 10 steps → tbScrollOffset increments by 1 (mod N)."""
     print("T163  Drag-up 50 px → tbScrollOffset + 1")
@@ -2541,6 +2599,7 @@ def t163(dut: Dut):
     pass_("T163", f"tbScrollOffset {baseline}→{post} (+1 mod {_TB_N}) confirmed")
 
 
+@meta(scope="taskbar", scope_reason="taskbar-surface")
 def t164(dut: Dut):
     """T164: Drag-down ≥50 px / 10 steps → tbScrollOffset decrements by 1 (mod N).
     Starts at offset=1 to exercise non-wrap decrement (wrap is T165)."""
@@ -2562,6 +2621,7 @@ def t164(dut: Dut):
     pass_("T164", f"tbScrollOffset {baseline}→{post} (-1 mod {_TB_N}) confirmed")
 
 
+@meta(scope="taskbar", scope_reason="taskbar-surface")
 def t165(dut: Dut):
     """T165: Wrap-around down — offset=0, drag-down → offset=N-1=7."""
     print("T165  Wrap-around down: offset=0, drag-down → offset=7")
@@ -2580,6 +2640,7 @@ def t165(dut: Dut):
     pass_("T165", f"tbScrollOffset 0→{post} (wrap-around down confirmed)")
 
 
+@meta(scope="taskbar", scope_reason="taskbar-surface")
 def t166(dut: Dut):
     """T166: Wrap-around up — offset=N-1=7, drag-up → offset=0."""
     print("T166  Wrap-around up: offset=7, drag-up → offset=0")
@@ -2599,6 +2660,7 @@ def t166(dut: Dut):
     pass_("T166", f"tbScrollOffset {baseline}→{post} (wrap-around up confirmed)")
 
 
+@meta(scope="taskbar", scope_reason="taskbar-surface")
 def t242(dut: Dut):
     """T242 (TASK-242/LL-085): WebRadio must NOT be reachable via the taskbar — it
     is eject-entered only. Regression for the latent crash where WebRadio leaked
@@ -2898,6 +2960,7 @@ def _settings_tap_back(dut: Dut, timeout: float = 3.0):
     time.sleep(0.1)
 
 
+@meta(scope="Settings", scope_reason="settings-app")
 def t_set_01(dut: Dut):
     """T-SET-01: switchApp(Settings) → settingsSection==-1 (category list)."""
     print("T-SET-01  Settings opens at category list (section==-1)")
@@ -2913,6 +2976,7 @@ def t_set_01(dut: Dut):
     pass_("T-SET-01", "settingsSection==-1 after switchApp(Settings) — category list confirmed")
 
 
+@meta(scope="Settings", scope_reason="settings-app")
 def t_set_02(dut: Dut):
     """T-SET-02: tap each stub row 0..4 → section==idx; back → section==-1 (× 5)."""
     print("T-SET-02  Section navigation: tap row→section; back→-1 (× 5)")
@@ -2937,6 +3001,7 @@ def t_set_02(dut: Dut):
     pass_("T-SET-02", "all 5 stub sections: tap→correct index, back→-1")
 
 
+@meta(scope="Settings", scope_reason="settings-app")
 def t_set_03(dut: Dut):
     """T-SET-03: Applications drill (row 5 → row 0) → submenu==0; back×2 unwinds fully."""
     print("T-SET-03  Applications drill: section 5, submenu 0, back×2")
@@ -2976,6 +3041,7 @@ def t_set_03(dut: Dut):
     pass_("T-SET-03", "Applications drill: section 5, submenu 0 confirmed; back×2 unwinds to -1/-1")
 
 
+@meta(scope="Settings", scope_reason="settings-app")
 def t_set_06(dut: Dut):
     """T-SET-06: suspend reset — switch away mid-submenu, return → section==-1, submenu==-1."""
     print("T-SET-06  suspend() reset: re-enter Settings → always category list")
@@ -3005,6 +3071,7 @@ def t_set_06(dut: Dut):
     pass_("T-SET-06", "suspend() reset confirmed: section==-1 submenu==-1 on re-entry")
 
 
+@meta(scope="Settings", scope_reason="settings-app")
 def t_set_07(dut: Dut):
     """T-SET-07: back from Applications L2 (Crypto, app-list row 2) traverses all three levels correctly."""
     print("T-SET-07  Double-back from Applications L2 (Crypto, row 2) → fully unwound")
@@ -3035,6 +3102,7 @@ def t_set_07(dut: Dut):
     pass_("T-SET-07", "back×2 from app-list row 2 (Crypto) submenu: submenu→-1, section→-1 confirmed")
 
 
+@meta(scope="Settings", scope_reason="settings-app")
 def t_set_08(dut: Dut):
     """T-SET-08: back from category list returns to g_previousAppId (Crypto)."""
     print("T-SET-08  goBack() from category list → g_previousAppId (Crypto)")
@@ -3101,6 +3169,7 @@ def t_uart_01(dut: Dut):
         pass_("T-UART-01", "20/20 get heap responses clean during chart fetch — no Core 0 interleave")
 
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t_bgpoll_01(dut: Dut):
     """T-BGPOLL-01: set bgPoll 0 suspends self-polls; get bgPoll returns enabled:0."""
     print("T-BGPOLL-01  bgPoll suspend — self-polls halt (ADR-042 E2)")
@@ -3131,6 +3200,7 @@ def t_bgpoll_01(dut: Dut):
         pass_("T-BGPOLL-01", "shellBusy=false throughout 5 s bgPoll suspend — self-polls halted")
 
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t_bgpoll_02(dut: Dut):
     """T-BGPOLL-02: reconnect resets bgPoll to enabled:1 (recovery invariant)."""
     print("T-BGPOLL-02  reconnect resets bgPoll to 1 (ADR-042 E2 invariant)")
@@ -3149,6 +3219,7 @@ def t_bgpoll_02(dut: Dut):
         pass_("T-BGPOLL-02", "reconnect reset bgPoll to enabled:1 — recovery invariant holds")
 
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t_bgpoll_03(dut: Dut):
     """T-BGPOLL-03: ACT_FORCE_POLL tap completes fetch while bgPoll suspended; flag stays 0."""
     print("T-BGPOLL-03  ACT_FORCE_POLL bypasses bgPoll suspend (ADR-042 E2)")
@@ -3193,6 +3264,7 @@ def _get_active_error(dut: Dut):
     """Returns the `get activeError` dict: {active, spotifyAuthError}."""
     return dut.cmd("get activeError", timeout=3.0)
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t_err_01(dut: Dut):
     """T-ERR-01 (X020): a 403 poll → activeError true; recovered (200) poll → clears to false."""
     print("T-ERR-01  Spotify authError detection + self-clear")
@@ -3243,6 +3315,7 @@ def t_err_02(dut: Dut):
     else:
         fail("T-ERR-02", f"before={before} away={away} back={back}")
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t_err_04(dut: Dut):
     """T-ERR-04 (boot amber): connecting true before the first poll resolves, false
     after the first success — independent of error state."""
@@ -3264,6 +3337,7 @@ def t_err_04(dut: Dut):
     else:
         fail("T-ERR-04", f"boot={boot} connected={conn}")
 
+@meta(scope="spotify-chrome", scope_reason="shell-poll")
 def t_err_05(dut: Dut):
     """T-ERR-05 (regression): a touch must not clear the 403 error. authError is keyed on the
     last HTTP status, not s_consecutiveFailures, so resetBackoff() (called on every touch via
@@ -3437,3 +3511,18 @@ TESTS = {
     "T-ERR-07": t_err_07,
 }
 
+
+# TASK-570. Three registry entries are NOT functions — T093/T094/T095 map to
+# None here and are dispatched by name in runner.py because they take a second
+# `interactive` argument. A decorator cannot attach to None, so their record is
+# declared here instead. (M-TESTARCH §13.3 asserted "nothing in TESTS is a
+# non-function value today"; these three are the counter-example.)
+#
+# scope=rig: they calibrate the touchscreen against a human finger. They are a
+# property of the rig, not of any app — and under §13.3's rule they would still
+# exist were every app deleted.
+META_OVERRIDES = {
+    "T093": {"cls": "RIG", "scope": "rig", "scope_reason": "calibration"},
+    "T094": {"cls": "RIG", "scope": "rig", "scope_reason": "calibration"},
+    "T095": {"cls": "RIG", "scope": "rig", "scope_reason": "calibration"},
+}

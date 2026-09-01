@@ -14,6 +14,13 @@ snapshot, same TASK-386 per-test serial marker).
 Usage:
     python3 tools/suite/serialdbg/runner.py [--port /dev/ttyUSB0] [--tests T077,T080,T084]
     python3 tools/suite/serialdbg/runner.py --interactive --tests T095
+    python3 tools/suite/serialdbg/runner.py --scope LocalPlayer
+    python3 tools/suite/serialdbg/runner.py --scope app/src/apps/clockApp.cpp
+
+`--scope` (TASK-570, M-TESTARCH §13.4) selects by the registry's `scope` field
+instead of by a literal id list — either a scope name or the path of the file
+you changed. `--class`/`--upto` are deliberately NOT implemented: @PM cut both
+from TASK-570 on all three reviewers' recommendation (design §20).
 
 Requirements:
     pip install pyserial
@@ -46,6 +53,7 @@ except ImportError:
     sys.exit("pip install pyserial")
 
 import suite.serialdbg as _suite                                          # noqa: E402
+from suite.serialdbg import _meta                                          # noqa: E402
 from suite.serialdbg.shell import t093, t094, t095                        # noqa: E402
 
 SETUP_FAIL_EXIT = 3
@@ -163,8 +171,14 @@ def main():
                    help="enable interactive tests (T093/T094/T095 — requires human at DUT)")
     _interactive_tests = {"T093", "T094", "T095"}
     default_tests = ",".join(k for k in all_tests if k not in _interactive_tests)
-    p.add_argument("--tests", default=default_tests,
+    p.add_argument("--tests", default=None,
                    help="comma-separated test IDs, e.g. T080,T083,T084")
+    p.add_argument("--scope", default=None,
+                   help="run only the ids attributed to a scope — either a scope "
+                        "name (an app, or shell/boot/taskbar/spotify-chrome/rig) or "
+                        "the PATH of a file you changed, e.g. "
+                        "--scope app/src/apps/localPlayerApp.cpp. TASK-570 / "
+                        "M-TESTARCH §13.4. Combines with --tests (intersection).")
     p.add_argument("--no-wifi", action="store_true",
                    help="proceed even if the DUT never gets an IP. Only for suites that "
                         "touch no network (e.g. the SD-backed T_PLR_08-12).")
@@ -174,10 +188,26 @@ def main():
                         "failures whose cause isn't visible in dbg command output")
     args = p.parse_args()
 
-    selected = [t.strip() for t in args.tests.split(",") if t.strip()]
+    selected = [t.strip() for t in (args.tests or default_tests).split(",") if t.strip()]
     unknown = [t for t in selected if t not in all_tests]
     if unknown:
         sys.exit(f"Unknown tests: {unknown}. Available: {list(all_tests)}")
+
+    if args.scope:
+        # TASK-570 / M-TESTARCH §13.4. Resolve BEFORE opening the port: a typo
+        # in a selector must not cost a board reset to find out about.
+        try:
+            scope = _meta.resolve_selector(args.scope)
+        except ValueError as e:
+            sys.exit(f"--scope: {e}")
+        meta = _suite.build_all_meta()
+        in_scope = [t for t in selected if meta[t]["scope"] == scope]
+        if not in_scope:
+            sys.exit(f"--scope {args.scope} -> scope '{scope}' selects none of the "
+                     f"{len(selected)} candidate ids. Scopes present: "
+                     + ", ".join(sorted({r['scope'] for r in meta.values()})))
+        print(f"[scope] {args.scope} -> {scope}: {len(in_scope)} of {len(selected)} ids")
+        selected = in_scope
 
     print(f"Connecting to {args.port} @ {args.baud}…")
     if args.log_file:

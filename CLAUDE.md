@@ -111,6 +111,9 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/monitor-read [N]        # dump last N lines (default 200)
 ./run/test                    # full DUT validation loop (BP-020, trap-guarded)
 ./run/test-targeted T1,T2     # targeted loop for a specific feature
+./run/test-targeted --scope X # targeted loop by SCOPE — an app name, one of
+                              # shell|boot|taskbar|spotify-chrome|rig, or the PATH of
+                              # the file you changed (TASK-570)
 ./run/test-smoke              # smoke preset < 2 min
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
 ./run/browser-player           # directory-browse + real playback test on cyd2usb_player (TASK-416/T_PLR_13)
@@ -133,6 +136,21 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/bake-airports            # bake OurAirports runway DB for M-PLANERADAR (ADR-049)
 ./run/bake-icons               # bake app/icons/taskbar/*.png -> app/gen/taskbar_icons.{cpp,h}
 ```
+
+**Selecting tests by what you changed** (TASK-570, [M-TESTARCH](docs/architecture/designs/M-TESTARCH-precedence-hierarchy.md) §13.4).
+You do not need to read `test_plan.md` or grep the suite for an id list. Every
+test carries a `scope`, so the file you edited resolves to its ids in one command:
+
+```sh
+./run/test-targeted --scope app/src/apps/localPlayerApp.cpp   # -> LocalPlayer -> 29 ids
+./run/test-targeted --scope LocalPlayer                       # the same set, named directly
+./run/test-targeted --scope taskbar                           # a non-app scope
+SCOPE=Stock ./run/test-targeted T169,T170                     # both -> intersection
+```
+
+Scope names are **case-sensitive**: `Spotify` is the app, `spotify-chrome` is the
+shell's Spotify plumbing, and `spotify` is not a scope at all. `--class`/`--upto`
+were cut at review and deliberately do not exist (design §20).
 
 Full reference: `docs/process/project_run_scripts.md`. Rationale and failure modes: `docs/process/dut_workflow.md`.
 
@@ -258,12 +276,12 @@ PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). O
 
 **Host tooling** (`app/tools/`, per [M-TOOLING-host-tool-architecture.md](docs/architecture/designs/M-TOOLING-host-tool-architecture.md)):
 - `lib/` — shared layer: `dut.py` (DUT session: port resolve, open, send, expect), `flaky.py`/`results.py` (suite reporting).
-- `gate/` — host gates `run/check`/`run/check-docs` invoke: the four `check_*.py` scripts + their `test_check_*.py` tests. Leaves — nothing else depends on `gate/`.
+- `gate/` — host gates `run/check`/`run/check-docs` invoke: the five `check_*.py` scripts + their `test_check_*.py` tests. Leaves — nothing else depends on `gate/`.
 - `gen/` — codegen writing into `app/gen/`, staleness-gated (`gen_app_registry.py`, `gen_mem_layout.py`, …).
 - `bake/` — asset bakes writing into `app/gen/`, `golden.sha256`-gated (`bake_skin.py`, `bake_nixie.py`, …).
 - `preview/` — host-only renderers (parse `gen/*.h`, never mirror it — LL-114). `preview_common.py` (the shared parser these import) stays flat in `app/tools/`, not inside `preview/`.
 - `probe/` — one-shot host probes against live external services.
-- `suite/` — DUT test suites. `serialdbg/` (TASK-480, DONE): the former 10 005-line `run_serialdbg_tests.py` monolith split into one module per app family — `clock.py`, `teletext.py`, `planeradar.py`, `stock.py`, `webradio.py`, `player.py`, `shell.py` (the catch-all for taskbar/app-switch and the small single-screen apps) — plus `_helpers.py` for anything used by 2+ families. `runner.py` is the CLI entry point `run/test`/`run/test-targeted`/`run/player-gate` invoke; `__init__.py`'s `build_all_tests()` assembles the combined registry from each family's own `TESTS` dict.
+- `suite/` — DUT test suites. `serialdbg/` (TASK-480, DONE): the former 10 005-line `run_serialdbg_tests.py` monolith split into one module per app family — `clock.py`, `teletext.py`, `planeradar.py`, `stock.py`, `webradio.py`, `player.py`, `shell.py` (the catch-all for taskbar/app-switch and the small single-screen apps) — plus `_helpers.py` for anything used by 2+ families. `runner.py` is the CLI entry point `run/test`/`run/test-targeted`/`run/player-gate` invoke; `__init__.py`'s `build_all_tests()` assembles the combined registry from each family's own `TESTS` dict, and `build_all_meta()` the matching `(cls, scope, effect)` record — seeded from the module/id-prefix by `serialdbg/_meta.py`, overridden by `@meta(...)` declarations, gated by `gate/check_test_meta.py` (TASK-570).
 - `spike/` — one-off, task-scoped tools; `run/check-docs`'s `SPIKE` check (blocking) fails any `spike/task<NNN>_*` whose task is archived.
 
 Levels depend downward only: a suite may use `lib/`; `lib/` never imports a suite; `preview/`/`bake/` never import from `suite/`.
