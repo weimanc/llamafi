@@ -1507,3 +1507,52 @@ interactions:
       described against different ids, fill risk from implementation, and VE to attach ids from the
       T_SRC_ family (reserved in test_plan.md, same date). Tracked as TASK-456 / TASK-471.
       Design: docs/architecture/designs/M-SRCLAYOUT-main-decomposition.md
+
+  - id: X066
+    feature_a: serialdbg-001
+    feature_b: wifi-001
+    interaction_type: shared_state
+    description: |
+      RESERVED — M-TESTARCH boot-window observability (TASK-560..563). Today the serial debug
+      console is unreachable for the whole of setup(): handleSerialCommands() has exactly one
+      call site, in loop() (app/src/main.cpp:268), so the console cannot answer until setup()
+      returns. Because setup()'s duration is set by the WiFi cascade and the NTP wait
+      (app/src/boot/boot.cpp:552-558), boot-to-console is 1 s / 6 s / unbounded depending on the
+      network — and the host harness compensates with hand-tuned constants rather than a signal.
+
+      The seam this row records: **the boot cascade and the serial console become coupled.** A
+      `[bootphase]` token stream (TASK-561) makes the cascade's progress a published fact that the
+      console's consumers depend on, and TASK-560 makes the host gate on it.
+
+      A second, stronger form of this coupling was proposed and WITHDRAWN at review (TASK-562):
+      pumping handleSerialCommands() inside setup()'s wait loops, which would have made console
+      commands executable against half-initialised subsystems. It was withdrawn because the harness
+      CAUSES the boot it gates (DTR fires during open()), so the phase stream cannot be missed on
+      that boot and the pumped query bought nothing. Recorded here because the hazards are what any
+      future re-proposal must clear, and because the invariant it would have cost is worth naming:
+
+      INVARIANT (free today, by construction): handleSerialCommands() runs only from loop(), so
+      bytes arriving during setup() sit in the RX buffer and dispatch on the first loop()
+      iteration. No console command can EVER execute against half-initialised state.
+
+      If TASK-562 is ever re-opened, three things must be verified at implementation:
+      (1) the pre-init allowlist is POSITIVE (deny by default) and TWO-LEVEL — kCmds[] has 29
+      entries, but `get` is one entry dispatching 43 sub-keys (cmdGet.cpp:40-761), so a real
+      allowlist is ~45 entry points wide. Only four are safe pre-init (help, info, get heap,
+      get stacks); the rest touch state that does not exist yet — touch injection into an
+      unpopulated g_apps[], TFT GRAM read-back racing displaySetup(), SD commands racing
+      sdProbeBootMount();
+      (2) a refused pre-init command must NOT answer "unknown command" — the harness already uses
+      that string to mean "production firmware is flashed" (lib/dut.py _verify_debug_firmware),
+      so conflating them would break the firmware-variant guard;
+      (3) a TWDT clause — the NTP loop at boot.cpp:554-558 never feeds the watchdog, so a
+      permitted command running there can trip it and produce an UNSTAMPED reset (the TASK-376
+      back-to-back-reset hazard TASK-559 exists to prevent).
+    risk: medium
+    test_coverage: []
+    notes: |
+      RESERVED, NOT COMPLETE — Architect reservation at design time (BP-071). Developer to correct
+      feature_a/feature_b if the seam is better described against boot-ui-001 or wifi-diag-001,
+      fill risk from implementation, and VE to attach test ids. Tracked as TASK-560, TASK-561,
+      TASK-563 (TASK-562 withdrawn at review, 2026-09-01).
+      Design: docs/architecture/designs/M-TESTARCH-boot-window-observability.md
