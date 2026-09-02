@@ -123,8 +123,9 @@ filed and unscheduled.
 
 **Already done, do not re-schedule:** TASK-466 (build gate, 3 → 11 envs), 467, 477, 491, 496, 488,
 497 (all 2026-08-16) — plus **TASK-471, 472, 478, 529, 530, 495, 458, 459, 460, 508, 535** and
-**TASK-475 phases 2 and 4** (2026-08-21/25, this session). **Next in sequence is #6, M-WINAMP-PLAYER
-(still paused) or TASK-424 if DUT time is scarce.** TASK-475 phase 3 is left advisory by choice (C3's
+**TASK-475 phases 2 and 4** (2026-08-21/25, this session). **Superseded 2026-09-02: TASK-424 is DONE and the whole M-TESTARCH block (#6) is complete.**
+The queue is now gated on **TASK-557** (supply sag, needs a meter or the GPIO35 divider — no
+firmware lever remains) and on **TASK-578**'s @Architect ruling. M-WINAMP-PLAYER stays paused. TASK-475 phase 3 is left advisory by choice (C3's
 58-occurrence count isn't near zero); phase 5 is intentionally advisory-forever per the check-docs
 spec's own text. New follow-ups from the TASK-488 verification: 503–506 (503 already DONE, see its
 own row). TASK-535 (live DUT check of TASK-460's four fetch paths) is **DONE 2026-08-25** — 3/4
@@ -258,13 +259,13 @@ unscheduled.
 | # | Do | DUT? | Why this position |
 |---|---|---|---|
 | **1** | **TASK-573 — DONE 2026-09-01** — `FLAKY-PASS` dropped by `run/player-gate` | no | A **live defect in the gate that produces TASK-566's baseline**. It is the only item that corrupts data *already being collected*. ~10 lines. Nothing else in this block is worth measuring until it is fixed. |
-| **2** | **@Architect: apply the ~20 review must-fixes to the precedence design** | no | Not a slot after implementation — an edit to the governing doc. Per BP-065/BP-069 the doc governs the build; starting TASK-564 against a doc with 20 known defects builds the defects. Runs in parallel with 1 and 3. |
+| **2** | **@Architect: apply the review must-fixes to the precedence design — DONE 2026-09-01** (`5c0d01f`, 23 must-fixes) | no | Not a slot after implementation — an edit to the governing doc. Per BP-065/BP-069 the doc governs the build; starting TASK-564 against a doc with 20 known defects builds the defects. Runs in parallel with 1 and 3. |
 | **3** | **TASK-574 — DONE 2026-09-01, adjudicated: 240 A / 0 B / 16 C, nothing converted** — the 74 masked-FAIL `skip()` sites out of TASK-567 | no | False greens **today**. @VE filed it on their own authority and is right to: it has no dependency on TASK-566's baseline, so parking it behind 566 was mis-sequencing, not prioritisation. @VE-owned, so it does not contend for @Developer or the DUT. |
 | **4** | **DUT block 1 — TASK-572 + TASK-424, one session** | **done 2026-09-01** | Both closed. 424 turned out not to be an SD defect at all (PATCH-TLS-1, see its entry). |
-| **5** | **TASK-564** — consume `[bootphase]`, generation counter | yes | First real consumer of TASK-561's stream. Everything downstream reads its fields. |
-| **6** | **TASK-570** — record shape `(cls, scope, effect)` + seeder, **slimmed** | no | **Moved ahead of TASK-565** (the design has 565 → 570). @Developer is right: the HEALTH family is the first consumer of these fields, so building 565 first means retrofitting it. One pass, not two. |
-| **7** | **TASK-565** — HEALTH class `T_DH_01..03` + `run/dut-health` | yes | Consumes 570's record shape as built. |
-| **8** | **TASK-566** — class-ordered runner — **inert → order diff → baseline ONLY** | yes | The **order switch stays HELD** (see its row). Everything up to and including capturing the baseline is safe and useful now; flipping the order is not. |
+| **5** | **TASK-564 — DONE 2026-09-01** (`e7edb15`) — consume `[bootphase]`, generation counter | yes | First real consumer of TASK-561's stream. Everything downstream reads its fields. |
+| **6** | **TASK-570 — DONE 2026-09-01** (`3cd37a3`) — record shape `(cls, scope, effect)` + seeder, **slimmed** | no | **Moved ahead of TASK-565** (the design has 565 → 570). @Developer is right: the HEALTH family is the first consumer of these fields, so building 565 first means retrofitting it. One pass, not two. |
+| **7** | **TASK-565 — DONE 2026-09-02, hardware-verified** (`7d62e73` + `66d0b95`) — HEALTH class `T_DH_01..03` + `run/dut-health` | yes | Consumes 570's record shape as built. |
+| **8** | **TASK-566 — PARTIAL DONE 2026-09-02** (`ca9b050`), switch still HELD — class-ordered runner, **inert → order diff → baseline ONLY** | yes | The **order switch stays HELD** (see its row). Everything up to and including capturing the baseline is safe and useful now; flipping the order is not. |
 | **9** | **TASK-571 — DONE 2026-09-01** — passive triage, **mode P only** | no | P3. Mode D and mode I are cut — see the scope ruling. |
 
 **Scope — IN this block:** `--scope`, the seeder, the `effect` field, passive triage (mode P), the

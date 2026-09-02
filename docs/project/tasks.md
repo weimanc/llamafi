@@ -145,11 +145,16 @@ never starts, naming the vacuum, so it cannot go green without a real acquire. *
 > 475 phase 1, 478, 458+495, in that order). **Next is the M-TESTARCH precedence block**, which has
 > its own ordered sequence in that file's *▶ SCHEDULED ORDER* subsection (@PM ruling 2026-09-01):
 > **573 → [Architect must-fixes] ‖ 574 → DUT block 1 (572 + 424) → 564 → 570 → 565 → 566 (partial)
-> → 571 (mode P)**. TASK-424 is no longer parked behind it — it rides DUT block 1.
+> → 571 (mode P)**. **COMPLETE as of 2026-09-02 — every step landed.** TASK-566's order switch
+> remains HELD (its precondition, TASK-557, is open). The queue is now gated on **TASK-557** — the
+> supply sag is measured and firmware mitigation is a proven dead end, so it needs a meter or the
+> GPIO35 divider — and on **TASK-578**'s @Architect ruling.
 >
 > **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496, 488, 497. **Landed
 > 2026-08-21/22:** TASK-471, 472, 478, 529, 530, 495, 458. **Landed 2026-09-01:** TASK-548, 552,
 > 553, 554, 555, 556, 559, 560, 561, 563 — ten, all DUT-verified. TASK-562 withdrawn at review.
+> **Landed 2026-09-01/02:** TASK-424 (PATCH-TLS-1), 572, 573, 574, 564, 570, 571, 575, 565
+> (hardware-verified), 566 (partial). **Filed this session:** 575 (fixed), 576, 577, 578.
 
 > **Drift warning:** hand-maintained, same as the player board. The split file is the entry; this is
 > a label. If they disagree, the split file wins.
