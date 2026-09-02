@@ -99,6 +99,18 @@ if ! "$PYTHON" test_triage_context.py; then
     exit 1
 fi
 
+# 4f. EC-G8, the inversion test — TASK-566.
+# The gating property itself: a class-N failure must never be reportable as a
+# class-N+1 failure. Every other exit criterion asserts the machinery EXISTS;
+# this is the only one that asserts what the machinery is FOR, parameterised
+# over the ladder against a stubbed DUT. It also asserts the INERT default
+# (--class-order off changes nothing) and that every 0->1-edge candidate is
+# adjudicated, which @VE §18.6(c) makes a precondition of the order switch.
+if ! "$PYTHON" test_class_order.py; then
+    echo "FAIL: test_class_order.py (TASK-566 EC-G8 inversion test) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —

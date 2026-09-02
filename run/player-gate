@@ -53,6 +53,12 @@
 #   1   REGRESSION — a declared cell failed, went missing, or a new cell failed
 #   2   usage / configuration error (bad leg, unreadable baseline, condition (a) unmet)
 #   3   RIG condition — a leg exited SETUP_FAIL_EXIT; NO VERDICT, no tests ran
+#   4   HEALTH condition — a leg exited HEALTH_FAIL_EXIT; NO VERDICT. The board
+#       was running and answered, and was not a valid test SUBJECT. Distinct
+#       from 3 on purpose (M-TESTARCH §4): 3 = the host could not address a
+#       board, 4 = the board is not a valid subject. Also emitted when
+#       DUT_HEALTH=warn|skip downgraded the premise (@VE ruling §18.2) — a gate
+#       run whose health premise was downgraded is not a gate run.
 #   99  production restore FAILED — the DUT is not on production firmware
 #
 # Always, on every exit path including failure and interrupt: reflash cyd2usb_winamp
@@ -89,6 +95,33 @@ LEG_B_TESTS="${LEG_B_TESTS:-$_DEFAULT_B}"
 _CROSSMODE="T_PMT_01 T_PMT_02 T_PMT_03 T_PMT_04"
 
 SETUP_FAIL_EXIT=3
+# TASK-566 / EC-G7. Before this, an exit-4 leg fell through `rc == $SETUP_FAIL_EXIT`
+# and was treated as a COMPLETED leg: every declared cell would have scored
+# MISSING and the gate would have printed REGRESS for a firmware regression that
+# never happened. That is not hypothetical — it is precisely what TASK-573 fixed
+# for `FLAKY-PASS`, on a token that shipped years before NOT-RUN was proposed.
+HEALTH_FAIL_EXIT=4
+
+# @VE ruling, binding (M-TESTARCH §18.2): a gate run whose HEALTH premise was
+# DOWNGRADED is not a gate run. Same shape as the SETUP_FAIL refusal and the
+# ALLOW_NO_CROSSMODE banner — refuse, say why, emit no PASS/REGRESS verdict.
+# Ahead of the trap for the same reason condition (a) is: a configuration
+# refusal must not trigger a full production reflash.
+_assert_health_premise() {
+  case "${DUT_HEALTH:-gate}" in
+    ""|gate) return 0 ;;
+    warn|skip)
+      echo "ERROR [player-gate]: DUT_HEALTH=$DUT_HEALTH — refusing to run." >&2
+      echo "  A gate run whose health premise was downgraded is NOT a gate run:" >&2
+      echo "  it cannot emit PASS or REGRESS, because it cannot say the board was" >&2
+      echo "  a valid subject (@VE ruling, M-TESTARCH §18.2)." >&2
+      echo "  Use ./run/dut-health to diagnose the board, or unset DUT_HEALTH." >&2
+      exit 2 ;;
+    *)
+      echo "ERROR [player-gate]: DUT_HEALTH must be gate|warn|skip (got '$DUT_HEALTH')" >&2
+      exit 2 ;;
+  esac
+}
 
 # ── pure functions (no DUT) — also exercised by --selftest ───────────────────
 
@@ -306,6 +339,32 @@ EOF
   _case "un-adjudicated row passing is only drift" \
                                         0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP" "T_PLR_99 PASS"
 
+  # TASK-566 / EC-G7: the exit-4 leg. An untaught consumer treats it as a
+  # COMPLETED leg and prints REGRESS — the inversion this design exists to
+  # prevent, and the one that already happened for FLAKY-PASS.
+  set +e
+  ( _SETUP_FAIL=0; _HEALTH_FAIL=0; _RC=0
+    _run_runner_leg() { local rc=4
+      if [ "$rc" = "$SETUP_FAIL_EXIT" ]; then _SETUP_FAIL=1; _RC=3; return 3; fi
+      if [ "$rc" = "$HEALTH_FAIL_EXIT" ]; then _HEALTH_FAIL=1; _RC=4; return 4; fi
+      return 0; }
+    _run_runner_leg A x y >/dev/null 2>&1
+    [ "$_HEALTH_FAIL" = "1" ] && [ "$_RC" = "4" ] && [ "$_SETUP_FAIL" = "0" ]
+  )
+  rc=$?; set -e
+  if [ "$rc" = "0" ]; then echo "  [PASS] selftest exit-4 leg sets _HEALTH_FAIL and _RC=4, not _SETUP_FAIL"
+  else echo "  [FAIL] selftest exit-4 leg — an exit-4 leg was not distinguished from 3"; fails=$((fails+1)); fi
+  set +e
+  ( DUT_HEALTH=warn; _assert_health_premise ) >/dev/null 2>&1
+  rc=$?; set -e
+  if [ "$rc" = "2" ]; then echo "  [PASS] selftest DUT_HEALTH=warn refuses to emit a verdict (rc=2, §18.2)"
+  else echo "  [FAIL] selftest DUT_HEALTH=warn — rc=$rc want=2"; fails=$((fails+1)); fi
+  set +e
+  ( DUT_HEALTH=gate; _assert_health_premise ) >/dev/null 2>&1
+  rc=$?; set -e
+  if [ "$rc" = "0" ]; then echo "  [PASS] selftest DUT_HEALTH=gate (the default) is accepted"
+  else echo "  [FAIL] selftest DUT_HEALTH=gate — rc=$rc want=0"; fails=$((fails+1)); fi
+
   # condition (a) is a hard refusal
   set +e
   ( ALLOW_NO_CROSSMODE=0; _assert_crossmode A "T_PLR_01,T_PLR_02" ) >/dev/null 2>&1
@@ -337,6 +396,7 @@ mkdir -p "$OUT_DIR"
 
 _RC=0
 _SETUP_FAIL=0
+_HEALTH_FAIL=0
 _cleanup() {
   # $? here is the status that triggered the trap. A refusal path uses `exit 2`
   # and never sets _RC, so taking _RC unconditionally reported 0 for a run that
@@ -362,6 +422,12 @@ _cleanup() {
     echo "[SETUP-FAIL] rig condition — NO VERDICT. This is not a gate failure."
     echo "             Artifacts: $OUT_DIR"
   fi
+  if [ "$_HEALTH_FAIL" = "1" ]; then
+    echo ""
+    echo "[HEALTH-FAIL] the board was not a valid test subject — NO VERDICT."
+    echo "              This is not a gate failure and not a rig condition."
+    echo "              Artifacts: $OUT_DIR"
+  fi
   echo "[player-gate] artifacts: $OUT_DIR"
   exit "$rc"
 }
@@ -374,6 +440,8 @@ _want_leg() { case ",$LEGS," in *,"$1",*) return 0 ;; esac; return 1; }
 # the trap was installed, refusing still triggered a full production reflash, and
 # on a busy port that reflash failed and reported 99 — a config typo looked like
 # a hardware fault. Found by negative-testing this script (BP-068).
+_assert_health_premise
+
 _want_leg A && _assert_crossmode A "$LEG_A_TESTS"
 if _want_leg B; then
   _b_all="$LEG_B_TESTS"
@@ -424,6 +492,14 @@ _run_runner_leg() {
     _SETUP_FAIL=1; _RC=3
     return 3
   fi
+  if [ "$rc" = "$HEALTH_FAIL_EXIT" ]; then
+    echo "ERROR [player-gate]: leg $leg exited HEALTH_FAIL ($rc) — the BOARD was" >&2
+    echo "  not a valid test subject. NO VERDICT: every cell in this leg is" >&2
+    echo "  NOT-RUN, and a gate run against an unfit subject verifies nothing." >&2
+    echo "  This is NOT a rig condition — do not blame the cable or the port." >&2
+    _HEALTH_FAIL=1; _RC=4
+    return 4
+  fi
   return 0
 }
 
@@ -459,6 +535,7 @@ if _want_leg A; then
   _flash "$ENV_LEG_A"
   _run_runner_leg A "$ENV_LEG_A" "$LEG_A_TESTS" || true
   [ "$_SETUP_FAIL" = "1" ] && exit 3
+  [ "$_HEALTH_FAIL" = "1" ] && exit 4
   _LEGS_RUN="$_LEGS_RUN A"
 fi
 
@@ -466,6 +543,7 @@ if _want_leg B; then
   _flash "$ENV_LEG_B"
   _run_runner_leg B "$ENV_LEG_B" "$LEG_B_TESTS" || true
   [ "$_SETUP_FAIL" = "1" ] && exit 3
+  [ "$_HEALTH_FAIL" = "1" ] && exit 4
   if [ "$SKIP_SCRIPTS" != "1" ]; then
     _run_script_cell B T_PLR_13_playback test_fbrowser_player.py
     _run_script_cell B T_PLR_25_playback test_playorder_player.py

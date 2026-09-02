@@ -47,6 +47,26 @@ PASSIVE TRIAGE — MODE P (TASK-571, M-TESTARCH §14.2/EC-T1):
   set_fail_context() by the runner once the session exists. With no provider
   installed — every host-side unit test, and every other suite — fail() behaves
   exactly as it did before.
+
+THE `NOT-RUN` BUCKET (TASK-566, M-TESTARCH §4 rule 7 / §4.4):
+
+  `NOT-RUN` is a FOURTH result bucket — never a PASS, never a SKIP, never a
+  FAIL. It means "no verdict was reached for this id, because a lower class
+  failed first". A summary reading `12 passed, 1 failed, 200 not-run (blocked
+  by HEALTH/T_DH_02)` cannot be misread as a firmware verdict, which
+  `200 failed` can be and was (§2.2).
+
+  It is deliberately NOT a SKIP: a SKIP is a statement about the test ("not
+  applicable to this configuration"), a NOT-RUN is a statement about the RUN.
+  Conflating them is how a blocked suite reads green.
+
+  EXIT 4 IS OPT-IN AND NEVER TOUCHES THE SHARED DEFAULT (@VE ruling, design
+  §18.4). `print_results` has six callers, five of which are unrelated suites
+  that know nothing about health classes; `rc = 0 if failed == 0 else 1` stays
+  exactly as it was and the health case passes `health_fail=<id>`. A run with
+  zero FAILs and 200 NOT-RUN must exit 4, not 0 — that is the single line where
+  "silently green" was most likely to reappear, so it is a parameter a caller
+  must ask for rather than a condition inferred from the bucket counts.
 """
 
 from __future__ import annotations
@@ -134,6 +154,25 @@ def skip(tid: str, reason: str):
     print(f"  [SKIP] {tid}  {reason}")
 
 
+#: Exit 4 — "the board is not a valid subject" (M-TESTARCH §4 rule 3). Distinct
+#: from 3 ("the host could not address a board"), and that 3-vs-4 split IS the
+#: payload. Every consumer in design §4.1 was taught it in the same commit
+#: (EC-G7): run/player-gate, run/test, run/test-targeted, run/test-sync.
+HEALTH_FAIL_EXIT = 4
+
+#: The blocked-result prefix. `run/player-gate`'s parser matches this token
+#: whole (`FLAKY-PASS|NOT-RUN|PASS|FAIL|SKIP|FLAKE`, longest-first) — TASK-573.
+NOT_RUN_PREFIX = "NOT-RUN"
+
+
+def not_run(tid: str, blocked_by: str):
+    """Record that `tid` never ran because `blocked_by` (a `CLASS/<id>` string)
+    failed first. Deliberately silent: the blocked set is the whole remaining
+    suite, and 200 lines of `[NOT-RUN]` would bury the one line that matters.
+    The rows are printed in the summary, where the gate parsers read them."""
+    RESULTS[tid] = f"{NOT_RUN_PREFIX}: blocked-by={blocked_by}"
+
+
 def flake(tid: str, reason: str):
     """Claim `tid` flaked. Honoured only if flaky.yaml declares it, unexpired."""
     reg, err = _flaky.get_registry()
@@ -209,14 +248,23 @@ def _finalize() -> None:
 
 # ── results summary ──────────────────────────────────────────────────────────
 
-def print_results(all_tests: Optional[list] = None, exit_on_finish: bool = True) -> int:
-    """Print the summary. Returns the exit code (and exits, unless told not to)."""
+def print_results(all_tests: Optional[list] = None, exit_on_finish: bool = True,
+                  health_fail: Optional[str] = None) -> int:
+    """Print the summary. Returns the exit code (and exits, unless told not to).
+
+    `health_fail` is the OPT-IN exit-4 parameter (TASK-566, @VE ruling §18.4):
+    pass the failing HEALTH id and the run exits 4 — "the board was not a valid
+    subject", not "the firmware failed". It is a parameter and not an inference
+    from the NOT-RUN count precisely because five of this function's six callers
+    are unrelated suites; `rc = 0 if failed == 0 else 1` below is untouched.
+    """
     _finalize()
     print("\n── Results ──────────────────────────────────")
     passed = sum(1 for v in RESULTS.values() if v == "PASS")
     failed = sum(1 for v in RESULTS.values() if v.startswith("FAIL"))
     skipped = sum(1 for v in RESULTS.values() if v.startswith("SKIP"))
     flaky_pass = [t for t, v in RESULTS.items() if v.startswith("FLAKY-PASS")]
+    blocked = [t for t, v in RESULTS.items() if v.startswith(NOT_RUN_PREFIX)]
 
     order = [t for t in all_tests if t in RESULTS] if all_tests else list(RESULTS)
     for tid in order:
@@ -234,9 +282,31 @@ def print_results(all_tests: Optional[list] = None, exit_on_finish: bool = True)
                 print(f"      owner {entry.owner}  {entry.task}  "
                       f"review_by {entry.review_by}  suite {entry.suite}")
 
-    print(f"\n{passed} passed, {failed} failed, {skipped} skipped, "
-          f"{len(flaky_pass)} declared-flake (passed on retry)")
+    if blocked:
+        # R4's mitigation, verbatim: "a shrinking NOT-RUN count is a gate; an
+        # invisible one is a fiction". The blocker is named on the same line as
+        # the count so no reader has to go looking for why.
+        by = sorted({RESULTS[t].split("blocked-by=", 1)[-1] for t in blocked})
+        print(f"\n── NOT-RUN ({len(blocked)}) — blocked by {', '.join(by)} ──")
+        print("  These ids produced NO VERDICT. They are not passes, not skips,")
+        print("  and say nothing at all about the firmware.")
+
+    summary = (f"\n{passed} passed, {failed} failed, {skipped} skipped, "
+               f"{len(flaky_pass)} declared-flake (passed on retry)")
+    if blocked:
+        by = sorted({RESULTS[t].split("blocked-by=", 1)[-1] for t in blocked})
+        summary += f", {len(blocked)} not-run (blocked by {', '.join(by)})"
+    print(summary)
+
     rc = 0 if failed == 0 else 1
+    if health_fail:
+        # Opt-in ONLY (§18.4). Deliberately the last word: a HEALTH failure
+        # outranks whatever the partial result set happened to contain, because
+        # none of it is trustworthy.
+        print(f"\n[HEALTH-FAIL] {health_fail} — the board was not a valid test "
+              f"subject. Exit 4, NOT 1: nothing here is a statement about the "
+              f"firmware.")
+        rc = HEALTH_FAIL_EXIT
     if exit_on_finish:
         sys.exit(rc)
     return rc

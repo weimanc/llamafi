@@ -22,6 +22,16 @@ instead of by a literal id list — either a scope name or the path of the file
 you changed. `--class`/`--upto` are deliberately NOT implemented: @PM cut both
 from TASK-570 on all three reviewers' recommendation (design §20).
 
+CLASS ORDERING (TASK-566, M-TESTARCH §4) LANDS HERE BUT IS **OFF BY DEFAULT**.
+`--class-order` (or `DUT_CLASS_ORDER=1`) runs the HEALTH gate first, executes
+classes ascending, records blocked ids as `NOT-RUN` and exits 4 on a HEALTH
+failure. Without it this file behaves EXACTLY as it did before: registry order,
+no health phase, no blocking, exit 0/1/3. That is deliberate — @PM's ruling on
+the TASK-566 row puts the inert landing, the order diff and the baseline in this
+block and HOLDS the switch itself until TASK-557 closes or signs off, with @VE's
+three preconditions (§18.6) on top. `--order-diff` prints what the switch WOULD
+change, with no port and no DUT (EC-G9).
+
 Passive triage (mode P, TASK-571, M-TESTARCH §14.2/EC-T1) is ALWAYS ON and has
 no flag: every FAIL carries the session health verdict, `last-phase=`, `gen=`
 and the id's own `(cls, scope)`, read from what the session already observed.
@@ -38,6 +48,7 @@ Requirements:
 """
 
 import argparse
+import os
 import pathlib
 import sys
 import time
@@ -52,7 +63,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
 from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa: E402
                      set_no_wifi)
-from lib.results import fail, run_with_flake_retry, print_results         # noqa: E402
+from lib.results import fail, run_with_flake_retry                       # noqa: E402
 
 try:
     import serial
@@ -60,16 +71,17 @@ except ImportError:
     sys.exit("pip install pyserial")
 
 import suite.serialdbg as _suite                                          # noqa: E402
-from suite.serialdbg import _meta, _triage, health as _health              # noqa: E402
+from suite.serialdbg import _gate, _meta, _order, _triage, health as _health  # noqa: E402
 from suite.serialdbg.shell import t093, t094, t095                        # noqa: E402
 
 SETUP_FAIL_EXIT = 3
-#: `run/dut-health` only (M-TESTARCH §5 E4). The suite's own exit-4 gate is
-#: TASK-566 and does NOT ship here: EC-G7 forbids an exit-4 code path before
-#: every consumer in §4.1 understands it, or a HEALTH failure surfaces as
-#: `REGRESS` from run/player-gate — which is not hypothetical, it happened for
-#: FLAKY-PASS (TASK-573). run/dut-health has no such consumer: it is a
-#: standalone pre-flight read by a human.
+#: "The board is not a valid subject" (§4 rule 3). Reached by `run/dut-health`,
+#: and — since TASK-566 — by a `--class-order` suite run whose HEALTH gate fails.
+#: EC-G7 forbade an exit-4 code path in the suite until every consumer in §4.1
+#: understood it, or a HEALTH failure surfaces as `REGRESS` from run/player-gate;
+#: that is not hypothetical, it happened for FLAKY-PASS (TASK-573). All four were
+#: taught it in TASK-566's commit: run/player-gate (plus a --selftest case),
+#: run/test, run/test-targeted, run/test-sync.
 HEALTH_FAIL_EXIT = 4
 
 
@@ -235,11 +247,31 @@ def main():
                         "run/dut-health. Its own port open RESETS the board, so it "
                         "answers 'is this board fit to test NOW', never 'what was "
                         "wrong with the board a minute ago' (M-TESTARCH §5 E4).")
+    p.add_argument("--class-order", action="store_true",
+                   default=os.environ.get("DUT_CLASS_ORDER", "") == "1",
+                   help="THE ORDER SWITCH, and it is HELD (TASK-566 row, @VE "
+                        "§18.6). Runs the HEALTH gate first, executes classes "
+                        "ascending, records blocked ids NOT-RUN and exits 4 on a "
+                        "HEALTH failure. OFF by default: this suite has measured "
+                        "order-dependence (TASK-553) and TASK-557 is unresolved. "
+                        "Use --order-diff to see what it would change.")
+    p.add_argument("--order-diff", action="store_true",
+                   help="HOST-ONLY (no port, no DUT, EC-G9): print the "
+                        "class-ordered id sequence diffed against today's, the "
+                        "inverted pairs, and the 0->1-edge candidates, then exit.")
+    p.add_argument("--full", action="store_true",
+                   help="--order-diff: list every inverted pair, not just the "
+                        "ones touching an edge candidate.")
     p.add_argument("--log-file", default=None,
                    help="append every raw serial line (JSON responses AND bare "
                         "LOG_D/LOG_W lines) to this file — for diagnosing "
                         "failures whose cause isn't visible in dbg command output")
     args = p.parse_args()
+
+    health_mode = os.environ.get("DUT_HEALTH", "gate").strip().lower() or "gate"
+    if health_mode not in _gate.HEALTH_MODES:
+        sys.exit(f"DUT_HEALTH must be one of {_gate.HEALTH_MODES} (got "
+                 f"{health_mode!r})")
 
     if args.dut_health:
         if args.tests or args.scope:
@@ -277,6 +309,15 @@ def main():
                      + ", ".join(sorted({r['scope'] for r in all_meta.values()})))
         print(f"[scope] {args.scope} -> {scope}: {len(in_scope)} of {len(selected)} ids")
         selected = in_scope
+
+    if args.order_diff:
+        # EC-G9, and it costs ZERO DUT time — which is the entire argument for
+        # landing the classification inert first (§6 R3). Placed before the port
+        # is opened so it never resets a board.
+        meta = all_meta if all_meta is not None else _suite.build_all_meta()
+        print(_order.order_diff_report(selected, meta, all_tests,
+                                       full_pairs=args.full))
+        sys.exit(0)
 
     if all_meta is None:
         # Mode P needs the record too. Build it BEFORE the port is opened: a
@@ -334,11 +375,16 @@ def main():
     # artefact rather than against memory. Read-only, best-effort, ~1 s. The
     # switch verdict is T_DH_03's when the health phase runs and `not-run`
     # otherwise — the unconditional gate that would always run it is TASK-566.
+    _gate_on = args.class_order and not args.dut_health
+    if _gate_on and health_mode != "skip":
+        health_selected = list(health_tests)
     print(_health.premise(dut, switch_verdict="pending" if health_selected
                           else "not-run(no-health-phase;TASK-566)"), flush=True)
 
     health_failed = []
-    if health_selected:
+    if health_selected and not _gate_on:
+        # Explicitly-named health ids, with no gate phase: run/dut-health reached
+        # by another name (§4.5). The gate phase itself lives in _gate.run_suite.
         print(f"\n── HEALTH class ── {health_selected}")
         health_failed = _health.run_health(dut, health_selected)
         sw = _triage.health_verdict(all_meta)
@@ -365,11 +411,12 @@ def main():
     else:
         print()
 
-    for tid in selected:
+    def _dispatch(tid):
         try:
             dut.cmd(f"get __TEST_{tid}__", timeout=2.0)
         except TimeoutError:
             pass
+
         def _once(tid=tid):
             try:
                 if tid == "T093":
@@ -387,14 +434,35 @@ def main():
         run_with_flake_retry(tid, _once)
         time.sleep(0.5)
 
-    try:
-        pm = dut.cmd("get playerMode", timeout=3.0)
-        print(f"[TASK-407] exit playerMode: {pm.get('name')} ({pm.get('val')})")
-    except Exception as e:
-        print(f"[TASK-407] exit playerMode: unavailable ({type(e).__name__})")
+    def _exit_snapshot():
+        try:
+            pm = dut.cmd("get playerMode", timeout=3.0)
+            print(f"[TASK-407] exit playerMode: {pm.get('name')} ({pm.get('val')})")
+        except Exception as e:
+            print(f"[TASK-407] exit playerMode: unavailable ({type(e).__name__})")
+
+    def _run_health(ids):
+        # NEVER via run_with_flake_retry (§4.4).
+        failed = _health.run_health(dut, ids)
+        print(_health.premise(dut, switch_verdict=_triage.health_verdict(all_meta)),
+              flush=True)
+        return failed
+
+    # TASK-566. With --class-order OFF (the default, and the held state) this is
+    # today's loop byte-for-byte: registry order, no health phase, no blocking,
+    # print_results()'s own 0/1. Everything the switch adds is inside run_suite.
+    rc = _gate.run_suite(
+        selected, all_meta, _dispatch,
+        class_order=_gate_on,
+        health_ids=list(health_tests) if _gate_on else (),
+        run_health=_run_health if _gate_on else None,
+        health_mode=health_mode,
+        before_summary=_exit_snapshot,
+        exit_on_finish=False,
+        emit=lambda *a: print(*a, flush=True))
 
     dut.close()
-    print_results()
+    sys.exit(rc)
 
 
 if __name__ == "__main__":

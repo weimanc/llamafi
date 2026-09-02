@@ -51,6 +51,21 @@ _cleanup() {
     echo "[SETUP-FAIL] rig condition — NO TESTS RAN. This is not a test failure."
     echo "             See the [SETUP-FAIL] block and serial tail above the restore output."
   fi
+  # TASK-566 / EC-G7: exit 4 is NEW and is NOT exit 3. Untaught, a HEALTH
+  # failure falls through here and reads as a completed run — the exact
+  # inversion M-TESTARCH exists to prevent, and it already happened once
+  # for FLAKY-PASS (TASK-573).
+  if [ "$rc" = "4" ] || [ "$_TEST_RC" = "4" ]; then
+    echo ""
+    echo "[HEALTH-FAIL] the BOARD was not a valid test subject — NO TESTS RAN."
+    echo "             This is NOT a rig condition and NOT a test failure. The"
+    echo "             board is running and it answered; it is not fit to be a"
+    echo "             subject. Do not blame the cable, the port or the host."
+    echo "             Diagnose the DEVICE: ./run/monitor-read for the boot above,"
+    echo "             and the last-phase=/gen= stamps in the [SETUP-FAIL] block."
+    echo "             (M-TESTARCH §4: exit 3 = the host could not address a"
+    echo "             board; exit 4 = the board is not a valid subject.)"
+  fi
   exit "$rc"
 }
 trap _cleanup EXIT INT TERM
