@@ -31,7 +31,36 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/bake-skin               # bake Winamp skin assets into app/gen/
 ./run/audit-origin            # (re)generate the origin/hit-test audit PNG (never stale)
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
+./run/dut-health              # PRE-FLIGHT ONLY: the HEALTH class, T_DH_01-03 — exit 0/4
 ```
+
+### `run/dut-health` — is this board fit to test?
+
+TASK-565 / [M-TESTARCH](../architecture/designs/M-TESTARCH-precedence-hierarchy.md) §5 E4.
+Three checks, in class order: `T_DH_01` the shell answers **correct** data (not merely
+answers), `T_DH_02` the device's own view of the network is coherent (`get wifiCfg`),
+`T_DH_03` app switching is alive. Exit **0** = fit; exit **4** = `[HEALTH-FAIL]`, and every
+result a suite produced against this board would be uninterpretable; exit **3** = a RIG
+condition, nothing was measured.
+
+**Cost: ~15 s typical, up to ~60 s on a degraded boot.** That is *boot + checks*: the checks
+are ~10 s of round-trips, but opening the port resets the board and TASK-561 measured 46 s to
+console on a `NO_AP_FOUND` boot. Inside a suite run the checks would be additive-only (~10 s),
+because the boot is already paid for.
+
+**It is PRE-FLIGHT, and that is a hard constraint, not a caveat.** Opening the port asserts
+DTR and resets the ESP32 — and per TASK-426 a reset is *precisely* what clears the dead-SSID
+wedge. Running it after forming a theory about a misbehaving board destroys the state it was
+invoked to diagnose, shows a healthy board, and manufactures a wrong conclusion with a tool's
+authority behind it. A wedged board is diagnosed from the monitor's disk log
+(`./run/monitor-read`) and the `[bootphase]`/heartbeat stream already being captured — read
+that first. The tool prints this warning itself, before every verdict.
+
+It does **not** flash: every check is a `SERIAL_DEBUG` console command, so debug firmware must
+already be on the board; on production firmware it aborts with the RIG reason
+`prod-firmware-flashed`. It does take the port, so it stops the tmux monitor and restarts it
+afterwards. The same three ids are addressable through the suite runner
+(`./run/test-targeted T_DH_01`), which is the same phase reached by another name.
 
 ---
 

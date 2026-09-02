@@ -94,6 +94,39 @@ def main() -> int:
     check("unknown + holder discloses holder-based call",
           "NOT from the exception text" in h, True)
 
+    # ── TASK-565 / EC-G1: the closing sentence is SELECTED BY CLASS ─────────
+    # Before this, every abort printed "This is a RIG condition ... nothing here
+    # says the firmware is broken" — including `wifi-not-connected`, where the
+    # board is demonstrably running firmware and the only thing established is
+    # that the DEVICE is unfit. §5 calls that the worst artefact found: the
+    # harness telling the operator that a dead-SSID board is a cable problem.
+    print("\n-- setup-failure class (TASK-565 / EC-G1) --")
+    from lib.dut import SetupFailure, cls_for_reason        # noqa: E402
+    for reason in ("device-vanished", "port-busy", "port-permissions",
+                   "port-error", "port-ambiguous", "boot-not-observed",
+                   "elf-mismatch", "prod-firmware-flashed", "dut-unresponsive"):
+        check(f"{reason} -> RIG", cls_for_reason(reason), "RIG")
+    for reason in ("boot-phase-timeout", "shell-unresponsive",
+                   "wifi-not-connected"):
+        check(f"{reason} -> HEALTH", cls_for_reason(reason), "HEALTH")
+    check("an unknown reason falls back to RIG, the conservative answer",
+          cls_for_reason("some-future-slug"), "RIG")
+    # Derived at construction, never typed at a raise site.
+    check("SetupFailure derives cls from the reason",
+          SetupFailure("wifi-not-connected", "x").cls, "HEALTH")
+    check("cls is in the stamped trailer",
+          "cls=HEALTH" in str(SetupFailure("wifi-not-connected", "x")
+                              .stamp("3 wifi", "7.1")), True)
+    # The sentence itself: a HEALTH abort must not tell the reader it is a rig
+    # condition, and must not claim nothing is wrong with the firmware.
+    check("every class has a sentence",
+          sorted(runner._CLS_SENTENCE), ["HEALTH", "RIG"])
+    _hs = runner._CLS_SENTENCE["HEALTH"]
+    check("HEALTH sentence does not call itself a RIG condition",
+          "RIG condition" in _hs, False)
+    check("HEALTH sentence says it is not a rig condition",
+          "NOT a rig condition" in _hs, True)
+
     print()
     if _failures:
         print(f"FAILED: {len(_failures)} case(s)")

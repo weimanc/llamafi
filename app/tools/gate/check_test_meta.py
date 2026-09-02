@@ -131,11 +131,33 @@ def main() -> int:
 
     records = _suite.build_all_meta()
     tests = _suite.build_all_tests()
+    # TASK-565: the HEALTH family is a SECOND registry (design §4.5) — kept out
+    # of build_all_tests() so its ids cannot enter default_tests and run twice,
+    # kept IN build_all_meta() so mode P's health_verdict() can see the class it
+    # reports on. The record set is therefore the UNION, and this gate is what
+    # stops a health id from silently existing in neither.
+    health = _suite.build_health_tests()
+    runnable = set(tests) | set(health)
 
-    if set(records) != set(tests):
-        findings.append("build_all_meta() and build_all_tests() disagree on the id "
-                        f"set: only-meta={sorted(set(records) - set(tests))} "
-                        f"only-tests={sorted(set(tests) - set(records))}")
+    if set(records) != runnable:
+        findings.append("build_all_meta() and build_all_tests()+build_health_tests() "
+                        f"disagree on the id set: "
+                        f"only-meta={sorted(set(records) - runnable)} "
+                        f"only-tests={sorted(runnable - set(records))}")
+    if set(tests) & set(health):
+        findings.append(f"health ids leaked into build_all_tests(): "
+                        f"{sorted(set(tests) & set(health))} — they would enter "
+                        f"default_tests and run twice, the mutating one included "
+                        f"(M-TESTARCH §4.5)")
+    # Every health id IS the HEALTH class, and only they are. A HEALTH id that
+    # is not in HEALTH_TESTS is unreachable by the gate phase; a HEALTH_TESTS
+    # entry that did not declare cls would seed to CORE and stop being a health
+    # check with nothing printed.
+    declared_health = {t for t, r in records.items() if r["cls"] == "HEALTH"}
+    if declared_health != set(health):
+        findings.append(f"cls=HEALTH and HEALTH_TESTS disagree: "
+                        f"cls-only={sorted(declared_health - set(health))} "
+                        f"registry-only={sorted(set(health) - declared_health)}")
 
     findings += evaluate(records)
 

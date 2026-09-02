@@ -21,14 +21,23 @@ mode I reboots. Both are re-proposals conditioned on TASK-557 closing, not
 half-finished work. There is likewise no standalone triage entry point, so EC-T5
 holds by construction: nothing here can reset the board before reading it.
 
-DEGRADATION WHEN THE HEALTH CLASS DOES NOT EXIST. TASK-565 builds the HEALTH
-class (`T_DH_01..03`); until it lands, no id in the registry resolves to
-`cls=HEALTH` and there is nothing to read a verdict from. This reports
-`health=unavailable(no-HEALTH-class;TASK-565)` and keeps the other three fields,
-rather than inventing an "ok" nobody measured — a health verdict asserted from
-the absence of health checks is precisely the §1 failure mode. The verdict
-starts reporting for real, with no change here, the moment TASK-565's ids carry
-`cls=HEALTH`.
+DEGRADATION WHEN THE HEALTH CLASS DOES NOT EXIST. This reports
+`health=unavailable(no-HEALTH-class;TASK-565)` when no id in the registry
+resolves to `cls=HEALTH`, rather than inventing an "ok" nobody measured — a
+health verdict asserted from the absence of health checks is precisely the §1
+failure mode.
+
+TASK-565 landed `T_DH_01..03` and the verdict started reporting for real with
+NO change in this file, exactly as designed. The branch above is kept as the
+guard it always was: if the health registry ever stops resolving, the honest
+answer is still "unavailable", never "ok". `test_triage_context.py`'s T_TRI_22
+pins the live registry against exactly that silent reversion.
+
+WHAT THE VERDICT MEANS IN A SUITE RUN TODAY. The UNCONDITIONAL health gate is
+TASK-566 (§4.1), so until it lands a plain `run/test` runs no health check and
+reports `health=not-run(0/3)` — true, and in the designed vocabulary. `ok`
+appears when the ids were explicitly selected (`run/test-targeted T_DH_01,…`, or
+`run/dut-health`, which is the same phase reached by another name).
 """
 
 from __future__ import annotations

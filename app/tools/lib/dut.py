@@ -325,6 +325,34 @@ _SETUP_FAIL_TAIL_LINES = 40
 SETUP_FAIL_EXIT = 3
 
 
+#: reason slug -> precedence class (M-TESTARCH §3/§4, EC-G1). DERIVED, never
+#: typed at a raise site: TASK-434's whole finding is that the site which forgets
+#: is the one that fires. A reason absent from this table is RIG, which is the
+#: conservative answer — RIG is the only class whose failure message makes no
+#: claim about the firmware at all.
+#:
+#: RIG is §4's stated vocabulary: TASK-556's four serial conditions
+#: (device-vanished / port-busy / port-permissions / port-error) plus
+#: port-ambiguous, boot-not-observed, elf-mismatch and prod-firmware-flashed.
+#: `dut-unresponsive` joins them: a mute board may not be running firmware at
+#: all, which is RIG's entry rule verbatim.
+#:
+#: HEALTH is the set where firmware demonstrably IS running and the DEVICE is
+#: nonetheless unfit to be a test subject. Calling any of these three a "RIG
+#: condition" is exactly the defect EC-G1 names — the harness telling the
+#: operator that a dead-SSID board is a cable problem.
+_SETUP_FAIL_CLS = {
+    "boot-phase-timeout": "HEALTH",
+    "shell-unresponsive": "HEALTH",
+    "wifi-not-connected": "HEALTH",
+}
+
+
+def cls_for_reason(reason: str) -> str:
+    """The precedence class of a setup-failure reason slug (EC-G1)."""
+    return _SETUP_FAIL_CLS.get(reason, "RIG")
+
+
 class SetupFailure(RuntimeError):
     """A rig condition, not a test result.
 
@@ -333,6 +361,12 @@ class SetupFailure(RuntimeError):
     unchanged, while main() can catch this specifically and exit with
     SETUP_FAIL_EXIT instead of the bare traceback that TASK-434 documents
     three misreads from. `reason` is the machine-greppable slug.
+
+    TASK-565 adds `cls` — RIG or HEALTH — so the closing sentence a reader is
+    handed is SELECTED by the class rather than typed at the call site (EC-G1).
+    A rig sentence for a device-side fault ("this is a RIG condition, nothing
+    here says the firmware is broken", printed because WiFi never associated) is
+    the trigger case this whole design exists to remove.
 
     TASK-564 adds two stamped fields, `last_phase` and `gen`. They are NOT
     constructor arguments: every raise site inside the readiness path would then
@@ -349,6 +383,12 @@ class SetupFailure(RuntimeError):
         self.reason = reason
         self.last_phase = None    # "3 wifi" — stamped by Dut.__init__
         self.gen = None           # "7.1" / "?" — stamped by Dut.__init__
+        # TASK-565 adds a third field, `cls`. Unlike the other two it is known
+        # AT CONSTRUCTION — it is a property of the reason slug — so it is
+        # DERIVED here rather than stamped later, and for the same underlying
+        # reason the other two are not constructor arguments: no raise site
+        # types it, so no raise site can get it wrong. See _SETUP_FAIL_CLS.
+        self.cls = cls_for_reason(reason)
 
     def stamp(self, last_phase: Optional[str], gen: Optional[str]) -> "SetupFailure":
         self.last_phase = last_phase
@@ -363,7 +403,8 @@ class SetupFailure(RuntimeError):
             # like the readiness path ran and learned nothing.
             return base
         return (f"{base}\n"
-                f"last-phase={self.last_phase or 'none'} gen={self.gen or '?'}")
+                f"cls={self.cls} last-phase={self.last_phase or 'none'} "
+                f"gen={self.gen or '?'}")
 
 
 class _TeeSerial:

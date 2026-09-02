@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# run/dut-health — the HEALTH class, standalone. TASK-565 / M-TESTARCH §5 E4.
+#
+#   ./run/dut-health
+#
+# Answers ONE question: is this board fit to be a test subject RIGHT NOW?
+#   T_DH_01  the shell answers CORRECT data, not merely answers
+#   T_DH_02  the device's own view of the network is coherent (get wifiCfg)
+#   T_DH_03  app switching is alive
+#
+# Exit 0 = fit. Exit 4 = [HEALTH-FAIL], and every result a suite produced
+# against this board would be uninterpretable. Exit 3 = a RIG condition (no
+# board, port held, production firmware flashed) — nothing was measured.
+#
+# ~15 s typical, up to ~60 s on a degraded boot. That is boot + checks: the
+# checks themselves are ~10 s of round-trips, but opening the port RESETS the
+# board and TASK-561 measured 46 s to console on a NO_AP_FOUND boot. A "20 s"
+# figure that quietly excludes the boot it causes is not the honest number.
+#
+# ── PRE-FLIGHT ONLY. THIS IS A HARD CONSTRAINT, NOT A CAVEAT ────────────────
+# Opening the port asserts DTR and resets the ESP32, and per TASK-426 a reset is
+# PRECISELY what clears the dead-SSID wedge. Running this AFTER forming a theory
+# about a misbehaving board destroys the state it was invoked to diagnose, shows
+# a healthy board, and manufactures a wrong conclusion with a tool's authority
+# behind it. A wedged board is diagnosed from the monitor's disk log
+# (./run/monitor-read) and the [bootphase]/heartbeat stream already being
+# captured — read that FIRST.
+#
+# It does NOT flash. Debug firmware (SERIAL_DEBUG) must already be on the board,
+# because every check it runs is a debug console command; on production firmware
+# it aborts with the RIG reason `prod-firmware-flashed`, which is the honest
+# answer rather than a 3-minute reflash nobody asked for.
+#
+# It DOES take the port, so it stops the tmux monitor first and restarts it
+# after — same lifecycle every other run/* DUT script uses.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+_PORT_EXPLICIT="${PORT:-}"
+PORT=$(resolve_port)
+
+_RC=0
+_cleanup() {
+  local rc=$_RC
+  local restore_pt; restore_pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
+  echo ""
+  echo "[dut-health] restarting monitor"
+  restart_monitor "$restore_pt"
+  exit "$rc"
+}
+trap _cleanup EXIT INT TERM
+
+echo "[dut-health] stopping monitor (the port must be exclusively ours)"
+tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
+
+echo "[dut-health] running the HEALTH class on $PORT"
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py \
+    --port "$PORT" --dut-health) || _RC=$?

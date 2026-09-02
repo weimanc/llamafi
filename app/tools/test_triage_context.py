@@ -164,6 +164,26 @@ for _flag in ("--triage", "--isolate-on-fail"):
 check("T_TRI_21c  no standalone triage script (EC-T5)",
       (pathlib.Path(__file__).resolve().parents[2] / "run" / "dut-triage").exists(), False)
 
+# ── T_TRI_22  the TASK-565 transition, against the LIVE registry ─────────────
+# The cheapest possible end-to-end check that both halves are wired: mode P said
+# `unavailable(no-HEALTH-class;TASK-565)` for exactly as long as no id resolved
+# to cls=HEALTH. If health.py's decorations ever stop resolving — a dropped
+# @meta(cls=...), a family module rename, a registry that stops being merged
+# into build_all_meta() — the verdict silently reverts to "unavailable" and
+# every FAIL in every run loses its health context with nothing printed.
+print("T_TRI_22  the live registry HAS a HEALTH class (TASK-565 landed)")
+import suite.serialdbg as _live_suite                                # noqa: E402
+_live = _live_suite.build_all_meta()
+_live_health = sorted(t for t, r in _live.items() if r["cls"] == "HEALTH")
+check("T_TRI_22a  the three ids", _live_health, ["T_DH_01", "T_DH_02", "T_DH_03"])
+check("T_TRI_22b  verdict is no longer 'unavailable'",
+      _triage.health_verdict(_live, {}), "not-run(0/3)")
+check("T_TRI_22c  and reports for real once they run",
+      _triage.health_verdict(_live, {t: "PASS" for t in _live_health}), "ok")
+check("T_TRI_22d  a failing health id is named from the live registry",
+      _triage.health_verdict(_live, {"T_DH_01": "PASS", "T_DH_02": "FAIL: x",
+                                     "T_DH_03": "PASS"}), "FAIL(T_DH_02)")
+
 R.set_fail_context(None)
 R.reset()
 

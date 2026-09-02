@@ -50,7 +50,8 @@ import time
 # mistake, caught here before it repeats).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from lib.dut import Dut, SetupFailure, resolve_port, set_no_wifi           # noqa: E402
+from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa: E402
+                     set_no_wifi)
 from lib.results import fail, run_with_flake_retry, print_results         # noqa: E402
 
 try:
@@ -59,10 +60,17 @@ except ImportError:
     sys.exit("pip install pyserial")
 
 import suite.serialdbg as _suite                                          # noqa: E402
-from suite.serialdbg import _meta, _triage                                 # noqa: E402
+from suite.serialdbg import _meta, _triage, health as _health              # noqa: E402
 from suite.serialdbg.shell import t093, t094, t095                        # noqa: E402
 
 SETUP_FAIL_EXIT = 3
+#: `run/dut-health` only (M-TESTARCH §5 E4). The suite's own exit-4 gate is
+#: TASK-566 and does NOT ship here: EC-G7 forbids an exit-4 code path before
+#: every consumer in §4.1 understands it, or a HEALTH failure surfaces as
+#: `REGRESS` from run/player-gate — which is not hypothetical, it happened for
+#: FLAKY-PASS (TASK-573). run/dut-health has no such consumer: it is a
+#: standalone pre-flight read by a human.
+HEALTH_FAIL_EXIT = 4
 
 
 def _port_holders(port: str) -> str:
@@ -150,23 +158,56 @@ def _classify_serial_failure(port: str, exc: Exception):
             f"nor a detectable holder — report the exception text verbatim.")
 
 
+#: The closing sentence, SELECTED BY CLASS and never typed at a call site
+#: (M-TESTARCH §5 E3 / EC-G1). Before TASK-565 there was one sentence, and it
+#: asserted a rig cause for every abort — including `wifi-not-connected`, where
+#: the board is demonstrably running firmware and the only thing established is
+#: that the DEVICE is unfit to be a subject. That sentence is the artefact §5
+#: calls the worst one found: the harness telling the operator that a dead-SSID
+#: board is a cable problem.
+_CLS_SENTENCE = {
+    "RIG": ("This is a RIG condition, not a test result. No tests ran; "
+            "nothing here says the firmware is broken."),
+    "HEALTH": ("This is a HEALTH condition, not a test result: the board is "
+               "running, it answered (or failed to finish booting), and it is "
+               "not fit to be a test subject. No tests ran.\n"
+               "It is NOT a rig condition — do not blame the cable, the port or "
+               "the host until this is resolved. Diagnose the DEVICE: read the "
+               "monitor's disk log (run/monitor-read) for the boot above, and "
+               "see the last-phase= and gen= stamps in the block above for which "
+               "stage of setup() it died in and on which boot."),
+}
+
+
 def _setup_fail(reason: str, message: str, tail=None):
-    """Report a rig condition and exit with SETUP_FAIL_EXIT. Never returns."""
+    """Report a setup failure and exit with SETUP_FAIL_EXIT. Never returns.
+
+    The exit code stays 3 for both classes: exit 4 belongs to the suite's HEALTH
+    gate (TASK-566) and may not ship before EC-G7's consumers understand it.
+    What changes here is the SENTENCE, which is the half that misdirects a
+    reader.
+    """
+    cls = cls_for_reason(reason)
     print("", flush=True)
-    print(f"[SETUP-FAIL] {reason}", flush=True)
+    print(f"[SETUP-FAIL] {reason}  cls={cls}", flush=True)
     print(message, flush=True)
     if tail:
         print(f"\n--- last {len(tail)} serial lines before the abort ---", flush=True)
         for line in tail:
             print(f"  | {line}", flush=True)
         print("--- end serial tail ---", flush=True)
-    print("\nThis is a RIG condition, not a test result. No tests ran; "
-          "nothing here says the firmware is broken.", flush=True)
+    print("\n" + _CLS_SENTENCE[cls], flush=True)
     sys.exit(SETUP_FAIL_EXIT)
 
 
 def main():
     all_tests = _suite.build_all_tests()
+    # §4.5: a SEPARATE registry. Not merged into all_tests (every id would then
+    # enter default_tests and run twice, the mutating one included) and not
+    # merged into default_tests (health runs because the run runs, never because
+    # someone selected it) — but resolvable by name, or a health check could not
+    # be debugged without running a suite around it.
+    health_tests = _suite.build_health_tests()
 
     p = argparse.ArgumentParser()
     p.add_argument("--port", default=resolve_port())
@@ -188,16 +229,37 @@ def main():
     p.add_argument("--no-wifi", action="store_true",
                    help="proceed even if the DUT never gets an IP. Only for suites that "
                         "touch no network (e.g. the SD-backed T_PLR_08-12).")
+    p.add_argument("--dut-health", action="store_true",
+                   help="PRE-FLIGHT ONLY: run the HEALTH class (T_DH_01..03) and "
+                        "nothing else, print the premise block, exit 0/4. This is "
+                        "run/dut-health. Its own port open RESETS the board, so it "
+                        "answers 'is this board fit to test NOW', never 'what was "
+                        "wrong with the board a minute ago' (M-TESTARCH §5 E4).")
     p.add_argument("--log-file", default=None,
                    help="append every raw serial line (JSON responses AND bare "
                         "LOG_D/LOG_W lines) to this file — for diagnosing "
                         "failures whose cause isn't visible in dbg command output")
     args = p.parse_args()
 
-    selected = [t.strip() for t in (args.tests or default_tests).split(",") if t.strip()]
-    unknown = [t for t in selected if t not in all_tests]
-    if unknown:
-        sys.exit(f"Unknown tests: {unknown}. Available: {list(all_tests)}")
+    if args.dut_health:
+        if args.tests or args.scope:
+            sys.exit("--dut-health runs the HEALTH class and nothing else; it "
+                     "does not combine with --tests/--scope.")
+        selected = []
+        health_selected = list(health_tests)
+    else:
+        selected = [t.strip() for t in (args.tests or default_tests).split(",")
+                    if t.strip()]
+        # The id resolver looks in BOTH registries (§4.5), so an explicit
+        # `--tests T_DH_01` resolves instead of hitting the unknown-id guard.
+        # Explicitly-named health ids run in the health phase below, with no
+        # flake retry — which is run/dut-health reached by another name.
+        health_selected = [t for t in selected if t in health_tests]
+        selected = [t for t in selected if t not in health_tests]
+        unknown = [t for t in selected if t not in all_tests]
+        if unknown:
+            sys.exit(f"Unknown tests: {unknown}. Available: "
+                     f"{list(all_tests) + list(health_tests)}")
 
     all_meta = None
     if args.scope:
@@ -267,6 +329,34 @@ def main():
         print(f"[TASK-407] entry playerMode: {pm.get('name')} ({pm.get('val')})")
     except Exception as e:
         print(f"[TASK-407] entry playerMode: unavailable ({type(e).__name__})")
+    # E5 / EC-G5: every DUT run's first output block states its own premise, so
+    # a retrospective claim about the board is checkable against the run's own
+    # artefact rather than against memory. Read-only, best-effort, ~1 s. The
+    # switch verdict is T_DH_03's when the health phase runs and `not-run`
+    # otherwise — the unconditional gate that would always run it is TASK-566.
+    print(_health.premise(dut, switch_verdict="pending" if health_selected
+                          else "not-run(no-health-phase;TASK-566)"), flush=True)
+
+    health_failed = []
+    if health_selected:
+        print(f"\n── HEALTH class ── {health_selected}")
+        health_failed = _health.run_health(dut, health_selected)
+        sw = _triage.health_verdict(all_meta)
+        print(_health.premise(dut, switch_verdict=sw), flush=True)
+
+    if args.dut_health:
+        dut.close()
+        print(f"\n{_health.RESET_WARNING}")
+        if health_failed:
+            print(f"\n[HEALTH-FAIL] {','.join(health_failed)} — this board is NOT "
+                  f"a valid test subject right now. Every result a suite produced "
+                  f"against it would be uninterpretable.", flush=True)
+            sys.exit(HEALTH_FAIL_EXIT)
+        print("\n[health] PASS — the board answers correct data, knows which "
+              "network it is on, and can switch apps. It is fit to test.",
+              flush=True)
+        sys.exit(0)
+
     print(f"Connected. Running: {selected}\n")
     print("NOTE: T089 (production ELF check) is a host build test — not here.")
     skip_notice = [t for t in selected if t in _interactive_tests and not args.interactive]

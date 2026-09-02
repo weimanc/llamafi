@@ -33,12 +33,37 @@ def build_all_tests() -> dict:
     return merged
 
 
+#: The HEALTH family (TASK-565) is NOT in _FAMILY_MODULES: it carries
+#: HEALTH_TESTS, not TESTS, and design §4.5 keeps it out of build_all_tests()
+#: and out of default_tests so the ids are ADDRESSABLE without being
+#: FILTERABLE OUT. It IS in build_all_meta(), because the record is what mode
+#: P's health_verdict() reads.
+_HEALTH_MODULE = "health"
+
+
+def build_health_tests() -> dict:
+    """The HEALTH class registry, T_DH_01..03 (TASK-565, design §3.1/§4.5).
+
+    Deliberately a SECOND dict rather than a slice of build_all_tests():
+    `default_tests` is built by iterating that registry's keys, so a health id
+    living there would enter the default selection and run twice — once as the
+    gate, once as a peer test — including the one mutating check.
+    """
+    import importlib
+
+    return dict(importlib.import_module(
+        f"suite.serialdbg.{_HEALTH_MODULE}").HEALTH_TESTS)
+
+
 def build_all_meta() -> dict:
     """id -> the (cls, scope, effect) record, seeded from the module/prefix and
     overridden by any `@meta(...)` declaration. TASK-570, design §13.3.
 
-    Same registry, same ids, same order as build_all_tests() — this is a view
-    over it, never a second list to keep in step (LL-114: parse, don't mirror).
+    A view over the registries, never a second list to keep in step (LL-114:
+    parse, don't mirror). The id set is build_all_tests() PLUS
+    build_health_tests(): the health ids are not runnable by default (§4.5) but
+    they must carry a record, or mode P's health_verdict() cannot see the class
+    it reports on.
 
     A family may also carry `META_OVERRIDES: dict[str, dict]` for registry
     entries that are NOT functions and so cannot hold an attribute. There are
@@ -50,6 +75,12 @@ def build_all_meta() -> dict:
     from suite.serialdbg import _meta
 
     out: dict = {}
+    # HEALTH first: the class order the design gates on is RIG < HEALTH < CORE
+    # < APP < FEATURE, and this dict's iteration order is what every census and
+    # every report reads.
+    hmod = importlib.import_module(f"suite.serialdbg.{_HEALTH_MODULE}")
+    for tid, fn in hmod.HEALTH_TESTS.items():
+        out[tid] = _meta.resolve(tid, fn, _HEALTH_MODULE, None)
     for name in _FAMILY_MODULES:
         mod = importlib.import_module(f"suite.serialdbg.{name}")
         overrides = getattr(mod, "META_OVERRIDES", {})

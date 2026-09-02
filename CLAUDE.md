@@ -109,6 +109,13 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/monitor-start           # start tmux serial monitor
 ./run/monitor-stop            # kill monitor (idempotent)
 ./run/monitor-read [N]        # dump last N lines (default 200)
+./run/dut-health              # PRE-FLIGHT ONLY: HEALTH class T_DH_01-03 — is this board fit
+                               #   to test now? exit 0/4. ~15 s typical, up to ~60 s on a
+                               #   degraded boot (its own port open RESETS the board, so the
+                               #   boot is part of the price). Needs debug firmware already
+                               #   flashed; it does not flash. NEVER as a post-mortem: the
+                               #   reset destroys the wedge you were diagnosing (TASK-426) —
+                               #   read run/monitor-read FIRST. (TASK-565, M-TESTARCH §5 E4)
 ./run/test                    # full DUT validation loop (BP-020, trap-guarded)
 ./run/test-targeted T1,T2     # targeted loop for a specific feature
 ./run/test-targeted --scope X # targeted loop by SCOPE — an app name, one of

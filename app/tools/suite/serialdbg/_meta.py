@@ -115,10 +115,18 @@ def _module_scope_map() -> dict:
     return by_lower
 
 
-#: id prefix -> scope, INSIDE shell.py only (design §13.2's measured table).
+#: id prefix -> scope. Mostly INSIDE shell.py (design §13.2's measured table);
 #: T_TBFB/T_BI are real prefixes but not app names, so they seed a scope, not
 #: an app — which is exactly what this field is for.
+#:
+#: T_DH_ (TASK-565) is the one entry from outside shell.py. The HEALTH family
+#: lives in its own module (health.py, §4.5 — a separate registry, merged into
+#: neither build_all_tests() nor default_tests), and `health` is deliberately
+#: NOT a scope: scope answers "which change selects this test", and the health
+#: checks exercise the serial console and the app shell. Seeding by prefix also
+#: keeps them out of the catch-all, which the gate reserves for shell.py.
 PREFIX_SCOPES = {
+    "T_DH_": "shell",
     "T_WX_": "Weather",
     "T_CX_": "Crypto",
     "T_GOL_": "Life",

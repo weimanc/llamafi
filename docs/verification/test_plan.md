@@ -549,6 +549,61 @@ Common preconditions for all tests below:
 - Skip non-JSON lines (`json.loads` raises `ValueError`) — boot noise and esp_log output are not JSON.
 - An active Spotify Connect device playing a track unless otherwise noted.
 
+### `T_DH_01`–`03` — [serialdbg-001] the HEALTH class (TASK-565, M-TESTARCH §3.1)
+
+**Not a new suite** — per the design's §10 this extends `serialdbg-001` (health surface), so no new
+feature id is minted. **Tier T3** (DUT), **class HEALTH**: a check belongs to this class if its
+failure *invalidates every other test in the run*, and it can be established in seconds with
+read-only console commands.
+
+**Registry**: `app/tools/suite/serialdbg/health.py`'s `HEALTH_TESTS` — a **second** registry, merged
+into neither `build_all_tests()` nor `default_tests` (M-TESTARCH §4.5), so the ids are *addressable*
+(`./run/test-targeted T_DH_01`) without being *filterable out*. They do carry a record in
+`build_all_meta()`, which is what mode P's `health_verdict()` reads.
+
+**Runner**: `./run/dut-health` (pre-flight, standalone, exit 0/4), or by explicit id through
+`./run/test-targeted`. **Outside the flake policy** (§4.4): no `T_DH_*` id is declared in
+`flaky.yaml` and the dispatch never calls `run_with_flake_retry` — a health check that cannot answer
+in one attempt is not fit to gate 213 tests. Bounded internal retries are a deadline, not a flake.
+
+| id | Asserts | Bound | Owner | Status |
+|---|---|---|---|---|
+| `T_DH_01` | the shell answers **correct** data, not merely answers: `info` (ok / 8-hex `elf` / `build` / `heap > 0`), `get variant` (`spotify` is `on` or `off`), `get playerMode` (`name` in Spotify/WebRadio/Player, `val` 0–2) | one `cmd()` each at the suite's default 3 s | @Developer | `impl` |
+| `T_DH_02` | the device's own view of the network is coherent: `get ip` non-zero **and** `get wifiCfg`'s `err`/`ssid` consistent with an association | TASK-426's wedge signature (a configured SSID with no association, auto-reconnect retrying a dead AP forever) | @Developer | `impl` |
+| `T_DH_03` | app switching is alive: switch to a neighbour and back, `appId` correct at each step, `get idle` idle at each step | `get idle` (TASK-518) + the shell's own busy window | @Developer | `impl` |
+
+Three implementation constraints, all from §3.1 and all load-bearing:
+
+- **`T_DH_02` must read the bare `[wifiCfg]` line via `drain_log_lines()`** — `cmd()` discards it
+  (the §2.2a I1 violation) — **and must then drain the trailing JSON ack**, which `drain_log_lines`
+  leaves in the buffer. Leaving it desynchronises the next `read_json()` by one reply: the TASK-548
+  bug class.
+- **`T_DH_03` is the only check that mutates device state.** It is declared `effect: mutating`,
+  restores the entry app, reports entry/exit `appId`, and runs last. Because it mutates it is
+  admissible here — a pre-flight check runs before the board's state is evidence — and inadmissible
+  in a triage descent (§16.3). Same check, different context, different verdict.
+- **No check may use tap injection.** Tap/drag dispatch is CORE (class 2), and §3 forbids a test
+  from asserting a claim belonging to a lower class: a broken injection dispatch would otherwise be
+  reported as a dead board. `T_DH_03` therefore switches with the `switchApp` console command. The
+  taskbar-tap path is the APP-class `A1` row's claim, not this one's.
+
+**Cut / deferred, deliberately:** a loop()-liveness check (redundant with TASK-564's
+`[bootphase] 6 ready` gate) and `T_DH_04`, heap/stack floors (**TASK-569**) — the floors it would
+cite do not exist, and the signal is invalid at the moment the health class reads it (~150 s settle).
+A check that never blocks fails the class's entry rule, so `T_DH_04` is **not a member of this
+class** until real floors are derived.
+
+**Result of record — 2026-09-02: NOT yet run on hardware.** Three `run/test-targeted` cycles and
+five `run/dut-health` invocations all aborted before any check executed, every one with
+`[SETUP-FAIL] device-vanished cls=RIG` — the CH340 re-enumerates ~1 s after the harness's port open
+(it moved `ttyUSB0` -> `ttyUSB1` mid-session; `dmesg` shows repeated
+`ch341-uart converter now disconnected` / `detected` pairs). That is **TASK-557**, the standing rig
+investigation, and is unrelated to these checks: the board itself is healthy on production firmware
+with a live monitor and an advancing `uptime=`. The three checks are host-verified only
+(`gate/check_test_meta.py` census `HEALTH=3`, `test_triage_context.py` `T_TRI_22`,
+`test_serial_classify.py`'s EC-G1 block). **First hardware run is owed** and this row must be updated
+with its verdict when the rig allows one.
+
 ### T076 — [serialdbg-001, touch-002] Hit-zone boundary — inside vs. outside each button
 
 - **Type**: integration (DUT, serial-driven)
