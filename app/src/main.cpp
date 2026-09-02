@@ -242,6 +242,7 @@ void setBusy(bool busy) {
 // (M-SRCLAYOUT Stage E / TASK-471) — declarations for the two loop()-called
 // entry points below.
 #include "debug/serialConsole/console.h"
+#include "debug/bodWatch.h"   // TASK-557 supply telemetry
 
 // TASK-451: an intentional reboot must not eat a deferred settings write.
 // `tickDeferredSave(force)` only skips the retry INTERVAL — it cannot conjure
@@ -261,6 +262,10 @@ void prepareForReboot() {
 
 void loop()
 {
+  // TASK-557: rate-limited brownout-latch read. The latch holds until cleared,
+  // so a transient between iterations is still caught.
+  bodWatchTick();
+
   // M-TESTARCH boot-window observability (TASK-561), phase 6 of 7. Emitted
   // once, from the first loop() iteration: this is the exact instant the
   // serial console becomes answerable, because handleSerialCommands() below
@@ -272,6 +277,7 @@ void loop()
   if (!s_bootPhaseReadyEmitted) {
     s_bootPhaseReadyEmitted = true;
     Serial.printf("[bootphase] %d %s\n", 6, "ready");
+    bodWatchPoll("ready");
   }
 
   unsigned long _loopStart = millis();

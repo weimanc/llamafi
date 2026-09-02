@@ -144,7 +144,13 @@ static inline void mb_heap_probe(const char *) {}   // no-op (production / non-d
 // the boot banner: this changes what the firmware SAYS, not what it DOES.
 // Generalises the ad-hoc `[boot] spotify=off` token below, which was invented
 // for one variant and never extended.
-#define BOOTPHASE(n, name) Serial.printf("[bootphase] %d %s\n", (n), (name))
+#include "debug/bodWatch.h"   // TASK-557 supply telemetry (no-op without -DBOD_WATCH)
+
+// Every phase boundary is also a brownout-latch read: the sag we are hunting
+// lands at phase 3 (WiFi init), and the latch tells us WHICH boundary it
+// crossed rather than only that the board fell over.
+#define BOOTPHASE(n, name) do { Serial.printf("[bootphase] %d %s\n", (n), (name)); \
+                                bodWatchPoll(name); } while (0)
 
 void setup()
 {
@@ -192,6 +198,11 @@ void setup()
                          ? kResetNames[(unsigned)rr] : "OUT_OF_RANGE";
     Serial.printf("[bootreason] %d %s\n", (int)rr, name);
   }
+
+  // TASK-557: arm the brownout comparator at its highest threshold with the
+  // reset disabled, before the display, SD and WiFi loads come up. This is the
+  // only supply sensing the ESP32 classic has.
+  bodWatchArm(7);
 
 #ifdef SD_BOOT_MOUNT
   // TASK-408 (2026-08-07): mount SD here, synchronously, and hold the session for
