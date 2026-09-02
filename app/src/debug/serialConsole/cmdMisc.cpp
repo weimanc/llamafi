@@ -255,4 +255,20 @@ void cmdBod(const char *args) {
                 (unsigned)bodWatchThres(), (unsigned)bodWatchBootThres(),
                 (unsigned long)bodWatchTrips());
 }
+
+// TASK-557: choose the boot-inrush mitigation the NEXT boot applies across its
+// WiFi-init window. Bit 0 = backlight off, bit 1 = reduced WiFi TX power; 0 is
+// the unmitigated control. Same RTC_NOINIT survival trick as `bod` above, for
+// the same reason — the window closes long before the console exists.
+void cmdBodMit(const char *args) {
+  int m = -1;
+  if (args && args[0] && sscanf(args, "%d", &m) == 1 && m >= 0 && m <= 3) {
+    bodWatchSetBootMit((uint8_t)m);
+    Serial.printf("{\"ok\":true,\"cmd\":\"bodmit\",\"bootMit\":%d,"
+                  "\"note\":\"takes effect on next reboot\"}\n", m);
+    return;
+  }
+  Serial.printf("{\"ok\":true,\"cmd\":\"bodmit\",\"bootMit\":%u}\n",
+                (unsigned)bodWatchBootMit());
+}
 #endif // SERIAL_DEBUG

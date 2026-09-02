@@ -152,6 +152,74 @@ static inline void mb_heap_probe(const char *) {}   // no-op (production / non-d
 #define BOOTPHASE(n, name) do { Serial.printf("[bootphase] %d %s\n", (n), (name)); \
                                 bodWatchPoll(name); } while (0)
 
+// ---------------------------------------------------------------------------
+// TASK-557 boot-inrush mitigation EXPERIMENT. Not a product change: the mask
+// comes from RTC_NOINIT (console `bodmit <0..3>`), defaults to 0 = unmitigated,
+// and every effect is confined to the phase-3 (WiFi-init) window where the
+// measured VDD3P3 sag lands. Deleting this block and its two call sites reverts
+// the whole experiment.
+//
+//   bit 0  BL   — backlight duty forced to 0 for the WiFi cascade, restored via
+//                 g_backlight.applyMode() afterwards. TFT_BL is GPIO21 on LEDC
+//                 channel 0; the panel's LED string is the largest steady load
+//                 on the board outside the radio.
+//   bit 1  TX   — WiFi TX power reduced to the minimum the driver accepts for
+//                 the cascade, restored to the 19.5 dBm default afterwards.
+//                 setTxPower() only sticks once the driver is started, so it is
+//                 re-applied after every WiFi.mode(WIFI_STA) inside the window.
+// ---------------------------------------------------------------------------
+#define BODMIT_BL  0x01
+#define BODMIT_TX  0x02
+static uint8_t g_bodMit = 0;   // latched once at phase 3, so the restore path
+                               // cannot disagree with the apply path.
+
+// MEASURED, not assumed: Arduino's WiFiGenericClass::setTxPower() returns false
+// without touching the driver unless STA_STARTED_BIT is already set, and this
+// env builds at CORE_DEBUG_LEVEL=0 so its log_w() is invisible. Called straight
+// after WiFi.mode(WIFI_STA) it therefore silently does nothing -- the first pass
+// of this experiment recorded a "TX power reduced" variant whose in-window
+// readback was still 19.5 dBm. So: retry briefly and READ BACK, and say so.
+static void bodMitApplyTx() {
+  if (!(g_bodMit & BODMIT_TX)) return;
+  const int want = (int)WIFI_POWER_2dBm;
+  for (int i = 0; i < 40; i++) {           // <=400 ms, inside the connect window
+    WiFi.setTxPower(WIFI_POWER_2dBm);
+    if ((int)WiFi.getTxPower() <= want) break;
+    delay(10);
+  }
+  Serial.printf("[bodmit] tx set want=%d got=%d t=%lums\n",
+                want, (int)WiFi.getTxPower(), (unsigned long)millis());
+}
+
+static void bodMitEnterWifi() {
+  g_bodMit = bodWatchBootMit();
+  if (g_bodMit & BODMIT_BL) {
+    g_backlight.pause();          // stop the LDR loop re-writing the duty
+    ledcWrite(TFT_LEDC_CHANNEL, 0);
+  }
+  // duty/tx are READ BACK, not assumed. A null result on a mitigation that
+  // silently failed to apply is worthless, and setTxPower() in particular is
+  // a driver call that can be refused; this line is the proof it landed.
+  Serial.printf("[bodmit] mask=%u bl=%d tx=%d duty=%u\n", (unsigned)g_bodMit,
+                (g_bodMit & BODMIT_BL) ? 1 : 0, (g_bodMit & BODMIT_TX) ? 1 : 0,
+                (unsigned)ledcRead(TFT_LEDC_CHANNEL));
+}
+
+static void bodMitExitWifi() {
+  // Polled BEFORE the restore, so a trip reported with this tag is unambiguously
+  // inside the mitigated window rather than at the next phase boundary.
+  Serial.printf("[bodmit] inwindow mask=%u t=%lums duty=%u txdbm=%d\n",
+                (unsigned)g_bodMit, (unsigned long)millis(),
+                (unsigned)ledcRead(TFT_LEDC_CHANNEL), (int)WiFi.getTxPower());
+  bodWatchPoll("wifi-end");
+  if (!g_bodMit) return;
+  if (g_bodMit & BODMIT_TX) WiFi.setTxPower(WIFI_POWER_19_5dBm);
+  if (g_bodMit & BODMIT_BL) g_backlight.resume();   // resume() re-applies the mode
+  Serial.printf("[bodmit] restored mask=%u t=%lums duty=%u txdbm=%d\n",
+                (unsigned)g_bodMit, (unsigned long)millis(),
+                (unsigned)ledcRead(TFT_LEDC_CHANNEL), (int)WiFi.getTxPower());
+}
+
 void setup()
 {
   // Extend TWDT from 5→15s: dataTask TLS handshakes (webradio station list,
@@ -338,18 +406,21 @@ void setup()
   // #include anywhere), making the whole stage permanently dead code. NVS is
   // the real first stage now.
   BOOTPHASE(3, "wifi");         // entering the cascade — the UNBOUNDED stage
+  bodMitEnterWifi();            // TASK-557 experiment (mask 0 = no-op)
   bool wifiConnected  = false;
   bool wifiCredsKnown = false;
   {
     winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
     WiFi.persistent(true);
     WiFi.mode(WIFI_STA);
+    bodMitApplyTx();              // TASK-557 experiment
     // TASK-296: driver is up after mode() — a non-empty stored SSID means NVS
     // holds credentials even if the connect window below expires.
     wifi_config_t nvsCfg;
     if (esp_wifi_get_config(WIFI_IF_STA, &nvsCfg) == ESP_OK && nvsCfg.sta.ssid[0] != 0)
       wifiCredsKnown = true;
     WiFi.begin();  // reconnect from NVS (no args)
+    bodMitApplyTx();              // TASK-557 experiment (needs STA_STARTED)
     { unsigned long dl = millis() + 10000;
       // TASK-288: feed the TWDT every iteration — this loop's own deadline can
       // chain into the SPIFFS fallback loop below with zero resets in
@@ -477,7 +548,9 @@ void setup()
                     (unsigned)(i + 1), (unsigned)candCount, cand[i].ssid);
       WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
       WiFi.mode(WIFI_STA);
+      bodMitApplyTx();            // TASK-557 experiment
       WiFi.begin(cand[i].ssid, cand[i].pass);
+      bodMitApplyTx();            // TASK-557 experiment (needs STA_STARTED)
       // Bounded per-candidate probe: trimmed from the old single-network 30s
       // window so a full sweep of stale saved networks stays bounded (up to
       // WIFI_MAX_SAVED=5 candidates * 10s = 50s worst case, vs. 150s at the
@@ -584,6 +657,7 @@ void setup()
     winampDisplay.setTitle("WI-FI SETUP NEEDED");  // M-BOOT-UI (TASK-364) §2
     Serial.println("[wifi] no credentials — will open WiFi settings after init");
   }
+  bodMitExitWifi();            // TASK-557 experiment (mask 0 = no-op)
   mb_heap_probe("post-wifi");  // TASK-261 Phase 0 milestone M1
 
   // TASK-288: fresh watchdog budget before NTP sync + spotifyRefreshToken()

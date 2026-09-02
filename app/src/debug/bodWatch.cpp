@@ -11,6 +11,7 @@
 // without a reflash. Guarded by a magic so a cold boot falls back to 7.
 RTC_NOINIT_ATTR static uint32_t s_bootThresMagic;
 RTC_NOINIT_ATTR static uint8_t  s_bootThres;
+RTC_NOINIT_ATTR static uint8_t  s_bootMit;      // TASK-557 mitigation mask
 #define BOD_BOOT_MAGIC 0xB0D7A15Eu
 
 static uint32_t s_trips = 0;
@@ -83,6 +84,18 @@ void bodWatchSetBootThres(uint8_t thres) {
 
 uint8_t bodWatchBootThres(void) {
   return (s_bootThresMagic == BOD_BOOT_MAGIC && s_bootThres <= 7) ? s_bootThres : 7;
+}
+
+// Shares s_bootThresMagic with the threshold above: one magic guards the whole
+// RTC_NOINIT block, so a cold boot (magic garbage) yields mask 0 = unmitigated,
+// which is the correct default for a control run.
+void bodWatchSetBootMit(uint8_t mask) {
+  s_bootMit = (uint8_t)(mask & 0x03);
+  s_bootThresMagic = BOD_BOOT_MAGIC;
+}
+
+uint8_t bodWatchBootMit(void) {
+  return (s_bootThresMagic == BOD_BOOT_MAGIC) ? (uint8_t)(s_bootMit & 0x03) : 0;
 }
 
 bool bodWatchPoll(const char *tag) {

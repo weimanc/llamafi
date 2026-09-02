@@ -28,6 +28,13 @@ uint8_t  bodWatchThres(void);
 // the console exists, so a runtime setter alone cannot sweep it.
 void     bodWatchSetBootThres(uint8_t thres);
 uint8_t  bodWatchBootThres(void);
+// TASK-557 mitigation experiment. Bitmask, persisted in the same RTC_NOINIT
+// block as the boot threshold, applied by boot.cpp across the WiFi-init window
+// only (bit 0 = backlight off, bit 1 = reduced WiFi TX power). Runtime-selected
+// rather than a build flag so a variant x threshold sweep costs a reboot, not a
+// reflash — and so the whole experiment is one revert of one #ifdef block.
+void     bodWatchSetBootMit(uint8_t mask);
+uint8_t  bodWatchBootMit(void);
 #else
 static inline void     bodWatchArm(uint8_t)        {}
 static inline bool     bodWatchPoll(const char *)  { return false; }
@@ -38,4 +45,6 @@ static inline uint32_t bodWatchTrips(void)         { return 0; }
 static inline uint8_t  bodWatchThres(void)         { return 0; }
 static inline void     bodWatchSetBootThres(uint8_t) {}
 static inline uint8_t  bodWatchBootThres(void)     { return 7; }
+static inline void     bodWatchSetBootMit(uint8_t) {}
+static inline uint8_t  bodWatchBootMit(void)       { return 0; }
 #endif
