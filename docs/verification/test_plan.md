@@ -593,16 +593,30 @@ cite do not exist, and the signal is invalid at the moment the health class read
 A check that never blocks fails the class's entry rule, so `T_DH_04` is **not a member of this
 class** until real floors are derived.
 
-**Result of record — 2026-09-02: NOT yet run on hardware.** Three `run/test-targeted` cycles and
-five `run/dut-health` invocations all aborted before any check executed, every one with
-`[SETUP-FAIL] device-vanished cls=RIG` — the CH340 re-enumerates ~1 s after the harness's port open
-(it moved `ttyUSB0` -> `ttyUSB1` mid-session; `dmesg` shows repeated
-`ch341-uart converter now disconnected` / `detected` pairs). That is **TASK-557**, the standing rig
-investigation, and is unrelated to these checks: the board itself is healthy on production firmware
-with a live monitor and an advancing `uptime=`. The three checks are host-verified only
-(`gate/check_test_meta.py` census `HEALTH=3`, `test_triage_context.py` `T_TRI_22`,
-`test_serial_classify.py`'s EC-G1 block). **First hardware run is owed** and this row must be updated
-with its verdict when the rig allows one.
+**Result of record — 2026-09-02: PASS on hardware, all three.** `./run/test-targeted
+T_DH_01,T_DH_02,T_DH_03` against `cyd2usb_winamp_debug`:
+
+```
+[health] last-phase="6 ready" gen=6.1 since-open=134.0s ip=192.168.1.181
+         ssid="<home-ssid>" freeInt=107884 lfbInt=49140 appId=Spotify switch=pending
+  [PASS] T_DH_01  elf=e8ddce73 variant=on playerMode=Spotify
+  [PASS] T_DH_02  ip=192.168.1.181 ssid='<home-ssid>' bssid_set=0
+  [PASS] T_DH_03  Spotify -> Clock -> Spotify, idle at each step
+```
+
+`run/dut-health` also **PASS, exit 0**, with EC-G4's reset-warning banner printed ahead of the
+verdict as specified. The `[health]` premise line renders at both ends of the run and its
+`switch=pending` -> `switch=ok` transition works.
+
+The earlier `[SETUP-FAIL] device-vanished cls=RIG` aborts that blocked this were **TASK-557**, not
+these checks, and are now understood: the board browns out during WiFi init and ESP-IDF's brownout
+ISR turned that into a reboot loop. The debug env's `-DBOD_WATCH` clears that interrupt, and the rig
+is stable with it (1 h 08 m uptime, `disc=0`, against 77 USB disconnects per 120 s before).
+
+Still host-verified only: mode P's `health=` field reporting a **real** verdict end-to-end. It is
+pinned by `test_triage_context.py` `T_TRI_22` against the live registry, and the HEALTH rows it
+reads now exist and pass, but observing the field on a live FAIL needs a failing run to occur —
+not forced here.
 
 ### T076 — [serialdbg-001, touch-002] Hit-zone boundary — inside vs. outside each button
 
