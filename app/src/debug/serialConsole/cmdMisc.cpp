@@ -182,4 +182,44 @@ void cmdColorProbe(const char *) {
                   (unsigned)v, (unsigned)band[0], last ? "true" : "false");
   }
 }
+
+// TASK-557: a checkable serial stream, so host-side data loss can be correlated
+// against the brownout comparator's own trips (bodWatch) in the SAME stream.
+//
+// Why not esptool's bulk read: that runs in the ROM bootloader, where the
+// application — and therefore bodWatch — is not loaded, so it can measure loss
+// or the supply, never both at once. Emitting from the app puts `[bod] TRIP`
+// lines inline with the data, which is what makes the correlation possible.
+//
+// Line format:  #<seq> <pad chars> <sum8hex>
+// The sum is over seq + every pad byte, so the host detects a corrupted line as
+// well as a missing one. Sequence numbers make a GAP unambiguous: with no flow
+// control anywhere in this chain (DTR/RTS are consumed by the auto-reset
+// circuit), a dropped byte is otherwise invisible.
+void cmdSerialBurst(const char *args) {
+  int lines = 2000, pad = 64;
+  sscanf(args, "%d %d", &lines, &pad);
+  if (lines < 1) lines = 1;
+  if (pad < 8) pad = 8;
+  if (pad > 200) pad = 200;
+
+  char buf[208];
+  memset(buf, 'A', pad);
+  buf[pad] = 0;
+
+  Serial.printf("{\"probe\":\"burst\",\"phase\":\"begin\",\"lines\":%d,\"pad\":%d,"
+                "\"t\":%lu}\n", lines, pad, (unsigned long)millis());
+  const unsigned long t0 = millis();
+  for (int i = 0; i < lines; i++) {
+    uint32_t sum = (uint32_t)i;
+    for (int k = 0; k < pad; k++) sum += (uint8_t)buf[k];
+    Serial.printf("#%d %s %08x\n", i, buf, (unsigned)sum);
+    // The burst is the point, so keep the watchdog fed rather than pacing it.
+    if ((i & 63) == 0) esp_task_wdt_reset();
+  }
+  const unsigned long ms = millis() - t0;
+  Serial.printf("{\"probe\":\"burst\",\"phase\":\"end\",\"lines\":%d,\"elapsedMs\":%lu}\n",
+                lines, ms);
+}
+
 #endif // SERIAL_DEBUG
