@@ -17,12 +17,25 @@
 
 #ifdef BOD_WATCH
 void     bodWatchArm(uint8_t thres);          // thres 0..7, 7 = highest voltage
-bool     bodWatchPoll(const char *tag);       // true if a trip was latched
+bool     bodWatchPoll(const char *tag);       // true if a trip was latched (logs)
+bool     bodWatchPollQuiet(void);             // same, but silent — safe inside a burst
+void     bodWatchClear(void);                 // drop a stale latch before a measurement
 void     bodWatchTick(void);                  // rate-limited poll for loop()
 uint32_t bodWatchTrips(void);
+uint8_t  bodWatchThres(void);
+// Persisted across a SW reset in RTC memory, so the arm threshold for the NEXT
+// boot can be chosen from the console. The boot-window sag happens long before
+// the console exists, so a runtime setter alone cannot sweep it.
+void     bodWatchSetBootThres(uint8_t thres);
+uint8_t  bodWatchBootThres(void);
 #else
 static inline void     bodWatchArm(uint8_t)        {}
 static inline bool     bodWatchPoll(const char *)  { return false; }
+static inline bool     bodWatchPollQuiet(void)     { return false; }
+static inline void     bodWatchClear(void)         {}
 static inline void     bodWatchTick(void)          {}
 static inline uint32_t bodWatchTrips(void)         { return 0; }
+static inline uint8_t  bodWatchThres(void)         { return 0; }
+static inline void     bodWatchSetBootThres(uint8_t) {}
+static inline uint8_t  bodWatchBootThres(void)     { return 7; }
 #endif

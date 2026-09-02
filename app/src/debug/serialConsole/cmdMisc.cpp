@@ -12,6 +12,7 @@
 #include <mbedtls/base64.h>
 #include "appShell.h"      // AppId, switchApp()
 #include "spotifyTask.h"
+#include "debug/bodWatch.h"   // TASK-557: BOD polled inside the burst, not after it
 
 #include "display/tft.h"
 
@@ -207,19 +208,51 @@ void cmdSerialBurst(const char *args) {
   memset(buf, 'A', pad);
   buf[pad] = 0;
 
+  // Drop any latch left over from the boot-window sag, or the burst would
+  // inherit a trip it did not cause. Without this the measurement says nothing
+  // about the burst at all.
+  bodWatchClear();
+
   Serial.printf("{\"probe\":\"burst\",\"phase\":\"begin\",\"lines\":%d,\"pad\":%d,"
-                "\"t\":%lu}\n", lines, pad, (unsigned long)millis());
+                "\"thres\":%u,\"t\":%lu}\n",
+                lines, pad, (unsigned)bodWatchThres(), (unsigned long)millis());
   const unsigned long t0 = millis();
+  int bodTrips = 0, firstTripSeq = -1;
   for (int i = 0; i < lines; i++) {
     uint32_t sum = (uint32_t)i;
     for (int k = 0; k < pad; k++) sum += (uint8_t)buf[k];
     Serial.printf("#%d %s %08x\n", i, buf, (unsigned)sum);
     // The burst is the point, so keep the watchdog fed rather than pacing it.
     if ((i & 63) == 0) esp_task_wdt_reset();
+    // Polled HERE, not in loop(): this command blocks loop() for its whole
+    // duration, so bodWatchTick() cannot run and a trip during the burst would
+    // otherwise be attributed to whatever ran next. Silent — see bodWatchPollQuiet.
+    if (bodWatchPollQuiet()) {
+      if (firstTripSeq < 0) firstTripSeq = i;
+      bodTrips++;
+    }
   }
   const unsigned long ms = millis() - t0;
-  Serial.printf("{\"probe\":\"burst\",\"phase\":\"end\",\"lines\":%d,\"elapsedMs\":%lu}\n",
-                lines, ms);
+  Serial.printf("{\"probe\":\"burst\",\"phase\":\"end\",\"lines\":%d,\"elapsedMs\":%lu,"
+                "\"bodTrips\":%d,\"firstTripSeq\":%d,\"thres\":%u}\n",
+                lines, ms, bodTrips, firstTripSeq, (unsigned)bodWatchThres());
 }
 
+
+// TASK-557: read BOD state, and choose the threshold the NEXT boot arms with.
+// The boot-window sag lands ~1.5 s in, long before the console exists, so
+// sweeping it needs the value to survive the reboot — hence RTC_NOINIT.
+void cmdBod(const char *args) {
+  int t = -1;
+  if (args && args[0] && sscanf(args, "%d", &t) == 1 && t >= 0 && t <= 7) {
+    bodWatchSetBootThres((uint8_t)t);
+    Serial.printf("{\"ok\":true,\"cmd\":\"bod\",\"bootThres\":%d,"
+                  "\"note\":\"takes effect on next reboot\"}\n", t);
+    return;
+  }
+  Serial.printf("{\"ok\":true,\"cmd\":\"bod\",\"thresNow\":%u,\"bootThres\":%u,"
+                "\"tripsSinceArm\":%lu}\n",
+                (unsigned)bodWatchThres(), (unsigned)bodWatchBootThres(),
+                (unsigned long)bodWatchTrips());
+}
 #endif // SERIAL_DEBUG

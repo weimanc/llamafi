@@ -202,7 +202,7 @@ void setup()
   // TASK-557: arm the brownout comparator at its highest threshold with the
   // reset disabled, before the display, SD and WiFi loads come up. This is the
   // only supply sensing the ESP32 classic has.
-  bodWatchArm(7);
+  bodWatchArm(bodWatchBootThres());
 
 #ifdef SD_BOOT_MOUNT
   // TASK-408 (2026-08-07): mount SD here, synchronously, and hold the session for

@@ -10,3 +10,4 @@ void cmdInfo(const char *);
 void cmdScreenDump(const char *);
 void cmdColorProbe(const char *);
 void cmdSerialBurst(const char *);
+void cmdBod(const char *);
