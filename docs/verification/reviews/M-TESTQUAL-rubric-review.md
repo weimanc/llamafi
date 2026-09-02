@@ -62,11 +62,13 @@ Detection is a code read, not a guess. Each code names what to grep for.
 A single document, structured exactly like this, so WP-Z can merge them mechanically.
 
 1. **Scope line** — module, id count, how the count was measured (command).
-2. **Per-test table**, one row per id, in registry order:
+2. **Per-test table**, one row per id, in registry order. **The first cell is the body
+   location, never the bare id** — see the §6 amendment; a bare id in column 1 binds as a
+   `check_docs` C6 doc entry and can silently clear a real orphan:
 
-   | Id | Body | Claim | Oracle | Verdict | Smells | Evidence |
+   | Body | Id | Claim | Oracle | Verdict | Smells | Evidence |
    |---|---|---|---|---|---|---|
-   | T123 | `player.py:456` | what the test says it covers | the specific device-observed value it compares | SOUND | — | `player.py:470` compares `pos` against … |
+   | `player.py:456` | T123 | what the test says it covers | the specific device-observed value it compares | SOUND | — | `player.py:470` compares `pos` against … |
 
    * **Claim** comes from the docstring/`test_plan.md` entry — what it *promises*.
    * **Oracle** is the actual comparison. If you cannot name one, the verdict is HOLLOW.
@@ -106,4 +108,24 @@ A single document, structured exactly like this, so WP-Z can merge them mechanic
 
 ## 6. Amendments
 
-_(none yet)_
+**A1 — 2026-09-02, after WP-A.** §5 gained the ban on importing anything under
+`app/tools/`: six modules open the serial port and run their DUT suite at import time
+(WP-A finding A-12). One such import reset the board mid-audit.
+
+**A2 — 2026-09-02, after WP-B.** The `-review.md` exemption is **weaker than the index
+first claimed**, and every remaining package must write its tables accordingly.
+`is_exempt()` suppresses *status* scanning only. `doc_test_entries()`
+(`app/tools/gate/check_docs.py:665`) still binds any table row whose first cell —
+after `strip("`* ")` — is a bare test id, and any `### T123` heading, in *every*
+file under `docs/verification/`, exempt or not. A bound entry **resolves C6.1**, which
+means an audit table can silently clear a genuine orphan and turn its
+`id_binding_exceptions.md` row into a stale exception, which is itself a blocking
+failure. WP-B hit exactly this with `T_PRM_01`.
+
+Therefore, binding on every package from WP-C onward:
+
+* the per-test table's **first column is the body location**, the id goes in column two;
+* **never** open a section with `### T123` / `### \`T_CC_01\`` — write `### T123 — …`
+  as prose inside the row, or head the section with the module and line;
+* run `./run/check-docs` once before you hand the document over, and if C6 moves at all,
+  fix your table rather than the ledger.

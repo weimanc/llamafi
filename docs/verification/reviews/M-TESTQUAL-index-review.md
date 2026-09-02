@@ -66,8 +66,8 @@ One document per package — no monolith. Each is self-contained and links back 
 | WP | Document | Covers | Status |
 |----|----------|--------|--------|
 | A | [harness & framework](M-TESTQUAL-A-harness-review.md) | Q1–Q6: entry points, `lib/`, result layer, duplication, magic values, firmware-constant double bookkeeping | **done** — 19 findings (P1×5, P2×9, P3×5) |
-| B | [taxonomy, grouping & order](M-TESTQUAL-B-taxonomy-review.md) | Q7–Q8: class/scope assignment, registry order, `_gate`/`_order`, duplicate & overlapping tests | in progress |
-| C | [RIG / HEALTH / CORE audit](M-TESTQUAL-C-audit-core-review.md) | the 49 gating ids — audited first, because everything above them inherits their trust | pending |
+| B | [taxonomy, grouping & order](M-TESTQUAL-B-taxonomy-review.md) | Q7–Q8: class/scope assignment, registry order, `_gate`/`_order`, duplicate & overlapping tests | **done** — 18 findings (P1×4, P2×9, P3×5) |
+| C | [RIG / HEALTH / CORE audit](M-TESTQUAL-C-audit-core-review.md) | the 49 gating ids — audited first, because everything above them inherits their trust | in progress |
 | D | [shell family audit](M-TESTQUAL-D-audit-shell-review.md) | `shell.py` (3 528 lines, scopes shell/taskbar/boot/spotify-chrome/Spotify/Settings/Life/Matrix) | pending |
 | E | [player family audit](M-TESTQUAL-E-audit-player-review.md) | `player.py` — LocalPlayer, 29 ids | pending |
 | F | [webradio family audit](M-TESTQUAL-F-audit-webradio-review.md) | `webradio.py` — 31 ids | pending |
@@ -96,3 +96,5 @@ status column and this ledger, and nothing else.
 | 2026-09-02 | WP-A landed and QC'd (three claims re-verified independently by the orchestrator: D6 `PR_FETCH_TYPE`, `lib/dut.TIMEOUT`'s zero users, the closed hardcoded-port finding). Headline: one real harness plus 13 standalone DUT harnesses; nine firmware-fact mirrors registered; `gen_get_keys.py` enumerates 43 of 71+ `get` keys, so `run/task488`'s "every key resolves" covers ~60 %. |
 | 2026-09-02 | **Incident:** the WP-A agent bulk-imported `app/tools/*.py` to find broken imports; six modules open the serial port and run their suite at import time, which reset the board and injected taps. Firmware untouched (still the `-DBOD_WATCH` debug build; log confirms `build=Sep 2 2026-22:42`, uptime 00:43 at 23:39). Filed as WP-A finding A-12; the rubric §5 now bans importing anything under `app/tools/`. Any TASK-557 window open this evening is contaminated. |
 | 2026-09-02 | WP-B dispatched. |
+| 2026-09-03 | WP-B landed and QC'd (declared-vs-seeded counts re-measured independently: 6 `cls`, 57 `scope`, 3 `effect` declared of 216 records — exact match). Headline: the taxonomy is 97 % inference, including all 43 CORE ids the order switch would let block the other 167; six order-dependence clusters, three invisible to the TASK-566 edge enumeration; 26 ids collapse to ~11 distinct assertions. Rubric amendment A2 records the C6 table-binding trap WP-B hit. |
+| 2026-09-03 | WP-C dispatched (RIG/HEALTH/CORE, 49 ids). |
