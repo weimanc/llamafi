@@ -233,6 +233,58 @@ def phase_tests():
     check("run id is monotonic across sessions", (a, b), ("1", "2"))
 
 
+# ── TASK-575: the tee forwards attribute ASSIGNMENT, not just reads ──────────
+
+def tee_setattr_tests():
+    """_TeeSerial had __getattr__ but no __setattr__, so `dut.ser.timeout = 0.5`
+    set a shadow attribute on the wrapper — which then also shadowed the read,
+    so the value read back looked correct while pyserial went on using the
+    constructor's timeout. The check that matters is on the UNDERLYING object,
+    never on the wrapper."""
+    raw = _PhaseSer([])
+    raw.write_timeout = None
+    tee = d._TeeSerial(raw, run_id="7")
+
+    tee.timeout = 0.5
+    check("timeout set through the tee reaches pyserial", raw.timeout, 0.5)
+    check("timeout read back through the tee is pyserial's", tee.timeout, 0.5)
+    check("no shadow copy on the wrapper", "timeout" in tee.__dict__, False)
+
+    # The save/restore idiom the harness uses everywhere (`orig = ser.timeout`
+    # … `ser.timeout = orig`) has to round-trip, including nested.
+    orig = tee.timeout
+    tee.timeout = 1.0
+    tee.timeout = orig
+    check("save/restore round-trips on pyserial", raw.timeout, 0.5)
+
+    # test_fetch_stress.py arms this one and only this one; before the fix it
+    # was never armed at all, so a stalled CH340 write blocked forever.
+    tee.write_timeout = 3.0
+    check("write_timeout reaches pyserial too", raw.write_timeout, 3.0)
+
+    # An attribute pyserial has never seen still forwards — the wrapper is a
+    # proxy, not a filter.
+    tee.baudrate = 115200
+    check("unknown attribute forwards rather than shadowing", raw.baudrate, 115200)
+
+    # …and the wrapper's OWN state must not be forwarded, or construction
+    # itself would write the log handle and the generation counter onto the
+    # serial object.
+    check("_ser stays on the wrapper", tee.__dict__["_ser"] is raw, True)
+    check("ring buffer stays on the wrapper", "_ring" in tee.__dict__, True)
+    check("run_id stays on the wrapper", tee.__dict__.get("run_id"), "7")
+    check("boot_count stays on the wrapper", "boot_count" in tee.__dict__, True)
+    check("run_id was not written to pyserial", hasattr(raw, "run_id"), False)
+    check("boot_count was not written to pyserial",
+          hasattr(raw, "boot_count"), False)
+
+    # The counter still counts after the assignment path changed.
+    tee = d._TeeSerial(_PhaseSer(["[bootphase] 0 reset"]), run_id="7")
+    tee.timeout = 0.2
+    tee.readline()
+    check("generation counter survives the setattr change", tee.gen_tag(), "7.1")
+
+
 def main() -> int:
     print("test_boot_gate.py — TASK-560 boot-observation gate")
 
@@ -267,6 +319,10 @@ def main() -> int:
     print()
     print("TASK-564 — boot-phase gate, generation counter, last-phase stamp")
     phase_tests()
+
+    print()
+    print("TASK-575 — _TeeSerial forwards attribute assignment")
+    tee_setattr_tests()
 
     print()
     if _failures:

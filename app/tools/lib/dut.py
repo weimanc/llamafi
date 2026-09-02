@@ -385,6 +385,12 @@ class _TeeSerial:
     wrong, because it discards every line that does not start with `{` and
     `[bootphase] 0` does not."""
 
+    # Attributes that live on the WRAPPER. Everything else assigned through the
+    # tee is forwarded to the wrapped serial by __setattr__ below — see there
+    # for why. Adding state to this class means adding its name here, or the
+    # assignment in __init__ ends up on the pyserial object instead.
+    _OWN_ATTRS = frozenset({"_ser", "_log", "_ring", "run_id", "boot_count"})
+
     def __init__(self, ser, log_path: Optional[str] = None,
                  run_id: Optional[str] = None):
         self._ser = ser
@@ -449,6 +455,27 @@ class _TeeSerial:
 
     def __getattr__(self, name):
         return getattr(self._ser, name)
+
+    def __setattr__(self, name, value):
+        """Forward attribute ASSIGNMENT to the wrapped serial (TASK-575).
+
+        __getattr__ alone is half a proxy: reads fell through to pyserial,
+        writes did not. Every `dut.ser.timeout = 0.5` across app/tools/ landed
+        in this wrapper's __dict__ instead — where it also shadowed the read
+        path, so the value read back looked right — and pyserial kept using
+        whatever timeout Dut.__init__ passed (3.0 s by default) for the whole
+        session. Deadline loops are monotonic-clock based and so stayed
+        correct; what they lost was granularity, and `write_timeout` was never
+        armed at all.
+
+        The wrapper's own attributes must still land here, so they are named
+        explicitly rather than inferred from a leading underscore: `run_id` and
+        `boot_count` have no underscore, and a rule based on one would have
+        pushed the generation counter onto the pyserial object."""
+        if name in _TeeSerial._OWN_ATTRS:
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._ser, name, value)
 
 
 class Dut:
