@@ -15,10 +15,35 @@
 > [tasks-winamp-player.md](tasks-winamp-player.md) · [roadmap.md](roadmap.md)
 > Method: static only. No DUT, no serial port, nothing under `app/tools/` imported. The board is
 > pinned to the `-DBOD_WATCH` debug build for TASK-557.
+>
+> **Annotated 2026-09-03 — all four escalations RULED by the human, all four recommendations
+> accepted as written.** The analysis below is unchanged; the rulings are recorded inline in §5,
+> and §0 and §6 carry what they change about the programme. Nothing else in this document was
+> rewritten. See also [M-HARNESS2-board-reset-proposal.md](M-HARNESS2-board-reset-proposal.md),
+> which answers the separate clean-slate question the same day.
 
 ---
 
 ## 0. The programme decision
+
+> **RULING ANNOTATION, 2026-09-03.** The three schedulable escalations (TASK-616, TASK-617,
+> TASK-618) are ruled, each in favour of the recommendation in §5, and the pin ruling this document
+> made unilaterally in §1.1 is **confirmed by the human** rather than merely asserted by me.
+> Consequences for the programme, and only these:
+>
+> * **Phase 0's exit criterion for the three decisions is MET.** What remains of Phase 0 is
+>   TASK-621 (promote or dismiss LL-127 and LL-140) and TASK-622 (file the five ADRs).
+> * **Phase 2's entry criterion is unblocked *conditionally*, not met.** TASK-618 is ruled, so the
+>   criterion "either the conversion has landed, or a dated exception is sanctioned" is now
+>   satisfiable by engineering rather than by waiting on a human. It is *satisfied* when TASK-633
+>   lands. `DUT_NO_RESTORE=1` is sanctioned as the dated interim exception in the meantime, owned by
+>   TASK-618, retired by the conversion.
+> * **§7's risk 1 — "the single point of failure is a human decision" — has fired favourably and is
+>   partially retired.** It was written on 2026-09-03 predicting a two-week decision latency; the
+>   decisions came the same day. The residue of that risk is now TASK-557 and TASK-578 only, which
+>   gate Phases 3 and 4, not Phase 2.
+> * **Nothing about Phase 1 changes.** Phase 1 had no entry criterion and still has none. It remains
+>   the committed work and it is still what I would start first.
 
 **I am scheduling ~30 engineer-days, not 154, and I am scheduling them as one programme with WP-Z
 rather than two.** M-HARNESS2's diagnosis is the best-evidenced thing this project's quality history
@@ -433,9 +458,36 @@ and is not funded now.
 
 ## 5. The three escalated decisions
 
+> **ALL RULED 2026-09-03.** The human ruled on all four escalations and accepted every
+> recommendation in this section as written. Per-decision annotations are inline below; the
+> programme consequences are in §0's annotation and §6's. The section's analysis is unchanged —
+> what follows the ruling boxes is what I wrote before the ruling, kept so the reasoning stays
+> auditable against the outcome.
+>
+> | escalation | ruled | disposition |
+> |---|---|---|
+> | TASK-616 | 2026-09-03 | **RULED — as recommended.** M-WEBRADIO close stands; the skip-rate *criterion* goes DEFERRED; re-run behind the board's release with ≥3 stations and a recorded build hash. |
+> | TASK-617 | 2026-09-03 | **RULED — as recommended.** The switch does **not** flip yet. Exit criteria are the declaration and offline-gating requirements; the shuffle campaign is explicitly **not** a precondition; it must not flip while TASK-557 is open. |
+> | TASK-618 | 2026-09-03 | **RULED — as recommended.** Verify-and-refuse sanctioned. `DUT_NO_RESTORE=1` permitted **only** as a dated interim exception owned by TASK-618, retirement condition = the conversion. |
+> | the §1.1 pin ruling | 2026-09-03 | **CONFIRMED by the human**, no longer a PM assertion. The pin forbids restoring *production*; rebuilding and flashing the *same* debug env is inside it provided `-DBOD_WATCH` survives. |
+>
+> **TASK-619 is not in this set and is not ruled.** It was never a human decision — §3a routes it to
+> @Architect, and it stays there. Phase 0's exit criterion as written names 616, 617 and 618 only,
+> so the criterion is met without it; TASK-619's `A-7` half is answered by TASK-608's artifact
+> regardless of how the Architect rules.
+
 I do not decide (a) or (b). I recommend, I price being wrong, and I name what I need from the human.
 
 ### (a) Does the M-WEBRADIO close stand? — TASK-616
+
+> **RULED 2026-09-03 — as recommended.** The milestone stays closed. The skip-rate criterion is
+> recorded **DEFERRED** in its regression-suite entry, and its re-run is scheduled behind the
+> board's release with at least three stations and a recorded build hash. **Unblocks:** the
+> disposition half of TASK-587's sibling work — the same DEFERRED treatment now has a ruled
+> precedent for the five M-CLOCK-STYLES criteria — and it removes M-WEBRADIO as a competitor to
+> M-WINAMP-PLAYER for board time, which was the contingency I flagged below. **Owed:** the
+> regression-suite edit (VE), and a row for the re-run whose entry criterion is TASK-557 closed.
+> Neither is scheduled by this ruling; both are small.
 
 **Recommendation: keep the milestone closed; re-open the *criterion*, not the milestone.** The
 sustained-decode half is a real result and I would not disturb it. The skip-rate half is
@@ -458,6 +510,16 @@ reopens, it competes with M-WINAMP-PLAYER for the same board and I need to know 
 
 ### (b) May the class-order switch flip? — TASK-617
 
+> **RULED 2026-09-03 — as recommended.** The switch does **not** flip yet. The exit criteria are
+> fixed as (i) all 43 gating-class ids declared with written reasons, (ii) no gating-class
+> precondition needs the network or the host file layout, (iii) TASK-557 closed or explicitly signed
+> off — and the shuffle campaign is **explicitly not** a precondition. **Unblocks:** TASK-591 and
+> TASK-626 (prov.) are now the *named* path to the switch rather than two Phase 1 rows among
+> twenty — about 3.75 days of host-only work that converts a held switch into a decidable one. It
+> also settles the ~3 board-hours cut in §4.1: the shuffle campaign is not merely descoped by me, it
+> is ruled out as a precondition. **Still blocked:** condition (iii) is TASK-557, which no ruling
+> touches. TASK-566 stays PARTIAL DONE with the switch HELD, and TASK-567 stays deferred behind it.
+
 **Recommendation: no, not yet — and set the exit criteria to the declaration and offline gates,
 not to the shuffle.** I concur with the VE's reading and with the Architect's narrower criteria. I
 add one condition neither of them states: **the switch must not flip while TASK-557 is open**,
@@ -479,6 +541,25 @@ is **not** a precondition. If the human wants the switch sooner, the honest leve
 network-dependent ids and the switch's risk collapses, at ~2 days.
 
 ### (c) How to unblock the entry points — TASK-618
+
+> **RULED 2026-09-03 — as recommended.** Verify-and-refuse is sanctioned: test entry points read
+> the board's build identity, compare it to what the run declares, and exit with the
+> "not a valid subject" code on a mismatch. They never flash and never restore. `DUT_NO_RESTORE=1`
+> is permitted **only** as a dated interim exception owned by TASK-618, whose retirement condition
+> is the conversion and whose ledger row is itself a blocking failure when stale.
+> **Unblocks:** TASK-633 (prov.) is schedulable now — it is the ruling's implementation and it is
+> Phase 2's entry criterion. With the interim exception sanctioned, the 80-minute session (TASK-634
+> prov.) can also be run *before* the conversion lands if the board frees up first, which is the
+> ordering §6 condition 1 hoped for. **Attached obligations, unchanged by the ruling:** the
+> `CLAUDE.md` run-script table must be updated in the same change (after a suite run the board stays
+> on whatever build it was on), and the standing hazard is restated — **never kill a flash, soak or
+> test script mid-flight**. Budget stays 1.5 days plus the documentation update, not an afternoon.
+>
+> **The pin ruling in §1.1 is confirmed in the same breath** and is no longer a PM assertion
+> awaiting sanction: the pin forbids restoring *production*, and rebuilding and flashing the same
+> `-DBOD_WATCH` debug env is inside it. That is what makes Phase 4 schedulable at all, and it is
+> also what makes verify-and-refuse coherent — the entry points can refuse a wrong build precisely
+> because flashing the right one is a legitimate, separate, caller action.
 
 **This one is mine to recommend and I do: adopt verify-and-refuse.** Test entry points read the
 board's build identity, compare it to what the run declares, and exit with the "this board is not a
@@ -510,6 +591,12 @@ script mid-flight** — it races the trap-guarded restore and can boot-loop the 
 
 ## 6. The QM's five conditions, and the cheapest action
 
+> **ANNOTATION 2026-09-03.** Phase 0 is now **partly discharged**: its three decision rows are
+> ruled (§5). What is left of it is exactly the cheapest action described in the next paragraph —
+> TASK-621's LL-127/LL-140 promotion, which costs a human sign-off and no engineering — plus
+> TASK-622's five ADR filings. The paragraph below was written as an argument for doing the cheap
+> thing first; it is now the *only* thing left in Phase 0, and it has no excuse remaining.
+
 **The cheapest action is scheduled as Phase 0 and it is the first thing on this programme.**
 Promoting LL-127 and LL-140 costs a human sign-off and no engineering. One of them names, three
 weeks early and in full mechanical detail, the injector defect the largest audit package later
@@ -530,6 +617,18 @@ to network churn for about a year. The other is the `UNMET` bucket under a diffe
    "all three clusters refuted" a stop-the-work criterion that cancels Phase 3 and guts Phase 5.
    If TASK-618 is resolved before Phase 1 finishes — which I hope — the session runs inside Phase 1's
    window and the question is moot.
+
+   > **ANNOTATION 2026-09-03: the hoped-for case happened, and the question is now moot in the QM's
+   > favour.** TASK-618 was ruled the same day this document was written, before Phase 1 started at
+   > all. The session is therefore not "blocked on a human decision on a rig pinned for an unbounded
+   > interval" any more — it is blocked only on TASK-633 landing, or on nothing at all if the
+   > sanctioned `DUT_NO_RESTORE=1` interim exception is used. **I withdraw the partial rejection**:
+   > with the decision taken, run the 80 minutes as early as the board allows, and do not wait for
+   > Phase 1 to finish to do it. The stop criterion stands unchanged and is now reachable much
+   > sooner, which is the whole point of it — if all three clusters are refuted, Phase 3 is cancelled
+   > and Phase 5's retrofit is cut to delta-scope, and I would rather learn that in week 1 than
+   > week 6. Phase 1 still needs no entry criterion and still starts immediately; the two now run in
+   > parallel rather than in sequence.
 2. **Fund the ~30, schedule nothing else yet — accepted**, and that is exactly what §3a commits.
 3. **No declaration without a mechanical check — accepted in full**, and it is one of the two
    programme-wide conditions in §3.
