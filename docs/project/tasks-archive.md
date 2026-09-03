@@ -19411,3 +19411,524 @@ one archived unit, per how the original prose reads.
 | TASK-508 | P2 | **RULINGS DONE 2026-08-23 — remaining work is a migration, not a decision** | C4 status-vocabulary: all three sub-decisions made (human rulings, see `M-DOCLIFE-check-docs-spec.md` §C4 for full detail). **(a)** dropped invented `partially landed`; closed vocabulary is now `proposed`/`accepted`/`done`/`implemented`/`resolved`/`closed`/`applied`/`retired`/`superseded`/`rejected` (`draft`/`planned` fold into `proposed`). **(b)** exact match — the `Status:` field holds only the bare word, nothing else on the line. **(c)** header-only — a truthful in-body status update elsewhere in the doc does not offset a stale header. **Real consequence of (b)**: this is BP-065's own as-built-section structure, finally enforced — almost every real header today crams commit/date/rationale inline, so the ~100–200-header migration is a reformat (extract inline detail into a proper as-built section), not a word-swap. BP-065 (`best_practices.md`) updated to match. **Remaining scope is now Developer/PM execution** (do the migration, re-measure the failure count, then promote C4 from advisory to blocking) — not an open Architect question. |
 
 **MIGRATION DONE 2026-08-25** (`6361ef3`). Migrated 189 `Status:` headers across `docs/architecture/{decisions,designs,interfaces}/` (recursive — includes `M-AQUARIUM/`, `M-MULTIAPP/`, `M-PLANERADAR/`, `M-PR-LOCATIONS/` subdirectories, which a first pass missed by globbing non-recursively) to the closed vocabulary, exact match, header-only. Inline commit/date/rationale moved to a new `As-built:` line under each; multi-line blockquote `Status:` blocks kept their continuation lines byte-identical (only the first line was rewritten) specifically so `run/check`'s C1-`delta` gate wouldn't see pre-existing citations inside them as newly-added — it did, on the first attempt, before this fix (a pre-existing broken citation inside `M-PR-LOCATIONS-location-presets.md`'s continuation text briefly tripped it). ~160 headers were mechanical (already-closed word + inline text, or `draft`/`planned`). **~28 used a term outside the ruling's explicit list** — mapped by conservative synonym judgment (documented per-file in the migration script, not re-litigated here): `shipped`→`done`, `approved`/`decided`→`accepted`, `audited`/`final`/`"reviewed + restructured"`→`done`, `scheduled`/`skeleton`/`stub`/`"design draft"`/`"sketch / proposed"`/`"POC scope(d)"`→`proposed`, `parked`(×2)→`rejected`, `"feeds ADR-010 (accepted)"`→`superseded`. Two are genuinely borderline and flagged here for Architect confirmation rather than silently accepted: `M-QUALITY-improvement-map.md`'s `map` and `NEW-APP-CHECKLIST.md`/`M-MULTIAPP/upstream-patches.md`'s `active` — both are living index/reference docs, not decisions with a real lifecycle, and were mapped to `accepted` (in force) for lack of a better closed-vocabulary fit; the closed vocabulary itself may not be the right tool for this doc *class*, which is a scope question this task didn't have standing to decide. **14 files in scope have no `Status:` field at all** (`ADR-017-api-candidates.md`, both `README.md`s, `IFC-001`–`003`, `M-MEMBUDGET`/`M-MEMPLAN`/`M-PLAYER-STATE`/`M-RECLAIM`/`M-WIFI-DIAG`, `M-MULTIAPP/{app-lifecycle,layout,preview-tooling,taskbar}.md`, `M-STOCK-POC/test-design.md`) — left untouched (presence, not vocabulary, is a different, unruled question) — **filed as follow-up TASK-534 below**. Also implemented `check_docs.py`'s `check_c4` (previously an always-skip stub) matching all three rulings exactly, and regenerated `app/tools/testdata/check_docs/golden.txt` for the one line it changes. Verified: `python3 app/tools/test_check_docs.py` 14/14, `./run/check --docs-only` clean. **Re-measured C4: 0 non-conforming of 189 Status: headers** (was "rule undefined"; TASK-475 phase 4's precondition).
+
+
+## TASK-488 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-488** | **P1** | **DONE 2026-08-16** — verified, nothing reverted | review `a044f5d` / `78caa95` / `b36f184` per M-SRCLAYOUT §7a, and take the owed DUT baseline |
+
+## TASK-529 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-529** | **P1** | **DONE 2026-08-22** — DUT baseline taken, clean | take the owed DUT baseline for TASK-471/472 (`2a2f83e`..`7669460`, 16 commits) — same discipline as TASK-488. **Correction: the original filing of this task wrongly stated "no DUT in this environment" — a DUT was connected on `/dev/ttyUSB0` the whole session; that was an unverified assumption baked into three subagent prompts, caught by the user, not a real environment limit.** Once corrected, the baseline was taken for real. `run/task488` (39 app switches, taskbar, 9 player-mode cycles, 7 Settings sections): **T_488_04-09 all PASS**. T_488_10 FAIL is a stale test-harness artifact (`_EXPECTED_CMDS` hardcoded from `b36f184~1`, months before `playerCycle`/`sdopendir`/`sdslots` existed — `missing=[]` proves nothing was dropped by this session's work). T_488_11 FAIL (heap decline over repeated sweeps) matches already-documented pre-existing drift (TASK-504/505), reproduced on pre-refactor firmware too — not a regression. Additional ad-hoc DUT check for TASK-472 specifically (`app/tools/lib/dut.py`, one-off scripts, real serial + real network fetches, not the `run/task488` harness which predates the Stock split): **List, Chart, and Heatmap all verified working end-to-end** — `quoteOkCount` advanced after a forced List fetch, `fetchOkCount` advanced after a real tap-drill into Chart (drove production touch dispatch, not just a debug shortcut), `heatmapCount` reached 20 after a forced Heatmap fetch — confirming the `StockChart`/`StockHeatmap` split's shared-state design (friend + back-reference into the one `StockAppState`) works under live conditions, not just in source review. Production firmware restored via `run/flash` on completion |
+
+## TASK-457 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-457 | P3 | **DONE 2026-08-26** (`6d74903`) | hygiene — `appRegistry.h` double-include explained (deliberate, X-macro). `currentAppId`/`g_previousAppId` unify left as-is — already deliberately deferred pending Architect sign-off, see `shell/shellState.h`'s own comment. |
+
+## TASK-533 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-533 | P3 | **CLOSED 2026-08-26 — could not reproduce, now 10/10 clean** | Fresh DUT run of `run/ae04` on current `master`: a 3-cycle smoke got 2/3 clean (1 borderline `loopTask blocked 188ms > 180ms` — 8ms over a loose bound this test's own comments derive from a single 103ms observation); the actual exit criterion, `run/ae04` full 10 cycles, scored **10/10 clean**, every cycle showing the correct `torn down (post-connect)` line, `arena +1/-1 hwm=0`. Does not reproduce the archived "0/5, pump gone but no torn down line" — neither hypothesis (ICMP-vs-blackhole, real regression) needed investigating since the failure itself isn't present today. Likely environmental at the time of the TASK-459 A/B (see that task's row) — not diagnosed further since there's nothing currently failing to diagnose. Re-open if a future run reproduces the original signature. |
+
+## TASK-512 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-512 | P3 | **DONE 2026-08-26** (`a67b203`) | C2 remainder — `HttpSession` RAII guard for `http.begin()`/`http.end()` in `dataTaskStorage.cpp`, all 6 real call sites converted, manual `end()` call sites kept at their exact prior positions. |
+
+## TASK-473 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-473 | P2 | **DONE 2026-08-26** (`2a21d94`) | G1/G2/G3 closed — WiFi radio arbiter applied at the one gap without a point fix, I2/I3 host grep (`T_CC_01`/`T_CC_05` executed, `T_CC_02` unblocked), `prLocs` active-switch helper closes the singular `prLat`/`prLon` case. See [M-CONCURRENCY](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) §10 as-built. |
+
+## TASK-541 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-541 | P2 | **DONE 2026-08-26** (`f42477c`) | [M-CONCURRENCY](../architecture/designs/M-CONCURRENCY-task-ownership-contract.md) §1/§1.1 corrected to six execution contexts (added `arduino_events`, WiFi driver task) and R5 re-derived; propagated to IFC-002. See the design doc's own §9 as-built for the shape and detail. Unblocked TASK-473's G2; filed TASK-544 (G6/G7). |
+
+## TASK-542 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-542 | P3 | **DONE 2026-08-26** (`ca7fd8f`) | `WebRadioApp::_spotifyYielded` → `_tlsGuard` (`TlsYieldGuard`), the un-migrated twin of TASK-459's `s_aeSpotifyYielded` fix. 1 acquire / 5 releases / 3 functions (corrected from the row's "4", see the design doc's §10 as-built). |
+
+## TASK-543 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-543 | P3 | **DONE 2026-08-27** | Adopted [BP-072](../quality/best_practices.md#bp-072): an IFC correction propagates to its named-origin design doc in the same pass. Registered as M-DOCLIFE decay mode D6. Considered a mechanical `check-docs` heuristic and explicitly declined — IFC-001/003 don't name a single governing design doc in a consistent, resolvable field the way IFC-002 does, so a general check would either miss most IFCs or need a field-standardization pass first; see [M-DOCLIFE-check-docs-spec.md](../architecture/designs/M-DOCLIFE-check-docs-spec.md) §6. M-CONCURRENCY §8 R5 updated with the resolution. |
+
+## TASK-544 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-544 | P3 | **DONE 2026-08-26** (`9af52f8`) | G6/G7 closed — `portMUX` + atomic snapshot accessors (`beaconStatsSnapshot()`, `discSnapshot()`) mirroring `dataTask`'s M1 pattern, converted at both group-read call sites. The 3 non-volatile statics G7 also named turned out single-context only (onEvent()'s own rate-limiter state) — not part of the fix. |
+
+## TASK-534 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-534 | P3 | **DONE 2026-08-27** (`docs-touched:` this commit) | All 14 files given a real `Status:`/`As-built:` header (reformatted where a crammed inline status existed, assigned by reading real state where none did — [M-MEMBUDGET](../architecture/designs/M-MEMBUDGET-memory-budget.md)/[M-MEMPLAN](../architecture/designs/M-MEMPLAN-static-overlay-planner.md)/[M-PLAYER-STATE](../architecture/designs/M-PLAYER-STATE.md)/[M-RECLAIM](../architecture/designs/M-RECLAIM-dynamic-resident.md)/[M-WIFI-DIAG](../architecture/designs/M-WIFI-DIAG-outage-attribution.md)/[ADR-017 companion](../architecture/decisions/ADR-017-api-candidates.md)/IFC-001–003/[M-MULTIAPP](../architecture/designs/M-MULTIAPP/)'s 4 files/[M-STOCK-POC/test-design.md](../architecture/designs/M-STOCK-POC/test-design.md)). Architect/PM ruling: presence folded into C4 (not a standalone C4b), promoted straight to blocking — see [M-DOCLIFE-check-docs-spec.md](../architecture/designs/M-DOCLIFE-check-docs-spec.md) [A4]. `check_docs.py`'s `check_c4` updated + fixture/golden regenerated; `test_check_docs.py` 16/16, `run/check --docs-only` clean. One flagged-not-resolved item filed as TASK-551. |
+
+## TASK-551 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-551 | P3 | **DONE 2026-08-27** | Confirmed against source (`app/src/shell/taskbar.h`, `app/gen/shell_layout.h`) that `renderTaskbar()` and the taskbar aesthetics are real and shipped — fixed `taskbar.md`'s stale "blocked" language in place. Found TASK-534's own `preview-tooling.md` classification was wrong (marked `proposed` from the doc's stated plan without checking source): the preview pass really happened, via a different tool (`tools/preview/preview_layout.py`, interactive pygame exporting straight to `gen/shell_layout.h`) and a different icon option (C, not the doc's recommended A) than the document describes. Corrected to `done` with an as-built section recording both deviations. |
+
+## TASK-474 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-474 | P3 | **DONE 2026-08-27 — split, all three resolved** | [M-DOCLIFE](../architecture/designs/M-DOCLIFE-keeping-design-docs-alive.md) §6 recs 2/3/5, split per the 2026-08-26 developer note (no scoping detail existed for any of the three, so each got checked independently rather than actioned as one bundle). **Rec 3 (closed status vocabulary)**: already done — TASK-508 migrated 189 headers, 0 non-conforming. **Rec 2 (`docs-touched:` in exit criteria)**: genuinely unimplemented until now — adopted as [BP-070](../quality/best_practices.md#bp-070). **Rec 5 (reservations land immediately)**: informally true only for the two split boards by construction, never a general rule — adopted as [BP-071](../quality/best_practices.md#bp-071). |
+
+## TASK-478 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-478 | — | **LANDED** (`989c1ea`) | `tools/lib/dut.py` — one DUT session helper, delegating to `run/port`. Re-scoped in landing: `Dut` already existed with 16 importers, so this was an extraction + `resolve_port()` + one timeout policy, not a build |
+
+## TASK-479 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-479 | P3 | **DONE 2026-08-26** (`a62eb7d`) — see commit for the re-measured 16-file send/expect count and per-file deferral reasons | Shared `lib.dut.Dut` adoption: port-resolution (15 files) and legacy-import (7 files) migrations complete. Re-measured "29 send/expect loops" against R3's grep-artifact finding — real count is 16, all confirmed genuinely divergent (destructive-scope, bug-fix architecture, deliberate wait-skip, reboot-timing), not migrable without a live DUT. `run/check` 11/11. |
+
+## TASK-480 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-480 | P2 | **DONE 2026-08-26** (`8d2ec4c`/`6e17572`/`4a4b136`/`dba39e7`/`5c9c30e`/`2858a97`/`68fcae2`/`570c311`/`bfe36b0`) | `run_serialdbg_tests.py` (10 005 lines) split into `suite/serialdbg/{clock,teletext,planeradar,stock,webradio,player,shell}.py` + `_helpers.py`, per M-TOOLING §3/§6 — see its own as-built for the shape. Full-suite parity confirmed against the 3-run baseline (1b58194); monolith deleted, every real caller repointed at the new `suite/serialdbg/runner.py`; two gate-scoping bugs the deletion exposed (`check_docs.py` C6, `check_player_binding.py`) fixed in the same commit. |
+
+## TASK-540 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-540 | P2 | **CLOSED 2026-08-26 — could not reproduce as a firmware defect** | 5 fresh DUT runs of `T_WR_COEX_01`(+`T_WR_VOL_03`) against current source gave 4 different outcomes (PASS; timeout at `wrState=1` CONNECTING; timeout at `wrState=0` STOPPED; station-list fetch itself unavailable/SKIP) — not the single deterministic `wrState=5` the baseline claimed. `_onPlaybackFailed()`'s auto-skip (default ON) plus `WR_CONNECT_TIMEOUT_MS`(5-7s)+`WR_SKIP_PACE_MS`(2s) per dead station means the test's 30s window only covers ~3-4 stations — consistent with real radio-browser.info station churn in this network, not a state-machine defect. No code change made; see commit for the full DUT log breakdown. Re-open if a future run shows the same `wrState` stuck on a clean network. |
+
+## TASK-481 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-481 | P3 | **DONE 2026-08-26** (`7663d78`/`a69c029`/`810d4d0`/`925d193`/`2c4fe08`) | `gate/`/`gen/`/`bake/`/`preview/`/`probe/` built and populated per M-TOOLING §3 — see its as-built section for scope calls. `suite/serialdbg/` split untouched, still TASK-480's own open scope. |
+
+## TASK-482 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-482 | P3 | **DONE 2026-08-25** (`76c608e`) | Added the spike-retirement check to `check_docs.py` per M-TOOLING §4 rule 3: any `app/tools/**/task<NNN>_*` (glob covers both flat `app/tools/` today and `app/tools/spike/` once TASK-481's directory move lands, without needing to know which) whose leading `TASK-NNN` appears in `tasks-archive.md` is flagged. Named it `SPIKE` rather than folding it into the `C1`–`C6` numbering — it's a separate mechanism from the M-DOCLIFE decay-mode taxonomy those implement (a naming/archival fact about `app/tools/`, not a doc citation), and the design doc itself never ties the two together (this row's own PM correction). Only the *leading* embedded number is checked (`task399_402_dut_verify.py` → `TASK-399` only), matching the doc's "named for its task" (singular) and its own "five-line grep" simplicity bar. **Confirmed today's 6 spikes fail as expected** — the design doc's own stated "correct first result": `task398_connect_async_verify.py`, `task399_402_dut_verify.py`, `task400_401_dut_verify.py`, `task402_posbar_trace.py`, `task405_slew_verify.py`, `task432_alloc_guard_gate.py`, all 6 leading numbers confirmed present in `tasks-archive.md` before writing the check, not assumed. **Advisory on landing** (judgment call, per the coordinator's steer to use the established pattern): C5/C1-`delta`/C2/C4 all landed blocking specifically because they read **0** on landing day — the precondition M-TOOLING's own text rules out here ("today's six spikes all fail... immediately"). Landing this blocking would red out `run/check` on day one purely from the expected backlog, not a real find; same reasoning `check_docs.py`'s own C3 comment already uses ("promoting it is a scope call for a human, not a mechanical one"). Added `T_DOC_15` (`test_check_docs.py`) — positive control (an open task's spike, not flagged), the leading-number-only proof, and the non-spike-filename exclusion (`helpers.py`) — plus its `test_plan.md` row (C6 flagged the new executable id with no doc row on the first `run/check`; fixed before re-running, not left red). Regenerated `testdata/check_docs/golden.txt` deliberately (one new advisory line, `0 retirement-due of 0` against the fixture's empty `app/tools/`) per `T_DOC_03`'s own instruction to do so rather than let it drift. Verified: `run/check` 11/11, `test_check_docs.py` 15/15. Host-tooling only — no firmware touched, no DUT verification needed. |
+
+## TASK-536 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-536 | P3 | **DONE 2026-08-26** (`dea7ab3`) | `ROWLEN` advisory row-length check, per [M-ROWGATE-task-board-length-check.md](../architecture/designs/M-ROWGATE-task-board-length-check.md) — see its As-built (§7) for the measured threshold and count. |
+
+## TASK-537 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-537 | **P2** | **DONE 2026-08-26** (`66127ec`) | Added a `gate/` level (LEVEL 2) to M-TOOLING §3's taxonomy + §5's naming table, with the dependency rule stated explicitly (leaf — nothing depends on it); design-only, no files moved — see [M-TOOLING](../architecture/designs/M-TOOLING-host-tool-architecture.md) §3/§5/as-built. |
+
+## TASK-538 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-538 | P3 | **DONE 2026-08-26** (`a8fd7f5`) | Deleted the 6 archived spikes (re-verified unreferenced first) and promoted `check_docs.py`'s SPIKE check to blocking — see [M-TOOLING](../architecture/designs/M-TOOLING-host-tool-architecture.md) as-built for the shape (the `Result.blocking` flag alone didn't gate; had to move it into `run()`'s counted list too). |
+
+## TASK-539 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-539 | P3 | **DONE 2026-08-26** (`45f8961`) | Documented the 15 `run/` scripts M-TOOLING F5/R9 found missing from `CLAUDE.md`'s run-script list (re-verified against `ls run/` before adding, count and members matched R9 exactly). |
+
+## TASK-545 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-545 | P3 | **DONE 2026-08-26** | Declared `T087`/`T091` in `flaky.yaml` per ADR-059 D13/M-TESTARCH §7 — both are the TASK-480 baseline's own stable-core (1b58194) and were firing as policy-violating "UNDECLARED flake" on every run since. Also declared `T_WR_COEX_01`/`T_WR_VOL_03` referencing TASK-540's closed disposition (recurred in TASK-480's parity run, still not a clean-network repro) and fixed the two `suite:` fields left stale by TASK-480's deletion of `run_serialdbg_tests.py`. |
+
+## TASK-546 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-546 | P3 | **DONE 2026-08-26** | Formalized the ad hoc AST cross-file Name-reference checker built during TASK-480 into `gate/check_suite_serialdbg_names.py`, wired into `smoke_test.sh` (`run/check` gate 9). Catches the exact class of bug that hit TASK-480 three times live (a moved function calling a helper that turned out to live in a different family module) — no DUT needed, sub-second. Negative-tested: confirmed it flags a deliberately-removed import before reverting the test edit. |
+
+## TASK-547 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-547 | P2 | **DONE 2026-08-27** | Bug: `run/test`/`run/test-targeted`/`run/player-gate`'s trap-guarded prod-restore reused the `$PORT` cached at script start, so a mid-run CH340 re-enumeration (hit live 2026-08-26) made the one guarantee those scripts make ("DUT never left broken") fail outright, leaving the DUT on debug firmware. Fixed per [ADR-062](../architecture/decisions/ADR-062.md) — see its own as-built for the shape: root fix is resolving via `/dev/serial/by-id/` (stable device identity) instead of `/dev/ttyUSBn` (enumeration order) everywhere a port is resolved, with a restore-time VID:PID rescan kept as a fallback layer for explicit `PORT=...` overrides / no-udev environments. Verified live against a physical DUT swap mid-session (symlink followed the new unit transparently, in-flight run completed clean) plus unit tests and `./run/check` 11/11. |
+
+## TASK-548 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-548 | P3 | **DONE 2026-08-31 — all 3 fixture gaps closed; the TASK-424 block was a misdiagnosis** | All three SD-fixture gaps are closed and DUT-verified: `T_PLR_14` PASS, **`T_PLR_25` PASS** ("auto-advanced 5/5 real short files: [0,1,2,3,4], no WDT"). The 2026-08-27 conclusion that `T_PLR_25`/`T_PMT_04` were blocked on **TASK-424** was wrong on two counts, both now corrected in that task's record. (1) Category error: TASK-424 is a *sustained single-open* write defect, while `sd_put.py` is one open/write/close per 90 B call — it *is* the TASK-415 workaround for TASK-424, so it was never subject to it. (2) The real defect was in the uploader: `Dut.cmd()` returned the first JSON line carrying a `cmd` key, so a late ack satisfied the *next* `sdput` and a dropped call passed unnoticed — the 4 damaged MP3s on the card were short by **exact multiples of the 90 B chunk** (−90, −90, −900, −90 B), which filesystem corruption does not produce. Fixed in `sd_put.py` (drain input before each command; verify reported size after *every* call; retry the whole file, safe because op `w` truncates). Re-push result: all 5 MP3s byte-exact at 48944/48944, and `/playlists/short5.m3u` corrected from a stale 278 B copy to 268 B. `T_PMT_04` now **runs** instead of skipping, and fails for an unrelated arena-timing reason (`acquires 1→1`, arena already held at baseline) — filed separately as **TASK-553**, per that test's own instruction that the close condition "needs re-specifying, not forcing". Card independently confirmed healthy (7/7 playlist fixtures at exact sizes, 60/60 clean appends). |
+
+## TASK-553 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-553 | P3 | **RESOLVED 2026-08-31 — test-order contamination, not a regression** | `T_PMT_04` re-run **alone on leg B from a fresh boot PASSES**: `baseline acquires=0 active=0 hwm=0` → `mid-playback acquires=1 active=1 hwm=23216 arenaHeld=1` → `post-exit acquires=1 releases=1 active=0 hwm=0`. Root cause: `mb_arena_acquire()` early-returns on `if (s_owned) return true;` **before** incrementing, so a second acquire in the same boot is invisible by design; run third in a suite behind `T_PLR_25` (five real tracks, does not release on exit) the baseline is already `acquires=1 active=1` and the asserted 0→1 edge cannot move. Neither the product nor the assertion was wrong — the test had an unwritten fresh-boot precondition, satisfied by its 2026-08-17 validation (five consecutive fresh-boot runs) and violated by suite ordering. Fixed by detecting a held arena at baseline and SKIPping with that explanation rather than reporting a false regression; `test_plan.md` and the X052 coverage row updated. **Left for @VE**: (a) the stronger fix — reboot to force a clean arena and re-baseline, ~100 s extra settle; (b) a real finding surfaced on the way — `T_PLR_25` leaves the arena held after `_leave_player()` while `T_PMT_04`'s own exit releases it, so the two exit paths genuinely differ. Original filing follows. |
+
+## TASK-554 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-554 | **P2** | **DONE 2026-08-31 — DUT-verified** | Fixed as designed: `run/lib.sh` gained one `restart_monitor()` helper that creates the session, sets `history-limit` **and** attaches `pipe-pane`; all 18 inline `tmux new-session` restarts now call it, and `run/monitor-start` calls it too so there is a single implementation rather than two that can drift. `bash -n` clean across all 20 touched scripts, `run/check` 11/11. **Gate met on hardware**: after a `run/flash` (one of the 18), the disk log's mtime tracked wall-clock and `run/monitor-read` returned `uptime=00:00:06` then `uptime=00:00:36` — *advancing*, from a post-flash reboot. The same sequence returned a frozen three-day-old line before the fix. Two call sites had custom failure text (`run/test`, `run/player-gate`) and four had none; all now get the helper's own WARN, which never returns nonzero because it runs inside `set -e` EXIT traps where a failure would abort the rest of the cleanup. Note `run/test`'s settings-restore path reaches the monitor through `run/spiffs`, also converted, so both its branches are covered. Original filing follows. |
+
+## TASK-550 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-550 | P3 | **DONE 2026-08-27** | §10 OQ-D costed. Hardware: ~$20-30 one-time (ESP32-2432S028R "Cheap Yellow Display" board ~$10-15 + microSD ~$5-8 + possible USB cable; checked current eBay/AliExpress listings 2026-08-27, order-of-magnitude only, get a live quote before actually buying). Software: `suite/serialdbg/runner.py`'s test-execution layer is already safely shardable (per-process `Dut`, CLI `--port`/`--tests`, in-process results) — but 2 concrete blockers stand in the way today, both small and scoped, filed as **TASK-552**: (1) ADR-062's stable-port fix doesn't disambiguate two simultaneously-attached CH340 clones (this rig's boards report `SerialNumber=0`) — ADR-062 already names the fix, `/dev/serial/by-path/`, just never built since nothing ran 2 DUTs before; (2) `lib/dut.py`'s reset-gap guard is one global file (`/tmp/esp32_dut_last_reset`), not per-port — would cross-contaminate two DUTs' reset timing. See [M-TESTARCH](../architecture/designs/M-TESTARCH-test-architecture.md) §10 OQ-D for detail. |
+
+## TASK-552 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-552 | P3 | **DONE 2026-08-31 — @Architect-reviewed** | Both halves landed. (a) `run/lib.sh` gained `_ch340_distinct_ttys()` + `_scan_ch340_by_path()`: with 2+ CH340s attached and no selector, port resolution now **refuses and lists them** instead of returning whichever by-id symlink globbed first (a coin flip that silently decides which board gets flashed); `DUT_PORT_PATH=<by-path substring>` selects one. Dedupe is by **resolved target, not symlink name** — udev publishes two by-path names for one board here (`…-usb-0:1:1.0-port0` and `…-usbv2-…`, both → the same tty), so naive counting would report a phantom second DUT. (b) `lib/dut.py`'s DRD reset-gap file is per-port, normalised through `realpath` so `by-id` and `ttyUSBn` cannot split one board into two gap files and silently disable BP-018's guard. **Review found and I fixed one blocking defect**: `lib/dut.py:resolve_port()` caught `run/port`'s nonzero exit and fell back to `/dev/ttyUSB0`, reinstating exactly the coin flip the shell guard prevents — on a two-board rig a 50% chance of driving the wrong board. It now raises `SetupFailure("port-ambiguous", …)` propagating the shell's reason; the `/dev/ttyUSB0` fallback survives only for "`run/port` missing/unexecutable". Also **dropped** the legacy-gap-file fallback I had added: nothing writes that file any more, so it can only be stale, and a stale read yields "no wait" while looking like the guard consulted something real. **Known weakness left open, honestly**: the gap key is the realpath, so a re-enumeration (frequent on this rig per `dmesg`) changes the key and skips a gap the same physical board may still need. The durable fix is keying on the by-path topology name — deliberately not bundled into the port-resolution change. **Known limitation, same class (found by the re-review)**: `resolve_port()`'s `port-ambiguous` raise is evaluated **eagerly** at `argparse` default-construction (`default=resolve_port()`) in ~16 tools, so `--port` does **not** override it — use `PORT=` or `DUT_PORT_PATH=`, both of which are checked first and still work; `app/tools/sd_put.py` holds it at module level and would raise at *import*. Second-order: a raise from `runner.py`'s parser line escapes as a bare traceback with exit 1 rather than `SETUP_FAIL_EXIT=3`, so `run/test-targeted`'s `[SETUP-FAIL]` block would not print — the legibility hole TASK-434 exists to close. Unreachable with one board attached (`run/port` returns rc=0, the raise never fires); fix with `default=None` + `args.port or resolve_port()` when a second board lands. **Untested by construction**: the 2-board paths cannot be exercised until a second board exists; verified by stubbing `_ch340_distinct_ttys` (refusal fires, selector resolves) and by confirming the single-DUT path is byte-for-byte unchanged in behaviour. Unit tests for these pure shell helpers are a fair follow-up — ADR-062 sold `restore_port()` as DUT-free-testable and no such test was ever written. |
+
+## TASK-555 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-555 | **P2** | **DONE 2026-09-01 — rationale re-derived by measurement; rule kept as an unverified precaution** | Both halves of BP-018's justification are unsupported. (1) The stated mechanism is gone: `DoubleResetDetector`/`WiFiManager` left the firmware in `ddf6433` (2026-06-11), **one week after the BP was adopted**; the only `app/src/` mentions left are three stale comments. The harness's matching machinery — `_PORTAL_INDICATORS`, the `portal_seen` branch, its RTS-pulse auto-recovery, the `portal-recurred` failure and the `_recovery_attempt` parameter no caller ever passed — was unreachable for ~3 months while reading as live safety code, and is deleted. (2) The replacement hazard did not reproduce: TASK-376's back-to-back-resets-drop-into-download-mode was measured directly (two hard resets separated by 1/2/4/8/12 s, 3 trials each, probed with `esptool --before no_reset` — a sync means the board is in the ROM bootloader) and scored **0/3 wedged at every gap, including 1 s**; 15 trials, 30 resets, zero wedges and zero USB re-enumerations. **The gap is kept anyway** — 15 trials is thin cover for a rare event, the rig's own stability is under investigation (TASK-557), and TASK-559 now enforces it automatically for ~4 s a run. BP-018 amended to say plainly that **12 is not derived from anything measured**, with a retirement criterion (≥30 trials at ≤2 s across a quiet *and* a flapping rig). `_port_open_time` deliberately kept though now unread — TASK-557 asks for exactly that timestamp. | **BP-018's stated rationale describes a mechanism that no longer exists, and it left dead code behind.** `DoubleResetDetector`/`WiFiManager` were removed from the app build on 2026-06-11 (`ddf6433`) — one week after BP-018 was adopted (2026-06-04) — and neither appears in `app/src/` or `app/platformio.ini` today (the only hits are the unrelated upstream `Spotify-Diy-Thing/` tree). So [BP-018](../quality/best_practices.md)'s 12 s rule is justified by `DRD_TIMEOUT=10s` + `startConfigPortal()` having no timeout, describing firmware that has not shipped for ~2.5 months. Consequences in `app/tools/lib/dut.py`: `_PORTAL_INDICATORS` can never match, and the whole `portal_seen` auto-recovery branch (including its RTS pulse and `portal-recurred` SetupFailure) is unreachable. Corroborating: `run/test-targeted` sleeps 8 s between esptool's hard reset and the harness's port-open reset — *less* than the 12 s BP-018 mandates, which would be a live violation firing the portal every run if DRD still existed. **The gap may still be worth keeping** for a different, never-re-derived reason — TASK-376 recorded that back-to-back resets drop this CYD into download mode — so this is "re-derive the rationale or retire the rule", **not** "delete the wait". Amend BP-018 and remove the dead branch. **Owner:** @QM (BP amendment) + @Developer (dead code) · **Deps:** none. |
+
+## TASK-556 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-556 | P3 | **DONE 2026-08-31** | `_classify_serial_failure()` splits the blanket catch into `device-vanished` / `port-busy` / `port-permissions` / `port-error`, with a best-effort `fuser` probe naming the actual holder. Two deliberate refinements: a hung-up fd is classified **vanished even when a holder is also present** (pyserial's message contains both "disconnected" *and* "multiple access", so a naive match would call it contention) while still reporting the holder; and an *unrecognised* exception that matches only because someone holds the port says so explicitly — silently upgrading "unknown" to "busy" would reinstate the same over-broad reasoning this task removes. `test_serial_classify.py` covers all 11 cases and is wired into `smoke_test.sh` (gate 8); it stubs `_port_holders`, without which results depend on whether a monitor happens to be running — the exact confound that made the first manual check of this code misreport. `run/check` 11/11. Original filing follows. |
+
+## TASK-559 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-559 | **P2** | **DONE 2026-09-01 — the harness has been opening the port inside its own mandated reset window, on every run** | **A real defect in our tooling, found after the rig stopped misbehaving and the "it's the cable" framing was abandoned.** The sequence every test script runs: `pio upload` ends with esptool's `Hard resetting via RTS pin` (**reset 1**) → `sleep $BOOT_WAIT` (**8 s**, `run/lib.sh:19`) → `Dut(...)` opens the port, whose DTR pulse is **reset 2**. The repo's own minimum gap between resets is `_DUT_DRD_WINDOW_S = 12.0` (BP-018, from LL-051; TASK-376 recorded back-to-back resets dropping this CYD into a silent port / download mode). **8 < 12 — so the harness has been landing its open inside the window its own code mandates, on every single run, for as long as BOOT_WAIT has been 8.** The guard could not catch it: `lib/dut.py` wrote the gap timestamp **only in `Dut.close()`**, so it knew about dut.py's own opens and nothing else — blind to the flash→open pair, which is the most common reset pair in the entire workflow. **Fix**: `run/lib.sh` gains `stamp_reset_gap()`, writing the same per-port file `lib/dut.py:_reset_gap_file()` reads (slug verified identical from both sides); called after the debug flash in `test-targeted`, `test`, `test-sync` and `player-gate`. dut.py's existing guard then waits out the remainder by itself and `BOOT_WAIT` stops being load-bearing for reset safety. **Verified end-to-end**: stamp, then open → `[Dut] waiting 12.0s for DRD gap (BP-018)…`. `run/check` 11/11. **Deliberately NOT claimed**: that this caused the 2026-08-31 aborts. That symptom is not currently reproducible, so the link is untestable; this is filed and fixed because the code violates a documented constraint of its own, which is reason enough. **Remaining**: the same stamp belongs after the restore flashes and in the other flashing scripts (`browser-player`, `playorder-player`, `ae04`, soaks, `flash*`) — lower risk since no harness open follows, but the asymmetry is untidy. **Owner:** @Developer · **Deps:** interacts with TASK-555, which is re-deriving what the 12 s is actually protecting against now that DRD has left the firmware. |
+
+## TASK-558 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-558 | **P2** | **DONE 2026-09-01 — both mechanisms addressed, verified** | `reap_orphan_monitors()` runs first in `restart_monitor()`, so a monitor that outlived its session is killed before a new one is started; `monitor_fd_stale()` detects a monitor holding a `(deleted)` tty or one whose basename no longer matches the live `by-id` target; `run/monitor-read` warns on **stderr** (never stdout — callers parse it) when the log's mtime lags `${MONITOR_STALE_S:-90}`s or the fd is stale, and still prints the log rather than refusing. **Self-match safety is the load-bearing detail**: `pgrep -f 'pio device monitor'` matches the *calling shell's own argv* and killed my shell three times on 2026-09-01, so the implementation uses the `[p]io` bracket form **plus** a `_self_ancestors()` skip — the bracket form protects against the pattern's own source text, the ancestor skip against a caller invoked as `bash -c '… pio device monitor …'`. Verified: caller shell survives (rc=0), a real monitor is reaped with a printed count, healthy fd reads HEALTHY, a backdated log emits the WARN on stderr while stdout still prints, exit code unchanged, `run/check` 11/11. **Found live during implementation**: a genuine pre-existing orphan with no tmux session, and the `ttyUSB1`→`ttyUSB0` stale-fd case reproducing spontaneously. **Not fixed here, and it is a different cause**: the re-enumeration itself. A freshly-started monitor was blinded within seconds on several occasions with only ever one monitor process alive, so the reap does not address it — the WARN makes it visible rather than silent. Feeds TASK-557. | **An orphaned monitor does not merely make `run/monitor-read` lie — it actively resets the DUT in a loop.** Measured 2026-09-01 14:0x: two `pio device monitor` processes survived their session holding **no tty**, and drove **~420 USB re-enumerations at a ~1.45 s cadence** (disconnect counter 29 → 449, device numbers past 127). Killing them stopped it dead: **0 disconnects across 135 s of host-idle observation**, device stable, board healthy afterwards (`uptime` advancing, `wifi=rssi(-54)`, `heap=128k`). Every port open asserts DTR and resets the ESP32, so a monitor retrying a lost port is a reset generator. **Structural cause**: `run/*` scripts restart the monitor in their exit traps, so a monitor outlives its session whenever a script dies mid-flight or the port flaps — three orphans were produced in one day (a `timeout`-killed script, a human unplug, and a `run/flash`). **Scope now**: not just a liveness warning. **TWO distinct mechanisms, both measured 2026-09-01, twenty minutes apart.** (1) *Orphan drives resets* — a monitor that outlived its session retries the port; each open asserts DTR; ~420 re-enumerations resulted. (2) *Monitor goes blind on re-enumeration* — at 14:29 the device moved `ttyUSB1`→`ttyUSB0`, the monitor kept its now-`(deleted)` `ttyUSB1` fd, and captured **nothing for 8 minutes** while the board was perfectly healthy (`uptime` advanced 00:20:02→00:29:02 unbroken, `disc=0`, counter unmoved). Cause: `run/monitor-start` resolves `by-id`→`ttyUSBn` **once** and hands the resolved path to `pio device monitor`, so when udev re-points the symlink the open fd is stale forever — ADR-062 made *resolution* re-enumeration-proof but not the *already-open handle*. Mechanism (2) is the more insidious: it produces no kernel events and no error, just silence that reads as a dead board. **Fixes needed**: `restart_monitor()` reaps pre-existing monitors before starting one; something detects a monitor whose fd is `(deleted)` or whose tty no longer matches `by-id`; and `run/monitor-read` warns when the log's mtime lags wall clock. **Owner:** @Developer · **Deps:** none; feeds TASK-557. | `run/monitor-stop`/`monitor-read` have no liveness check on the tmux session. When the DUT was physically unplugged (2026-08-31 23:56) the `spotify-mon` session survived with a **dead** `pio device monitor` inside it: the session existed, held no port, and its disk log was frozen — so `run/monitor-read` would have served stale content with no signal that anything was wrong. TASK-554 fixed the *wiring* (the log is now attached on every restart) and makes staleness detectable by mtime, but nothing self-heals a session whose process has died. `run/monitor-start` does kill-then-recreate so it recovers when used; the gap is only for a reader who trusts an existing session. Cheap fix: have `monitor-read` warn (or `monitor-start` auto-recreate) when the session exists but no process in it holds a tty. **Owner:** @Developer · **Deps:** none. |
+
+## TASK-560 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-560 | **P2** | **DONE 2026-09-01 — DUT-verified** | `_wait_for_ready()` skips every network gate when the banner is missed; the mute-board abort escapes as a bare `TimeoutError`. Probe-with-retries, raise via `_setup_fail`, `DUT_BOOT_GATE=warn`. [Design](../architecture/designs/M-TESTARCH-boot-window-observability.md) §5 C. **Owner:** @Developer · **Deps:** serialise with TASK-555. |
+
+## TASK-561 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-561 | P3 | **DONE 2026-09-01 — DUT-verified, and it caught a 46 s boot on the first try** | Seven `[bootphase] N name` lines at setup()'s stage boundaries (0 reset / 1 fs / 2 display / 3 wifi / 4 time / 5 services), plus 6 ready as the first line of `loop()` behind a `static bool` — that last one marks the exact instant the console becomes answerable, since `handleSerialCommands()` is pumped nowhere else in the firmware. `BOOTPHASE()` macro in `boot/boot.cpp`; ships in all builds like the boot banner (changes what the firmware *says*, not what it *does*); C6 untouched, nothing new dispatches during setup(). **Measured on the very first live boot after flashing**: phases 0-3 within ~1 s, then **~26 s stuck in phase 3 (wifi)** cycling `STA_DISCONNECTED reason=201`, then 4/5/6 — **46 s from reset to console answerable**, on a boot with 17 NO_AP_FOUND events and `wifi=DOWN`. `BOOT_WAIT` is **8**. So the very first use of the stream exhibited a 5.75x overshoot of the constant the whole design was written about, and before this the overshoot was invisible: the harness would have opened the port at 8 s, mid-cascade, and reset the board. This is the interface §2 argued the magic numbers were downstream of — per-phase deadlines are now derivable instead of one flat wall-clock guess. Token literal `[bootphase]` is normative: `[boot] phase=N` would collide with `lib/dut.py`'s `"[boot]" in line` reboot detector. `run/check` 11/11 across all six envs. | Emit a `[bootphase] N name` stream at setup()'s seven stage boundaries, all builds — generalises the ad-hoc `[boot] spotify=off` token. Token literal is normative. Design doc §5 Option B. **Owner:** @Developer · **Deps:** none. |
+
+## TASK-563 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-563 | P3 | **DONE 2026-09-01 — DUT-verified** | Stamp coverage finished and the blind sleep removed, **only where it is safe**. Nine gap-honouring scripts (`test`, `test-targeted`, `test-sync`, `player-gate`, `pr-fetch-soak`, `pr-soak`, `stress`, `task424-repro`, `task488`) now stamp and no longer `sleep $BOOT_WAIT`. **Five of them were stamping nothing** — `pr-fetch-soak`/`pr-soak`/`stress`/`task424-repro`/`task488` slept 8 s and never recorded the reset, i.e. were violating BP-018 exactly as `test-targeted` did pre-TASK-559; that is the real fix here, not the sleep deletion. `player-gate` also carried a **hardcoded `sleep 15`** DRD gap on top of `BOOT_WAIT` — a second magic number, now redundant and gone. The three raw-`serial.Serial` scripts (`ae04`, `wr-gate`, `wr-soak`) **keep** their sleep and carry a `DO NOT delete this sleep` comment naming OQ5 as the proper fix: `stamp_reset_gap()` is a no-op for them, so that sleep is their only separation between esptool's reset and the port open. BP-018's retirement criterion gained the resulting coupling — nine scripts now have no post-flash wait *other than* the gap file, so retiring it removes the separation rather than falling back to a sleep. **Verified**: `[Dut] waiting 11.9s for DRD gap` (was 3.9 s when the 8 s sleep still consumed the window), no boot-sleep line, no SETUP-FAIL, restore SUCCESS, exit 0. `run/check` 11/11. | Delete `BOOT_WAIT`'s `sleep` only where the following open honours the gap file — 12 scripts sleep, 4 stamp, 3 open raw serial and must keep it. Design doc §5 Option D + §8 R4. `docs-touched:` `harness-sync-rethink.md:245,357,539,606`, `run/player-gate:47`. **Owner:** @Developer · **Deps:** TASK-560; hold for TASK-557. |
+
+## TASK-565 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-565 | **P2** | **DONE 2026-09-02 — HARDWARE-VERIFIED** | HEALTH class `T_DH_01..03` (`serialdbg/health.py`, 2nd registry §4.5) + `run/dut-health` (pre-flight, 0/4) + `SetupFailure.cls` (EC-G1) + `[health]` line. Mode P `health=` now real. **No hardware run** — 8 opens died `device-vanished` (TASK-557). [Design](../architecture/designs/M-TESTARCH-precedence-hierarchy.md) §3.1/§5  **Hardware run delivered 2026-09-02 (was owed):** `T_DH_01/02/03` all **PASS** on `cyd2usb_winamp_debug`, and `run/dut-health` **PASS exit 0** with EC-G4's reset banner ahead of the verdict. The `[health]` line renders at both ends with `switch=pending`->`switch=ok`. Unblocked by TASK-557's `-DBOD_WATCH` workaround. Still host-only: mode P's `health=` on a *live* FAIL (pinned by `T_TRI_22`; needs a failing run to observe).|
+
+## TASK-570 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-570 | **P2** | **DONE 2026-09-01** | `(cls, scope, effect)` in one pass as `fn._meta` (`suite/serialdbg/_meta.py`); `TESTS` values unchanged. 213/213 resolve — **143 seeded**, 56 declared overrides; `effect` derived from each step's reachable commands. `--scope <app|scope|path>` on `run/test-targeted`; `--class`/`--upto` NOT built (§20). Gate `gate/check_test_meta.py` + 20-case negative suite. `run/check` 11/11. |
+
+## TASK-571 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-571 | P3 | **DONE 2026-09-01 (host-only)** | Mode P only: every FAIL now carries `[triage] health= last-phase= gen= cls= scope=`, read from state the session already observed — no device call. `results.set_fail_context()` + `_triage.py` + runner install. No HEALTH class until TASK-565 → `health=unavailable`. D/I **not built**. `test_triage_context.py` in smoke. **Owner:** @Developer |
+
+## TASK-572 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-572 | **P2** | **DONE 2026-09-01 — DUT-verified** | `[bootreason] <n> <NAME>` emitted from `setup()` immediately after phase 0, all builds. The firmware has never said **why** it booted; host-side counting sees only *that* one happened. Deliberately its own line, not a field on phase 0 — phase 0 is the first thing after `Serial.begin()` with no settle, so it is the line most exposed to first-bytes-lost, and `[bootreason]` does not contain `[boot]` so it cannot be read as a reboot banner. **Verified live**: `[bootphase] 0 reset` / `[bootreason] 1 POWERON` / `1 fs` / `2 display` / `3 wifi`. **Honest limit, recorded at the call site**: on ESP32 a DTR/EN reset reports `POWERON` (`esp_system.h` marks `ESP_RST_EXT` "not applicable for ESP32"), so it does NOT separate our port-open reset from a real power cycle — the one pair TASK-557 most wants. It DOES separate SW / PANIC / INT_WDT / TASK_WDT / BROWNOUT / DEEPSLEEP, and a `BROWNOUT` observation would settle the marginal-supply question outright. `run/check` 11/11. |
+
+## TASK-476 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-476 | P3 | DONE 2026-08-26 (`d73f305`) | relocated `mb_arena.{h,cpp}` from `app/lib/ESP32-audioI2S/src/` to `app/src/mem/arena/`; `-Isrc` answer confirmed real, 11/11 build, byte-delta -8 B (`__FILE__` string only) |
+
+## TASK-477 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-477 | — | **LANDED** (`f2730cc`) | fix `mb_arena.h`'s header comment — it claims production is "byte-clean"; `platformio.ini:93` defines `MEMBUDGET_PHASE1` in `[env:cyd2usb_winamp]` |
+
+## TASK-483 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-483 | P3 | **CORRECTED 2026-08-26 — not a skeleton, resolved 2026-08-16** | Board was stale: [M-TESTARCH](../architecture/designs/M-TESTARCH-test-architecture.md) went skeleton → `done` same-day, 2026-08-16 — corrected 6 skeleton claims against measurement (independently matches several of today's own M-TOOLING review findings, e.g. the "33 port copies" figure was already debunked here first). §10 has 4 genuinely open questions (OQ-A..D) never filed as their own task ids — not done here, flagging for whoever picks this up next rather than silently closing them. |
+
+## TASK-485 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-485 | P2 | **CORRECTED 2026-08-26 — not a skeleton, resolved 2026-08-16** | Board was stale: [M-LEVELS](../architecture/designs/M-LEVELS-dependency-audit.md) went skeleton → `done` same-day — the include graph WAS generated (contra the row's own prior claim). Found: D2a needs 2 fixes (a composition-root level for `main.cpp`; logging reclassified L2→L0) and 2 genuine level violations. **Caveat, not in the doc**: measured against the pre-TASK-471/472 tree — `main.cpp` was 1042+ lines and `taskbar.h` hadn't moved to `shell/` yet, so a re-measure against the current, fully-decomposed tree is needed before treating these numbers as current. |
+
+## TASK-489 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-489 | P2 | **DONE 2026-08-16** | reserve X065 in `cross_feature_matrix.yaml` — Developer completes |
+
+## TASK-490 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-490 | P2 | **DONE 2026-08-16** | reserve `T_CC_`/`T_SRC_`/`T_CQ_` families in `test_plan.md` — VE completes |
+
+## TASK-491 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-491 | — | **LANDED** (`e2f70db`) | correct X015 — it claims `dataTask` runs on Core 0; it pins to `APP_CPU_NUM` |
+
+## TASK-492 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-492 | P3 | **DONE 2026-08-25** (`04b3f1c`) | Retired the DUPLICATE `D_VOLUME_DRAG` state-machine IMPLEMENTATION, not the `handleVolumeGesturePublic()` symbol itself — **judgment call, checked against current source before touching anything, reported here rather than made silently.** The machine was implemented **twice**: inline in `handleWinampInput()` (Spotify's real-touch path, 3 sites — Press hit-test capture, Move continuation, Release commit) and again, nearly identically, in `handleVolumeGesturePublic()` (WebRadio's narrow capture entry, TASK-352). That duplication had already cost one bug (TASK-406: a missing `LOG_D` line in the WebRadio copy) and this session found a **second, previously-undiscovered divergence** in the same class: the Release path's drag-end diagnostics (`Serial.printf("[D][chrome] drag-end commit ...")` + `_lastInputWasAsync = true`) existed in `handleWinampInput()`'s copy and were silently absent from `handleVolumeGesturePublic()`'s. (`_lastInputWasAsync` has zero readers anywhere in the tree — confirmed by grep before relying on this — so setting it uniformly is a no-op either way, not a behaviour change; the log line is a real, if minor, added diagnostic for WebRadio's path.) Extracted the one state machine into three private helpers (`_volumeDragCapture`/`_volumeDragContinue`/`_volumeDragRelease`) that both `handleWinampInput()` and `handleVolumeGesturePublic()` now call — a future edit to one can no longer silently diverge from the other, closing the actual defect class OQ2/TASK-406 both point at. **Did NOT route WebRadio through the full `handleWinampInput()`** (the more literal reading of OQ2's "`handleWinampInput()` is Spotify-hardcoded, which the capability mask fixes," and the reading `handleVolumeGesturePublic()`'s retirement most obviously suggests) — checked `webRadioApp.cpp`'s `handleInput()` first and found it has its **own, separately maintained dispatch** for transport/PLEDIT/eject/vis (`hitTestTransportPublic`/`pleditPress`/`pleditDragging`/`pleditMove`/`pleditRelease`/`hitTestEject`), built exactly so WebRadio never reaches `handleWinampInput()`'s own `_plView.dragging()`/`D_POSBAR_DRAG` internals even now that `CAP_SEEK` is off for its mask. Routing WebRadio's volume touches through the full dispatch would reintroduce that exact hazard (the same `_plView` instance reachable via two independent paths, double-dispatch risk) for zero benefit over sharing just the volume sub-machine — so the public entry point stays, its duplicate body doesn't. **Verified**: `run/check` 11/11 across all 6 envs. **DUT** (WiFi down on this rig again, pre-existing RF issue, unrelated — worked around it since volume-drag doesn't need network): a 61-step drag on the volume slider (`drag 110 63 170 63 61`, mirroring TASK-406's own verification shape exactly) against **both** WebRadio and Spotify produced the identical result each time — `2` `enqueued ACT_VOLUME` lines (matches TASK-406's own recorded baseline exactly) and the drag-end commit log line now present for **both** (previously WebRadio-absent, confirming the fix); a follow-up tap after release hit-tested `VOLUME` cleanly on Spotify, confirming `dragState` returned to `D_IDLE`, not stuck. `get dataq` before/after unchanged (no cross-subsystem state corruption). Production firmware restored. |
+
+## TASK-493 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-493 | P2 | **DONE 2026-08-25** | `docs/architecture/architecture.md`'s Component Architecture diagram (the one box, `:49`) said `loop() — app shell (appShell.h)` as if `loop()` itself lived in `appShell.h` — stale since TASK-471's Stage E split. **Verified against current source before editing**: `loop()` is in `app/src/main.cpp` (357 lines, confirmed by `wc -l`); the per-app dispatch it calls out to (`switchApp`/`appTick`/`appHandleInput`) is in `app/src/appShell.cpp` (314 lines) with `appShell.h` now just the 45-line declaration header; `handleSerialCommands()`/`drainInjectionQueue()` moved to `app/src/debug/serialConsole/console.cpp`; `setup()` moved to `app/src/boot/boot.cpp` (off the `loop()` path entirely, so didn't belong in this box to begin with). Corrected the box to `loop() (main.cpp, 357 lines) -> appShell.cpp dispatch`, named the split-out console/boot files explicitly, and left the rest of the diagram (dataTask/spotifyTask boxes, the per-app row) untouched — those were already accurate. Rest of the doc checked for the same staleness (`main.cpp`/`appShell`/`loop()`/line-count references) — nothing else found; the `App` ABC citation at `:93` (`appShell.h`) is still correct, that interface declaration didn't move. Verified: `run/check --docs-only` clean (C5 + C1-delta + C2 + C4 + C6), no new C1/C3 findings. |
+
+## TASK-494 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-494 | P3 | **DONE 2026-08-25** | Renamed `feature_inventory.yaml`'s `files:` key to `components:` on all 82 feature entries (`sed`, including the 3 empty-list `files: []` entries a bare-key pattern missed on the first pass — re-checked with `grep -c` before/after, 0 `files:` remaining, 82 `components:` present). Confirmed no tooling reads this file programmatically (`grep -rn feature_inventory --include=*.py .` — empty; it's Developer-maintained data, per its own header, not machine-parsed) so a pure key rename carries no script-breakage risk. Also fixed the two places that named the old key rather than just the filename: a stale `files` mention inside one entry's own prose notes (`:2162`, the `M-DISPLAY-DELTA-COMMON` reservation note) and, more importantly, the canonical schema template in `docs/agents/developer.md` (`:28`) that every future entry gets copied from — left that unfixed and the rename would have silently reverted on the next feature addition. Did not remap the VALUES (the actual file-path lists) to component names — TASK-494's own filing text is the key rename only ("`files:` → `components:`"), and the values already are components in the Lakos D0 sense used by M-SRCLAYOUT (a component's `.h`/`.cpp` pair *is* a pair of file paths, so the existing lists needed no semantic translation, just the label). Verified: `python3 -c "import yaml; ..."` parses cleanly, 82 features, `components` present on every entry's key set. `run/check --docs-only` clean, no new C1/C3 findings. |
+
+## TASK-495 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-495** | P3 | **DONE 2026-08-22** (`1df8b33`) | `fetchCrypto` moves its `tlsResume()` to after its JSON parse, matching `fetchWeather`. Decision made (E-02, resume-AFTER); landed as TASK-458's first commit, exactly as the ordering note below required. |
+
+## TASK-496 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-496 | — | **LANDED** (`33b3003`) | `appRegistry.h` has no conditional-compilation column; 3 of 13 apps are `#ifdef WINAMP_DISPLAY` |
+
+## TASK-497 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-497** | **P2** | **DONE 2026-08-16** — 3 runs at HEAD; base-tree half retired on evidence | retrospective ≥3-run DUT baseline for the landed Stages A/B. *@PM: worth paying for — it is the only way left to recover D13's guarantee, and the cost is bounded and one-time. But it needs the same DUT block as 488's diff review. **One scheduling block, not two.*** |
+
+## TASK-498 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-498 | P3 | **DONE 2026-08-26** (`a151b89`) | `T_SRC_09` registered in `test_plan.md` with full pass criteria (IFC-003 I9 / TASK-384 swallow shape). Status: planned — registration only, no test code. |
+
+## TASK-499 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-499 | P3 | **DONE 2026-08-26** (`a151b89`) | `T_CC_06` registered in `test_plan.md` with full pass criteria (M-CONCURRENCY G1 — every `WiFi.` mutating call site against a known-safe set). Status: planned — registration only, no test code. |
+
+## TASK-500 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-500 | P3 | **DONE 2026-08-23** | **Architect ruling: same-core preemption race, not cross-core.** `serialdbg` is `loopTask` (`handleSerialCommands()` runs inline from `loop()`, `main.cpp:269`) — not a separate task. IFC-002 already tabulates `loopTask` and `dataTask` both pinned to core 1 and states system-wide "there is no true parallelism between them... every race here is a preemption race." X015 was one instance of that already-settled general case, not a novel decision — updated its `description` to cite IFC-002 directly and fixed a leftover stray "Core 0" reference in the same entry that TASK-491's original fix had missed. `interaction_type`/`risk` unchanged (both were already correct). |
+
+## TASK-501 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-501 | P3 | **DONE 2026-08-25** | Swept the remaining `#ifdef WINAMP_DISPLAY` blocks, now scattered across `boot/boot.cpp`, `main.cpp`, `appShell.cpp`, `debug/serialConsole/{console,cmdTouch,cmdGet,cmdSet}.cpp` post-TASK-471's file moves — filed count was ~20/24, actual as-of-today was **26** opening directives (`grep -rnE` for `#ifdef WINAMP_DISPLAY` / `#if defined WINAMP_DISPLAY`), noted here as the corrected count. Re-verified this task's own precondition before touching anything: `app/platformio.ini` defines `-DWINAMP_DISPLAY` exactly once (`[env:cyd2usb_winamp]`) and all 6 buildable envs extend it directly or transitively — every env really does define the flag. **Converted 24 of the 26** by deleting the `#ifdef`/`#endif` (or `#ifdef`/`#else`/`#endif` where the else-branch was a trivial dead-code placeholder, e.g. `(void)step;` or a "NONE" JSON fallback — same shape TASK-496 removed) and keeping the always-taken branch unconditional. **Left 2 sites untouched, and reverted one attempt** — `main.cpp:168` (the core `SpotifyDisplay*` backend instantiation: `WinampDisplay` vs `CheapYellowDisplay` vs `MatrixDisplay`) and `logHeartbeat.h:48` (`displayName()`, the same three-way selector) are not simple presence/absence gates like the other 24 — they are the actual multi-display-backend selection logic. Collapsing them would delete `CheapYellowDisplay`/`MatrixDisplay` support outright, which is explicitly TASK-470's reserved, not-yet-authorized scope ("delete `cheapYellowLCD.h`", blocked behind TASK-468/469 in that chain) — not this task's call to make. (Caught this mid-edit: `logHeartbeat.h` was briefly collapsed to `return "winamp";` unconditionally, then reverted to its original 3-way `#if`/`#elif`/`#elif`/`#else` before committing — flagging here since the instruction was to report genuine ambiguity, and this is exactly that class of judgment call, just resolved by finding TASK-470's own row rather than needing to stop and ask.) Verified: `run/check` 11/11 across all 6 firmware envs (not just one), `golden.sha256` clean, `check_app_conformance`/`check_player_binding`/doc gates all still pass. **DUT**: flashed debug, confirmed boot (heartbeat present), `switchApp`/`tap`/`drag`/`get kb` all functional (exercises the touch-injection sites in `cmdTouch.cpp`/`console.cpp`), and `get stacks` returns correct `wrPumpSize/Free/Used` (the ternary in `cmdGet.cpp` this task simplified — `0/0/0` pre-WebRadio-use, exactly as designed) — confirms the removed branches compile to the same behavior, not just the same binary size. Production firmware restored. |
+
+## TASK-502 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-502 | P3 | **DONE 2026-08-25** | Fixed both "5-gate" mentions (`project_run_scripts.md:28`, `dut_workflow.md:71`) to the real 11-gate count, sourced from `check_build.sh`'s own header comment (1-6 firmware env matrix, 7 golden hash, 8 tool smoke, 9 app-registry staleness, 10 mem_layout staleness+budget, 11 check-docs) rather than re-deriving it. **Cross-reference table**: the six named scripts (`ae04`, `wr-soak`, `stress`, `pr-soak`, `wr-gate`, `task488`) had no home in `dut_workflow.md` at all — not just missing from the table, the sections themselves didn't exist. Added a new `dut_workflow.md` §5e ("Soak & gate scripts") describing all six (flash target + one-line purpose, sourced from each script's own header comment) plus `pr-fetch-soak` (same family, directly adjacent to `pr-soak`, an equally obvious omission not worth a second pass to catch later), then added matching rows to `project_run_scripts.md`'s cross-reference table pointing at §5e. Did not attempt a full audit of every other `run/` script against these two docs (e.g. `screendump`, `check-teletext-api`, `player-gate`, `playorder-player`, `browser-player`, `bake-airports`, `bake-icons` are also absent from both) — out of scope for this row, which named a specific six plus the gate count; flagged here for whoever picks up a broader pass. Verified: `run/check --docs-only` clean, no new C1/C3 findings (C3's "unknown env name" count unchanged — the added `cyd2usb_webradio` references are a known env). |
+
+## TASK-503 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-503 | — | **DONE**, via TASK-464 (`f8bae91`) | Design docs describing `SpotifyAppState` / `ClockAppState` / `AquariumAppState`. All five sites checked (`app-lifecycle.md`, `clock.md`, `source-ownership.md`, `M-AQUARIUM/overview.md`, `roadmap.md`) now carry an explicit "removed/superseded, deleted in `a044f5d`, retained as design record" note ahead of the struct text — none present the types as live. |
+
+## TASK-504 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-504 | **P2** | **DONE 2026-08-26** — redesign confirmed measurable on DUT | The idle-control + `--no-players` redesign (already in `test_task488_partb.py` pre-session) is DUT-confirmed to produce a clean, non-swamped signal: idle control drifted only **+4 B over 90s** (background drift ruled out). A 3-sweep run then read **−4832/−3556/−4152 B** — but TASK-505's own follow-up (8 sweeps) showed that 3-sweep sample was a chance run of negative deltas from ordinary jitter (oscillates ±7 KB, no monotonic decline over 8 sweeps) — see TASK-505's row, not a real leak. Redesign does its job (separates leak from drift/swamp); it was this task's short sample, not the measurement, that read as FAIL. |
+
+## TASK-505 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-505 | P3 | **DONE 2026-08-26** (`app/tools/test_task488_partb.py` gained `--sweeps N`, ref `a45c4d7`) | **Plateau confirmed genuine — 8-sweep run (`SWEEPS=8 NO_PLAYERS=1 ./run/task488 T_488_11`), not a slower slope.** Per-sweep deltas (sweep 1 excluded as the one-off): `-356, +6984, -3184, +2744, -4148, +4400, +188` — oscillates both directions in a ~7 KB band (54428–61412 B free), no monotonic decline across 8 sweeps. The original 2-sweep "falls then flattens" reading and this session's own 3-sweep TASK-504 run (`-4832/-3556/-4152`, all negative) were both short enough to sample a run of negative deltas by chance from the same noise, not a real leak. **Side finding, not fixed here:** `T_488_11`'s current gate (any single delta < -2048 B fails) is stricter than this noise floor — a short run can FAIL on ordinary jitter, which is exactly what TASK-504's 3-sweep close-out did. Whether the gate should widen or average over more sweeps is a VE test-design call, not made here. |
+
+## TASK-507 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-507 | P2 | **DONE 2026-08-16** | **`T_488_04`–`T_488_11` exist as a harness (`app/tools/test_task488_partb.py`) but are not registered in `docs/verification/test_plan.md`** — eight ids with pass criteria, a driver script and a green run, invisible to the VE artifact that is supposed to be the test inventory. @VE to register, with `T_488_11` marked as the known-unmeasurable one pending TASK-504. Same class of gap TASK-490 was filed to prevent. |
+
+## TASK-506 — full record (archived 2026-09-03, from tasks-architecture.md)
+
+Moved here once fully discharged; kept for the audit trail.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-506 | P3 | **DONE 2026-08-26** (`3ed0839`) | `./run/test` now snapshots `settings.json` before flashing debug firmware and restores it after the production-firmware restore step, best-effort/WARN-only. `run/spiffs push` gained a `SRC_FILE` override to support it without staging through the dev's own `app/data/`. |
