@@ -1,9 +1,9 @@
 # Board reset — measurement, diagnosis, and a retire/archive proposal
 
 > Owner: **Project Manager**
-> Status: **proposal. No board was edited.** Nothing here has been executed. The only file this
-> session edited is [M-HARNESS2-PM-review.md](M-HARNESS2-PM-review.md), to record the 2026-09-03
-> rulings.
+> Status: **accepted** — written as a proposal, approved by the human, and **steps 0, 1, 3 and 5 are
+> now landed** (§7). Steps 2, 4 and 6 remain as written. §§0–6 are the proposal as it was put; they
+> are deliberately not rewritten to match the outcome.
 > Written: 2026-09-03
 > Question put to me: *can we retire/archive the `task*.md` files and start from a relatively clean
 > slate before scheduling the harness re-architecture?*
@@ -12,6 +12,10 @@
 > `app/tools/gate/check_docs.py` · [M-HARNESS2-PM-review.md](M-HARNESS2-PM-review.md) §3a
 > Method: static only. No DUT, no serial port, nothing under `app/tools/` imported. Every count
 > below is from a command run against the working tree at `f880f52`.
+>
+> **AS-BUILT, 2026-09-03 — steps 0, 1, 3 and 5 are landed.** The human approved the §6 sequence.
+> The proposal text below is unchanged; what actually happened, including the one place the
+> measurement was wrong, is in [§7 As-built](#7-as-built--what-actually-happened).
 
 ---
 
@@ -524,3 +528,64 @@ nothing), Step 4 (closure triage), Step 6 (promote `ROWLEN`, on a re-measured nu
 history is unambiguous — the July sweep with no row rule regrew 250 lines/day, the August sweep with
 one regrew 48. If Step 6 never lands, the next PM writes the next archive note, and the honest
 prediction is that they write it in about five weeks.
+
+---
+
+## 7. As-built — what actually happened
+
+Recorded 2026-09-03, after execution. Rollback handle `board-reset-base` is in place and untouched.
+
+| step | commit | result |
+|---|---|---|
+| 0 — tag + baseline | — | `board-reset-base` tagged; baseline captured (6 passed / 0 failed, ROWLEN 66/131) |
+| 1 — arch board | `7d5a3e4` | **65** discharged rows moved to the archive, each leaving a one-line pointer in the 2026-08-25 shape. **16** kept live. ROWLEN **66 → 27** |
+| 3 — the mirror | `b5b3e98` | the 51-row mirror out of `tasks.md`, replaced by the "Where the work is" index |
+| 5 — programme board | this change | [tasks-harness2.md](tasks-harness2.md) created — 61 rows, ids TASK-579…TASK-643, 0 over 400 chars |
+| 2, 4, 6 | — | deferred per §6: after Phase 1 is underway |
+
+### 7.1 Where the estimate was wrong, and where the analysis was right
+
+**Step 1 kept 16 rows live, not the 14 I listed.** The two additions are correct and my status
+classification missed both: **TASK-462** (`UNBLOCKED` reads as closed to a regex and is live work)
+and **TASK-575** (`FIXED` host-side with a full `run/test` pass still owed). This is exactly the
+hazard §4 Step 1 flagged — *"rows whose status text contains both a closure word and a live word …
+which a script will get wrong too"* — and it is why that step was specified as needing a human read
+rather than automation. The mechanism worked; my own count was the thing it caught.
+
+**Step 3 hit the C2 hazard from the opposite direction, and this is the important entry.**
+§2.3 predicted that *deleting* rows would break C2, and measured the general case at 476 occurrences
+across 34 files. Deleting the mirror did break C2 — **41 unresolvable** — but not for the reason
+predicted. The mirror rows were not the duplicates §4 Step 3's `comm -23` pre-check assumed:
+**earlier archiving passes had already moved those 41 ids' real rows out, leaving the mirror as
+their sole remaining home in the `tasks*.md` glob.** A copy that outlives its original is no longer
+a copy. It was recovered by moving the whole block into `tasks-archive.md`, which is the same
+move-never-delete rule §2.3 states, applied to a case §4 had wrongly cleared as safe.
+
+**The lesson, and it generalises past this board:** the `comm -23` guard in Step 3 was right to
+exist and wrong in its direction. It tested *"does this id appear elsewhere?"* against the live
+boards plus the archive — but it was written to justify a delete, and the correct rule is that
+**no id's last remaining row is ever deleted, whatever file it happens to be sitting in.** A mirror
+is only safely deletable while its source still exists, and nothing was checking that invariant over
+time. The general form of this is worth carrying: **a duplicate is a claim about the present tense,
+and archiving falsifies it silently.**
+
+### 7.2 Step 5 decisions worth recording
+
+* **Ids 579–643 were kept, not renumbered** — verified collision-free against every board and the
+  archive (board maximum was 578). WP-Z declared the band renumberable, but the human ruled on
+  TASK-616/617/618 *by those ids* on 2026-09-03 and six review documents cross-reference them.
+  Renumbering would have invalidated a ruling's own identifiers to save nothing. Next free: **644**.
+* **17 ids carry no row**, and the board says so in its header so the double-booking cannot return:
+  the 15 subsumed per §2.1 (14 of which keep their id carrying the M-HARNESS2 work, plus **TASK-590**
+  retired entirely into TASK-624), and **TASK-586** and **TASK-598**, both inside TASK-603's delete
+  list. **TASK-620** was never allocated — it was only the top of WP-Z's reserved band.
+* **TASK-575 is named in Phase 3's entry criteria, not given a row.** It lives on the architecture
+  board. Copying it across would have rebuilt, on day one, the mirror that Step 3 deleted the same
+  morning — which is the whole finding of §3. The board carries an explicit "do not add it" note.
+
+### 7.3 What is still owed
+
+Steps 2, 4 and 6 stand as written. **Step 6 remains the one that decides whether any of this
+survives**: `ROWLEN` is advisory at 27 after Step 1 and 18 after Step 3, and the measured history in
+§1.3 says that without promoting it the boards regrow. TASK-557's row is still the test case — at
+20 680 characters it is open, so no archival pass can reach it.

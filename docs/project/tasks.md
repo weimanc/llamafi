@@ -49,6 +49,7 @@ almost did.
 |---|---|---|---|
 | [tasks-architecture.md](tasks-architecture.md) | M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE · M-TESTARCH | 16 | § ▶ EXECUTION SEQUENCE |
 | [tasks-winamp-player.md](tasks-winamp-player.md) | M-WINAMP-PLAYER (paused) | 12 | § Open — M-WINAMP-PLAYER |
+| [tasks-harness2.md](tasks-harness2.md) | M-HARNESS2 + WP-Z test-harness remediation, phases 0–5 | 61 | § Phase 1 (the committed phase) |
 | this file | everything else — M-PR-MOTION, M-WEBRADIO follow-ons, unowned failures | 13 | below |
 | [tasks-archive.md](tasks-archive.md) | closed work, all milestones | — | the audit trail |
 
