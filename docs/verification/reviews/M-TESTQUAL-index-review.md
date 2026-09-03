@@ -67,7 +67,7 @@ One document per package — no monolith. Each is self-contained and links back 
 |----|----------|--------|--------|
 | A | [harness & framework](M-TESTQUAL-A-harness-review.md) | Q1–Q6: entry points, `lib/`, result layer, duplication, magic values, firmware-constant double bookkeeping | **done** — 19 findings (P1×5, P2×9, P3×5) |
 | B | [taxonomy, grouping & order](M-TESTQUAL-B-taxonomy-review.md) | Q7–Q8: class/scope assignment, registry order, `_gate`/`_order`, duplicate & overlapping tests | **done** — 18 findings (P1×4, P2×9, P3×5) |
-| C | [RIG / HEALTH / CORE audit](M-TESTQUAL-C-audit-core-review.md) | the 49 gating ids — audited first, because everything above them inherits their trust | in progress |
+| C | [RIG / HEALTH / CORE audit](M-TESTQUAL-C-audit-core-review.md) | the 49 gating ids — audited first, because everything above them inherits their trust | **done** — 20 findings (P1×6, P2×9, P3×5) |
 | D | [shell family audit](M-TESTQUAL-D-audit-shell-review.md) | `shell.py` (3 528 lines, scopes shell/taskbar/boot/spotify-chrome/Spotify/Settings/Life/Matrix) | pending |
 | E | [player family audit](M-TESTQUAL-E-audit-player-review.md) | `player.py` — LocalPlayer, 29 ids | pending |
 | F | [webradio family audit](M-TESTQUAL-F-audit-webradio-review.md) | `webradio.py` — 31 ids | pending |
@@ -81,7 +81,11 @@ One document per package — no monolith. Each is self-contained and links back 
 
 | Verdict | Count | Notes |
 |---|---|---|
-| _(pending)_ | — | — |
+| SOUND | 29 | WP-C (49 gating ids). |
+| WEAK | 17 | WP-C. |
+| HOLLOW | 1 | WP-C: `T093`. |
+| BROKEN | 2 | WP-C: `T-BUSY-05` (inverted guard — passes on the regression), `T-UART-01` (its detector is swallowed by `read_json`). |
+| _(WP-D…H pending)_ | — | 167 ids not yet audited. |
 
 ---
 
@@ -98,3 +102,5 @@ status column and this ledger, and nothing else.
 | 2026-09-02 | WP-B dispatched. |
 | 2026-09-03 | WP-B landed and QC'd (declared-vs-seeded counts re-measured independently: 6 `cls`, 57 `scope`, 3 `effect` declared of 216 records — exact match). Headline: the taxonomy is 97 % inference, including all 43 CORE ids the order switch would let block the other 167; six order-dependence clusters, three invisible to the TASK-566 edge enumeration; 26 ids collapse to ~11 distinct assertions. Rubric amendment A2 records the C6 table-binding trap WP-B hit. |
 | 2026-09-03 | WP-C dispatched (RIG/HEALTH/CORE, 49 ids). |
+| 2026-09-03 | WP-C died at the first tool call — the orchestrating session hit its 5-hour usage limit (~03:00, reset 03:40). No document produced, nothing partial to salvage. Re-dispatched unchanged at 04:07. |
+| 2026-09-03 | WP-C landed. Headline: 29 SOUND / 17 WEAK / 1 HOLLOW / 2 BROKEN. Two BROKEN CORE ids — `T-BUSY-05`'s guard is inverted so it passes exactly when the amber fails to clear, and `T-UART-01` cannot observe JSON garbling at all because `Dut.read_json` discards a malformed line and returns the next one. Three structural gate findings: the RIG class has no executable coverage in any `run/` entry point (nothing passes `--interactive`); 31 of 43 CORE ids fail their preconditions as SKIPs, which `_gate.py:128` does not treat as blocking, so the CORE block almost never fires; and a SKIPped HEALTH check is announced as `[health] PASS`. `./run/check-docs` re-run with and without the new document: C6 identical (224 bound, 41 orphan, 0 unexcepted) — rubric A2 held.
