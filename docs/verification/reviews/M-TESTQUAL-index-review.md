@@ -68,7 +68,7 @@ One document per package — no monolith. Each is self-contained and links back 
 | A | [harness & framework](M-TESTQUAL-A-harness-review.md) | Q1–Q6: entry points, `lib/`, result layer, duplication, magic values, firmware-constant double bookkeeping | **done** — 19 findings (P1×5, P2×9, P3×5) |
 | B | [taxonomy, grouping & order](M-TESTQUAL-B-taxonomy-review.md) | Q7–Q8: class/scope assignment, registry order, `_gate`/`_order`, duplicate & overlapping tests | **done** — 18 findings (P1×4, P2×9, P3×5) |
 | C | [RIG / HEALTH / CORE audit](M-TESTQUAL-C-audit-core-review.md) | the 49 gating ids — audited first, because everything above them inherits their trust | **done** — 20 findings (P1×6, P2×9, P3×5) |
-| D | [shell family audit](M-TESTQUAL-D-audit-shell-review.md) | `shell.py` (3 528 lines, scopes shell/taskbar/boot/spotify-chrome/Spotify/Settings/Life/Matrix) | pending |
+| D | [shell family audit](M-TESTQUAL-D-audit-shell-review.md) | `shell.py`'s 50 FEATURE ids (27 Spotify, 6 Settings, 5 Weather, 5 Crypto, 4 Life, 3 Matrix); the other 46 shell ids are WP-C's | **done** — 17 findings (P1×5, P2×8, P3×4) |
 | E | [player family audit](M-TESTQUAL-E-audit-player-review.md) | `player.py` — LocalPlayer, 29 ids | pending |
 | F | [webradio family audit](M-TESTQUAL-F-audit-webradio-review.md) | `webradio.py` — 31 ids | pending |
 | G | [stock family audit](M-TESTQUAL-G-audit-stock-review.md) | `stock.py` — Stock/Crypto/Weather, 40 ids | pending |
@@ -81,11 +81,11 @@ One document per package — no monolith. Each is self-contained and links back 
 
 | Verdict | Count | Notes |
 |---|---|---|
-| SOUND | 29 | WP-C (49 gating ids). |
-| WEAK | 17 | WP-C. |
-| HOLLOW | 1 | WP-C: `T093`. |
-| BROKEN | 2 | WP-C: `T-BUSY-05` (inverted guard — passes on the regression), `T-UART-01` (its detector is swallowed by `read_json`). |
-| _(WP-D…H pending)_ | — | 167 ids not yet audited. |
+| SOUND | 57 | WP-C 29 (49 gating ids) + WP-D 28 (50 shell FEATURE ids). |
+| WEAK | 27 | WP-C 17 + WP-D 10. |
+| HOLLOW | 6 | WP-C: `T093`. WP-D: `T078`, and the four "BUG-1 guard" ids `T_MA_02`/`T_GOL_02`/`T_WX_02`/`T_CX_02`, which assert a fixed string `cmdTap` prints on a branch that calls no app handler. |
+| BROKEN | 9 | WP-C: `T-BUSY-05` (inverted guard — passes on the regression), `T-UART-01` (its detector is swallowed by `read_json`). WP-D: `T136` (body is one unconditional `skip()`; archived plan row still says PASS), the four residue ids `T_MA_03`/`T_GOL_03`/`T_WX_03`/`T_CX_03` (no `fail()` anywhere in the body — the guarded regression exits as a SKIP), and `T_WX_04`/`T_CX_04` (precondition destroyed by their own predecessors). |
+| _(WP-E…H pending)_ | — | 117 ids not yet audited. |
 
 ---
 
@@ -103,4 +103,6 @@ status column and this ledger, and nothing else.
 | 2026-09-03 | WP-B landed and QC'd (declared-vs-seeded counts re-measured independently: 6 `cls`, 57 `scope`, 3 `effect` declared of 216 records — exact match). Headline: the taxonomy is 97 % inference, including all 43 CORE ids the order switch would let block the other 167; six order-dependence clusters, three invisible to the TASK-566 edge enumeration; 26 ids collapse to ~11 distinct assertions. Rubric amendment A2 records the C6 table-binding trap WP-B hit. |
 | 2026-09-03 | WP-C dispatched (RIG/HEALTH/CORE, 49 ids). |
 | 2026-09-03 | WP-C died at the first tool call — the orchestrating session hit its 5-hour usage limit (~03:00, reset 03:40). No document produced, nothing partial to salvage. Re-dispatched unchanged at 04:07. |
-| 2026-09-03 | WP-C landed. Headline: 29 SOUND / 17 WEAK / 1 HOLLOW / 2 BROKEN. Two BROKEN CORE ids — `T-BUSY-05`'s guard is inverted so it passes exactly when the amber fails to clear, and `T-UART-01` cannot observe JSON garbling at all because `Dut.read_json` discards a malformed line and returns the next one. Three structural gate findings: the RIG class has no executable coverage in any `run/` entry point (nothing passes `--interactive`); 31 of 43 CORE ids fail their preconditions as SKIPs, which `_gate.py:128` does not treat as blocking, so the CORE block almost never fires; and a SKIPped HEALTH check is announced as `[health] PASS`. `./run/check-docs` re-run with and without the new document: C6 identical (224 bound, 41 orphan, 0 unexcepted) — rubric A2 held.
+| 2026-09-03 | WP-C landed. Headline: 29 SOUND / 17 WEAK / 1 HOLLOW / 2 BROKEN. Two BROKEN CORE ids — `T-BUSY-05`'s guard is inverted so it passes exactly when the amber fails to clear, and `T-UART-01` cannot observe JSON garbling at all because `Dut.read_json` discards a malformed line and returns the next one. Three structural gate findings: the RIG class has no executable coverage in any `run/` entry point (nothing passes `--interactive`); 31 of 43 CORE ids fail their preconditions as SKIPs, which `_gate.py:128` does not treat as blocking, so the CORE block almost never fires; and a SKIPped HEALTH check is announced as `[health] PASS`. `./run/check-docs` re-run with and without the new document: C6 identical (224 bound, 41 orphan, 0 unexcepted) — rubric A2 held. |
+| 2026-09-03 | WP-D dispatched (`shell.py`'s 50 FEATURE ids). |
+| 2026-09-03 | WP-D landed. Headline: 28 SOUND / 10 WEAK / 5 HOLLOW / 7 BROKEN — the worst per-test result so far, and the failure mode has inverted. Where the gating classes' problem was *a failure that does not block*, the FEATURE class's problem is *a test that does not run*: S7 is the dominant smell (23 of 50 rows) and 14 ids produce no verdict at all in a normal run. Two four-id clusters carry most of it — the small apps' "BUG-1 guard" rows assert a fixed literal `cmdTap` prints on a branch that calls no app handler (`cmdTouch.cpp:141-144`), and their "canvas residue" rows contain **no `fail()` at all**, so the regression they guard exits as a SKIP. Also: three ids grep for log markers (`ACT_SEEK`, `seek commit`) the firmware has never emitted, `posbarDragMs` turns out to be the live drag-tracking value rather than the committed seek, and a new state-leakage cluster (`songDuration`, C7) was added to WP-B §5.2. On TASK-243: the Spotify scope never asserted playback in the first place — every oracle in all 27 bodies is a hit-test region, a gesture-state value or a trace count — but 12 of the 27 are now permanent SKIPs for want of a non-empty queue, and five plan entries still promise enqueue markers their bodies never implemented. `./run/check-docs` run once before handover: C6 identical again (224 bound, 41 orphan, 0 unexcepted), 6 passed / 0 failed — A2 held a second time.
