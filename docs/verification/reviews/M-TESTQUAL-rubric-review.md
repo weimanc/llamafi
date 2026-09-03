@@ -112,6 +112,13 @@ A single document, structured exactly like this, so WP-Z can merge them mechanic
 `app/tools/`: six modules open the serial port and run their DUT suite at import time
 (WP-A finding A-12). One such import reset the board mid-audit.
 
+**A3 — 2026-09-03, standing work order.** Write the audit document **incrementally** —
+header and scope first, then rows in batches, saving after each batch. Never hold the
+document in memory to write at the end. Two packages were killed mid-run by the
+orchestrating session's usage limit: WP-C's first attempt held everything in memory and
+lost all of it, WP-F wrote as it went and lost only the tail, which was then completed
+by resuming the same agent. The cost difference is the whole package.
+
 **A2 — 2026-09-02, after WP-B.** The `-review.md` exemption is **weaker than the index
 first claimed**, and every remaining package must write its tables accordingly.
 `is_exempt()` suppresses *status* scanning only. `doc_test_entries()`
