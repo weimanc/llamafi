@@ -19932,3 +19932,146 @@ Moved here once fully discharged; kept for the audit trail.
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-506 | P3 | **DONE 2026-08-26** (`3ed0839`) | `./run/test` now snapshots `settings.json` before flashing debug firmware and restores it after the production-firmware restore step, best-effort/WARN-only. `run/spiffs push` gained a `SRC_FILE` override to support it without staging through the dev's own `app/data/`. |
+
+## tasks.md placeholder mirror — full record (archived 2026-09-03, from tasks.md)
+
+The two hand-maintained mirror tables that stood in `tasks.md` until 2026-09-03, moved here
+whole rather than deleted. They disclaimed themselves in life ("the split file wins"), but
+41 task ids were cited nowhere else in the corpus, so deleting them broke C2 — the reason
+this block is a move. Nothing here is live work: the live rows are on the split boards.
+
+### M-ARCH — placeholders (full entries in [tasks-architecture.md](tasks-architecture.md))
+
+From the 2026-08-16 Architect pass: nine design docs, ADR-060/061, IFC-002/003 (+004–006 stubs).
+Stubs only — **the entries live in the split file** and are edited there. **The detail rows below
+this point are a snapshot from before the 2026-08-25 session and are stale in places (the drift
+warning at the bottom of this section already says the split file wins on any disagreement) —
+read the status note immediately below first, then treat `tasks-architecture.md` as ground truth
+for anything this note doesn't cover.**
+
+> **PM status, 2026-08-25 — board caught up.** Every task that was independently schedulable
+> (no open design/architecture question, not chain-blocked) has been executed and independently
+> verified this session: the original M-SRCLAYOUT chain (455/456/471/472/529/530), M-CODEQUAL
+> (458/459/460/461/462-note/463/465/492), M-DOCLIFE phases 1/2/4 of `run/check-docs` (475), the
+> C4 vocabulary migration (508), and the full ADR-061 D9 tail (468/469/470 — `display/tft`
+> rehomed, `WinampDisplay` flattened onto `SpotifyDisplay`, `cheapYellowLCD.h`/`[cyd2usb_base]`
+> deleted). A PM triage pass also corrected years of stale bookkeeping in the "not scheduled by
+> design" category — several tasks marked blocked or unscheduled were already done, one (TASK-482)
+> was blocked on a dependency that never actually existed.
+>
+> **What's genuinely still open, not just unscheduled:**
+> - The four skeletons (TASK-483–486) — real open research, correctly not touched.
+> - TASK-462 (table-driven `cmdGet`/`cmdSet`) — investigated, found a real risk (interleaved
+>   dispatch chain, naive extraction would silently change collision priority on ~128 DUT tests'
+>   debug surface), correctly left open rather than forced.
+> - TASK-479's send/expect-loop half — port-resolution half done, the riskier half (bespoke,
+>   some scripts documented destructive) deliberately deferred.
+> - TASK-480 (split `run_serialdbg_tests.py`) — baseline run 1/3 taken for real (41m31s,
+>   143p/16f/51s), stopped before runs 2/3 rather than bake this rig's live WiFi outage noise into
+>   the flaky-set the split's own design doc requires. Needs a stable rig and ~80 more minutes,
+>   then the actual split as its own session.
+> - TASK-473, 474, 476, 485 (M-LEVELS — informal progress exists via TASK-472's D0d audit, not a
+>   full answer), 498, 499, 504–506, 510, 522, 523, 525, 527, 528 — untouched this session, not
+>   claimed as caught up.
+>
+> M-WINAMP-PLAYER stays paused, per explicit human instruction this session — not re-litigated.
+
+**Read first (2026-08-16 history, kept for the record):** three refactor commits (`a044f5d`,
+`78caa95`, `b36f184`) landed ahead of ADR sign-off. **TASK-488 closed them out on 2026-08-16
+(`64bf839`): verified pure moves, nothing reverted**, with TASK-497's owed 3-run baseline taken in
+the same DUT block. The gate is lifted. By ADR-060 D0's measure they created **zero components** at
+the time — Stages C–F (now all DONE, see status note above) were the actual work that followed.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **TASK-488, 497** | **P1/P2** | **DONE 2026-08-16** (`64bf839`) | three refactor commits verified + 3-run DUT baseline taken |
+| TASK-453/454 | — | LANDED, VERIFIED | Stage A/B — app classes and debug console out of `main.cpp` |
+| TASK-456/471/472 | P2 | **all DONE** (471/472 2026-08-22, TASK-529/530) | Stages D–F — composition root, component conversion, `stock/` split. `main.cpp` 1042 → 357 lines across the two sessions (455 has its own row below) |
+| TASK-457 | P3 | OPEN | shell hygiene — `appRegistry.h` double-include comment, `currentAppId`/`g_previousAppId` unify |
+| **TASK-458, 495** | **P2/P3** | **DONE 2026-08-22** (`1df8b33`, `15d3c55`) | RAII scope guard (`TlsYieldGuard`) — fixes a bug class with a proven instance (TASK-222); found and fixed a live double-`tlsResume()` defect in `fetchTeletext()` as a side effect. Unblocks TASK-459/460. `HttpSession` (the other half of C2) deliberately deferred, filed as TASK-512 |
+| TASK-459/460/461/462/463 | P2/P3 | **459/460 UNBLOCKED** (458 done); 461/463 OPEN | fetch-skeleton consolidation, canvas constants, table dispatch, palette |
+| TASK-465, 468, 469, 470 | P2/P3 | OPEN | ADR-061 — debug convention, `display/tft` (466/467 landed, see note below) |
+| TASK-473 | P2 | OPEN | concurrency contract gaps — WiFi arbiter, assert I2/I3 |
+| **TASK-475**, 474 | P2/P3 | **475 PHASE 1 DONE** (`b0d0202`) | `run/check-docs` gate shipped as counted gate 12 (C5 + C1-delta blocking); 474 PM/QM doc-lifecycle process still open |
+| **TASK-478** | P2 | **DONE-superseded** (`989c1ea`) | `tools/lib/dut.py` landed as M-TESTBASE **P1**, re-scoped: `Dut` already existed with 16 importers, so this was an extraction + `resolve_port()` + one timeout policy, not a build. Runner 10 229 → 9 705 lines |
+| TASK-479/481/482 | P3 | OPEN | migrate the 16 importers off the compat shim; directory move + taxonomy; spike retirement |
+| **TASK-480** | P3 | **BLOCKED-behind-P1-remainder** | split the runner. Must follow the importer migration (TASK-479) — 16 tools still reach through the shim, several for private names |
+| TASK-476 | P3 | OPEN | `mb_arena` relocation (blocked on a build question); 477 (header-comment fix) landed, see note below |
+| TASK-483…487 | P2–P4 | SKELETON | test architecture, error model, levelization audit, vendoring, ADR-028 revisit |
+| TASK-489…494 | P2/P3 | MIXED | handoff debt — X065 + test-id reservations (done), X015 fix, `architecture.md` sync |
+| **TASK-521** | **P1** | **ROOT-CAUSED; capability fix deferred to TASK-522** | `opendir()` fails during playback. **Proven cause: byte-addressable DRAM exhaustion** (`MALLOC_CAP_INTERNAL\|8BIT`, == DMA on this no-PSRAM board), not handles, not contention, not directory size. Playback costs ~72 KB (arena 24576 + wrpump stack 8192 + ~39 KB Audio/InBuff/I2S); with the browser's 5120 B arrays claimed, `free8=284 largest8=140` and `vfs_fat_opendir()`'s ~700 B malloc returns **ENOMEM (errno 12)**. Shipped: honest `OpenErr` reporting through `set fbOpen`/`get fbState`, two permanent probes (`sdopendir`, `sdslots`), a low-memory-safe `Serial.write()` reply path, and the corrected test message + a BP-068 negative test |
+| **TASK-522** | P2 | OPEN | **make browse-during-playback work** — needs ~6 KB reclaimed from the playback working set; a design decision, not a patch. Measured levers in [M-WINAMP-PLAYER-local-playback §4.1](../architecture/designs/M-WINAMP-PLAYER-local-playback.md): `wrpump` stack 8192 B vs **measured HWM 3280 B → ~4912 B spare** (largest reclaim, needs a soak), arena cap-vs-HWM ~1360 B, `Audio` buffer sizing (trades against underrun margin), or reopening §4's rejected window-cache. Shrinking the browser arrays again cannot work: `largest8`=3188 B makes the 4096 B `_files` array unservable at any ordering |
+| **TASK-523** | P3 | OPEN | two `run/` rig gaps found during TASK-521: (a) `run/browser-player`'s prod-restore trap does not re-resolve the port, so a CH340 `ttyUSB0`→`ttyUSB1` flap aborts the restore and leaves the DUT on a test build; (b) its cleanup restarts the monitor with a bare `tmux new-session`, no `pipe-pane`, so `/tmp/spotify-mon-serial.log` goes stale while `run/monitor-read` prefers it (LL-128) — a 2.5-hour-old heartbeat was read as current |
+| **TASK-455** | P2 | **DONE** | M-SRCLAYOUT **Stage C** — `setup()` (617 lines) → `app/src/boot/boot.h`, verbatim. `main.cpp` 1736 → 1120. Pure move proven by **symbol identity** on 3 envs (10870/11259/11183 symbols, all matching) + identical text/data/bss; only DWARF `.debug_info`/`.debug_line` differ, which are not loaded onto the device |
+| **TASK-464** | P2 | **DONE** | documentation-reference sweep: 331 `main.cpp:NNN` citations across 57 files converted to **symbol** citations (not renumbered — they would rot again at Stage C/D/E). C1 improved 268/740 → **146/558**. Zero line citations remain in the editable living corpus; 138 residuals are in gate-exempt historical records, 5 are deliberate rot exemplars, 2 in board files. TASK-503 folded in |
+| **TASK-524** | P2 | **DONE** | **C6 id-binding gate** — `run/check-docs` now asserts registry↔plan binding, BLOCKING. C6.1 orphan (registry id → doc entry), C6.2 undeclared (an id with doc entries declares a status), C6.3 mismatch (`impl` ⇒ has a body, `resv` ⇒ has none) — **C6.3 admits no exceptions**. Ledger at `docs/verification/id_binding_exceptions.md`, 49 rows each with an owning task + ISO date; **a stale row is itself a failure**, so the list shrinks rather than calcifies. 14 `T_DOC` tests (5 new), mutation-verified 13/14 |
+| **TASK-525** | P3 | OPEN | **range headings bind one id and silently lose the rest** — `### \`T_CQ_01\`–\`T_CQ_06\`` registers `T_CQ_01` only; `T_CC_`, `T_SRC_` and `T_CQ_` are all written this way. Found by building C6. Either expand the ranges in `test_plan.md` or teach the parser the dash form |
+| **TASK-526** | P2 | **DONE** | **app conformance matrix, rows A5/A6** — `check_app_conformance.py` at gate 9, generated over `app_ids_gen.APP_ORDER` (**no app name is typed**, asserted by negative test N10). A6 = "reachable from the debug console", not "has a `dbgGet` method". Negative suite blocking (10/10); matrix advisory until the unexcepted count reaches 0. Ledger: `docs/verification/app_conformance_exceptions.md`, 5 rows |
+| **TASK-527** | P2 | OPEN | **`A6/Weather` — the one unexcepted conformance failure.** `g_WeatherApp` is referenced nowhere outside `shell/appTable.h`; its only observable, `get weatherReady`, reads the `s_wxDataReady` static, not the app. Crypto has the identical static **plus** its own `dbgGet`, which is what makes Weather the outlier rather than a house pattern. Fix: add `WeatherApp::dbgGet` + the `cmdGet.h` shim, then flip the matrix to blocking |
+| **TASK-528** | P3 | OPEN | `NEW-APP-CHECKLIST` item 2 is stale — it tells new apps to bracket their own fetch and cites `TeletextApp::pollTeletext()` / `StockApp::fetchQuote()` as precedents; **neither function exists**. All fetches now go through `dataTask`, which brackets centrally. Also re-own `app_conformance_exceptions.md`'s 5 ledger rows from TASK-483 to TASK-526 |
+| **TASK-509** | P2 | **CORRECTED 2026-08-23 — not an Architect-spec gap** | The premise was wrong: `T_PLE_14` (the X055 seqno gap) **is** specified — `M-PLEDIT-ABSTRACTION-playlist-source.md:238` (an accepted design doc, ADR-059) already gives the method (`get pleditRepaints` across a station-list change vs. 60s idle) and pass criterion (bumps exactly once, not otherwise). The implementation it tests also already exists: `StationListSource::seqno()` (`webRadioApp.h:136`) and the `pleditRepaints` debug var (`winampDisplay.h:1307`). `test_plan.md`'s X055 row (VE's own artifact) just hadn't been updated to point at it. This is a VE registration task, not an Architect task — `resv` the id in `test_plan.md` and write the body from the existing spec. `test_plan.md` corrected same session. |
+| **TASK-510** | P3 | OPEN | apply the P0 convention repo-wide — `test_coverage:` lists only ids with a running body, everything else under `notes: PLANNED COVERAGE:`. Done for X050–X064 (`cross_feature_matrix.yaml`); the other 50 interactions are unswept, and 3 of the 15 swept rows had claimed coverage that did not exist |
+| **TASK-511** | P2 | **DONE** | `T_DOC_02` asserted live-corpus counts (`==234`/`==69`) as pass conditions — the exact thing `test_check_docs.py`'s own docstring forbids. Adding 4 design docs turned `run/check` gate 9 red for a reason unrelated to the checker. Replaced with invariants (non-empty, gated > exempt, disjoint) + counts printed as observations |
+| **TASK-513** | P2 | **DONE** (`T_PMT_04`) | **M2/X052 arena coverage is vacuous** — `T_PMT_03` asserts `arenaHeld==0` but a 2026-08-17 probe shows `acquires=0` on BOTH build legs; mode switching never acquires the arena, playback does. **CLOSED 2026-08-17** — `T_PMT_04` measures the real acquire/release edge on `cyd2usb_player`:
+baseline `acquires=0` → mid-playback `acquires=1 active=1 hwm=23216 arenaHeld=1` → after leaving Player
+`acquires=1 releases=1 active=0 hwm=0`. Independently reproduced. The test **hard-FAILs** if playback
+never starts, naming the vacuum, so it cannot go green without a real acquire. **CORRECTED 2026-08-17**: the filing said the SD fixture precondition was unmet — it is not. A direct probe shows the card mounted and stocked (`/mp3` 20+ real MP3s, `/playlists` 7 fixtures incl. `short5.m3u`). `plCount=0` meant *no playlist loaded*, not *no playlist present*; no `sd_put.py` push is required |
+| — | — | — | **M-TESTBASE phase 1 — [design](../architecture/designs/M-TESTBASE-phase1-player-gate.md); scoped to the 3-mode player, everything else in M-QUALITY deferred** |
+| **TASK-514** | P2 | **DONE** (`116c64f`, `6107a73`) | **P0** — register `T_PLR_01..41` + `T_PMT_00..03` in `test_plan.md` with an implementation-status column (26 impl / 8 blocked / 10 resv); fix the `T_PLR_17`/`18` spec-vs-code swap; propose the `X050`–`X064` `test_coverage` values |
+| **TASK-515** | P2 | **DONE** (`55cc2d6`) | **P2** — `get player`, the player-slot contract in one observation. DUT-verified in all 3 modes; zero `.dram0.bss` cost |
+| **TASK-516** | P2 | **DONE** (`74ae09d`, `7bc98ce`) | **§8** — decouple the mode-cycle from its hit-surface: `playerCycle` + `get playerBind` + `check_player_binding.py` at `run/check` gate 9. Also fixed a P1 bug hardware found (`resolve_port` off-by-one) |
+| **TASK-517** | P2 | **DONE** (`df21bbd`, `b945c8f`) | **P3** — `T_PMT_00..03`, operation-driven mode transitions. 4/4 on **both** build legs. NOTE: does **not** close M2/arena — see TASK-513 |
+| **TASK-518** | P2 | **DONE** (after Stage D, as sequenced) | **P4** — `hasInFlightOp()`/`get idle`. Collides with M-SRCLAYOUT Stage D (`ShellState`/`appTable` own `g_shellBusy`/`g_apps[]`); and per review B3 it is an `App`-interface change across 13 implementations, not a debug key |
+| **TASK-519** | P3 | **DONE** | `run/player-gate` — two legs at one commit, pass set in `regression_suite/player-gate-baseline.md`, condition (a) enforced (refuses a leg with no cross-mode cell, rc=2, zero pio), `--selftest` for the comparator. First real run **correctly returned GATE FAIL** on a regressed cell |
+| **TASK-520** | P2 | **DONE** | `lib/flaky.py` + `lib/results.py`; undeclared `flake()` = FAIL, expired `review_by` = FAIL, retry-once with both outcomes, unreadable set fails closed. 22 host tests in `test_flaky_policy.py` |
+| TASK-503 | — | **DONE**, via TASK-464 (`f8bae91`) | stale `*AppState` docs — see full row in tasks-architecture.md |
+| TASK-504…506 | P2/P3 | OPEN | from the TASK-488 verification — `T_488_11` redesign, heap-settling question, `run/test` mutates user settings |
+| **TASK-531** | P4 | **DONE 2026-08-23** | Retired `[env:cyd2usb_webradio_16k]` (human-directed build-matrix cleanup, prompted by TASK-422D's env-count walkthrough). It existed solely to run **EXP-012** (16K input-ring trial), closed 2026-07-02 with a negative verdict (`docs/rnd/reports/EXP-012-input-ring-16k.md`: "do not promote; input ring stays 8K") — nothing referenced it afterward. Removed from `app/platformio.ini`; `check_build.sh`'s `ENVS[]` and `TOTAL` (12→11) updated, gate numbering renumbered 1-11 throughout (a self-caught bug: the first pass left golden.sha256 and smoke_test.sh both labelled `[8/11]`, fixed before commit). `CLAUDE.md`'s run/check summary and ADR-061 D8's decommission table both updated. `app/tools/exp012_measure.py` kept (the closed experiment's instrument, same treatment as the `docs/rnd/` reports). `cyd2usb_winamp_screenlog` reviewed at the same time and **kept** — real, still-documented diagnostic capability (M-LOG2, DUT-verified), not a closed experiment; not retired. `run/check` re-run clean, 11/11. |
+
+> **▶ Execution order lives in [tasks-architecture.md](tasks-architecture.md) § EXECUTION SEQUENCE**
+> — start there, not with this table. **Steps 1–5 are all done** (488+497, 471+472+529+530,
+> 475 phase 1, 478, 458+495, in that order). **Next is the M-TESTARCH precedence block**, which has
+> its own ordered sequence in that file's *▶ SCHEDULED ORDER* subsection (@PM ruling 2026-09-01):
+> **573 → [Architect must-fixes] ‖ 574 → DUT block 1 (572 + 424) → 564 → 570 → 565 → 566 (partial)
+> → 571 (mode P)**. **COMPLETE as of 2026-09-02 — every step landed.** TASK-566's order switch
+> remains HELD (its precondition, TASK-557, is open). The queue is now gated on **TASK-557** — the
+> supply sag is measured and firmware mitigation is a proven dead end, so it needs a meter or the
+> GPIO35 divider — and on **TASK-578**'s @Architect ruling.
+>
+> **Landed 2026-08-16:** TASK-466 (build gate 3 → 11 envs), 467, 477, 491, 496, 488, 497. **Landed
+> 2026-08-21/22:** TASK-471, 472, 478, 529, 530, 495, 458. **Landed 2026-09-01:** TASK-548, 552,
+> 553, 554, 555, 556, 559, 560, 561, 563 — ten, all DUT-verified. TASK-562 withdrawn at review.
+> **Landed 2026-09-01/02:** TASK-424 (PATCH-TLS-1), 572, 573, 574, 564, 570, 571, 575, 565
+> (hardware-verified), 566 (partial). **Filed this session:** 575 (fixed), 576, 577, 578.
+
+> **Drift warning:** hand-maintained, same as the player board. The split file is the entry; this is
+> a label. If they disagree, the split file wins.
+
+---
+
+### M-WINAMP-PLAYER — placeholders (full entries in [tasks-winamp-player.md](tasks-winamp-player.md))
+
+These are stubs so the ids stay visible and searchable from the main board; **the entries themselves
+live in the split file** and are edited there, not here. Anchors are best-effort — if one misses,
+search the task id in that file.
+
+| task | pri | status | title |
+|---|---|---|---|
+| **[TASK-407](tasks-winamp-player.md#task-407--gsettingsplayermode-reverts-to-webradio-between-dut-sessions-with-no-manual-trigger-found)** | P4 | OPEN | `g_settings.playerMode` reverts to WebRadio between DUT sessions wi… |
+| **[TASK-424](tasks-winamp-player.md#task-424--sd-write-path-panics-in-fatfs-card-independent)** | P2 | **DONE 2026-09-01** | Not an SD/FatFs defect at all: `WiFiClientSecure::stop()` released an lwIP socket number with the VFS `close()`, and both namespaces start at 0 — so `stop()` on socket 0 closed VFS fd 0, the SD file, mid-write (`vfs_fat_close` → `memset` of the `FIL`). Fixed as PATCH-TLS-1 (`lwip_close`). 8/8 clean after, 3/8 corrupt + 2 panics before; gate PASS except the second-card clause (card unavailable). Unblocks TASK-420/421. |
+| **[TASK-452](tasks-winamp-player.md#task-452--retire-the-arena-from-the-file-path-successor-to-the-withdrawn-task-443)** | P3 | OPEN | retire the arena from the FILE path (TASK-443 withdrawn, see archive) |
+| **[TASK-444](tasks-winamp-player.md#task-444--mbarenafree-can-call-libc-free-on-a-pointer-inside-an-already-freed-arena)** | P2 | DONE | `mb_arena_free()` can call libc `free()` on a pointer inside an alr… |
+| **[TASK-445](tasks-winamp-player.md#task-445--mbarenahs-header-comment-misdescribes-which-sites-call-the-arena)** | P3 | DONE | `mb_arena.h`'s header comment misdescribes which sites call the arena |
+| **[TASK-446](tasks-winamp-player.md#task-446--mp3-only-make-the-unreachable-codecs-actually-unreachable)** | P2 | IMPL | MP3 only: make the unreachable codecs actually unreachable |
+| **[TASK-419](tasks-winamp-player.md#task-419--real-posbar-seek-for-local-files)** | P3 | READY | real posbar seek for local files |
+| **[TASK-420](tasks-winamp-player.md#task-420--pledit-edit-mode-button-strip-reorder-delete)** | P2 | BLOCKED | PLEDIT edit mode: button strip, reorder, delete |
+| **[TASK-421](tasks-winamp-player.md#task-421--add-from-browser-staging-save-restore)** | P2 | BLOCKED | add-from-browser (staging), save, restore |
+| **[TASK-422](tasks-winamp-player.md#task-422--build-variants-soak-ve-suite-registry-completion)** | P2 | PARTIAL | build variants, soak, VE suite, registry completion |
+| **[TASK-428](tasks-winamp-player.md#task-428--apply-the-ascii-fold-to-the-spotify-queue-and-station-list-rows)** | P3 | OPEN | apply the ASCII fold to the Spotify queue and station-list rows |
+| **[TASK-429](tasks-winamp-player.md#task-429--a-settings-save-during-playback-silently-aborts)** | P2 | DONE | a settings save during playback silently aborts |
+
+> **Drift warning:** this table is hand-maintained. If a status changes in the split file and not
+> here, the split file wins — it is the entry, this is a label. Re-generate the table when the player
+> board changes rather than patching single rows.
+
+---
