@@ -2042,7 +2042,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Observation**: The state assertion passed (`ERROR_UNREACHABLE`) against code that never ran. `set wrDeadUrls` arms `_debugForceConnFail`, and `_play()` short-circuits on it *before* the audio path is reached — so the play failed for the injector's reason, not the guard's. The gate was green while `aeEnsureAudio()` was entirely untested. It was caught only by a separate check asserting the presence of the guard's own log line ("the allocation guard is what failed the play"), which reported 0 hits alongside two PASSes.
 **Root cause**: Outcome-matching. The expected end state was reachable by more than one path, so observing it proved nothing about which path ran. This is the same shape as LL-104 (comparing failure sets rather than causes) and as BP-059's unverified `skip()` reasons — a recurring project-wide pattern, not a one-off.
 **Suggested improvement**: Every fault-injection or fault-simulation gate carries at least one check that the injected mechanism actually fired — a log line, a counter, a distinguishing state — in addition to the outcome assertion. Where the expected outcome is reachable by another path, that second check is the gate; the outcome assertion alone is decorative. Prefer an injector that does not itself short-circuit the code under test (here: `set wrUrl`, which clears `_debugForceConnFail`, over `set wrDeadUrls`, which arms it).
-**Status**: open — proposed for BP promotion, human sign-off required
+**Status**: promoted to BP-073 (human sign-off 2026-09-03, M-HARNESS2 Phase 0)
 
 ### LL-128 — 2026-08-14 — The serial evidence window is smaller than the investigations that depend on it
 **Context**: TASK-437 (a WiFi password entered in the Settings UI did not connect) was reported minutes after it happened, with the DUT still running and never rebooted. The `[wifi-ev]` reason code — the single datum that separates a keyboard typo from a too-tight 15 s connect bound from an association failure — had already scrolled out of the tmux capture, which held ~167 lines.
@@ -2136,7 +2136,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Observation**: The pass was real, the assertion was vacuous, and nothing in the run distinguished the two. The same conflation the status column was introduced to prevent reappeared in the document that introduced it, within the same day.
 **Root cause**: A green assertion whose precondition never occurred is indistinguishable from a green assertion that was exercised. Test frameworks report pass/fail, not *was this assertion reachable*.
 **Suggested improvement**: An assertion over a counter, latch or resource state records the value it observed, and a value that means "the condition under test never arose" is reported as **inconclusive rather than pass**. Where a test's subject requires a precondition (SD fixture, playback started, network up), the precondition is asserted first and its absence skips loudly — the same rule LL-124/BP-059 established for skip messages, applied to passes.
-**Status**: open
+**Status**: promoted to BP-074 (human sign-off 2026-09-03, M-HARNESS2 Phase 0)
 
 ### LL-141 — 2026-08-17 — A gate shipped two days earlier violated its own docstring, and broke on routine documentation growth
 

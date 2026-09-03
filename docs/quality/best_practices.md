@@ -780,6 +780,52 @@ touches, instead of reaching the one that's actually the source of the claim.
 
 ---
 
+### BP-073 — A debug injector ships with its clearing path, its enumeration and a named consumer, in one commit
+
+**Adopted from**: LL-127
+**Date adopted**: 2026-09-03
+**Rule**: A debug command that arms persistent state (`set wrDeadUrls`, `set triggerHeatmap`,
+`set prInjectAircraft` and anything of that shape) is not complete until three things land with it:
+a clearing path that runs on the app's own lifecycle (`init()`/`enter()`/`resume()`, not only a
+second debug command), an entry in a machine-readable enumeration of armed state that a test
+harness can read at a boundary, and a named consumer — the test or gate the injector exists for.
+A test that arms one restores it in a `finally`, and the failure lands on the test that armed it,
+not the next one to notice.
+**Rationale**: M-TESTQUAL found three of these, one per family, each wedging its family for the
+remainder of a run: WebRadio's `_debugForceConnFail` (cleared only by `set wrDeadUrls 0`/`set
+wrUrl`), Stock's `prevSubView` fixed point (`set triggerHeatmap`), PlaneRadar's `_injected`
+(cleared by `set prClearInject 1` and `init()`, but not `resume()`, so an app switch cannot
+recover it). The WebRadio one is the expensive case: **LL-127 named the flag, the short-circuit
+and the clearing command on 2026-08-14**, twelve days before two `flaky.yaml` entries attributed
+the same symptom (`wrState=5` — the state that flag assigns) to radio-browser.info churn, and
+twenty days before WP-F re-derived it as a fresh finding. The lesson existed and cost nothing to
+write; what was missing was a rule at authoring time.
+**Applies to**: Developer (who adds the injector), VE (who arms it in a test)
+
+---
+
+### BP-074 — An assertion whose precondition never occurred is inconclusive, not a pass
+
+**Adopted from**: LL-140
+**Date adopted**: 2026-09-03
+**Rule**: An assertion over a counter, latch, queue or resource state records the value it
+observed, and a value meaning "the condition under test never arose" is reported as
+**inconclusive**, never as a pass. Where a subject requires a precondition — an SD fixture,
+playback started, a queue populated, the network up — the precondition is asserted first and its
+absence is reported in its own bucket, loudly. A test whose skip path is its normal path is not
+coverage.
+**Rationale**: LL-140 recorded the original case on 2026-08-17: `T_PMT_00`–`03` passed 4/4 on both
+build legs while `arenaStats acquires=0` in every mode, because mode switching never acquires the
+arena. The pass was real, the assertion was vacuous, and nothing in the run distinguished the two.
+M-TESTQUAL then found the same shape at scale — 21 HOLLOW ids, several whose entire body is one
+unconditional `skip()`; 31 of 43 CORE ids failing their preconditions as skips that
+`_gate.py` does not treat as blocking; and a whole Stock block predicted to skip in every
+full-suite run. The rule LL-124/BP-059 established for skip *messages* is here extended to
+passes, which is what LL-140 asked for and never got.
+**Applies to**: VE (who writes the assertion), Developer (who builds the harness buckets)
+
+---
+
 ## Entry Format
 
 ```
