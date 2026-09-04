@@ -88,9 +88,9 @@ new gates in it — **stop and re-scope the whole programme.**
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-609 | P3 | OPEN | six `__main__` guards + import-in-subprocess gate with a stubbed transport — [R48](../verification/M-HARNESS2-requirements.md) |
-| TASK-600 | P2 | OPEN | generated key list sees `.cpp` bodies; count compared full-tree in `run/check` — [R7](../verification/M-HARNESS2-requirements.md) |
-| TASK-623 | P3 | OPEN | cross-check the flake registry against declared gating classes — [R37](../verification/M-HARNESS2-requirements.md) |
+| TASK-609 | P3 | **DONE 2026-09-04** (`8927b16`) | six `__main__` guards + import-in-subprocess gate with a stubbed transport — [R48](../verification/M-HARNESS2-requirements.md) |
+| TASK-600 | P2 | **DONE 2026-09-04** (`8927b16`) — 43→111 keys | generated key list sees `.cpp` bodies; count compared full-tree in `run/check` — [R7](../verification/M-HARNESS2-requirements.md) |
+| TASK-623 | P3 | **DONE 2026-09-04** (`8927b16`) — blocking, 1-row ledger | cross-check the flake registry against declared gating classes — [R37](../verification/M-HARNESS2-requirements.md) |
 | TASK-624 | P1 | OPEN | closed verdict enum incl. `UNMET`; typed gating; `UNMET` blocks; inversion selftest arm — [R28/R31/R38](../verification/M-HARNESS2-requirements.md) |
 | TASK-608 | P3 | BLOCKED — TASK-624 | schema-versioned run artifact carrying the run's premise; retire all three summary parsers — [R29/R30](../verification/M-HARNESS2-requirements.md) |
 | TASK-584 | P1 | BLOCKED — TASK-624 | six residue callers convert the regression to a skip — make them fail — [D-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
