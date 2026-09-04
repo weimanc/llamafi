@@ -38,12 +38,13 @@ import pathlib
 import time
 
 from lib.dut import Dut
-from lib.results import pass_, fail, skip, flake
+from lib.results import pass_, fail, skip, unmet, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
-    _restore_spotify, _switch_to, _check_residue, _wait_shell_not_busy,
+    _restore_spotify, _switch_to, _check_residue, _RESIDUE_DISPROOF,
+    _wait_shell_not_busy,
     _diag_snapshot, _tap_and_wait_log, _do_drag, _get_scroll,
     _vs_drain_until_drag, _PLEDIT_X, _PLSTART_Y, _PLEND_Y,
     _tb_precondition, _TB_X, _TB_N, _tb_get_offset, _tb_set_offset,
@@ -1359,7 +1360,13 @@ def t_ma_03(dut: Dut):
     """T_MA_03: Spotify renders correctly (lastPlaylistDraw advances) after Matrix switch-back."""
     print("T_MA_03  Matrix→Spotify canvas residue")
     if not _switch_to(dut, "Matrix"):
-        skip("T_MA_03", "could not switch to Matrix")
+        # TASK-584 / BP-074: the subject is what Spotify does on the way BACK
+        # from Matrix. If we never got to Matrix, the switch-back never
+        # happened and nothing about residue was observed. That is an
+        # unestablished premise — UNMET, which blocks (ADR-066 D4) — not a
+        # skip, which is green and says the configuration excluded the test.
+        unmet("T_MA_03", "never entered Matrix, so the Matrix->Spotify "
+                       "switch-back this id is about never occurred")
         _restore_spotify(dut)
         return
     time.sleep(0.15)  # allow one or two Matrix ticks
@@ -1368,8 +1375,20 @@ def t_ma_03(dut: Dut):
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
+    # TASK-584: establish the residue assertion's OWN precondition before
+    # spending a verdict on it — a taskbar tap that missed leaves the shell
+    # somewhere else, where a stalled lastPlaylistDraw says nothing about
+    # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
+    # runner, a device that answers the wrong app is a real dispatch defect.
+    landed = dut.get_str("appId", field="name", timeout=3.0)
+    if landed != "Spotify":
+        fail("T_MA_03", f"taskbar tap on the Spotify slot left the shell in "
+                       f"{landed!r} — the Matrix->Spotify switch-back did not land")
+        _restore_spotify(dut)
+        return
     if not _check_residue(dut, "T_MA_03"):
-        skip("T_MA_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+        fail("T_MA_03", "lastPlaylistDraw did not advance in 3 s after returning "
+                      "to Spotify from Matrix — " + _RESIDUE_DISPROOF)
 
 
 # ── T_GOL_01 — LifeApp switch round-trip ─────────────────────────────────────
@@ -1415,7 +1434,13 @@ def t_gol_03(dut: Dut):
     """T_GOL_03: Spotify renders correctly after GoL switch-back."""
     print("T_GOL_03  GoL→Spotify canvas residue")
     if not _switch_to(dut, "Life"):
-        skip("T_GOL_03", "could not switch to Life")
+        # TASK-584 / BP-074: the subject is what Spotify does on the way BACK
+        # from GoL. If we never got to GoL, the switch-back never
+        # happened and nothing about residue was observed. That is an
+        # unestablished premise — UNMET, which blocks (ADR-066 D4) — not a
+        # skip, which is green and says the configuration excluded the test.
+        unmet("T_GOL_03", "never entered GoL, so the GoL->Spotify "
+                       "switch-back this id is about never occurred")
         _restore_spotify(dut)
         return
     time.sleep(0.2)  # allow GoL to tick
@@ -1423,8 +1448,20 @@ def t_gol_03(dut: Dut):
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
+    # TASK-584: establish the residue assertion's OWN precondition before
+    # spending a verdict on it — a taskbar tap that missed leaves the shell
+    # somewhere else, where a stalled lastPlaylistDraw says nothing about
+    # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
+    # runner, a device that answers the wrong app is a real dispatch defect.
+    landed = dut.get_str("appId", field="name", timeout=3.0)
+    if landed != "Spotify":
+        fail("T_GOL_03", f"taskbar tap on the Spotify slot left the shell in "
+                       f"{landed!r} — the GoL->Spotify switch-back did not land")
+        _restore_spotify(dut)
+        return
     if not _check_residue(dut, "T_GOL_03"):
-        skip("T_GOL_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+        fail("T_GOL_03", "lastPlaylistDraw did not advance in 3 s after returning "
+                      "to Spotify from GoL — " + _RESIDUE_DISPROOF)
 
 
 # ── T_GOL_04 — GoL alive count updated ───────────────────────────────────────
@@ -1495,7 +1532,13 @@ def t_wx_03(dut: Dut):
     """T_WX_03: Spotify renders correctly after Weather switch-back."""
     print("T_WX_03  Weather→Spotify canvas residue")
     if not _switch_to(dut, "Weather"):
-        skip("T_WX_03", "could not switch to Weather")
+        # TASK-584 / BP-074: the subject is what Spotify does on the way BACK
+        # from Weather. If we never got to Weather, the switch-back never
+        # happened and nothing about residue was observed. That is an
+        # unestablished premise — UNMET, which blocks (ADR-066 D4) — not a
+        # skip, which is green and says the configuration excluded the test.
+        unmet("T_WX_03", "never entered Weather, so the Weather->Spotify "
+                       "switch-back this id is about never occurred")
         _restore_spotify(dut)
         return
     time.sleep(0.15)
@@ -1503,8 +1546,20 @@ def t_wx_03(dut: Dut):
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
+    # TASK-584: establish the residue assertion's OWN precondition before
+    # spending a verdict on it — a taskbar tap that missed leaves the shell
+    # somewhere else, where a stalled lastPlaylistDraw says nothing about
+    # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
+    # runner, a device that answers the wrong app is a real dispatch defect.
+    landed = dut.get_str("appId", field="name", timeout=3.0)
+    if landed != "Spotify":
+        fail("T_WX_03", f"taskbar tap on the Spotify slot left the shell in "
+                       f"{landed!r} — the Weather->Spotify switch-back did not land")
+        _restore_spotify(dut)
+        return
     if not _check_residue(dut, "T_WX_03"):
-        skip("T_WX_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+        fail("T_WX_03", "lastPlaylistDraw did not advance in 3 s after returning "
+                      "to Spotify from Weather — " + _RESIDUE_DISPROOF)
 
 
 # ── T_WX_04 — Weather pre-fetch state ────────────────────────────────────────
@@ -1611,7 +1666,13 @@ def t_cx_03(dut: Dut):
     """T_CX_03: Spotify renders correctly after Crypto switch-back."""
     print("T_CX_03  Crypto→Spotify canvas residue")
     if not _switch_to(dut, "Crypto"):
-        skip("T_CX_03", "could not switch to Crypto")
+        # TASK-584 / BP-074: the subject is what Spotify does on the way BACK
+        # from Crypto. If we never got to Crypto, the switch-back never
+        # happened and nothing about residue was observed. That is an
+        # unestablished premise — UNMET, which blocks (ADR-066 D4) — not a
+        # skip, which is green and says the configuration excluded the test.
+        unmet("T_CX_03", "never entered Crypto, so the Crypto->Spotify "
+                       "switch-back this id is about never occurred")
         _restore_spotify(dut)
         return
     time.sleep(0.15)
@@ -1619,8 +1680,20 @@ def t_cx_03(dut: Dut):
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.1)
+    # TASK-584: establish the residue assertion's OWN precondition before
+    # spending a verdict on it — a taskbar tap that missed leaves the shell
+    # somewhere else, where a stalled lastPlaylistDraw says nothing about
+    # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
+    # runner, a device that answers the wrong app is a real dispatch defect.
+    landed = dut.get_str("appId", field="name", timeout=3.0)
+    if landed != "Spotify":
+        fail("T_CX_03", f"taskbar tap on the Spotify slot left the shell in "
+                       f"{landed!r} — the Crypto->Spotify switch-back did not land")
+        _restore_spotify(dut)
+        return
     if not _check_residue(dut, "T_CX_03"):
-        skip("T_CX_03", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+        fail("T_CX_03", "lastPlaylistDraw did not advance in 3 s after returning "
+                      "to Spotify from Crypto — " + _RESIDUE_DISPROOF)
 
 
 # ── T_CX_04 — Crypto pre-fetch state ─────────────────────────────────────────

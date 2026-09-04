@@ -29,11 +29,12 @@ stock-002 (heatmap sub-view):
 import time
 
 from lib.dut import Dut, DeviceReadError, NoAnswer
-from lib.results import pass_, fail, skip
+from lib.results import pass_, fail, skip, unmet
 import coords as _c
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._helpers import (
-    _restore_spotify, _check_residue, _diag_snapshot, _wait_shell_not_busy,
+    _restore_spotify, _check_residue, _RESIDUE_DISPROOF,
+    _diag_snapshot, _wait_shell_not_busy,
     _switch_to_stock, _restore_from_stock, _stock_get, _stock_ok_count,
     _wait_chart_complete, _drain_data_pipeline,
 )
@@ -199,7 +200,12 @@ def t172(dut: Dut):
     """T172 (L4): Spotify→Stock→Spotify; Winamp chrome repaints cleanly."""
     print("T172  App switch residue")
     if not _restore_spotify(dut):
-        skip("T172", "precondition: could not restore Spotify")
+        # TASK-584 / BP-074: the id measures Spotify's repaint on return. If we
+        # could not start on Spotify there is no baseline and no return — the
+        # premise did not hold. UNMET blocks (ADR-066 D4); the old skip() was
+        # green.
+        unmet("T172", "could not start the round trip on Spotify, so no "
+                      "Spotify->Stock->Spotify transit was observed")
         return
     if not _switch_to_stock(dut):
         fail("T172", "could not switch to Stock")
@@ -209,8 +215,13 @@ def t172(dut: Dut):
     if not _restore_from_stock(dut):
         fail("T172", "Stock→Spotify switch-back failed")
         return
+    # `_restore_from_stock` already asserted `get appId == "Spotify"`
+    # (`_helpers.py:_restore_from_stock` -> `_appid_is`), so the residue
+    # assertion's precondition — "we are back on Spotify" — is established
+    # above and a stalled clock here is attributable to the subject.
     if not _check_residue(dut, "T172"):
-        skip("T172", "lastPlaylistDraw did not advance — Spotify not rendering (not playing?)")
+        fail("T172", "lastPlaylistDraw did not advance in 3 s after "
+                     "Stock->Spotify switch-back — " + _RESIDUE_DISPROOF)
 
 
 # ── T173 — Resume cache ───────────────────────────────────────────────────────
@@ -550,7 +561,10 @@ def t182(dut: Dut):
     """T182 (cross): Stock→chart view→switchApp away→taskbar back→list; no residue."""
     print("T182  Stock canvas isolation (taskbar-driven switch)")
     if not _restore_spotify(dut):
-        skip("T182", "precondition: could not restore Spotify")
+        # TASK-584 / BP-074: unestablished premise, not a configuration
+        # exclusion. UNMET blocks (ADR-066 D4); the old skip() was green.
+        unmet("T182", "could not start on Spotify, so the return leg this id "
+                      "measures had no origin")
         return
     # Enter chart view via serial switchApp (fastest setup).
     if not _switch_to_stock(dut):
@@ -560,7 +574,11 @@ def t182(dut: Dut):
     dut.cmd("tap 137 36", timeout=3.0)
     time.sleep(0.3)
     if _stock_get(dut, "stockSubView").get("val") != "chart":
-        skip("T182", "could not enter chart view — cannot test canvas isolation")
+        # Setup, not the subject: the claim is about the TASKBAR-driven return
+        # out of a non-default sub-view. Without the sub-view there is nothing
+        # to isolate — premise unestablished, and it blocks.
+        unmet("T182", "could not enter Stock chart view, so the non-default "
+                      "sub-view this id switches away from never existed")
         _restore_from_stock(dut)
         return
     # Switch away via switchApp.
@@ -572,8 +590,13 @@ def t182(dut: Dut):
     time.sleep(0.3)
     r_off = dut.cmd("get tbScrollOffset", timeout=3.0)
     if r_off.get("val") != 2:
-        skip("T182", f"tbScrollOffset={r_off.get('val')} — taskbar scroll failed; cannot verify taskbar path")
+        # TASK-584 / D-2: this IS the subject. T182 is the family's only
+        # taskbar cross-feature test; "the taskbar scroll did not take" is the
+        # cross-feature regression, not a reason to stand down.
+        fail("T182", f"taskbar drag did not scroll: tbScrollOffset="
+                     f"{r_off.get('val')!r}, expected 2")
         dut.cmd("drag 297 100 297 200 10", timeout=3.0)  # reset scroll
+        _restore_spotify(dut)
         return
     dut.set_cooldown_zero()
     # Physical slot at scrollOffset=2 → AppId (offset+slot)%TASKBAR_APP_COUNT == Stock.
@@ -586,9 +609,18 @@ def t182(dut: Dut):
     sx, sy = _c.tap_taskbar_slot(_stock_physical_slot)
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
     time.sleep(0.4)
-    r_app = dut.cmd("get appId", timeout=3.0)
-    if r_app.get("name") != "Stock":
-        skip("T182", f"appId={r_app.get('name')!r} — taskbar tap missed Stock slot")
+    # TASK-584/596: typed. A silent device raises NoAnswer -> UNMET at the
+    # runner; a device that answers the wrong app is the defect below. The old
+    # `dut.cmd(...).get("name")` could not tell those two apart, and skipped on
+    # both.
+    landed = dut.get_str("appId", field="name", timeout=3.0)
+    if landed != "Stock":
+        # TASK-584 / D-2: also the subject. Physical-slot arithmetic at
+        # scrollOffset=2 resolving to the wrong app is exactly the taskbar
+        # cross-feature regression this id is the only place in the family to
+        # cover.
+        fail("T182", f"taskbar slot tap at scrollOffset=2 landed in {landed!r}, "
+                     f"expected Stock — physical-slot mapping is wrong")
         dut.cmd("drag 297 100 297 200 10", timeout=3.0)
         _restore_spotify(dut)
         return
@@ -598,12 +630,18 @@ def t182(dut: Dut):
     r_sv = _stock_get(dut, "stockSubView")
     # Reset taskbar scroll.
     dut.cmd("drag 297 100 297 200 10", timeout=3.0)
-    _restore_from_stock(dut)
-    if not r_app.get("ok"):
-        fail("T182", "DUT unresponsive after taskbar-driven switch to Stock")
+    # TASK-584: this was `if not r_app.get("ok")` on a reply whose `name` had
+    # already been read successfully two lines above — an unreachable `fail()`
+    # standing in for the reachable one. `_restore_from_stock` asserts
+    # `get appId == "Spotify"` (`_appid_is`), so it is the real establishment of
+    # the residue assertion's precondition and a real failure of the return leg.
+    if not _restore_from_stock(dut):
+        fail("T182", "Stock->Spotify return leg did not land on Spotify after "
+                     "the taskbar-driven switch")
         return
     if not _check_residue(dut, "T182"):
-        skip("T182", "lastPlaylistDraw did not advance after return to Spotify")
+        fail("T182", "lastPlaylistDraw did not advance in 3 s after the "
+                     "taskbar-driven return to Spotify — " + _RESIDUE_DISPROOF)
         return
 
 

@@ -232,7 +232,30 @@ EDGE_ADJUDICATION = {
                   "to the front, so its TLS connection is colder and its "
                   "documented 'warm connection completed before tap2' SKIP is "
                   "LESS likely, not more."),
-    "T176": ("DISMISSED",
+    # @VE ruling 2026-09-04 (TASK-584 sweep). TASK-596's author filed this
+    # DISMISSED and asked for confirmation. The DIAGNOSIS is confirmed exactly,
+    # mechanically: `edge_shape(T176)` reports one line and only one — the
+    # `dut_int(q, "yieldCount") == 0` inside `_drain_data_pipeline`, reached
+    # transitively — and re-adding the `, 1` removes the match, so the defaulted
+    # read was indeed all that kept the row out. It is not a re-grading of T176,
+    # whose oracle is `_wait_chart_complete`'s fetchOkCount DELTA.
+    #
+    # The VERDICT is CORRECTED, DISMISSED -> ORDER-SENSITIVE. DISMISSED is
+    # defined above as "establishes its own precondition inside the test body",
+    # and T176 does not establish this one: it WAITS for shared pipeline state to
+    # go quiet and `skip()`s after 200 s if it never does (`stock.py`, the
+    # `_drain_data_pipeline` guard). That is ORDER-SENSITIVE's definition
+    # verbatim — "degrades to a SKIP when a predecessor leaves the wrong state ->
+    # a silent NON-RESULT" — and it is exactly the readiness-flag-SKIP shape WP-B
+    # `B-4` says this enumeration under-reports, in the direction that grants a
+    # false all-clear. The body's own comment documents the dependence ("in
+    # full-suite order the drill-in's chart fetch serializes behind an in-flight
+    # Spotify poll"), and T1's three armed injectors are live candidates for
+    # leaving the pipeline non-quiet. Dismissing the row closes it; this verdict
+    # keeps it in the A/B, which is the conservative direction and costs nothing
+    # while the switch is HELD. TASK-592 owns adding the scanner that would have
+    # found this shape without a defaulted read being deleted first.
+    "T176": ("ORDER-SENSITIVE",
              "Surfaced 2026-09-04 by TASK-596, and it is a SCANNER artefact, not "
              "a new risk: `_drain_data_pipeline`'s quiet test read "
              "`q.get(\"yieldCount\", 1) == 0` and now reads "
@@ -242,8 +265,12 @@ EDGE_ADJUDICATION = {
              "the helper polls until true, not T176's assertion; T176's oracle is "
              "`_wait_chart_complete`'s fetchOkCount DELTA, which the scanner does "
              "not flag. T178, T-BUSY-01 and T_WR_TLS_01 call the same helper and "
-             "already carry rows. @VE: this row is a developer adjudication of a "
-             "false positive, not a re-grading of T176."),
+             "already carry rows. @VE 2026-09-04: diagnosis CONFIRMED "
+             "mechanically (edge_shape reports that one line and no other); "
+             "verdict CORRECTED to ORDER-SENSITIVE, because the helper WAITS "
+             "for this precondition and skips at 200 s rather than establishing "
+             "it, which is a readiness-flag SKIP (WP-B `B-4`), not a dismissal. "
+             "Still not a re-grading of T176's oracle. See the comment above."),
     "T163": ("DISMISSED", "expected = (baseline + 1) % N against a baseline read "
                           "immediately before the drag."),
     "T164": ("DISMISSED", "Sets tbScrollOffset=1 itself before measuring."),

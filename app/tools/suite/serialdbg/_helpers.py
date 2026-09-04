@@ -212,25 +212,77 @@ def _vs_drain_until_drag(dut: Dut, timeout: float = 10.0) -> tuple[list[dict], d
     return pre, drag_resp
 
 
+#: TASK-584 / D-2. The single explanation of why a False from `_check_residue`
+#: is the regression and not an idle account, quoted into all six callers'
+#: fail() strings so the failure carries its own disproof.
+#:
+#: The six call sites used to excuse this as "Spotify not rendering (not
+#: playing?)". That excuse is false, and the firmware says so on two lines:
+#:
+#:   * `SpotifyApp::resume()` calls `winampDisplay.invalidatePlaylist()`
+#:     UNCONDITIONALLY (`app/src/apps/spotifyApp.cpp:27`) — no queue, playback
+#:     or Premium predicate guards it.
+#:   * `PleditView::invalidate()` sets `_scrollDirty = true` and zeroes
+#:     `_lastDrawMs` (`app/src/winamp/pleditView.h:175-179`), so the very next
+#:     `draw()` clears both early-return gates (`:139-143`) and stamps
+#:     `_lastDrawMs = now` BEFORE it reads `src.count()` (`:156`). An empty
+#:     queue draws the frame and stamps the clock exactly like a full one.
+#:   * `SpotifyApp::tick()` calls `drawPlaylist()` unconditionally
+#:     (`app/src/apps/spotifyApp.cpp:67`).
+#:
+#: So on any boot where the shell is on Spotify and ticking, `lastPlaylistDraw`
+#: advances within one tick of resume(). If it does not advance in 3 s, either
+#: resume() did not run or the Spotify tick is not running — which is the TFT
+#: state residue these ids exist to catch.
+_RESIDUE_DISPROOF = (
+    "SpotifyApp::resume() calls invalidatePlaylist() unconditionally "
+    "(spotifyApp.cpp:27) and PleditView::draw() stamps _lastDrawMs before it "
+    "reads the queue count (pleditView.h:139-156), so an idle/empty/403 "
+    "Spotify still advances this clock — a stalled clock is the residue "
+    "regression, not an idle account"
+)
+
+
 def _check_residue(dut: Dut, tid: str) -> bool:
     """After switching back to Spotify, verify lastPlaylistDraw advances within 3 s.
-    Returns True if PASS was recorded, False if the check was skipped (no Spotify signal).
-    Does not call fail() — caller decides on skip vs fail."""
+
+    Returns True if PASS was recorded. Returns False ONLY for the regression:
+    the device answered, and the clock did not move.
+
+    Raises `NoAnswer` if the device never answered inside the window — that is
+    an unestablished premise (UNMET at the runner), never a fabricated
+    regression. BP-074: an assertion whose precondition did not occur is
+    inconclusive, not a result.
+
+    Does not call fail() — the caller owns the id's verdict. TASK-584 requires
+    every caller to spend that False on a `fail()`; see `_RESIDUE_DISPROOF`.
+    """
     # TASK-596: `r.get("ms", t_before)` defaulted to the BASELINE, so a failed
     # read read as "no advance" — the safe direction here, but it also meant this
     # helper could not distinguish "Spotify did not repaint" from "the device did
-    # not answer", which is half of why its callers reach for skip() (D-2 /
-    # TASK-584 owns the other half).
+    # not answer". TASK-584 closes that: the two outcomes are now a bool and an
+    # exception, and they cannot be confused by a caller.
     t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    answered = False
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
         try:
-            if dut.get_int("lastPlaylistDraw", field="ms", timeout=1.0) != t_before:
+            t_now = dut.get_int("lastPlaylistDraw", field="ms", timeout=1.0)
+            answered = True
+            if t_now != t_before:
                 pass_(tid, f"lastPlaylistDraw advanced from {t_before} — no TFT state residue")
                 return True
         except NoAnswer:
             pass
         time.sleep(0.05)
+    if not answered:
+        # Every poll in the 3 s window went unanswered. The baseline read
+        # succeeded, so this is the line going quiet, not the clock standing
+        # still: we have no reading of the subject at all.
+        raise NoAnswer("lastPlaylistDraw",
+                       "no reply to `get lastPlaylistDraw` for the whole 3 s "
+                       "residue window (the baseline read answered), so the "
+                       "clock was never observed — premise unestablished")
     return False
 
 
