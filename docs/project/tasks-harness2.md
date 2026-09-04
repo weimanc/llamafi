@@ -67,7 +67,7 @@ criterion is **met**. TASK-621 and TASK-622 remain.
 | TASK-617 | P1 | **RULED 2026-09-03** | class-order switch does **not** flip yet; exit criteria are the declaration + offline gates (TASK-591, TASK-626), **not** the shuffle campaign — [PM §5(b)](M-HARNESS2-PM-review.md) |
 | TASK-618 | P1 | **RULED 2026-09-03** | verify-and-refuse sanctioned; `DUT_NO_RESTORE=1` permitted only as a dated interim exception retired by the conversion — [PM §5(c)](M-HARNESS2-PM-review.md) |
 | TASK-619 | P3 | OPEN — @Architect | artifact as interface; the generated-module and effect-axis questions — [WP-Z §4.4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-621 | P1 | OPEN — human sign-off | promote LL-127 and LL-140, or dismiss each with a reason — [QM §6.3](../quality/M-HARNESS2-QM-review.md) |
+| TASK-621 | P1 | **DONE 2026-09-04** (`9358e5f`) — BP-073, BP-074 | promote LL-127 and LL-140, or dismiss each with a reason — [QM §6.3](../quality/M-HARNESS2-QM-review.md) |
 | TASK-622 | P2 | OPEN | file the five ADRs as documents (App debug surface, render mechanism, console as interface, result artifact, DUT firmware lifecycle) — [Arch §9](../architecture/designs/M-HARNESS2-architect-review.md) |
 
 ---
