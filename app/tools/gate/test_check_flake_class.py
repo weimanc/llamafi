@@ -159,6 +159,64 @@ def case_missing_ledger_is_not_a_crash():
     assert rows == {} and errors == []
 
 
+def case_missing_ledger_fails_closed():
+    """TASK-591. The ledger is GONE, so the absent path is now the live path and
+    its safety property has to be proved, not assumed: absent parses to zero
+    rows, zero rows grandfather nothing, so a gating flake declared tomorrow is
+    caught with no ledger present. Losing the file can only make the gate
+    stricter — never quieter."""
+    rows, errors = C.parse_ledger(os.path.join(C.ROOT, "does-not-exist.md"))
+    meta = {"T_Z": {"cls": "CORE", "cls_declared": True}}
+    fs = C.evaluate({"T_Z": {}}, {}, meta, rows)
+    one(fs, "F1 T_Z")
+    assert not errors, errors
+
+
+def case_absent_ledger_passes_when_there_is_nothing_to_exempt():
+    """The other direction, and the state the corpus is actually in: no file, no
+    declared gating flake, no findings. A clean pass, not a silent one."""
+    rows, errors = C.parse_ledger(os.path.join(C.ROOT, "does-not-exist.md"))
+    meta = {"T_Z": {"cls": "FEATURE", "cls_declared": True}}
+    none(C.evaluate({"T_Z": {}}, {}, meta, rows))
+    assert not errors, errors
+
+
+def case_f4_staleness_still_works_from_zero_rows():
+    """F4 is the rule that makes the list shrink-only, and it must not have been
+    quietly disabled by the ledger reaching zero. With no rows there is nothing
+    to be stale, and with one row whose finding no longer occurs it still
+    fires — the same code path, driven both ways."""
+    meta = {"T_Z": {"cls": "FEATURE", "cls_declared": True}}
+    none(C.evaluate({"T_Z": {}}, {}, meta, {}))
+    stale = C.evaluate({"T_Z": {}}, {}, meta,
+                       {("gating-flake", "T_Z"): "docs/gone.md:44"})
+    one(stale, "F4 docs/gone.md:44")
+
+
+def case_empty_ledger_file_is_a_finding():
+    """F5. A file left behind with a header and no rows is a half-finished
+    retirement, and an empty exemption list is where the next amnesty starts."""
+    import tempfile
+    from pathlib import Path
+    body = ("# ledger\n\n| id | kind | why | owner | since |\n|---|---|---|---|---|\n")
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "led.md")
+        Path(p).write_text(body, encoding="utf-8")
+        rows, errors = C.parse_ledger(p)
+    assert rows == {}, rows
+    one(errors, "holds no rows")
+
+
+def case_the_flake_ledger_is_actually_gone():
+    """The retirement itself, asserted rather than assumed: T091 is no longer a
+    gating class, so the file its only row lived in must not exist."""
+    assert not os.path.exists(os.path.join(C.ROOT, C.LEDGER_REL)), (
+        f"{C.LEDGER_REL} still exists, but its last row was retired")
+    meta = _suite.build_all_meta()
+    assert meta["T091"]["cls"] == "FEATURE", meta["T091"]["cls"]
+    assert meta["T091"]["cls_declared"], "T091 is FEATURE by seed, not by declaration"
+
+
 # ── derivation and live state ────────────────────────────────────────────────
 
 def case_gating_set_is_the_expected_triple():
@@ -168,26 +226,28 @@ def case_gating_set_is_the_expected_triple():
     assert C.GATING == ("RIG", "HEALTH", "CORE"), C.GATING
 
 
-def case_live_ledger_parses_and_holds_one_row():
+def case_live_ledger_parses_to_nothing():
+    """TASK-591: the ledger is retired, so the live parse is the absent path."""
     rows, errors = C.parse_ledger()
-    assert not errors, errors
-    assert list(rows) == [("gating-flake", "T091")], rows
+    assert rows == {} and errors == [], (rows, errors)
 
 
-def case_live_registry_state_is_what_the_ledger_claims():
-    """The honesty check. The ledger says the corpus holds exactly one F1, and
-    the row is T091. If a second violation is ever declared, this fails and the
-    programme rule applies: fix it or demote it — do not add a row."""
+def case_live_registry_state_is_at_zero():
+    """The honesty check, inverted by the demotion. The corpus now holds ZERO
+    F1s, so the gate is blocking at zero with no ledger — and this test is what
+    stops that claim from being a comment. If a flake is ever declared on a
+    gating id again, this fails and the programme rule applies: fix it or demote
+    it, and only then consider re-opening a ledger."""
     reg, err = _flaky.get_registry()
     assert err is None, err
     meta = _suite.build_all_meta()
     violations = sorted(t for t in reg.entries
                         if (meta.get(t) or {}).get("cls") in C.GATING)
-    assert violations == ["T091"], violations
-    # And with no ledger at all, the gate must FAIL — the live corpus is not at
-    # zero, and a check that passed without its ledger would prove nothing.
-    fs = C.evaluate(reg.entries, reg.candidates, meta, {})
-    one(fs, "F1 T091")
+    assert violations == [], violations
+    # T091 is still a declared flake — the contradiction was resolved by moving
+    # its class, not by deleting the flake entry, and that must stay true or the
+    # demotion was doing something other than what it claimed.
+    assert "T091" in reg.entries, sorted(reg.entries)
 
 
 def case_live_run_is_green_with_the_ledger():
@@ -212,10 +272,14 @@ CASES = [
     ("L3  stale on declaration removal too",     case_stale_row_also_fires_when_the_declaration_is_removed),
     ("L4  malformed rows are errors",            case_malformed_ledger_rows_are_errors),
     ("L5  a missing ledger is not a crash",      case_missing_ledger_is_not_a_crash),
+    ("L6  a missing ledger fails CLOSED",        case_missing_ledger_fails_closed),
+    ("L7  absent + nothing to exempt = pass",    case_absent_ledger_passes_when_there_is_nothing_to_exempt),
+    ("L8  F4 staleness works from zero rows",    case_f4_staleness_still_works_from_zero_rows),
+    ("L9  an empty ledger FILE is a finding",    case_empty_ledger_file_is_a_finding),
     ("D1  GATING derives to RIG/HEALTH/CORE",    case_gating_set_is_the_expected_triple),
-    ("P1  the live ledger holds exactly T091",   case_live_ledger_parses_and_holds_one_row),
-    ("P2  the live corpus is NOT at zero",       case_live_registry_state_is_what_the_ledger_claims),
-    ("P3  live run is green with the ledger",    case_live_run_is_green_with_the_ledger),
+    ("P1  the flake ledger is retired",          case_the_flake_ledger_is_actually_gone),
+    ("P2  the live corpus is AT zero",           case_live_registry_state_is_at_zero),
+    ("P3  live run is green with no ledger",     case_live_run_is_green_with_the_ledger),
 ]
 
 

@@ -539,7 +539,16 @@ def t090(dut: Dut):
 # commands, producing a non-zero value even after a successful reconnect —
 # first observed 2026-05-25
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. Two grounds. "
+      "(1) The failure is LOCAL: nothing outside T092 and T-BGPOLL-02 — both also "
+      "demoted — reads `consecutiveFailures` or depends on `reconnect` resetting "
+      "it, and no FEATURE id does; a broken reconnect-clears-counter leaves every "
+      "other id's premises intact. (2) WP-C C-6: every exit routes through "
+      "`flake()` and the id is declared in `flaky.yaml`, so its best case is "
+      "`FLAKY-PASS` — neither a PASS nor a FAIL — and `_gate.py:128` can never see "
+      "it set the blocker. A class that cannot block is not the class it claims.")
 def t091(dut: Dut):
     print("T091  `reconnect` clears consecutiveFailures")
     _wait_shell_not_busy(dut, timeout_s=10.0)
@@ -568,7 +577,15 @@ def t091(dut: Dut):
 # [spotify.poll] log line past the 2000 ms observation window —
 # first observed 2026-05-25
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. A latency bound "
+      "on the Spotify force poll: a poll that arrives late says the Spotify chrome "
+      "is slow and says nothing about the taskbar, Clock, Stock, Player or WebRadio "
+      "families, which never read it. The oracle argues the same way — the whole "
+      "assertion is one `LOG_D` line that `logSink.h:119`'s runtime level gate can "
+      "suppress if an earlier test lowered the level, so its failure mode is as "
+      "local as its subject.")
 def t092(dut: Dut):
     print("T092  `reconnect` triggers force poll ≤2000ms")
     # Drain any pending serial data before starting the clock
@@ -755,7 +772,15 @@ def t095(dut: Dut, interactive: bool):
 
 # ── T133 — CurrentlyPlaying zero-init guard ───────────────────────────────────
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE, per WP-B B-2 and "
+      "WP-C C-14. Part A is a host-side `grep` of `lib/SpotifyArduino/` — a "
+      "checkout missing that directory FAILs before the DUT is touched, which is a "
+      "fact about the CHECKOUT and not about the board; part B is a 90 s idle soak "
+      "satisfied by any board with or without the guard. Neither half establishes "
+      "anything another id relies on, and part A is the R36 reference case for "
+      "\"a gating class may not depend on the host file layout\".")
 def t133(dut: Dut):
     """Static grep + 90 s runtime soak. Works with production or debug build."""
     print("T133  CurrentlyPlaying zero-init guard (static + 90s stability)")
@@ -1088,6 +1113,12 @@ def t148(dut: Dut):
 
 # ── T_BI_01 — PLEDIT repaint on Spotify resume ───────────────────────────────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. `lastPlaylistDraw` "
+      "is read by no other id in the corpus: a PLEDIT repaint that does not fire on "
+      "resume is a defect confined to the Winamp view. It also skips on an empty "
+      "Spotify queue, which under TASK-243's live 403 is the routine outcome, so as "
+      "a gate it is near-permanently inconclusive (BP-074) as well as local.")
 def t_bi_01(dut: Dut):
     """T_BI_01: lastPlaylistDraw advances after Spotify resume (invalidatePlaylist fires)."""
     # Precondition: queue populated
@@ -1248,6 +1279,13 @@ def t_bi_03(dut: Dut):
 
 # ── T_BI_04 — Release delivery after finger lift ─────────────────────────────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE, per WP-C C-20. Its "
+      "stated subject — that `cmdTap` delivers the Release phase — has no oracle: "
+      "the reply is synthesised by `cmdTap` from the hit-test, so a firmware that "
+      "never delivers Release still answers TRANSPORT/PLAY. What it does assert "
+      "duplicates T081's, and the tap-injection premise it appears to carry is "
+      "already declared CORE on T079. A duplicate of a premise is not a premise.")
 def t_bi_04(dut: Dut):
     """T_BI_04: cmdTap delivers Release phase; response region=TRANSPORT action=PLAY|PAUSE. [PARTIAL — requires Spotify playing for full verification]"""
     r = dut.cmd("get appId", timeout=3.0)
@@ -1930,6 +1968,14 @@ def t_busy_05(dut: Dut):
 
 # ── T-CDWN-01 — VIS Phase-2 cooldown gate (touchScreenCoolDownTime) ───────────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. Its subject is "
+      "SpotifyApp's VIS 300 ms cooldown — a canvas feature. The gate the suite's own "
+      "tap primitive drains before every tap is the shell's `s_cooldownMs`, a "
+      "different variable (see T_TBFB_04's docstring), so VIS cycling misbehaving "
+      "costs exactly the VIS assertions and nothing else. WP-C rates the body the "
+      "most carefully built in the CORE set; that is an argument about its quality, "
+      "not about its reach.")
 def t_cdwn_01(dut: Dut):
     """T-CDWN-01: VIS cycling — tap 1 cycles; tap 2 inside the VIS 300 ms window
     suppressed; tap 3 after `get cooldown` polls to 0 cycles.
@@ -2881,6 +2927,13 @@ def _tbfb_idx(lines: list[str], needle: str) -> int:
     return -1
 
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE (seeded only because "
+      "its scope is `taskbar`). M-TASKBAR-FEEDBACK/TASK-279 asserts the ORDER of "
+      "three log markers behind an amber press paint. The switch LANDING — the part "
+      "the rest of the run depends on — is declared CORE on T147 and T162; if the "
+      "markers were emitted out of order the switch would still land and every "
+      "downstream id would be unaffected.")
 def t_tbfb_01(dut: Dut):
     """T_TBFB_01: taskbar drag-tap → tb-press in the Press iteration, tb-commit
     strictly before [shell] entered (VE-3-3), switch lands on the tapped app."""
@@ -2909,6 +2962,12 @@ def t_tbfb_01(dut: Dut):
     pass_("T_TBFB_01", f"press@{i_press} < commit@{i_commit} < entered@{i_enter}; appId=Clock")
 
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. Same feature: "
+      "`tb-press-cancel` on a scroll, with no commit and no switch. The strongest "
+      "body in its family — it asserts the negative as well as the positive — and "
+      "still local: the tap/scroll discrimination it overlaps is the premise, and "
+      "that is declared CORE on T162.")
 def t_tbfb_02(dut: Dut):
     """T_TBFB_02: scroll drag → tb-press then tb-press-cancel at dead-zone exceed
     (VE-3-4); no tb-commit, no switch; offset steps by 1 (discrimination unchanged)."""
@@ -2937,6 +2996,14 @@ def t_tbfb_02(dut: Dut):
     pass_("T_TBFB_02", f"press@{i_press} → cancel@{i_cancel}; no commit; offset 0→1")
 
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. A feature test of "
+      "the WebRadio player-mode slot redirect; nothing else resolves a player slot. "
+      "The class also cut the wrong way for it: WP-C C-12 shows its `finally` writes "
+      "`set playerMode {r_pm.get('val', 0)}`, so a lost entry reply silently "
+      "REWRITES persisted SPIFFS state to Spotify — an id that can corrupt persisted "
+      "state on a dropped line is the last one that should run first, which is what "
+      "CORE would have made it under the class-order switch.")
 def t_tbfb_03(dut: Dut):
     """T_TBFB_03: WebRadio-player-mode case (QM-3-1) — player-slot tap with persisted
     mode WebRadio: amber paints the TAPPED slot (tb-commit slot=0), switch resolves
@@ -2970,6 +3037,12 @@ def t_tbfb_03(dut: Dut):
     pass_("T_TBFB_03", f"commit slot=0 @{i_commit} < entered WebRadio @{i_enter}; redirect OK")
 
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. It draws a boundary "
+      "between two cooldown variables — a taskbar gesture must not arm SpotifyApp's "
+      "canvas cooldown, a canvas gesture still must. Both directions are asserted "
+      "and both are local: the suite drives the canvas cooldown to zero before every "
+      "tap anyway, so no other id would be misled if it stopped arming.")
 def t_tbfb_04(dut: Dut):
     """T_TBFB_04: app-canvas cooldown behaviour unchanged. `get cooldown` reads
     SpotifyApp's touchScreenCoolDownTime (TASK-052 dead-zone-tap force-poll cooldown)
@@ -3005,6 +3078,13 @@ def t_tbfb_04(dut: Dut):
     pass_("T_TBFB_04", f"taskbar gesture: remainingMs=0; canvas VIS tap: remainingMs={rem_cv}")
 
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE, and it is the "
+      "closest call of the five. `Dut.cmd` does issue `get shellCooldown` before "
+      "every tap and drag — but this id asserts the cooldown DOES arm on a release, "
+      "and the load-bearing direction is the opposite one: if it stopped arming, "
+      "`Dut.cmd`'s drain would simply become a no-op and downstream taps would be "
+      "unaffected. A failure here invalidates nothing after it.")
 def t_tbfb_05(dut: Dut):
     """T_TBFB_05 (TASK-294): shell-level post-gesture cooldown. `get shellCooldown`
     reads main.cpp's s_cooldownMs — the variable TASK-280's drainInjectionQueue fix
@@ -3285,6 +3365,15 @@ def t_set_08(dut: Dut):
 
 # ── ADR-042 validation tests ──────────────────────────────────────────────────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE, per WP-C C-2: the "
+      "body is BROKEN in a way that makes the class meaningless. Its subject is JSON "
+      "garbling under Core-0 load; its only detector is a `JSONDecodeError`, and "
+      "`app/tools/lib/dut.py:1086` swallows that and returns the next well-formed "
+      "line, so `errors` can fill only on a total timeout — never on the interleave "
+      "it exists to catch. An id that cannot fail on its subject must not hold a "
+      "veto over 167 others. Re-promotion is arguable once C-2 is fixed and it has "
+      "actually been run; not before.")
 def t_uart_01(dut: Dut):
     """T-UART-01: No JSON garbling during concurrent Core 0 HTTPClient activity.
     Switches to Stock (triggers chart fetch on Core 0), then fires 20 rapid
@@ -3356,7 +3445,13 @@ def t_bgpoll_01(dut: Dut):
         pass_("T-BGPOLL-01", "shellBusy=false throughout 5 s bgPoll suspend — self-polls halted")
 
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. `reconnect` "
+      "resetting `bgPoll` to 1 is a recovery invariant of the Spotify poll; nothing "
+      "downstream requires it. WP-B B-6 cuts the same way from the other side: with "
+      "no `finally`, a failure here leaves `bgPoll 0` for every id that follows, so "
+      "the id most able to poison its successors was the one licensed to stop them.")
 def t_bgpoll_02(dut: Dut):
     """T-BGPOLL-02: reconnect resets bgPoll to enabled:1 (recovery invariant)."""
     print("T-BGPOLL-02  reconnect resets bgPoll to 1 (ADR-042 E2 invariant)")
@@ -3375,7 +3470,14 @@ def t_bgpoll_02(dut: Dut):
         pass_("T-BGPOLL-02", "reconnect reset bgPoll to enabled:1 — recovery invariant holds")
 
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE, per WP-C C-11. The "
+      "only thing it asserts is that a flag the test itself wrote is still 0 — which "
+      "would hold if the tap were never sent. `_wait_shell_not_busy`'s return is "
+      "discarded and the tap's own `hit`/`action` reply is never inspected, so the "
+      "\"force-poll completed\" half of the claim has no oracle at all. A vacuous "
+      "pass cannot invalidate anything, which is the definition of local.")
 def t_bgpoll_03(dut: Dut):
     """T-BGPOLL-03: ACT_FORCE_POLL tap completes fetch while bgPoll suspended; flag stays 0."""
     print("T-BGPOLL-03  ACT_FORCE_POLL bypasses bgPoll suspend (ADR-042 E2)")
@@ -3420,7 +3522,14 @@ def _get_active_error(dut: Dut):
     """Returns the `get activeError` dict: {active, spotifyAuthError}."""
     return dut.cmd("get activeError", timeout=3.0)
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. An ADR-046 feature "
+      "test of the `activeError` state machine behind one taskbar indicator. WP-C "
+      "rates the body SOUND and it is the good version of the injection pattern "
+      "(write key `lastHttp`, read key `activeError`) — but no other id's verdict "
+      "depends on the error latch, so a regression here costs the six T-ERR cells "
+      "and nothing beyond them.")
 def t_err_01(dut: Dut):
     """T-ERR-01 (X020): a 403 poll → activeError true; recovered (200) poll → clears to false."""
     print("T-ERR-01  Spotify authError detection + self-clear")
@@ -3445,6 +3554,12 @@ def t_err_01(dut: Dut):
     else:
         fail("T-ERR-01", f"base={base} err={err} cleared={cleared}")
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. A per-app ownership "
+      "rule for one indicator: the error is hidden while another app is active and "
+      "restored on return. Local by construction — it is a statement about which app "
+      "owns a bar. WP-C C-16 also applies: hardcoded `switchApp 1`/`switchApp 0` "
+      "with no `ok` check, so a failed switch reads the previous app's state.")
 def t_err_02(dut: Dut):
     """T-ERR-02 (X018+X019): error owned by app — hidden while another app is active
     (active-only limitation), restored on return to the errored app."""
@@ -3471,7 +3586,14 @@ def t_err_02(dut: Dut):
     else:
         fail("T-ERR-02", f"before={before} away={away} back={back}")
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE, and the order "
+      "hazard is part of the argument. It tests the boot-amber `connecting` latch — "
+      "one indicator's state, read by nothing else. WP-B B-7: it writes `lastOkMs`, "
+      "`backoff` and `lastHttp` and restores NONE of them, so under the class-order "
+      "switch it would have moved from index ~206 to ~39, in front of 170 ids. That "
+      "is an argument against running it early, not for it.")
 def t_err_04(dut: Dut):
     """T-ERR-04 (boot amber): connecting true before the first poll resolves, false
     after the first success — independent of error state."""
@@ -3493,7 +3615,13 @@ def t_err_04(dut: Dut):
     else:
         fail("T-ERR-04", f"boot={boot} connected={conn}")
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. A precise "
+      "regression guard for one past defect — a touch must not clear a 403, because "
+      "`authError` keys on the last HTTP status and not on `s_consecutiveFailures`. "
+      "Valuable, and entirely confined to the Spotify error indicator: no other id "
+      "reads `spotifyAuthError`.")
 def t_err_05(dut: Dut):
     """T-ERR-05 (regression): a touch must not clear the 403 error. authError is keyed on the
     last HTTP status, not s_consecutiveFailures, so resetBackoff() (called on every touch via
@@ -3516,6 +3644,12 @@ def t_err_05(dut: Dut):
     else:
         fail("T-ERR-05", f"err={err} after_reset={after_reset}")
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. It asserts offline "
+      "apps never report `connecting`, which is a weak negative — `connecting` "
+      "defaults false, so it asserts a default was not overwritten — and a local "
+      "one. Hardcoded `conn(1)`/`conn(4)` with no `ok` check on the switch means a "
+      "failed switch reads the previous app's state (WP-C C-16).")
 def t_err_06(dut: Dut):
     """T-ERR-06: offline apps never report connecting. Network apps (Weather/Crypto/Stock/
     Teletext) wire isConnecting() to their first-fetch; offline apps (Clock/Matrix) keep the
@@ -3533,6 +3667,14 @@ def t_err_06(dut: Dut):
     else:
         fail("T-ERR-06", f"clock={clock} matrix={matrix} (expected both False)")
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE, WP-B B-1's seventh "
+      "Stock id. It drives StockApp's `hasError() = _s.fetchFailed` latch through "
+      "`set fetchFailed`; nothing else in the corpus reads the Stock error latch, so "
+      "the failure is confined to one app's indicator. It was seeded CORE only "
+      "because its module is `shell.py` and its scope fell to the catch-all. OWED "
+      "(B-1's other half, deliberately not done here because it changes `--scope` "
+      "selection, not gating): its scope should be `Stock`.")
 def t_err_07(dut: Dut):
     """T-ERR-07 (TASK-246): a network app's failed fetch → red. Stock hasError() = _s.fetchFailed,
     driven via the existing `set fetchFailed` injector; clears on success. Representative of the

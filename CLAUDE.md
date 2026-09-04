@@ -195,7 +195,14 @@ scripts** — 7 checkers and 10 negative suites, five of the checkers paired wit
 |---|---|---|
 | `gate/check_import_safety.py` | no module under `app/tools/` opens a port, resolves one, hangs or resets the board **at import** — six DUT scripts used to run their whole suite at module level (TASK-609/R48) | at zero |
 | `gate/check_get_keys.py` | `gen/gen_get_keys.py` reads every `dbgGet` body in the tree; its glob and its definition regex between them saw 43 of 111 keys (TASK-600/R7) | at zero |
-| `gate/check_flake_class.py` | no RIG/HEALTH/CORE id carries a `flaky.yaml` declaration — a gating id whose retry resolves `FLAKY-PASS` can never set the blocker its class exists to set (TASK-623/R37) | blocking, one dated ledger row (`docs/verification/flake_class_exceptions.md`) |
+| `gate/check_flake_class.py` | no RIG/HEALTH/CORE id carries a `flaky.yaml` declaration — a gating id whose retry resolves `FLAKY-PASS` can never set the blocker its class exists to set (TASK-623/R37) | **at zero** since 2026-09-04: its one ledger row was `T091`, which TASK-591 demoted to FEATURE, so `flake_class_exceptions.md` was deleted per its own retirement rule |
+
+`gate/check_test_meta.py` (TASK-570) gained an **R35 arm** in Phase 1 (TASK-591): every id whose
+class can block — RIG, HEALTH, CORE — must declare that class with a **written reason** saying why
+its failure invalidates the rest of the run, never `_meta.seed_cls()`'s default. Blocking, with 4
+dated rows on the shrink-only `docs/verification/gating_class_declarations.md`. Writing the reasons
+was the audit: **CORE went from 43 ids to 23**, the other 20 demoted to FEATURE with a declared
+reason each.
 
 Exit 0 = all pass. Minimum safety gate before committing structural changes (see BP-008).
 

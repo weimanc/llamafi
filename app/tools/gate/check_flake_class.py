@@ -21,10 +21,20 @@ demoted.** It is never both blocking and excused.
 WHAT IT ASSERTS
 
   F1  no DECLARED flake resolves to RIG, HEALTH or CORE.
-      Not at zero today — T091 — so this lands BLOCKING with a dated,
-      shrink-only ledger holding exactly that one row, the discipline C6's
-      ledger already proved. Never advisory: an advisory finding is scrolled
-      past, and `check_docs` C3 is this repo's standing proof of it.
+      **At zero since 2026-09-04 (TASK-591).** It landed BLOCKING with a dated,
+      shrink-only ledger holding exactly one row — T091 — on the reasoning that
+      an advisory finding is scrolled past (`check_docs` C3 is this repo's
+      standing proof). TASK-591 then declared T091's class: no CORE sentence
+      could honestly be written for it, so it is FEATURE, the contradiction is
+      gone, and `docs/verification/flake_class_exceptions.md` was DELETED per
+      its own retirement rule. The gate is now blocking at zero with no ledger
+      at all, which is the state F2 and F3 have always been in.
+
+  F5  no exemption ledger exists holding zero rows. The ledger's own rule is
+      that the file is deleted when its last row is; a file left behind with an
+      empty table is a retirement somebody stopped halfway, and it is the shape
+      an amnesty grows back from — an empty exemption list is an invitation to
+      open a row. **Zero today, because the file is gone.**
 
   F2  no flake CANDIDATE resolves to a gating class. A candidate is a proposal
       to create the contradiction, and promoting one is how F1 would grow.
@@ -93,17 +103,29 @@ def _cells(line: str) -> list:
 
 
 def parse_ledger(path: str = None) -> tuple:
-    """-> ({(kind, id): 'rel:line'}, [malformed-row errors]).
+    """-> ({(kind, id): 'rel:line'}, [errors]).
 
     Same shape and same rules as the C6 ledger (`check_docs.py:_parse_ledger`):
     keyed on `(kind, id)`, an owning TASK id and an ISO `since` date required,
     no wildcards of any sort.
+
+    AN ABSENT FILE IS THE STEADY STATE, AND IT FAILS CLOSED (TASK-591). Since
+    T091's demotion there is nothing to exempt, so the file is gone. Absent
+    parses to zero rows, which grandfathers nothing: if a gating flake is ever
+    declared again, `evaluate` finds it unexempted and the gate goes red. That
+    is the whole safety property — the check does not need its ledger to be
+    strict, only to be lenient, so losing the file can only make it stricter.
+
+    An EXISTING file holding zero rows is different, and is F5: the ledger's own
+    retirement rule says the file is deleted when its last row is, so an empty
+    table is a half-finished retirement and the shape an amnesty regrows from.
     """
     path = path or os.path.join(ROOT, LEDGER_REL)
     rows: dict = {}
     errors: list = []
     if not os.path.exists(path):
         return rows, errors
+    exists = True
     rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
     header = None
     with open(path, encoding="utf-8", errors="replace") as fh:
@@ -135,6 +157,12 @@ def parse_ledger(path: str = None) -> tuple:
             errors.append(f"{rel}:{i}: since {since!r} is not an ISO YYYY-MM-DD date")
             continue
         rows[(kind, tid)] = f"{rel}:{i}"
+    if exists and not rows and not errors:
+        errors.append(
+            f"F5 {rel}: the exemption ledger exists but holds no rows — its own "
+            f"retirement rule is that the file is deleted when its last row is. "
+            f"An empty exemption list is where the next amnesty starts. Delete "
+            f"the file")
     return rows, errors
 
 
@@ -203,7 +231,9 @@ def main(argv) -> int:
     print(f"check_flake_class: {len(reg.entries)} declared flake(s), "
           f"{len(reg.candidates)} candidate(s), against {len(gating_ids)} gating "
           f"ids ({'/'.join(GATING)}) in a {len(meta)}-id registry; "
-          f"{len(ledger)} ledger row(s)")
+          f"{len(ledger)} ledger row(s)"
+          + ("" if os.path.exists(os.path.join(ROOT, LEDGER_REL))
+             else f" (no ledger file — retired 2026-09-04, TASK-591)"))
     if verbose:
         for tid in sorted(reg.entries):
             rec = meta.get(tid) or {}

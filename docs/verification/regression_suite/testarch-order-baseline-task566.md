@@ -1,6 +1,6 @@
 # TASK-566 — order diff and pre-switch baseline
 
-**TASK-566** · Owner: @Developer · Date: 2026-09-02
+**TASK-566** · Owner: @Developer · Date: 2026-09-02 · **§1 re-derived 2026-09-04 (TASK-591)**
 Design: [M-TESTARCH precedence hierarchy](../../architecture/designs/M-TESTARCH-precedence-hierarchy.md)
 §4.1 / §6 R3 / EC-G9 · **The order switch is HELD and was NOT flipped.**
 
@@ -18,26 +18,41 @@ cd app/tools && python3 -m lib.baseline <runner log> …
 Computed on the default selection (210 ids) with **zero DUT time**, which is the whole
 argument for landing the classification inert first (§6 R3).
 
-| | |
-|---|---|
-| ids in the default selection | **210** |
-| ids that change position | **210 — all of them** |
-| inverted pairs | **6505** |
-| inverted pairs touching an edge candidate | **1350** |
+| | 2026-09-02 (CORE=43) | **2026-09-04 (CORE=23)** |
+|---|---|---|
+| ids in the default selection | 210 | **210** |
+| ids that change position | 210 — all of them | **202** |
+| ids whose position is preserved | 0 | **8** |
+| inverted pairs | 6505 | **3497** (−46 %) |
+| inverted pairs touching an edge candidate | 1350 | **1084** (−20 %) |
 
-The shape is simple and it is the worst case: `shell.py`'s **43 CORE ids sit at the tail of
-the registry today**, and class order moves them to the head. Every other id shifts by
-exactly +43. There is no id whose position is preserved.
+**Why the second column exists.** TASK-591 declared the gating classes R35 requires and, on
+the human's ruling of 2026-09-04, demoted 20 CORE ids to FEATURE — every one of them a
+`_meta.seed_cls()` default nobody had affirmed. That is a change to what the switch would do,
+so §1 was re-derived rather than left to describe a corpus that no longer exists.
+
+The shape is the same and it is milder. `shell.py`'s CORE ids still sit at the tail of the
+registry and class order still moves them to the head; there are now **23** of them, so
+every id ahead of them shifts by exactly **+23** instead of +43.
+
+What is new is the preserved set. **Eight ids no longer move at all** — `T-BGPOLL-02`,
+`T-BGPOLL-03` and `T-ERR-01/02/04/05/06/07`. They are demoted ids that already sat at the
+very end of the registry and, as FEATURE, stay there. One of the eight matters
+disproportionately: **`T-ERR-04` was the baseline's own worst unrestored-state hazard**
+(WP-B `B-7` — it writes `lastOkMs`, `backoff` and `lastHttp` and restores none of them, and
+the switch would have moved it from index ~206 to ~39, in front of 170 ids). Its demotion
+removes that migration entirely; it now stays at index ~206 where its leakage reaches almost
+nothing.
 
 Class census under the switch (ascending — this *is* the execution order):
 
-| Class | Count | Note |
+| Class | Count (was) | Note |
 |---|---|---|
-| RIG | 0 | no registry id is class RIG |
-| HEALTH | 0 | `T_DH_01..03` live in a separate registry (§4.5) and run in the gate phase |
-| CORE | 43 | all of `shell.py`/taskbar/boot |
-| **APP** | **0** | **no id is classified APP today** — see §4 |
-| FEATURE | 167 | everything else |
+| RIG | 0 (0) | no registry id is class RIG — the three RIG ids are stripped from the default selection (`app/tools/suite/serialdbg/runner.py:231`), so this line is structural, not an artefact (WP-C `C-3`) |
+| HEALTH | 0 (0) | `T_DH_01..03` live in a separate registry (§4.5) and run in the gate phase |
+| CORE | **23** (43) | 19 declared by TASK-591 + the 4 still on the [R35 ledger](../gating_class_declarations.md) awaiting the Phase 2 session |
+| **APP** | **0** (0) | **no id is classified APP today** — see §4 |
+| FEATURE | **187** (167) | everything else, including the 20 demoted ids |
 
 ## 2. The 0→1-edge enumeration — @VE §18.6(c), delivered as a precondition
 
@@ -61,6 +76,11 @@ hide a defect or merely manufacture a red cell:
   TASK-300's `_drain_data_pipeline`). Under class order `T-BUSY-01` and `T-CDWN-02`, which
   both drive Stock chart fetches, move from ~100 ids *after* it to ~90 ids *before* it.
 * **ORDER-SENSITIVE** (silent non-result) — `T-BUSY-01`, `T165`, `T173`.
+  **`T165`'s row is wrong** and TASK-591 confirmed it from the body: `_tb_precondition`
+  *drives* `tbScrollOffset` to 0 and returns False if it cannot, so the `skip()` the
+  adjudication cites is unreachable in registry order. WP-C `C-19` proposes re-verdicting it
+  `DISMISSED` alongside `T163`/`T164`; that edit belongs to whoever owns C-19, and is noted
+  here because an inaccurate row in a stated precondition of the switch matters.
 * **VACUITY** (false green, the easiest to miss) — `T193`, `T196`.
 * **DISMISSED** (establishes its own precondition) — the remaining 13.
 
@@ -105,9 +125,10 @@ fixed under BP-068 — which is worth its own task.
 
 ## 4. What this says about the switch
 
-Not "it is safe". The diff says the blast radius is **total** (every id moves), the edge
-enumeration names **2 cells that can invert** and 5 more that can go quiet, and the baseline
-says **7.1 % of the suite is already non-stationary before anything is reordered**. A 3-run
+Not "it is safe". The diff says the blast radius is **near-total** — 202 of 210 ids move, and
+the 8 that do not are all demoted tail ids (§1) — the edge enumeration names **2 cells that
+can invert** and 5 more that can go quiet, and the baseline says **7.1 % of the suite is
+already non-stationary before anything is reordered**. A 3-run
 sequential baseline cannot separate a reorder effect from that noise floor, which is exactly
 why @VE §18.6(a) requires an **interleaved A/B at one commit**.
 
