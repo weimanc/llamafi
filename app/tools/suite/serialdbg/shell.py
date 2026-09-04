@@ -109,6 +109,14 @@ def t078(dut: Dut):
 
 # ── T079 — cooldown gate blocks rapid sequential taps ────────────────────────
 
+@meta(cls="CORE", cls_reason=
+      "`Dut.set_cooldown_zero()` runs before nearly every injected tap in the "
+      "corpus — it is how the suite guarantees its taps are admitted at all. This "
+      "is the only id that asserts the gate in BOTH states: armed, a tap reports "
+      "`skipped`; cleared, the same tap reports `hit=TRANSPORT`. If the gate stops "
+      "honouring `set cooldown`, taps are silently dropped (or silently admitted) "
+      "for the whole run, and every downstream tap assertion is scoring a machine "
+      "the test did not arrange.")
 def t079(dut: Dut):
     print("T079  Cooldown gate blocks rapid tap")
     # injectTouch (cmd tap) intentionally does NOT arm touchScreenCoolDownTime
@@ -142,6 +150,14 @@ def t079(dut: Dut):
 
 # ── T080 — `info` command shape ───────────────────────────────────────────────
 
+@meta(cls="CORE", cls_reason=
+      "The heap floor is the only assertion anywhere in the suite that the board "
+      "has the RESOURCES to run the rest of it. Below it the allocation-heavy "
+      "families — Stock's chart buffer, PlaneRadar's airport DB, WebRadio's decode "
+      "arena — fail for want of memory, and each reports that as a defect in its "
+      "own feature. Caveat recorded with the declaration: the 50 000 floor has no "
+      "cited firmware constant or measurement behind it (WP-A A-11), so this gates "
+      "on a number nobody derived; deriving it is owed.")
 def t080(dut: Dut):
     print("T080  `info` command shape")
     r = dut.cmd("info", timeout=4.0)
@@ -222,6 +238,12 @@ def t082(dut: Dut):
 
 # ── T083 — `help` is parseable single JSON line ───────────────────────────────
 
+@meta(cls="CORE", cls_reason=
+      "Every id in the corpus is a sequence of `get`/`set`/`tap`/`drag`/`info`/"
+      "`reconnect`, and this is the only id that asserts those names are actually "
+      "in the console registry. A command dropped from the registry answers with a "
+      "well-formed error the callers do not check, so the failure surfaces in each "
+      "test as its own feature misbehaving rather than as a missing command.")
 def t083(dut: Dut):
     """T083: `help` command returns parseable JSON with required command names. [SMOKE — verifies command registry, not behavior]"""
     print("T083  `help` is parseable JSON")
@@ -241,7 +263,19 @@ def t083(dut: Dut):
 # consecutiveFailures between the set and get commands, causing unexpected
 # values mid-sequence — first observed 2026-05-25
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="CORE", cls_reason=
+      "It is the only id that tests the `set X` → `get X` round trip ITSELF. Around "
+      "thirty ids inject device state through that pair and then assert on a "
+      "read-back (`set lastHttp`, `set fetchFailed`, `set bgPoll`, `set triggerFetch`, "
+      "`set playerMode`…); if `set` silently no-ops or `get` answers a stale copy, "
+      "every one of them asserts against a value it never wrote and passes or fails "
+      "for a reason unrelated to its subject. WP-C is right that read-back of the "
+      "same field is a tautology about the FEATURE — that is exactly why it is the "
+      "right premise test for the MECHANISM. Owed with this declaration: its four "
+      "failure paths call `flake()` while T084 is absent from `flaky.yaml`, so a "
+      "real failure blocks the run with an UNDECLARED-flake message about "
+      "bookkeeping rather than about the shell (WP-C C-7).")
 def t084(dut: Dut):
     print("T084  set/get backoff round-trip")
     # Set to 5
@@ -969,7 +1003,13 @@ def t140(dut: Dut):
     pass_("T140", f"scrollOffset saturates at {val_sat}; extra swipe did not increment")
 
 
-@meta(scope="taskbar", scope_reason="taskbar-surface")
+@meta(scope="taskbar", scope_reason="taskbar-surface",
+      cls="CORE", cls_reason=
+      "`_restore_spotify` and `_switch_to` (`_helpers.py:286,321`) reach EVERY app "
+      "by tapping a taskbar slot, and shell.py, stock.py, webradio.py and player.py "
+      "all route through them. If a taskbar tap does not switch the app, every id "
+      "after it runs against whatever app happened to be on screen and reports the "
+      "mismatch as a defect in the app it thought it was testing.")
 def t147(dut: Dut):
     """T147: taskbar tap (via injectTouch) switches active app; get appId confirms round-trip."""
     import time
@@ -1002,6 +1042,12 @@ def t147(dut: Dut):
     pass_("T147", "Spotify→Clock→Spotify round-trip confirmed via get appId")
 
 
+@meta(cls="CORE", cls_reason=
+      "Every non-Spotify app's canvas test assumes a tap on the canvas reaches that "
+      "app's own handler. If Winamp zone routing leaks back — the TASK-346 BUG-1 "
+      "class this guards — those tests are scoring Winamp's hit-test, and a Clock, "
+      "Stock or PlaneRadar tap test then passes or fails for a reason that has "
+      "nothing to do with the app named in its id.")
 def t148(dut: Dut):
     """T148: while Clock active, tap routes through Clock's own dedicated handler
     (TASK-346 M-CLOCK-TAP-CYCLE) — hit=CLOCKAPP, never a Winamp/Spotify zone name."""
@@ -1091,6 +1137,13 @@ def t_bi_01(dut: Dut):
 
 # ── T_BI_02 — no Winamp render bleed onto Clock canvas ───────────────────────
 
+@meta(cls="CORE", cls_reason=
+      "The suite taps the taskbar immediately after a canvas action all through the "
+      "run — `_restore_spotify` right after a transport tap is the routine case. If "
+      "the shell does not consume a taskbar tap that arrives while an app action is "
+      "still pending, those restores become non-deterministic and every id inherits "
+      "an active app it did not choose. This is the only id that asserts the "
+      "preemption directly (`hit=TASKBAR`, `action=APP_SWITCH`, then `appId`).")
 def t_bi_02(dut: Dut):
     """T_BI_02: taskbar tap while PLAY pending → APP_SWITCH response; appId=Clock (no bleed)."""
     # Ensure Spotify active.
@@ -1127,6 +1180,15 @@ def t_bi_02(dut: Dut):
 
 # ── T_BI_03 — suspend() clears drag state mid-switch ─────────────────────────
 
+@meta(cls="CORE", cls_reason=
+      "Drag state that survives an app switch contaminates every later gesture in "
+      "the run — taskbar scroll, PLEDIT scroll, volume drag — with a drag a previous "
+      "test began. `suspend()` clearing it is what makes gesture tests independent "
+      "of their predecessors, and this is the only id that asserts it. Only the "
+      "`dragState` half carries the class; the `scrollOffset >= 0` half is a vacuous "
+      "bound (WP-C, S8) and proves nothing. Its precondition needs a live Spotify "
+      "queue of >= 2, which under TASK-243's 403 it does not get — an R36/TASK-626 "
+      "case, listed there, not a reason to demote the claim.")
 def t_bi_03(dut: Dut):
     """T_BI_03: suspend() resets dragState; resume() re-enables PLEDIT after Spotify→Clock→Spotify."""
     # Precondition: Spotify active, queue ≥ 2 items for scroll tests.
@@ -1582,6 +1644,15 @@ def t_cx_05(dut: Dut):
 
 # ── T_X07_01 — dataTask cross-feature: rapid Weather↔Crypto switching ────────
 
+@meta(cls="CORE", cls_reason=
+      "Moving between families is the suite's most frequent operation, and it does "
+      "it fast: `_restore_spotify` plus the next test's `_switch_to` puts two "
+      "switches back to back several hundred times a run. T147 proves ONE switch "
+      "works; this proves the sequence does not wedge the shell or the dataTask. If "
+      "it does, the board every subsequent id runs on is not the board they were "
+      "written for. Recorded with the declaration: the docstring's 'no dataTask "
+      "queue corruption' has no oracle — `get dataq` is never read (WP-C) — so the "
+      "class rests on the five `appId` comparisons and the closing liveness check.")
 def t_x07_01(dut: Dut):
     """T_X07_01 (X007): rapid Weather→Crypto→Weather→Crypto→Spotify; DUT stable throughout."""
     print("T_X07_01  dataTask cross-feature: rapid Weather↔Crypto switching")
@@ -1736,7 +1807,16 @@ def t_busy_01b(dut: Dut):
 
 # ── T-BUSY-02 — Spotify PLAY tap triggers busy; clears ────────────────────────
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="CORE", cls_reason=
+      "`shellBusy` is the suite's universal synchronisation primitive: "
+      "`_wait_shell_not_busy` and `_poll_shell_busy` gate taps in every family, and "
+      "`Dut.cmd` leans on the same state. If the flag does not rise when an action "
+      "is enqueued, tests tap while the previous action is still in flight; if it "
+      "does not clear when the action finishes, their preconditions time out into "
+      "skips and the run goes green having tested nothing. This is the only id that "
+      "asserts BOTH edges and hard-fails on each (WP-C: the best of the busy "
+      "family).")
 def t_busy_02(dut: Dut):
     """T-BUSY-02: Spotify PLAY tap → shellBusy true → clears within 3 s."""
     print("T-BUSY-02  Spotify PLAY → amber → clears")
@@ -1759,6 +1839,13 @@ def t_busy_02(dut: Dut):
 
 # ── T-BUSY-03 — Passive apps: no amber on canvas tap ─────────────────────────
 
+@meta(cls="CORE", cls_reason=
+      "The negative half of T-BUSY-02's premise, and it fails in the direction that "
+      "hurts most. If an ordinary canvas tap in a passive app raises `shellBusy`, "
+      "`_wait_shell_not_busy` never returns for the Clock, Matrix, Life and Aquarium "
+      "families, their preconditions all expire into skips, and the run reports "
+      "green having exercised none of them. Six apps asserted in one pass, all "
+      "device-observed, one hard `fail()`.")
 def t_busy_03(dut: Dut):
     """T-BUSY-03: Clock/Weather/Crypto/Matrix/Life/Aquarium canvas taps → shellBusy false."""
     print("T-BUSY-03  Passive apps — no amber on canvas tap")
@@ -1939,6 +2026,19 @@ def t_cdwn_01(dut: Dut):
 
 # ── T-CDWN-02 — g_shellBusy gate in cmdTap blocks second canvas tap ───────────
 
+@meta(scope="Stock", scope_reason="drives-stock-only",
+      cls="CORE", cls_reason=
+      "The `cmdTap` `g_shellBusy` gate is what makes an injected tap issued during "
+      "an in-flight async action come back `skipped:true` instead of being "
+      "delivered. The suite reads that field to know whether its tap landed — T079, "
+      "T-BUSY-05 and every `r.get('skipped')` check in the corpus. If the gate stops "
+      "dropping, taps double up and `skipped` stops meaning anything, everywhere. "
+      "Scope is declared `Stock` per WP-B B-1 (it drives StockApp exclusively and a "
+      "Stock change must select it); the class is declared CORE anyway because the "
+      "ORACLE is the shell's tap gate, not the chart. Owed, and listed for R36: its "
+      "60 s secondary assertion is a live Yahoo fetch whose stall calls an "
+      "UNDECLARED `flake()` — a network outage must not be able to NOT-RUN the "
+      "FEATURE suite (WP-C C-7).")
 def t_cdwn_02(dut: Dut):
     """T-CDWN-02: tap row while busy → second tap dropped by cmdTap g_shellBusy gate → one fetch, not two.
 
@@ -2560,7 +2660,14 @@ def t160(dut: Dut):
 
 
 
-@meta(scope="taskbar", scope_reason="taskbar-surface")
+@meta(scope="taskbar", scope_reason="taskbar-surface",
+      cls="CORE", cls_reason=
+      "`_switch_to`/`_restore_spotify` reach an app by driving the offset to 0 and "
+      "tapping its slot. If a slot tap were taken for a scroll, every app entry in "
+      "the suite would land on the wrong app — and SILENTLY, because a consistent "
+      "one-slot shift still yields a valid app name for `get appId` to report. This "
+      "is the only id that asserts the tap/scroll discrimination itself: appId "
+      "changed AND the offset did not.")
 def t162(dut: Dut):
     """T162: Tap taskbar slot 1 (|rawDy|=0 < TB_SCROLL_DEAD_ZONE_PX=3) → switchApp fires, tbScrollOffset unchanged."""
     print("T162  Tap taskbar slot 1 — switchApp fires, tbScrollOffset unchanged")
@@ -2582,7 +2689,15 @@ def t162(dut: Dut):
     pass_("T162", f"appId=Clock; tbScrollOffset={post} (unchanged at {baseline}) — tap/switchApp path confirmed")
 
 
-@meta(scope="taskbar", scope_reason="taskbar-surface")
+@meta(scope="taskbar", scope_reason="taskbar-surface",
+      cls="CORE", cls_reason=
+      "`_tb_set_offset` (`_helpers.py:409`) reaches a target offset by composing "
+      "this exact transition — one 50 px up-drag per slot step — and "
+      "`_tb_precondition` calls it before all eleven taskbar ids, as does every "
+      "`_switch_to`. If an up-drag does not step the offset by one, the helper's "
+      "path arithmetic stops arriving — and `_switch_to` (`_helpers.py:325`) "
+      "DISCARDS its return, so it taps a slot position that now denotes a different "
+      "app and reports whatever it lands on.")
 def t163(dut: Dut):
     """T163: Drag-up ≥50 px / 10 steps → tbScrollOffset increments by 1 (mod N)."""
     print("T163  Drag-up 50 px → tbScrollOffset + 1")
@@ -2599,7 +2714,13 @@ def t163(dut: Dut):
     pass_("T163", f"tbScrollOffset {baseline}→{post} (+1 mod {_TB_N}) confirmed")
 
 
-@meta(scope="taskbar", scope_reason="taskbar-surface")
+@meta(scope="taskbar", scope_reason="taskbar-surface",
+      cls="CORE", cls_reason=
+      "The other direction of T163's premise, and it is not redundant: "
+      "`_tb_set_offset` chooses the SHORTER path, so roughly half of all offset "
+      "targets in the suite are reached by down-drags only. A down-step that does "
+      "not decrement leaves those calls short of the target with the same silent "
+      "consequence in `_switch_to`.")
 def t164(dut: Dut):
     """T164: Drag-down ≥50 px / 10 steps → tbScrollOffset decrements by 1 (mod N).
     Starts at offset=1 to exercise non-wrap decrement (wrap is T165)."""
@@ -2621,7 +2742,15 @@ def t164(dut: Dut):
     pass_("T164", f"tbScrollOffset {baseline}→{post} (-1 mod {_TB_N}) confirmed")
 
 
-@meta(scope="taskbar", scope_reason="taskbar-surface")
+@meta(scope="taskbar", scope_reason="taskbar-surface",
+      cls="CORE", cls_reason=
+      "`_tb_set_offset`'s shortest-path choice routes THROUGH the wrap whenever the "
+      "target is nearer that way (`steps_down = (current - target) % n`), so the "
+      "down-wrap is on the path for every target in the far half of the ring. A "
+      "wrap that lands anywhere but N-1 misaddresses those slots for every caller, "
+      "including `_restore_spotify`. WP-C C-19 also corrects the TASK-566 "
+      "adjudication here: `_tb_precondition` DRIVES the offset to 0, so this id's "
+      "`skip()` is unreachable in registry order and it is not order-sensitive.")
 def t165(dut: Dut):
     """T165: Wrap-around down — offset=0, drag-down → offset=N-1=7."""
     print("T165  Wrap-around down: offset=0, drag-down → offset=7")
@@ -2640,7 +2769,14 @@ def t165(dut: Dut):
     pass_("T165", f"tbScrollOffset 0→{post} (wrap-around down confirmed)")
 
 
-@meta(scope="taskbar", scope_reason="taskbar-surface")
+@meta(scope="taskbar", scope_reason="taskbar-surface",
+      cls="CORE", cls_reason=
+      "The fourth and last transition `_tb_set_offset` can emit — the up-wrap, taken "
+      "returning to offset 0 from the far half of the ring, which is what "
+      "`_tb_precondition` does before eleven ids and `_switch_to` does before "
+      "hundreds of app entries. The four transitions are one premise tested in the "
+      "four directions the helper actually uses; leaving any one at FEATURE would "
+      "leave a quarter of the navigation primitive ungated.")
 def t166(dut: Dut):
     """T166: Wrap-around up — offset=N-1=7, drag-up → offset=0."""
     print("T166  Wrap-around up: offset=7, drag-up → offset=0")
@@ -2660,7 +2796,16 @@ def t166(dut: Dut):
     pass_("T166", f"tbScrollOffset {baseline}→{post} (wrap-around up confirmed)")
 
 
-@meta(scope="taskbar", scope_reason="taskbar-surface")
+@meta(scope="taskbar", scope_reason="taskbar-surface",
+      cls="CORE", cls_reason=
+      "A taskbar render crash REBOOTS the board, and the suite scrolls the taskbar "
+      "in every family that calls `_tb_set_offset`. This is the only id that walks a "
+      "full cycle plus the wrap and checks the board is still answering at each "
+      "offset; if it fails, every id after it is running on an unplanned fresh boot "
+      "with none of the state its predecessors established. The class rests on that "
+      "liveness half. The leak half is weak and does not carry it: it samples 2 of "
+      "11 offsets and asserts only `!= WebRadio`, so a slot resolving to the wrong "
+      "non-WebRadio app passes (WP-C C-15).")
 def t242(dut: Dut):
     """T242 (TASK-242/LL-085): WebRadio must NOT be reachable via the taskbar — it
     is eject-entered only. Regression for the latent crash where WebRadio leaked
@@ -3169,7 +3314,18 @@ def t_uart_01(dut: Dut):
         pass_("T-UART-01", "20/20 get heap responses clean during chart fetch — no Core 0 interleave")
 
 
-@meta(scope="spotify-chrome", scope_reason="shell-poll")
+@meta(scope="spotify-chrome", scope_reason="shell-poll",
+      cls="CORE", cls_reason=
+      "`_bgpoll_suspended()` (`_helpers.py:444`) is the context manager the "
+      "injection-based ids use to stop a background Spotify poll overwriting the "
+      "state they just wrote — T-ERR-01/02/04/05, T-BUSY-01b/03/05, T-CDWN-02/03 and "
+      "T-BGPOLL-03 all run their assertions inside it. If `set bgPoll 0` does not "
+      "actually suspend the poll, those injections are clobbered at a cadence "
+      "nobody controls, and the resulting failures read as feature defects rather "
+      "than as a lost `set`. Recorded: the behavioural half samples `shellBusy` "
+      "every 500 ms as a PROXY for a poll firing, so a poll that starts and finishes "
+      "between samples is invisible (WP-C, S8) — the `enabled == 0` half is what "
+      "the class actually rests on.")
 def t_bgpoll_01(dut: Dut):
     """T-BGPOLL-01: set bgPoll 0 suspends self-polls; get bgPoll returns enabled:0."""
     print("T-BGPOLL-01  bgPoll suspend — self-polls halt (ADR-042 E2)")
@@ -3521,8 +3677,46 @@ TESTS = {
 # scope=rig: they calibrate the touchscreen against a human finger. They are a
 # property of the rig, not of any app — and under §13.3's rule they would still
 # exist were every app deleted.
+#: TASK-591 / R35. These three take their declaration here rather than through a
+#: decorator because their registry entries are `(dut, interactive)` bodies the
+#: runner dispatches specially; the reason still lives WITH the declaration, which
+#: is the rule the gate enforces.
+#:
+#: All three carry WP-C **C-3** on their face: no `run/` script passes
+#: `--interactive`, so the RIG class has ZERO executable coverage from any shipped
+#: entry point and each body takes its `skip()` branch. The class is nonetheless
+#: correct for what these ids assert — a rig premise, not a firmware one — and the
+#: reasons below are written for what they establish WHEN they are run. C-3's fix
+#: is an entry point (`run/calibrate`), not a demotion: demoting them would say the
+#: injection calibration is a feature of the firmware, which it is not.
 META_OVERRIDES = {
-    "T093": {"cls": "RIG", "scope": "rig", "scope_reason": "calibration"},
-    "T094": {"cls": "RIG", "scope": "rig", "scope_reason": "calibration"},
-    "T095": {"cls": "RIG", "scope": "rig", "scope_reason": "calibration"},
+    "T093": {
+        "cls": "RIG", "scope": "rig", "scope_reason": "calibration",
+        "cls_reason":
+            "The greyed titlebar is the operator's only out-of-band signal that the "
+            "board is in backoff. If it does not appear, a human watching the rig "
+            "cannot tell a wedged board from a working one, and the ~40 ids that "
+            "tolerate a degraded Spotify session will be read as passing on a board "
+            "nobody could see was unhealthy. WP-C rates the body HOLLOW (both "
+            "oracles are `input()` prompts) — that is a body defect to fix, not a "
+            "reason to move the claim out of RIG.",
+    },
+    "T094": {
+        "cls": "RIG", "scope": "rig", "scope_reason": "calibration",
+        "cls_reason":
+            "A physical tap on the logo must produce the same TLS reset an injected "
+            "tap does. If physical and injected input diverge here, the rig is not "
+            "the machine the suite thinks it is driving, and no injected-tap verdict "
+            "in the corpus generalises to the product.",
+    },
+    "T095": {
+        "cls": "RIG", "scope": "rig", "scope_reason": "calibration",
+        "cls_reason":
+            "This is the injection-vs-physical calibration that LICENSES every "
+            "injected `tap` in the other 210 ids: three zones, serial and finger, "
+            "same region and same action. If it fails, every tap-driven verdict in "
+            "the suite is a statement about `cmdTap`'s hit-test and about nothing a "
+            "user can do. Nothing else in the corpus establishes this, and per C-3 "
+            "it has never been runnable from a shipped script.",
+    },
 }

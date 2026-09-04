@@ -563,6 +563,19 @@ HEADING_ID_RE = re.compile(r"^#{2,6}\s+`?([A-Za-z0-9_]+)`?\b")
 BINDING_RE = re.compile(r"`?(impl|resv|blocked)`?\b")
 SEP_CELL_RE = re.compile(r":?-{2,}:?")
 LEDGER_REL = "docs/verification/id_binding_exceptions.md"
+
+#: Every shrink-only exception ledger under docs/verification/, not just C6's own.
+#: The rule the C6 scan states — "a ledger row is a record of missing coverage,
+#: never coverage" — is not specific to id_binding: any ledger keyed by test id
+#: parses as a doc entry and would grandfather its own rows into existence. This
+#: is a SET rather than one path because the programme keeps opening ledgers
+#: (R37's flake_class_exceptions.md, R35's gating_class_declarations.md), and a
+#: one-path exclusion silently stops covering the next one (TASK-591).
+LEDGER_RELS = (
+    LEDGER_REL,
+    "docs/verification/flake_class_exceptions.md",
+    "docs/verification/gating_class_declarations.md",
+)
 LEDGER_KINDS = ("orphan", "undeclared")
 
 
@@ -648,7 +661,7 @@ def doc_test_entries(c: Corpus) -> dict[str, list[tuple[str, str, bool]]]:
     # and created a fresh `undeclared` finding in its place. A ledger row is a
     # record of missing coverage, never coverage.
     docs = [p for p in c.all_docs
-            if p.startswith("docs/verification/") and p != LEDGER_REL]
+            if p.startswith("docs/verification/") and p not in LEDGER_RELS]
     for rel in docs:
         scan_status = not is_exempt(rel)
         lines = c.read(rel).split("\n")

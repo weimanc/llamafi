@@ -71,7 +71,15 @@ _ELF_RE = re.compile(r"^[0-9a-f]{8}$")
 
 
 @meta(cls="HEALTH", effect="read-only",
-      effect_reason="three-gets")
+      effect_reason="three-gets",
+      cls_reason="Every id in every family is a sequence of console commands read "
+                 "back as JSON. If a reply comes back truncated or one reply behind "
+                 "the request, `Dut.cmd` returns the wrong line with `ok:true` and "
+                 "the whole run scores fields it never asked for — the "
+                 "`variant spotify=None` case that silently SKIPped 16 tests. "
+                 "WP-C C-8 is right that the FIELDS it checks are compile-time "
+                 "constants; the premise it actually establishes is reply "
+                 "INTEGRITY, and that premise is genuinely shared by all 216 ids.")
 def t_dh_01(dut: Dut) -> None:
     """The shell answers CORRECT data, not merely answers.
 
@@ -164,7 +172,15 @@ def read_wifi_cfg(dut: Dut, timeout: float = 5.0) -> dict:
 
 
 @meta(cls="HEALTH", scope="boot", scope_reason="wifi-identity",
-      effect="read-only", effect_reason="ip+wifiCfg")
+      effect="read-only", effect_reason="ip+wifiCfg",
+      cls_reason="TASK-426's wedge — a failed boot leaves STA retrying a dead SSID "
+                 "forever — presents downstream as every network-app id failing its "
+                 "fetch, i.e. as a firmware defect in Stock, Weather, Crypto, "
+                 "Teletext, PlaneRadar and WebRadio at once. A board that is not "
+                 "associated cannot produce a trustworthy verdict for any of them, "
+                 "so the run must stop here rather than attribute the rig's state to "
+                 "the firmware. Bounded by WP-C C-9: it proves association, not "
+                 "reachability, and not that the SSID is the expected one.")
 def t_dh_02(dut: Dut) -> None:
     """The device's own view of the network is coherent.
 
@@ -252,7 +268,14 @@ def _wait_idle(dut: Dut, timeout: float = 10.0):
 
 
 @meta(cls="HEALTH", effect="mutating",
-      effect_reason="switches-apps-and-restores")
+      effect_reason="switches-apps-and-restores",
+      cls_reason="Roughly 150 ids begin by putting a named app on screen and end by "
+                 "restoring Spotify. If the shell cannot switch apps, or cannot "
+                 "reach quiescence after a switch, every one of them asserts against "
+                 "whichever app is actually up — and reports the mismatch as a defect "
+                 "in the app it believed it was testing. It is also the only health "
+                 "check that reads a value the firmware can genuinely get wrong "
+                 "(WP-C rates it the one SOUND check of the three).")
 def t_dh_03(dut: Dut) -> None:
     """App switching is alive: switch to a neighbour and back, `appId` correct
     at each step, `get idle` returns idle.

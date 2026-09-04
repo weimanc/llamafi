@@ -98,7 +98,7 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-603 | P2 | OPEN — TASK-624 done | delete 19 ids, retire 8 bodies to an `UNOBSERVABLE` ledger, no-reachable-fail gate — [R34/R4](../verification/M-HARNESS2-requirements.md) |
 | TASK-625 | P3 | BLOCKED — TASK-603 | write the id-retirement procedure into `docs/process/` — [Dev D7](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-587 | P1 | BLOCKED — TASK-603 | five M-CLOCK-STYLES exit criteria re-recorded DEFERRED, not PASS — [H-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-591 | P1 | OPEN | declare all 43 gating-class ids with written reasons; gate on an undeclared class — [R35](../verification/M-HARNESS2-requirements.md). **A TASK-617 exit criterion** |
+| TASK-591 | P1 | **PARTIAL 2026-09-04** — 25 of 49 declared, 24 ledgered | declare all 43 gating-class ids with written reasons; gate on an undeclared class — [R35](../verification/M-HARNESS2-requirements.md). **A TASK-617 exit criterion** |
 | TASK-626 | P1 | BLOCKED — TASK-591 | a gating class may not need the network or the host file layout — gate + demotions — [R36](../verification/M-HARNESS2-requirements.md). **A TASK-617 exit criterion** |
 | TASK-596 | P2 | OPEN | one typed accessor; no oracle or restore satisfied by a default — [R18](../verification/M-HARNESS2-requirements.md) |
 | TASK-585 | P1 | BLOCKED — TASK-596 | the Stock fetch oracle's sentinel is an unconditional pass across nine ids — [G-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |

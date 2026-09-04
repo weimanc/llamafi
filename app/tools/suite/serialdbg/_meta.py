@@ -67,7 +67,8 @@ DEFAULT_EFFECT = "mutating"
 
 # ------------------------------------------------------- the declaration API
 
-def meta(cls: str = None, scope: str = None, scope_reason: str = None,
+def meta(cls: str = None, cls_reason: str = None,
+         scope: str = None, scope_reason: str = None,
          effect: str = None, effect_reason: str = None):
     """Declare metadata on a test function. Everything is optional; whatever is
     given overrides the seed for that axis, and a `scope`/`effect` override must
@@ -79,10 +80,20 @@ def meta(cls: str = None, scope: str = None, scope_reason: str = None,
     A `scope_reason` with no `scope` is an ANNOTATION: it records why a seeded
     value is nonetheless a considered placement, without hand-typing a value the
     seeder already derives (EC-D2's "zero hand-typed scope values").
+
+    `cls_reason` is a SENTENCE, not a word (TASK-591 / R35). The other two
+    reasons are one-word tags because they distinguish a considered placement
+    from a typo; `cls_reason` has to carry an argument, because a gating class
+    is a claim about the *rest of the run* — it must say what makes this test's
+    failure mean the ids after it cannot be trusted. `gate/check_test_meta.py`
+    requires one on every RIG/HEALTH/CORE id and rejects a short one; if you
+    cannot write the sentence, the id is FEATURE and that is the finding.
     """
     d = {}
     if cls is not None:
         d["cls"] = cls
+    if cls_reason is not None:
+        d["cls_reason"] = cls_reason
     if scope is not None:
         d["scope"] = scope
     if scope_reason is not None:
@@ -257,6 +268,8 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
         "scope_declared": "scope" in decl,
         "scope_reason": decl.get("scope_reason"),
         "cls_declared": "cls" in decl,
+        "cls_seed": seed_cls(scope),
+        "cls_reason": decl.get("cls_reason"),
         "effect_seed": effect_seed,
         "effect_declared": "effect" in decl,
         "effect_reason": decl.get("effect_reason"),

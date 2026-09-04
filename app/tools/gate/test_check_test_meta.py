@@ -34,9 +34,15 @@ def rec(**over) -> dict:
     r = {"id": "T_X_01", "cls": "FEATURE", "scope": "Clock", "effect": "mutating",
          "module": "clock", "scope_seed": "Clock", "scope_seeded_by": "module",
          "scope_declared": False, "scope_reason": None, "cls_declared": False,
+         "cls_seed": "FEATURE", "cls_reason": None,
          "effect_seed": "mutating", "effect_declared": False, "effect_reason": None}
     r.update(over)
     return {r["id"]: r}
+
+
+#: A cls_reason long enough to clear MIN_CLS_REASON — the shape a real one has.
+GOOD_REASON = ("Every id in the corpus taps through this gate, so a failure here "
+               "means no later tap verdict describes the machine the test arranged.")
 
 
 def one(findings, needle):
@@ -94,6 +100,148 @@ def case_case_only_enum_collision():
     """§13.3's renamed defect: `Spotify` and `spotify` may not both exist."""
     f = C.evaluate(rec(), scopes=tuple(_meta.SCOPES) + ("spotify",))
     one(f, "case-only collision")
+
+
+# ── R35: the gating-class declaration gate (TASK-591) ────────────────────────
+#
+# BP-068. Each case drives `evaluate_gating_classes` with a record set that is
+# exactly one mutation away from clean, and asserts the finding appears. The
+# ledger arm gets the same treatment in both directions: a row must suppress the
+# finding it names, and must FAIL once the finding stops occurring.
+
+def case_seeded_core_is_a_finding():
+    """The live defect R35 exists for: 43 CORE ids applied by seed_cls()."""
+    f = C.evaluate_gating_classes(rec(id="T-BUSY-01", cls="CORE", scope="shell",
+                                      cls_seed="CORE"))
+    one(f, "G1 T-BUSY-01")
+    one(f, "SEEDED from scope 'shell'")
+
+
+def case_declared_gating_class_without_a_reason():
+    """A declaration with no argument is not a declaration — it is a value.
+    None, empty and whitespace-only must all read as absent."""
+    for empty in (None, "", "   \n  "):
+        f = C.evaluate_gating_classes(rec(cls="CORE", scope="shell",
+                                          cls_declared=True, cls_reason=empty))
+        one(f, "declared with no reason")
+
+
+def case_reason_too_short_to_be_an_argument():
+    """`cls_reason="core"` restates the class name. G3, and NOT exemptable."""
+    f = C.evaluate_gating_classes(rec(cls="CORE", scope="shell",
+                                      cls_declared=True, cls_reason="core"))
+    hits = one(f, "G3 T_X_01")
+    assert "too short to be an argument" in hits[0], hits
+
+
+def case_short_reason_is_not_exemptable():
+    """A ledger row must not launder a G3 — only G1 is exemptable."""
+    led = {("undeclared-gating-class", "T_X_01"): "docs/x.md:1"}
+    f = C.evaluate_gating_classes(
+        rec(cls="CORE", scope="shell", cls_declared=True, cls_reason="core"), led)
+    one(f, "G3 T_X_01")
+
+
+def case_health_and_rig_are_covered_too():
+    """R35 says RIG, HEALTH *and* CORE — not CORE alone."""
+    for cls in ("RIG", "HEALTH"):
+        f = C.evaluate_gating_classes(rec(cls=cls, scope="rig", cls_declared=True))
+        one(f, f"class {cls} is declared with no reason")
+
+
+def case_ledger_row_suppresses_its_finding():
+    led = {("undeclared-gating-class", "T_X_01"): "docs/v/gating.md:44"}
+    f = C.evaluate_gating_classes(rec(cls="CORE", scope="shell"), led)
+    assert not f, f"a ledger row did not suppress its finding: {f}"
+
+
+def case_ledger_row_suppresses_exactly_one_id():
+    """Rule 1: a row is keyed on `(kind, id)`. It must not cover a sibling — no
+    file, family or wildcard exemption exists. Two undeclared CORE ids, one row:
+    exactly one finding survives, and it names the OTHER id."""
+    two = dict(rec(id="T_A", cls="CORE", scope="shell"))
+    two.update(rec(id="T_B", cls="CORE", scope="shell"))
+    led = {("undeclared-gating-class", "T_A"): "docs/v/gating.md:44"}
+    f = C.evaluate_gating_classes(two, led)
+    assert len(f) == 1, f"expected exactly one surviving finding, got {f}"
+    one(f, "G1 T_B")
+
+
+def case_stale_ledger_row_is_blocking():
+    """The rule that makes it a gate and not an amnesty: the list can only shrink."""
+    led = {("undeclared-gating-class", "T_X_01"): "docs/v/gating.md:44"}
+    f = C.evaluate_gating_classes(
+        rec(cls="CORE", scope="shell", cls_declared=True, cls_reason=GOOD_REASON), led)
+    one(f, "G2 docs/v/gating.md:44")
+    one(f, "can only shrink")
+
+
+def case_ledger_row_for_an_unknown_id_is_stale():
+    """A row naming an id no registry contains is stale by the same rule."""
+    led = {("undeclared-gating-class", "T_GONE"): "docs/v/gating.md:99"}
+    f = C.evaluate_gating_classes(rec(cls="FEATURE"), led)
+    one(f, "G2 docs/v/gating.md:99")
+
+
+def case_malformed_ledger_rows(tmp=None):
+    """Owner must be a TASK id, `since` an ISO date, kind exemptable."""
+    import tempfile
+    body = ("| id | kind | why | owner | since |\n"
+            "|---|---|---|---|---|\n"
+            "| `T_A` | undeclared-gating-class | x | nobody | 2026-09-04 |\n"
+            "| `T_B` | undeclared-gating-class | x | TASK-591 | soon |\n"
+            "| `T_C` | gating-flake | x | TASK-591 | 2026-09-04 |\n"
+            "| `T_D` | undeclared-gating-class | x | TASK-591 | 2026-09-04 |\n")
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as fh:
+        fh.write(body)
+        path = fh.name
+    try:
+        rows, errors = C.parse_ledger(path)
+    finally:
+        os.unlink(path)
+    one(errors, "owner 'nobody'")
+    one(errors, "since 'soon'")
+    one(errors, "kind 'gating-flake' is not exemptable")
+    assert list(rows) == [("undeclared-gating-class", "T_D")], rows
+
+
+def case_gating_set_is_derived_not_typed():
+    """Adding a class above FEATURE must WIDEN the check automatically. A typed
+    tuple is how a gate silently stops covering a new class."""
+    assert set(C.GATING) == {"RIG", "HEALTH", "CORE"}, C.GATING
+    assert set(C.GATING) | set(C._order.CORE_BLOCKS) == set(C._meta.CLASSES)
+
+
+def case_feature_needs_no_reason():
+    """The safe default stays free — R35 constrains gating classes only."""
+    f = C.evaluate_gating_classes(rec(cls="FEATURE"))
+    assert not f, f"a FEATURE id was asked for a reason: {f}"
+
+
+def case_live_registry_gating_classes_are_clean_or_ledgered():
+    """The live corpus, through the real ledger file. This is the gate at
+    BLOCKING: it passes only because every undeclared gating id has a dated,
+    task-owned row — and fails the moment one is added without one."""
+    ledger, errors = C.parse_ledger()
+    assert not errors, f"the R35 ledger is malformed: {errors}"
+    f = C.evaluate_gating_classes(_suite.build_all_meta(), ledger)
+    assert not f, f"live gating-class findings: {f}"
+
+
+def case_the_declared_gating_ids_carry_real_sentences():
+    """Positive control on the corpus itself: every DECLARED gating reason is a
+    sentence, not a tag, and no two ids share one (a copy-pasted reason is a
+    restatement of the class name by another route)."""
+    recs = _suite.build_all_meta()
+    declared = {t: (r.get("cls_reason") or "").strip()
+                for t, r in recs.items()
+                if r["cls"] in C.GATING and r.get("cls_declared") and r.get("cls_reason")}
+    assert len(declared) >= 25, f"only {len(declared)} declared gating reasons"
+    short = {t: len(v) for t, v in declared.items() if len(v) < C.MIN_CLS_REASON}
+    assert not short, f"reasons too short to be arguments: {short}"
+    dupes = [t for t, v in declared.items()
+             if list(declared.values()).count(v) > 1]
+    assert not dupes, f"duplicated cls_reason text on: {sorted(dupes)}"
 
 
 # ── positive controls ─────────────────────────────────────────────────────────
@@ -228,6 +376,21 @@ CASES = [
     ("S6  selector is case-sensitive",       case_selector_is_case_sensitive),
     ("S7  every app selects >= 1 id",        case_scope_selection_is_non_empty_for_every_app),
     ("S8  app/src glob == APP_ORDER",        case_app_source_map_matches_app_order),
+    # R35 — the gating-class declaration gate (TASK-591)
+    ("G1  seeded CORE is a finding",         case_seeded_core_is_a_finding),
+    ("G2  declared class, no reason",        case_declared_gating_class_without_a_reason),
+    ("G3  reason too short to be one",       case_reason_too_short_to_be_an_argument),
+    ("G4  a short reason is not exemptable", case_short_reason_is_not_exemptable),
+    ("G5  RIG and HEALTH covered too",       case_health_and_rig_are_covered_too),
+    ("G6  a row suppresses its finding",     case_ledger_row_suppresses_its_finding),
+    ("G7  a row covers ONE (kind,id)",       case_ledger_row_suppresses_exactly_one_id),
+    ("G8  a stale row is blocking",          case_stale_ledger_row_is_blocking),
+    ("G9  a row for an unknown id is stale", case_ledger_row_for_an_unknown_id_is_stale),
+    ("G10 malformed ledger rows",            case_malformed_ledger_rows),
+    ("G11 the gating set is derived",        case_gating_set_is_derived_not_typed),
+    ("G12 FEATURE needs no reason",          case_feature_needs_no_reason),
+    ("G13 live gating set is clean",         case_live_registry_gating_classes_are_clean_or_ledgered),
+    ("G14 declared reasons are sentences",   case_the_declared_gating_ids_carry_real_sentences),
 ]
 
 

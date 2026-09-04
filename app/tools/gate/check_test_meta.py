@@ -36,7 +36,9 @@ No DUT, no build, no network. Run directly, or via app/tools/smoke_test.sh
 from __future__ import annotations
 
 import collections
+import datetime
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,6 +49,138 @@ sys.path.insert(0, TOOLS)
 from app_ids_gen import APP_ORDER                     # noqa: E402
 import suite.serialdbg as _suite                      # noqa: E402
 from suite.serialdbg import _meta                     # noqa: E402
+from suite.serialdbg import _order                    # noqa: E402
+
+
+# ── R35: a class is DECLARED for every gating id, never defaulted (TASK-591) ──
+#
+# The rest of this file asserts the record is WELL-FORMED. This section asserts
+# one thing about it is TRUE: that a class which can stop the run was chosen by
+# a person who wrote down why, and not applied by `_meta.seed_cls()` because the
+# id's scope happened to be `shell`/`taskbar`/`boot`/`spotify-chrome`.
+#
+# WHY IT LIVES HERE AND NOT IN A NEW FILE. R35 is a property of the (cls, scope,
+# effect) record, and this gate already owns that record: it builds it once,
+# reconciles the two registries, and prints the census. A parallel checker would
+# rebuild the same records, and would have to re-derive the RIG/HEALTH/CORE set
+# from the same two modules — a second place for the gating set to be defined,
+# which is precisely the defect `check_flake_class.py:79` avoided by deriving
+# GATING from `_order.CORE_BLOCKS` rather than typing it. One record, one gate.
+#
+# The set is derived, not typed, for the same reason: adding a class above
+# FEATURE must widen this check automatically, not silently narrow it.
+GATING = tuple(c for c in _meta.CLASSES if c not in _order.CORE_BLOCKS)
+
+LEDGER_REL = "docs/verification/gating_class_declarations.md"
+
+#: Only G1 is exemptable. G3 is at zero today, and an exemption kind with no
+#: rows is an invitation to open one (the R37 ledger's rule 4).
+EXEMPTABLE = ("undeclared-gating-class",)
+
+#: A reason is a SENTENCE, not a tag. `scope_reason`/`effect_reason` are
+#: deliberately one-word — they separate a considered placement from a typo. A
+#: `cls_reason` has to carry an argument about the rest of the run, so a length
+#: floor is the cheapest thing that rejects `cls_reason="core"` outright. It
+#: cannot check that the argument is GOOD; writing 43 of them is the audit
+#: (R35's own verification note), and this only stops the null case.
+MIN_CLS_REASON = 80
+
+_TASK_RE = re.compile(r"^TASK-\d+$")
+_SEP_RE = re.compile(r":?-{2,}:?")
+
+
+def _cells(line: str) -> list:
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def parse_ledger(path: str = None) -> tuple:
+    """-> ({(kind, id): 'rel:line'}, [malformed-row errors]).
+
+    Same shape and same rules as the R37 ledger (`check_flake_class.parse_ledger`)
+    and the C6 ledger before it: keyed on `(kind, id)`, an owning TASK id and an
+    ISO `since` date required, no wildcards of any sort.
+    """
+    path = path or os.path.join(ROOT, LEDGER_REL)
+    rows: dict = {}
+    errors: list = []
+    if not os.path.exists(path):
+        return rows, errors
+    rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+    header = None
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        lines = fh.read().split("\n")
+    for i, line in enumerate(lines, 1):
+        s = line.strip()
+        if not s.startswith("|"):
+            header = None
+            continue
+        cells = _cells(s)
+        if all(_SEP_RE.fullmatch(x) for x in cells if x):
+            continue
+        if header is None:
+            header = [c.lower() for c in cells]
+            continue
+        if len(cells) < 5:
+            continue
+        tid, kind, owner, since = (cells[0].strip("`* "), cells[1],
+                                   cells[3], cells[4])
+        if kind not in EXEMPTABLE:
+            errors.append(f"{rel}:{i}: kind {kind!r} is not exemptable "
+                          f"(allowed: {', '.join(EXEMPTABLE)})")
+            continue
+        if not _TASK_RE.match(owner.strip("`* ")):
+            errors.append(f"{rel}:{i}: owner {owner!r} must be a TASK-NNN id")
+            continue
+        try:
+            datetime.date.fromisoformat(since.strip("`* "))
+        except ValueError:
+            errors.append(f"{rel}:{i}: since {since!r} is not an ISO YYYY-MM-DD date")
+            continue
+        rows[(kind, tid)] = f"{rel}:{i}"
+    return rows, errors
+
+
+def evaluate_gating_classes(records: dict, ledger=None, gating=None) -> list:
+    """R35, pure. `records` -> findings; the ledger grandfathers G1 only."""
+    ledger = dict(ledger or {})
+    gating = tuple(gating if gating is not None else GATING)
+    out: list = []
+    used: set = set()
+
+    for tid in sorted(records):
+        r = records[tid]
+        cls = r.get("cls")
+        if cls not in gating:
+            continue
+        reason = (r.get("cls_reason") or "").strip()
+        if not r.get("cls_declared") or not reason:
+            key = ("undeclared-gating-class", tid)
+            if key in ledger:
+                used.add(key)
+                continue
+            how = ("declared with no reason" if r.get("cls_declared")
+                   else f"SEEDED from scope {r.get('scope')!r}")
+            out.append(
+                f"G1 {tid}: class {cls} is {how} — a class that can stop the run "
+                f"must be chosen, not defaulted. Add "
+                f"@meta(cls={cls!r}, cls_reason=…) saying what makes this test's "
+                f"failure mean the rest of the run cannot be trusted. If you "
+                f"cannot write that sentence, the id is FEATURE — declare that "
+                f"instead (M-HARNESS2 R35)")
+        elif len(reason) < MIN_CLS_REASON:
+            out.append(
+                f"G3 {tid}: cls_reason is {len(reason)} chars — too short to be an "
+                f"argument. It must say what makes this test's failure mean the "
+                f"rest of the run cannot be trusted, not restate the class name "
+                f"(M-HARNESS2 R35). Not exemptable")
+
+    for key, where in sorted(ledger.items()):
+        if key not in used:
+            out.append(
+                f"G2 {where}: stale exception for {key[1]} ({key[0]}) — that id now "
+                f"declares its class, so the finding this row suppresses no longer "
+                f"occurs. Delete the row. The ledger can only shrink")
+    return out
 
 
 def evaluate(records: dict, scopes=None, classes=None, effects=None) -> list:
@@ -161,6 +295,10 @@ def main() -> int:
 
     findings += evaluate(records)
 
+    # R35 (TASK-591) — every gating class declared, with a written reason.
+    ledger, ledger_errors = parse_ledger()
+    findings += evaluate_gating_classes(records, ledger) + ledger_errors
+
     # The file -> scope map (§13.4). The GLOB is the specification, not
     # app/src/apps/: Stock and Aquarium predate that directory.
     try:
@@ -198,6 +336,12 @@ def main() -> int:
     print(f"  cls:    " + ", ".join(f"{k}={v}" for k, v in sorted(c["cls"].items())))
     print(f"  effect: " + ", ".join(f"{k}={v}" for k, v in sorted(c["effect"].items())))
     print(f"  scope:  " + ", ".join(f"{k}={v}" for k, v in sorted(c["scope"].items())))
+    gating_ids = [t for t, r in records.items() if r["cls"] in GATING]
+    reasoned = [t for t in gating_ids
+                if records[t].get("cls_declared") and (records[t].get("cls_reason") or "").strip()]
+    print(f"  gating ({'/'.join(GATING)}): {len(gating_ids)} ids, "
+          f"{len(reasoned)} declared with a written reason, "
+          f"{len(ledger)} on the R35 ledger ({LEDGER_REL})")
     for n in notes:
         print(f"  [note] {n}")
 
