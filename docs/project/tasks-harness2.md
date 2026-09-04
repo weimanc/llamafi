@@ -35,7 +35,7 @@ anything. 579–619 are WP-Z's own numbering, which that document declared provi
 renumberable — **kept rather than renumbered on purpose**, because the human ruled on TASK-616,
 617 and 618 *by those ids*, and six review documents cross-reference them. 621–643 were the PM
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
-WP-Z's reserved band). **Next free id: TASK-644.**
+WP-Z's reserved band). **Next free id: TASK-645.**
 
 **3. TASK-575 is deliberately not a row here.** It lives on
 [tasks-architecture.md](tasks-architecture.md) (host-side FIXED, full `run/test` pass owed) and is
@@ -110,6 +110,7 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-630 | P3 | OPEN — TASK-624 done | scaffold the record — emit the generated fields, leave the author the two that need thought — [Dev D4](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-631 | P3 | BLOCKED — TASK-628 | a FAIL carries the last 20 command/reply pairs — [Dev D3](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-632 | P2 | OPEN | dispose of the advisory documentation check: promote with a ledger, or delete it — [QM §3.1](../quality/M-HARNESS2-QM-review.md) |
+| TASK-644 | P3 | OPEN — @Architect | reconcile three specification gaps TASK-624 surfaced: R28 lists `ORDER-DEPENDENT`, ADR-066 D2's enum has 7 members without it; "attributable" in ADR-066 D4 is undefined and was resolved as "the UNMET is itself in a gating class"; IFC-008's enforcement table and version line are stale |
 
 ---
 
