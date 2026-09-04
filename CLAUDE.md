@@ -76,6 +76,11 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
 
 ### This machine's setup
 
+- **The board is pinned to the debug build** while TASK-557 is open. Human ruling, 2026-09-03: the
+  pin forbids **restoring production**; rebuilding and flashing *the same debug env* is fine
+  provided `-DBOD_WATCH` survives. `run/test` and `run/test-targeted` restore production from an
+  EXIT trap, so they cannot be run as-is — `DUT_NO_RESTORE=1` is a dated interim exception, retired
+  when TASK-633 converts the entry points to verify-and-refuse.
 - **PlatformIO is not on PATH.** Use `~/.platformio/penv/bin/pio` (alias `pio` if you want).
 - **Board:** ESP32-2432S028R "Cheap Yellow Display", **two-USB variant** — production target is `cyd2usb_winamp`; requires `-DTFT_INVERSION_ON` (inherited from `cyd2usb` base). The plain `cyd` env produces inverted colors on this hardware.
 - **Serial port:** `/dev/ttyUSB0`, CH340 (USB VID:PID `1A86:7523`).
