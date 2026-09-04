@@ -58,17 +58,18 @@ themselves blocking failures. And no declaration ships without a mechanical chec
 the programme.
 **Exit:** TASK-616/617/618 ruled; LL-127 and LL-140 promoted or explicitly dismissed; the five ADRs
 exist as documents, even if only as filed questions.
-**Status: the three decision rows are RULED as of 2026-09-03.** The decision half of the exit
-criterion is **met**. TASK-621 and TASK-622 remain.
+**Status: DISCHARGED 2026-09-04.** The three decision rows were RULED 2026-09-03; the five remaining
+rulings were taken 2026-09-04 and written up as ADR-063 … ADR-067 (TASK-622), and TASK-619 and
+TASK-621 are closed. Every exit criterion is met.
 
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-616 | P1 | **RULED 2026-09-03** | M-WEBRADIO close **stands**; the skip-rate criterion goes DEFERRED, re-run behind the board's release with ≥3 stations and a recorded build hash — [PM §5(a)](M-HARNESS2-PM-review.md) |
 | TASK-617 | P1 | **RULED 2026-09-03** | class-order switch does **not** flip yet; exit criteria are the declaration + offline gates (TASK-591, TASK-626), **not** the shuffle campaign — [PM §5(b)](M-HARNESS2-PM-review.md) |
 | TASK-618 | P1 | **RULED 2026-09-03** | verify-and-refuse sanctioned; `DUT_NO_RESTORE=1` permitted only as a dated interim exception retired by the conversion — [PM §5(c)](M-HARNESS2-PM-review.md) |
-| TASK-619 | P3 | OPEN — @Architect | artifact as interface; the generated-module and effect-axis questions — [WP-Z §4.4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-619 | P3 | **DONE 2026-09-04** | `effect` **kept** — R14/R17/R19 are its consumers; `app/gen/mem_layout.py` (zero importers) survives only if TASK-606's no-mirror gate consumes it within one milestone, else it **and** its `run/check` step are deleted; `A-7` folds into ADR-066/IFC-008 — [WP-Z §4.4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-621 | P1 | **DONE 2026-09-04** (`9358e5f`) — BP-073, BP-074 | promote LL-127 and LL-140, or dismiss each with a reason — [QM §6.3](../quality/M-HARNESS2-QM-review.md) |
-| TASK-622 | P2 | OPEN | file the five ADRs as documents (App debug surface, render mechanism, console as interface, result artifact, DUT firmware lifecycle) — [Arch §9](../architecture/designs/M-HARNESS2-architect-review.md) |
+| TASK-622 | P2 | **DONE 2026-09-04** — ADR-063, ADR-064, ADR-065, ADR-066, ADR-067 (+ IFC-007, IFC-008, IFC-003 v2 pending) | file the five ADRs as documents (App debug surface, render mechanism, console as interface, result artifact, DUT firmware lifecycle) — [Arch §9](../architecture/designs/M-HARNESS2-architect-review.md) |
 
 ---
 
@@ -91,7 +92,7 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-609 | P3 | **DONE 2026-09-04** (`8927b16`) | six `__main__` guards + import-in-subprocess gate with a stubbed transport — [R48](../verification/M-HARNESS2-requirements.md) |
 | TASK-600 | P2 | **DONE 2026-09-04** (`8927b16`) — 43→111 keys | generated key list sees `.cpp` bodies; count compared full-tree in `run/check` — [R7](../verification/M-HARNESS2-requirements.md) |
 | TASK-623 | P3 | **DONE 2026-09-04** (`8927b16`) — blocking, 1-row ledger | cross-check the flake registry against declared gating classes — [R37](../verification/M-HARNESS2-requirements.md) |
-| TASK-624 | P1 | OPEN | closed verdict enum incl. `UNMET`; typed gating; `UNMET` blocks; inversion selftest arm — [R28/R31/R38](../verification/M-HARNESS2-requirements.md) |
+| TASK-624 | P1 | OPEN | closed verdict enum incl. `UNMET`; typed gating; `UNMET` blocks; inversion selftest arm — [R28/R31/R38](../verification/M-HARNESS2-requirements.md). **Build to ADR-066/IFC-008**: `UNMET` exits **1**, owns no code of its own, and is distinct from `NOT-RUN` |
 | TASK-608 | P3 | BLOCKED — TASK-624 | schema-versioned run artifact carrying the run's premise; retire all three summary parsers — [R29/R30](../verification/M-HARNESS2-requirements.md) |
 | TASK-584 | P1 | BLOCKED — TASK-624 | six residue callers convert the regression to a skip — make them fail — [D-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-603 | P2 | BLOCKED — TASK-624 | delete 19 ids, retire 8 bodies to an `UNOBSERVABLE` ledger, no-reachable-fail gate — [R34/R4](../verification/M-HARNESS2-requirements.md) |
@@ -126,7 +127,7 @@ corpus retrofit is cut to delta-scoped rules only.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-633 | P1 | OPEN — TASK-618 ruled | DUT entry points verify-and-refuse; delete the restore trap; update `CLAUDE.md` — [R51](../verification/M-HARNESS2-requirements.md) |
+| TASK-633 | P1 | OPEN — ADR-067 | DUT entry points verify-and-refuse, refusal is **exit 3** (`elf-mismatch`, RIG); delete the restore trap — it is shared across 15 `run/*` scripts, not two; update `CLAUDE.md` — [R51](../verification/M-HARNESS2-requirements.md) |
 | TASK-634 | P1 | BLOCKED — TASK-633 | run the 80-minute session and file its dated records — [WP-Z §5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-579 | P1 | BLOCKED — TASK-634 | the WebRadio forced-connect-fail injector nothing clears — [F-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-580 | P1 | BLOCKED — TASK-634 | the heatmap injector wedges the sub-view and the block behind it — [G-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
@@ -167,8 +168,10 @@ because it carries a gate's authority.
 
 ## Phase 4 — the observability contract (firmware; per-app, never a sweep)
 
-**Entry:** ADR A (does `App` gain a debug surface) and ADR B (is GRAM readback the sanctioned render
-mechanism) taken — both under TASK-622; `run/screendump` repaired (TASK-589); `.dram0.bss` headroom
+**Entry: MET for the ADRs, 2026-09-04.** ADR A is **ADR-063** (`App` gains `dbgGet`/`dbgSet`;
+identity and progress move to the shell) and ADR B is **ADR-064** (GRAM readback, **on demand only**;
+a periodic or render-path signature is a violation of the decision, not a future option). Still
+required: `run/screendump` repaired (TASK-589); `.dram0.bss` headroom
 **re-derived fresh** from `run/build-debug` and the `.map` immediately before each commit, never
 remembered. **Permitted while the board is pinned** — the human confirmed on 2026-09-03 that the
 TASK-557 pin forbids restoring *production*, not reflashing the same debug env, provided
@@ -183,8 +186,8 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-637 | P2 | BLOCKED — TASK-622 (ADR A) | shell-side identity guard + tick/repaint counters — fixes the class for all thirteen apps — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
-| TASK-638 | P2 | BLOCKED — TASK-622 (ADR B), TASK-589 | render signature over panel readback, ink/entropy metrics, time freeze, readback liveness check — [R5](../verification/M-HARNESS2-requirements.md) |
+| TASK-637 | P2 | OPEN — ADR-063 taken | shell-side identity guard + tick/repaint counters — fixes the class for all thirteen apps — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
+| TASK-638 | P2 | BLOCKED — TASK-589 (ADR-064 taken) | render signature over panel readback, ink/entropy metrics, time freeze, readback liveness check — [R5](../verification/M-HARNESS2-requirements.md) |
 | TASK-593 | P2 | BLOCKED — TASK-637 | per-app result and entry-state observables, one app per commit, capped per app — [R3](../verification/M-HARNESS2-requirements.md) |
 | TASK-639 | P3 | BLOCKED — TASK-638 | the clock family is rewritten, not migrated — ledger five claims, re-file as new ids — [Dev §8.2](../architecture/designs/M-HARNESS2-DEV-review.md) |
 
@@ -223,11 +226,11 @@ ratchet's clothes.
 
 | phase | rows | days | committed |
 |---|---|---|---|
-| 0 — decisions | 6 (3 RULED) | ~1 | yes — discharged for the decisions |
+| 0 — decisions | 6 (all closed) | ~1 | yes — **discharged 2026-09-04** |
 | 1 — host-only foundation | 21 | ~28.5 | **yes** |
 | 2 — the 80-minute session | 11 | ~6 | no — scheduled |
 | 3 — order and state hygiene | 6 | ~7.5 | no — blocked on TASK-557 |
-| 4 — observability contract | 4 | ~10 | no — blocked on TASK-622 |
+| 4 — observability contract | 4 | ~10 | no — ADR-063/064 taken; TASK-637 open, TASK-638 gated on TASK-589 |
 | 5 — ratchets | 13 | ~28.5 | no — blocked on Phase 3 |
 | **total** | **61** | **~81** | **only Phase 1** |
 

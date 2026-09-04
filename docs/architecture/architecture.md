@@ -92,10 +92,12 @@ uses the ref-counted `tlsYield()`/`tlsResume()` protocol (BP-031 lineage).
 
 ## Component Interfaces
 
-- **`App` ABC** (`appShell.h`) — the system's primary seam: `init/resume/suspend/tick/
-  handleInput(TouchPhase,x,y)` + status hooks (`hasPendingAsync`, `isConnecting`,
-  `hasError` — ADR-046 status bar) + `dbgGet/dbgSet` (M-SERIALDBG). Informal contract
-  captured in `NEW-APP-CHECKLIST.md`; formalisation → IFC-002 (planned).
+- **`App` ABC** (`app/src/app.h` — moved out of `appShell.h` by M-SRCLAYOUT) — the system's
+  primary seam: `init/resume/suspend/tick/handleInput(TouchPhase,x,y)` + status hooks
+  (`hasPendingAsync`, `isConnecting`, `hasError` — ADR-046 status bar). Contract:
+  **IFC-003**. `dbgGet`/`dbgSet` are **not** on the ABC today — the surface is a checklist
+  item (`NEW-APP-CHECKLIST.md`) plus typed branches in `cmdGet.cpp`; ADR-063 puts them on
+  `app.h` under `SERIAL_DEBUG` (IFC-003 v2, pending TASK-637).
 - **dataTask API** (`dataTask.h`) — enqueue/poll pairs per fetch type with snapshot-at-
   enqueue configs and seq/epoch result identity. Contract: **IFC-001**
   (`docs/architecture/interfaces/IFC-001.md`).
@@ -104,7 +106,8 @@ uses the ref-counted `tlsYield()`/`tlsResume()` protocol (BP-031 lineage).
 - **`spotifyDisplay.h`** — legacy upstream seam; superseded by the app shell but kept
   for upstream compatibility (`winampDisplay.h` is the live renderer).
 - **Serial debug** (`get`/`set`/`tap`/`drag`/`switchApp` JSON protocol) — the DUT test
-  surface for the whole VE suite (M-SERIALDBG).
+  surface for the whole VE suite (M-SERIALDBG). Contract: **IFC-007** (ADR-065 —
+  additive-only, correlation optional, push permitted but not yet shipped).
 
 ## Data Flows
 
