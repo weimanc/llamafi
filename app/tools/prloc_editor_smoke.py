@@ -57,9 +57,9 @@ from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
 # --force bypasses the destructive-scope guard below (D2). Accepted anywhere
 # in argv so it doesn't disturb the existing positional PORT convention.
-FORCE = "--force" in sys.argv
-_argv = [a for a in sys.argv[1:] if a != "--force"]
-PORT = _argv[0] if _argv else resolve_port()
+FORCE = False
+_argv = []
+PORT = None
 results = []
 
 # ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------
@@ -126,143 +126,158 @@ def loc(r, i):
     return locs[i] if i < len(locs) else {}
 
 
-print(f"== opening {PORT} (DTR reset) ==", flush=True)
-d = Dut()
-boot = d.wait_ready(90)
-report("D0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
-s1_before = loc(boot, 1)
-s2_before = loc(boot, 2)
-report("D1 slot2 empty before test", s2_before.get("label", "?") == "", str(s2_before))
 
-# ---- Destructive-scope guard (D2) ------------------------------------------
-# slot 1 gets unconditionally DELETED (H1/H2) and slot 2 gets WRITTEN (F0-F4)
-# below. If either already holds real data, abort now instead of silently
-# destroying it — this is what T-CPICK-03 flagged (slot 1 "HH" got deleted).
-_dirty = [(i, l) for i, l in ((1, s1_before), (2, s2_before)) if l.get("label", "?") != ""]
-if _dirty and not FORCE:
-    print("\n*** ABORT: prloc_editor_smoke.py is destructive to slots 1 and 2 ***")
-    for i, l in _dirty:
-        print(f"    slot {i} is NOT empty: {l!r} — this script will delete/overwrite it")
-    print("    Snapshot with `./run/spiffs pull` first, or pass --force to proceed anyway.\n")
+# TASK-609 (R48): everything below runs ONLY under the __main__ guard.
+# Importing this module must not open a port, resolve one, or reset the
+# board — six modules used to do exactly that, and one such import reset
+# the DUT during the audit that found them.
+def main():
+    global FORCE, _argv, PORT
+    FORCE = "--force" in sys.argv
+    _argv = [a for a in sys.argv[1:] if a != "--force"]
+    PORT = _argv[0] if _argv else resolve_port()
+
+    print(f"== opening {PORT} (DTR reset) ==", flush=True)
+    d = Dut()
+    boot = d.wait_ready(90)
+    report("D0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
+    s1_before = loc(boot, 1)
+    s2_before = loc(boot, 2)
+    report("D1 slot2 empty before test", s2_before.get("label", "?") == "", str(s2_before))
+
+    # ---- Destructive-scope guard (D2) ------------------------------------------
+    # slot 1 gets unconditionally DELETED (H1/H2) and slot 2 gets WRITTEN (F0-F4)
+    # below. If either already holds real data, abort now instead of silently
+    # destroying it — this is what T-CPICK-03 flagged (slot 1 "HH" got deleted).
+    _dirty = [(i, l) for i, l in ((1, s1_before), (2, s2_before)) if l.get("label", "?") != ""]
+    if _dirty and not FORCE:
+        print("\n*** ABORT: prloc_editor_smoke.py is destructive to slots 1 and 2 ***")
+        for i, l in _dirty:
+            print(f"    slot {i} is NOT empty: {l!r} — this script will delete/overwrite it")
+        print("    Snapshot with `./run/spiffs pull` first, or pass --force to proceed anyway.\n")
+        d.close()
+        sys.exit(2)
+    if _dirty and FORCE:
+        print("*** --force set: proceeding despite non-empty target slot(s):", _dirty, "***", flush=True)
+
+    # ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
+    d.cmd("switchApp 10")          # Settings (TASK-347: moved from 6 to directly before WebRadio)
+    time.sleep(0.3)
+    d.tap(100, row_y(5))           # Applications category row (main.cpp kLabels idx 5)
+    time.sleep(0.3)
+    d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar row in the app list (=206)
+    time.sleep(0.3)
+    d.tap(100, row_y(5))           # Locations row -> opens SlotList
+    time.sleep(0.3)
+
+    # ---- SlotList: tap empty slot 2 -> EditLabel keyboard ----------------------
+    d.tap(100, row_y(2))           # slot 2 row
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("E1 EditLabel keyboard active, UpperAlpha, maxLen=5, empty",
+           k.get("active") and k.get("mode") == 1 and k.get("maxLen") == 5 and k.get("len") == 0,
+           str(k))
+
+    d.cmd("set kbText TEST")
+    d.cmd("set kbOk")
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("E2 label submit closes keyboard (-> SourceFork)", k.get("active") is False, str(k))
+
+    # ---- SourceFork (slot2, was empty -> hasCurrent=false, y0=38) -------------
+    # Park the geocode stub BEFORE the postcode submit so enqueueGeocode() is a
+    # structural no-op (VE-PRL-2) and the parked seq is what LookupPending polls.
+    stub = d.cmd("set geocode 52.0800 4.3132 TEST DISPLAY NAME")
+    report("F0 geocode stub parked", bool(stub.get("ok")) and stub.get("parked"), str(stub))
+
+    d.tap(137, 58)                 # Lookup button (empty-slot fork layout)
+    time.sleep(0.3)
+    p = d.cmd("get pick")
+    report("F1 Lookup -> Country picker active, opened at current selection",
+           p.get("active") and p.get("highlightIdx", -1) >= 0, str(p))
+
+    d.cmd("set pick NL")           # select "NL" (default _prLastCountry) as if tapped
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("F2 Country pick -> Postcode keyboard, Full maxLen=10",
+           k.get("active") and k.get("mode") == 0 and k.get("maxLen") == 10 and k.get("len") == 0,
+           str(k))
+
+    d.cmd("set kbText 2513AA")
+    d.cmd("set kbOk")             # -> LookupPending -> enqueueGeocode() no-ops (parked) -> _tickPrLookup consumes stub
+    time.sleep(1.0)
+    k = d.cmd("get kb")
+    report("F3 Postcode submit closes keyboard (-> LookupPending)", k.get("active") is False, str(k))
+
+    time.sleep(1.0)                 # let a couple of SettingsApp ticks run _tickPrLookup()
+    d.tap(47, 210)                  # Confirm screen: Save
+    time.sleep(0.3)
+
+    r = d.cmd("get prloc")
+    s2 = loc(r, 2)
+    report("F4 slot2 saved from geocode stub",
+           s2.get("label") == "TEST" and abs(s2.get("lat", 0) - 52.08) < 1e-3 and abs(s2.get("lon", 0) - 4.3132) < 1e-3,
+           str(s2))
+
+    # ---- Slot 0: Delete must be disabled (renders but never hits) -------------
+    d.tap(100, row_y(0))           # slot 0 row -> EditLabel prefilled "HOME"
+    time.sleep(0.3)
+    d.cmd("set kbOk")             # resubmit "HOME" unchanged -> SourceFork (hasCurrent=true, y0=64)
+    time.sleep(0.3)
+    d.tap(137, 188)                 # Delete button position (disabled for slot 0)
+    time.sleep(0.3)
+    r = d.cmd("get prloc")
+    s0 = loc(r, 0)
+    report("G1 slot0 Delete is a no-op (disabled, not absent)", s0.get("label") == "HOME", str(s0))
+
+    d.tap(10, 10)                   # back: SourceFork -> SlotList
+    time.sleep(0.2)
+
+    # ---- Slot 1 (AMS, non-active, non-zero): Delete must work ------------------
+    d.tap(100, row_y(1))           # slot 1 row -> EditLabel prefilled "AMS"
+    time.sleep(0.3)
+    d.cmd("set kbOk")             # resubmit "AMS" unchanged -> SourceFork (hasCurrent=true, y0=64)
+    time.sleep(0.3)
+    d.tap(137, 188)                 # Delete button (enabled — Danger style, non-zero non-active filled slot)
+    time.sleep(0.3)
+    r = d.cmd("get prloc")
+    s1 = loc(r, 1)
+    report("H1 slot1 Delete clears the slot", s1.get("label", "?") == "" and s1.get("lat", 1) == 0.0, str(s1))
+    report("H2 active slot untouched by deleting a non-active slot", r.get("active") == 0, str(r))
+
+    # ---- Error path: -97 GEOCODE_PARSE_FAILED via the generic decoded-error ---
+    # path (QM check-in 2026-07-14 note 7 — TASK-317 frames only eyeballed -96).
+    d.tap(100, row_y(3))           # slot 3 row (still empty) -> EditLabel
+    time.sleep(0.3)
+    d.cmd("set kbText ERR")
+    d.cmd("set kbOk")             # -> SourceFork (hasCurrent=false, y0=38)
+    time.sleep(0.3)
+    err_stub = d.cmd("set geocode err -97")
+    report("I0 -97 stub parked", bool(err_stub.get("ok")) and err_stub.get("errorCode") == -97, str(err_stub))
+
+    d.tap(137, 58)                  # Lookup (empty-slot layout)
+    time.sleep(0.3)
+    d.cmd("set pick NL")           # country picker: select "NL" (session default)
+    time.sleep(0.3)
+    d.cmd("set kbText 9999ZZ")
+    d.cmd("set kbOk")              # postcode submit -> LookupPending -> consumes -97 stub -> LookupError
+    time.sleep(1.2)
+
+    d.tap(204, 210)                 # Error screen: Cancel -> SlotList, nothing persisted
+    time.sleep(0.3)
+    r = d.cmd("get prloc")
+    s3 = loc(r, 3)
+    report("I1 slot3 untouched after -97 error + Cancel", s3.get("label", "?") == "", str(s3))
+
+    d.tap(10, 10)                   # SlotList -> back to PlaneRadar app rows
+    time.sleep(0.2)
+    d.cmd("switchApp 0")            # leave Settings, restore normal shell state
+
     d.close()
-    sys.exit(2)
-if _dirty and FORCE:
-    print("*** --force set: proceeding despite non-empty target slot(s):", _dirty, "***", flush=True)
+    fails = [r for r in results if not r[1]]
+    print(f"\n== TASK-321 EDITOR SMOKE: {len(results) - len(fails)}/{len(results)} PASS ==")
+    sys.exit(1 if fails else 0)
 
-# ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
-d.cmd("switchApp 10")          # Settings (TASK-347: moved from 6 to directly before WebRadio)
-time.sleep(0.3)
-d.tap(100, row_y(5))           # Applications category row (main.cpp kLabels idx 5)
-time.sleep(0.3)
-d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar row in the app list (=206)
-time.sleep(0.3)
-d.tap(100, row_y(5))           # Locations row -> opens SlotList
-time.sleep(0.3)
 
-# ---- SlotList: tap empty slot 2 -> EditLabel keyboard ----------------------
-d.tap(100, row_y(2))           # slot 2 row
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("E1 EditLabel keyboard active, UpperAlpha, maxLen=5, empty",
-       k.get("active") and k.get("mode") == 1 and k.get("maxLen") == 5 and k.get("len") == 0,
-       str(k))
-
-d.cmd("set kbText TEST")
-d.cmd("set kbOk")
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("E2 label submit closes keyboard (-> SourceFork)", k.get("active") is False, str(k))
-
-# ---- SourceFork (slot2, was empty -> hasCurrent=false, y0=38) -------------
-# Park the geocode stub BEFORE the postcode submit so enqueueGeocode() is a
-# structural no-op (VE-PRL-2) and the parked seq is what LookupPending polls.
-stub = d.cmd("set geocode 52.0800 4.3132 TEST DISPLAY NAME")
-report("F0 geocode stub parked", bool(stub.get("ok")) and stub.get("parked"), str(stub))
-
-d.tap(137, 58)                 # Lookup button (empty-slot fork layout)
-time.sleep(0.3)
-p = d.cmd("get pick")
-report("F1 Lookup -> Country picker active, opened at current selection",
-       p.get("active") and p.get("highlightIdx", -1) >= 0, str(p))
-
-d.cmd("set pick NL")           # select "NL" (default _prLastCountry) as if tapped
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("F2 Country pick -> Postcode keyboard, Full maxLen=10",
-       k.get("active") and k.get("mode") == 0 and k.get("maxLen") == 10 and k.get("len") == 0,
-       str(k))
-
-d.cmd("set kbText 2513AA")
-d.cmd("set kbOk")             # -> LookupPending -> enqueueGeocode() no-ops (parked) -> _tickPrLookup consumes stub
-time.sleep(1.0)
-k = d.cmd("get kb")
-report("F3 Postcode submit closes keyboard (-> LookupPending)", k.get("active") is False, str(k))
-
-time.sleep(1.0)                 # let a couple of SettingsApp ticks run _tickPrLookup()
-d.tap(47, 210)                  # Confirm screen: Save
-time.sleep(0.3)
-
-r = d.cmd("get prloc")
-s2 = loc(r, 2)
-report("F4 slot2 saved from geocode stub",
-       s2.get("label") == "TEST" and abs(s2.get("lat", 0) - 52.08) < 1e-3 and abs(s2.get("lon", 0) - 4.3132) < 1e-3,
-       str(s2))
-
-# ---- Slot 0: Delete must be disabled (renders but never hits) -------------
-d.tap(100, row_y(0))           # slot 0 row -> EditLabel prefilled "HOME"
-time.sleep(0.3)
-d.cmd("set kbOk")             # resubmit "HOME" unchanged -> SourceFork (hasCurrent=true, y0=64)
-time.sleep(0.3)
-d.tap(137, 188)                 # Delete button position (disabled for slot 0)
-time.sleep(0.3)
-r = d.cmd("get prloc")
-s0 = loc(r, 0)
-report("G1 slot0 Delete is a no-op (disabled, not absent)", s0.get("label") == "HOME", str(s0))
-
-d.tap(10, 10)                   # back: SourceFork -> SlotList
-time.sleep(0.2)
-
-# ---- Slot 1 (AMS, non-active, non-zero): Delete must work ------------------
-d.tap(100, row_y(1))           # slot 1 row -> EditLabel prefilled "AMS"
-time.sleep(0.3)
-d.cmd("set kbOk")             # resubmit "AMS" unchanged -> SourceFork (hasCurrent=true, y0=64)
-time.sleep(0.3)
-d.tap(137, 188)                 # Delete button (enabled — Danger style, non-zero non-active filled slot)
-time.sleep(0.3)
-r = d.cmd("get prloc")
-s1 = loc(r, 1)
-report("H1 slot1 Delete clears the slot", s1.get("label", "?") == "" and s1.get("lat", 1) == 0.0, str(s1))
-report("H2 active slot untouched by deleting a non-active slot", r.get("active") == 0, str(r))
-
-# ---- Error path: -97 GEOCODE_PARSE_FAILED via the generic decoded-error ---
-# path (QM check-in 2026-07-14 note 7 — TASK-317 frames only eyeballed -96).
-d.tap(100, row_y(3))           # slot 3 row (still empty) -> EditLabel
-time.sleep(0.3)
-d.cmd("set kbText ERR")
-d.cmd("set kbOk")             # -> SourceFork (hasCurrent=false, y0=38)
-time.sleep(0.3)
-err_stub = d.cmd("set geocode err -97")
-report("I0 -97 stub parked", bool(err_stub.get("ok")) and err_stub.get("errorCode") == -97, str(err_stub))
-
-d.tap(137, 58)                  # Lookup (empty-slot layout)
-time.sleep(0.3)
-d.cmd("set pick NL")           # country picker: select "NL" (session default)
-time.sleep(0.3)
-d.cmd("set kbText 9999ZZ")
-d.cmd("set kbOk")              # postcode submit -> LookupPending -> consumes -97 stub -> LookupError
-time.sleep(1.2)
-
-d.tap(204, 210)                 # Error screen: Cancel -> SlotList, nothing persisted
-time.sleep(0.3)
-r = d.cmd("get prloc")
-s3 = loc(r, 3)
-report("I1 slot3 untouched after -97 error + Cancel", s3.get("label", "?") == "", str(s3))
-
-d.tap(10, 10)                   # SlotList -> back to PlaneRadar app rows
-time.sleep(0.2)
-d.cmd("switchApp 0")            # leave Settings, restore normal shell state
-
-d.close()
-fails = [r for r in results if not r[1]]
-print(f"\n== TASK-321 EDITOR SMOKE: {len(results) - len(fails)}/{len(results)} PASS ==")
-sys.exit(1 if fails else 0)
+if __name__ == "__main__":
+    main()

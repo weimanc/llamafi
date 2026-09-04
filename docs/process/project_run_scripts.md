@@ -26,7 +26,10 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/spiffs push [file]      # write single file or merge app/data/ — read-modify-write, no format
 ./run/spiffs rm <file>        # remove single file from device
 ./run/check                   # 11-gate build check (1-6 firmware env matrix, 7 golden hash,
-                               #   8 tool smoke, 9 app-registry staleness, 10 mem_layout
+                               #   8 tool smoke — 17 host scripts (7 checkers, 10 negative
+                               #   suites), incl. import-safety, get-keys and flake-class
+                               #   (TASK-609/600/623),
+                               #   9 app-registry staleness, 10 mem_layout
                                #   staleness+budget, 11 check-docs — see check_build.sh header)
 ./run/bake-skin               # bake Winamp skin assets into app/gen/
 ./run/audit-origin            # (re)generate the origin/hit-test audit PNG (never stale)

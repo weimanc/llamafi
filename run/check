@@ -1,15 +1,24 @@
 #!/usr/bin/env bash
-# run/check — 12-gate repository check (thin wrapper around check_build.sh),
+# run/check — 11-gate repository check (thin wrapper around check_build.sh),
 # plus one warn-only gate that is not counted.
 #
-# Gates: 1-7 firmware env matrix, 8 golden.sha256, 9 tool smoke tests,
-# 10 app-registry staleness, 11 mem_layout staleness+budget, 12 check-docs
+# Gates: 1-6 firmware env matrix, 7 golden.sha256, 8 tool smoke tests,
+# 9 app-registry staleness, 10 mem_layout staleness+budget, 11 check-docs
 # (TASK-475). TASK-422 added the cyd2usb_player build gate; TASK-475 added the
 # documentation gate and corrected this header, which had said "7-gate" while
 # eleven gates were running.
 #
-#   ./run/check              # everything, including the 7-env firmware matrix
-#   ./run/check --docs-only  # gate 12 only — seconds, no compiler
+# TASK-609/600/623 (2026-09-04): this header still said "12-gate" with a 1-7
+# matrix, which TASK-531 invalidated when it retired cyd2usb_webradio_16k and
+# took the matrix from 7 envs to 6 (check_build.sh's TOTAL went 12 -> 11 and
+# this wrapper was not updated with it). The count now matches check_build.sh,
+# which is the file that prints it. THE COUNTED GATES DID NOT CHANGE: the three
+# M-HARNESS2 Phase 1 checks land inside gate 8 (tools/smoke_test.sh) alongside
+# the nine host checks already there, which is where every host gate on this
+# project lives and is why the number here is stable.
+#
+#   ./run/check              # everything, including the 6-env firmware matrix
+#   ./run/check --docs-only  # gate 11 only — seconds, no compiler
 #
 # --docs-only exists because 37 of the last 40 commits touched only .md files.
 # Putting a seconds-long documentation gate behind a multi-minute firmware
@@ -22,7 +31,7 @@ source "$(dirname "$0")/lib.sh"
 if [ "${1:-}" = "--docs-only" ]; then
   echo "=== Doc gate only (run/check --docs-only) ==="
   echo
-  echo "[12/12] check-docs documentation gate"
+  echo "[11/11] check-docs documentation gate"
   if "$PROJ_ROOT/run/check-docs" --quiet; then
     echo "  PASS  documentation gate (C5 + C1-delta + C2 + C4 + C6 + SPIKE) clean"
     echo

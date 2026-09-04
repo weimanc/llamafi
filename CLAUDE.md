@@ -181,6 +181,17 @@ Other envs (don't use on this board): `cyd` (single-USB CYD, inversion off), `tr
               # documentation gate (+ one warn-only settings-wiring gate, not counted)
 ```
 
+The **counted gate total is 11 and does not move when a host check is added** — every host-side
+gate on this project lives inside gate 8, `app/tools/smoke_test.sh`, which now runs **17 host
+scripts** — 7 checkers and 10 negative suites, five of the checkers paired with their own suite
+(BP-068). The three added by M-HARNESS2 Phase 1, each with its negative suite:
+
+| check | asserts | landed |
+|---|---|---|
+| `gate/check_import_safety.py` | no module under `app/tools/` opens a port, resolves one, hangs or resets the board **at import** — six DUT scripts used to run their whole suite at module level (TASK-609/R48) | at zero |
+| `gate/check_get_keys.py` | `gen/gen_get_keys.py` reads every `dbgGet` body in the tree; its glob and its definition regex between them saw 43 of 111 keys (TASK-600/R7) | at zero |
+| `gate/check_flake_class.py` | no RIG/HEALTH/CORE id carries a `flaky.yaml` declaration — a gating id whose retry resolves `FLAKY-PASS` can never set the blocker its class exists to set (TASK-623/R37) | blocking, one dated ledger row (`docs/verification/flake_class_exceptions.md`) |
+
 Exit 0 = all pass. Minimum safety gate before committing structural changes (see BP-008).
 
 ### Skin asset bake (M2)

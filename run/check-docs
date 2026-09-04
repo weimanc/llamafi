@@ -12,7 +12,7 @@
 #
 # Also reachable as `./run/check --docs-only`, which is the fast path for
 # doc-only commits — 37 of the last 40 commits touched only .md, and putting a
-# seconds-long doc gate behind a 7-env firmware matrix is how gates get skipped.
+# seconds-long doc gate behind a 6-env firmware matrix is how gates get skipped.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 

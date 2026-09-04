@@ -26,7 +26,7 @@ import serial
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
+PORT = None
 SLOT = int(sys.argv[2]) if len(sys.argv) > 2 else 3   # slot under test — restored at the end
 results = []
 
@@ -91,131 +91,144 @@ def loc(r, i):
     return locs[i] if i < len(locs) else {}
 
 
-print(f"== opening {PORT} (DTR reset) — slot under test: {SLOT} ==", flush=True)
-d = Dut()
-boot = d.wait_ready(90)
-report("A0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
-orig = loc(boot, SLOT)
-report("A1 baseline slot captured", "label" in orig, str(orig))
 
-# ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
-d.cmd("switchApp 10")          # Settings (TASK-347: moved from 6 to directly before WebRadio)
-time.sleep(0.3)
-d.tap(100, row_y(5))           # Applications (main.cpp kLabels idx 5)
-time.sleep(0.3)
-d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar (=206; was 223 in the 9-app/23px era)
-time.sleep(0.3)
-d.tap(100, row_y(5))           # Locations -> SlotList
-time.sleep(0.3)
+# TASK-609 (R48): everything below runs ONLY under the __main__ guard.
+# Importing this module must not open a port, resolve one, or reset the
+# board — six modules used to do exactly that, and one such import reset
+# the DUT during the audit that found them.
+def main():
+    global PORT
+    PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
 
-# ---- If the target slot has data, empty it first via Delete so this run --
-# ---- gets a clean hasCurrent=false SourceFork layout (y0=38, no "Current" -
-# ---- row) and a clean empty-prefill ManualLat/Lon. Restored at the end. --
-if orig.get("label"):
-    d.tap(100, row_y(SLOT))            # slot row -> EditLabel prefilled
+    print(f"== opening {PORT} (DTR reset) — slot under test: {SLOT} ==", flush=True)
+    d = Dut()
+    boot = d.wait_ready(90)
+    report("A0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
+    orig = loc(boot, SLOT)
+    report("A1 baseline slot captured", "label" in orig, str(orig))
+
+    # ---- Navigate: Settings -> Applications -> PlaneRadar -> Locations --------
+    d.cmd("switchApp 10")          # Settings (TASK-347: moved from 6 to directly before WebRadio)
     time.sleep(0.3)
-    d.cmd("set kbOk")                  # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
+    d.tap(100, row_y(5))           # Applications (main.cpp kLabels idx 5)
     time.sleep(0.3)
-    d.tap(137, 188)                    # Delete (enabled: non-zero-or-filled, non-slot0 assumed)
+    d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar (=206; was 223 in the 9-app/23px era)
     time.sleep(0.3)
-    r = d.cmd("get prloc")
-    report("A2 slot emptied for a clean test run", loc(r, SLOT).get("label", "?") == "", str(loc(r, SLOT)))
-    # _prDeleteSlot() already leaves us at SlotList — no back-tap needed here.
+    d.tap(100, row_y(5))           # Locations -> SlotList
+    time.sleep(0.3)
 
-# ---- SlotList: open the (now empty) target slot ----------------------------
-d.tap(100, row_y(SLOT))
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("B1 EditLabel keyboard active, empty", k.get("active") and k.get("len") == 0, str(k))
-d.cmd("set kbText MANU")
-d.cmd("set kbOk")
-time.sleep(0.3)
+    # ---- If the target slot has data, empty it first via Delete so this run --
+    # ---- gets a clean hasCurrent=false SourceFork layout (y0=38, no "Current" -
+    # ---- row) and a clean empty-prefill ManualLat/Lon. Restored at the end. --
+    if orig.get("label"):
+        d.tap(100, row_y(SLOT))            # slot row -> EditLabel prefilled
+        time.sleep(0.3)
+        d.cmd("set kbOk")                  # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
+        time.sleep(0.3)
+        d.tap(137, 188)                    # Delete (enabled: non-zero-or-filled, non-slot0 assumed)
+        time.sleep(0.3)
+        r = d.cmd("get prloc")
+        report("A2 slot emptied for a clean test run", loc(r, SLOT).get("label", "?") == "", str(loc(r, SLOT)))
+        # _prDeleteSlot() already leaves us at SlotList — no back-tap needed here.
 
-# ---- SourceFork (hasCurrent=false -> y0=38) -> Manual ----------------------
-d.tap(137, 110)                 # Manual button, empty-slot layout
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("C1 Manual -> ManualLat keyboard, Full mode, empty prefill",
-       k.get("active") and k.get("mode") == 0 and k.get("maxLen") == 10 and k.get("len") == 0, str(k))
+    # ---- SlotList: open the (now empty) target slot ----------------------------
+    d.tap(100, row_y(SLOT))
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("B1 EditLabel keyboard active, empty", k.get("active") and k.get("len") == 0, str(k))
+    d.cmd("set kbText MANU")
+    d.cmd("set kbOk")
+    time.sleep(0.3)
 
-# ---- Invalid lat (out of -90..90) must re-prompt, not crash / not advance -
-d.cmd("set kbText 999")
-d.cmd("set kbOk")
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("C2 lat=999 rejected — keyboard re-shown, still ManualLat-shaped",
-       k.get("active") and k.get("maxLen") == 10 and k.get("len") == 0, str(k))
+    # ---- SourceFork (hasCurrent=false -> y0=38) -> Manual ----------------------
+    d.tap(137, 110)                 # Manual button, empty-slot layout
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("C1 Manual -> ManualLat keyboard, Full mode, empty prefill",
+           k.get("active") and k.get("mode") == 0 and k.get("maxLen") == 10 and k.get("len") == 0, str(k))
 
-# ---- Valid lat -> advances to ManualLon ------------------------------------
-d.cmd("set kbText 52.5")
-d.cmd("set kbOk")
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("C3 lat=52.5 accepted -> ManualLon keyboard, empty prefill",
-       k.get("active") and k.get("mode") == 0 and k.get("maxLen") == 11 and k.get("len") == 0, str(k))
+    # ---- Invalid lat (out of -90..90) must re-prompt, not crash / not advance -
+    d.cmd("set kbText 999")
+    d.cmd("set kbOk")
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("C2 lat=999 rejected — keyboard re-shown, still ManualLat-shaped",
+           k.get("active") and k.get("maxLen") == 10 and k.get("len") == 0, str(k))
 
-# ---- Invalid lon (out of -180..180) must re-prompt -------------------------
-d.cmd("set kbText -200")
-d.cmd("set kbOk")
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("C4 lon=-200 rejected — keyboard re-shown, still ManualLon-shaped",
-       k.get("active") and k.get("maxLen") == 11 and k.get("len") == 0, str(k))
+    # ---- Valid lat -> advances to ManualLon ------------------------------------
+    d.cmd("set kbText 52.5")
+    d.cmd("set kbOk")
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("C3 lat=52.5 accepted -> ManualLon keyboard, empty prefill",
+           k.get("active") and k.get("mode") == 0 and k.get("maxLen") == 11 and k.get("len") == 0, str(k))
 
-# ---- Valid lon -> advances to ManualConfirm, keyboard closes ---------------
-d.cmd("set kbText 13.4")
-d.cmd("set kbOk")
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("C5 lon=13.4 accepted -> keyboard closes (ManualConfirm)", k.get("active") is False, str(k))
+    # ---- Invalid lon (out of -180..180) must re-prompt -------------------------
+    d.cmd("set kbText -200")
+    d.cmd("set kbOk")
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("C4 lon=-200 rejected — keyboard re-shown, still ManualLon-shaped",
+           k.get("active") and k.get("maxLen") == 11 and k.get("len") == 0, str(k))
 
-# ---- Save persists label + manually-entered coords -------------------------
-d.tap(69, 210)                  # ManualConfirm: Save
-time.sleep(0.3)
-r = d.cmd("get prloc")
-s = loc(r, SLOT)
-report("D1 slot saved from manual entry",
-       s.get("label") == "MANU" and abs(s.get("lat", 0) - 52.5) < 1e-3 and abs(s.get("lon", 0) - 13.4) < 1e-3,
-       str(s))
+    # ---- Valid lon -> advances to ManualConfirm, keyboard closes ---------------
+    d.cmd("set kbText 13.4")
+    d.cmd("set kbOk")
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("C5 lon=13.4 accepted -> keyboard closes (ManualConfirm)", k.get("active") is False, str(k))
 
-# ---- Cancel-at-confirm leaves the slot untouched ---------------------------
-d.tap(100, row_y(SLOT))            # slot row (now MANU/52.5,13.4) -> EditLabel
-time.sleep(0.3)
-d.cmd("set kbOk")                   # resubmit "MANU" unchanged -> SourceFork (hasCurrent=true, y0=64)
-time.sleep(0.3)
-d.tap(137, 136)                     # Manual button, filled-slot layout
-time.sleep(0.3)
-k = d.cmd("get kb")
-report("E1 Manual re-entry prefills current lat", k.get("active") and k.get("len") > 0, str(k))
-d.cmd("set kbText 9")               # append onto the prefill — still a valid number either way
-d.cmd("set kbOk")
-time.sleep(0.3)
-d.cmd("set kbOk")                   # lon: submit prefilled value unchanged
-time.sleep(0.3)
-d.tap(204, 210)                     # ManualConfirm: Cancel
-time.sleep(0.3)
-r = d.cmd("get prloc")
-s = loc(r, SLOT)
-report("E2 Cancel at ManualConfirm leaves the slot as it was before this leg",
-       s.get("label") == "MANU", str(s))
-
-# ---- Restore original slot content (raw `set prloc`, no UI nav needed) ----
-if orig.get("label"):
-    d.cmd(f"set prloc {SLOT} {orig['label']} {orig['lat']} {orig['lon']}")
-    time.sleep(0.2)
+    # ---- Save persists label + manually-entered coords -------------------------
+    d.tap(69, 210)                  # ManualConfirm: Save
+    time.sleep(0.3)
     r = d.cmd("get prloc")
     s = loc(r, SLOT)
-    report("Z0 slot restored to baseline",
-           s.get("label") == orig["label"] and abs(s.get("lat", 0) - orig["lat"]) < 1e-3, str(s))
-else:
-    d.cmd(f"set prloc {SLOT} X 0 0")  # can't restore true emptiness via serial; label to a harmless marker
+    report("D1 slot saved from manual entry",
+           s.get("label") == "MANU" and abs(s.get("lat", 0) - 52.5) < 1e-3 and abs(s.get("lon", 0) - 13.4) < 1e-3,
+           str(s))
+
+    # ---- Cancel-at-confirm leaves the slot untouched ---------------------------
+    d.tap(100, row_y(SLOT))            # slot row (now MANU/52.5,13.4) -> EditLabel
+    time.sleep(0.3)
+    d.cmd("set kbOk")                   # resubmit "MANU" unchanged -> SourceFork (hasCurrent=true, y0=64)
+    time.sleep(0.3)
+    d.tap(137, 136)                     # Manual button, filled-slot layout
+    time.sleep(0.3)
+    k = d.cmd("get kb")
+    report("E1 Manual re-entry prefills current lat", k.get("active") and k.get("len") > 0, str(k))
+    d.cmd("set kbText 9")               # append onto the prefill — still a valid number either way
+    d.cmd("set kbOk")
+    time.sleep(0.3)
+    d.cmd("set kbOk")                   # lon: submit prefilled value unchanged
+    time.sleep(0.3)
+    d.tap(204, 210)                     # ManualConfirm: Cancel
+    time.sleep(0.3)
+    r = d.cmd("get prloc")
+    s = loc(r, SLOT)
+    report("E2 Cancel at ManualConfirm leaves the slot as it was before this leg",
+           s.get("label") == "MANU", str(s))
+
+    # ---- Restore original slot content (raw `set prloc`, no UI nav needed) ----
+    if orig.get("label"):
+        d.cmd(f"set prloc {SLOT} {orig['label']} {orig['lat']} {orig['lon']}")
+        time.sleep(0.2)
+        r = d.cmd("get prloc")
+        s = loc(r, SLOT)
+        report("Z0 slot restored to baseline",
+               s.get("label") == orig["label"] and abs(s.get("lat", 0) - orig["lat"]) < 1e-3, str(s))
+    else:
+        d.cmd(f"set prloc {SLOT} X 0 0")  # can't restore true emptiness via serial; label to a harmless marker
+        time.sleep(0.2)
+
+    d.tap(10, 10)
     time.sleep(0.2)
+    d.cmd("switchApp 0")
 
-d.tap(10, 10)
-time.sleep(0.2)
-d.cmd("switchApp 0")
+    d.close()
+    fails = [r for r in results if not r[1]]
+    print(f"\n== TASK-322 MANUAL-ENTRY SMOKE: {len(results) - len(fails)}/{len(results)} PASS ==")
+    sys.exit(1 if fails else 0)
 
-d.close()
-fails = [r for r in results if not r[1]]
-print(f"\n== TASK-322 MANUAL-ENTRY SMOKE: {len(results) - len(fails)}/{len(results)} PASS ==")
-sys.exit(1 if fails else 0)
+
+if __name__ == "__main__":
+    main()

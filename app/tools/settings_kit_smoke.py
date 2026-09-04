@@ -32,7 +32,7 @@ import serial
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
+PORT = None
 results = []
 
 SETTINGS_SLOT = 6
@@ -92,74 +92,87 @@ class Dut:
         return r.get("section") if r.get("ok") else None
 
 
-d = Dut()
-print(f"== opening {PORT} (DTR reset) ==", flush=True)
-boot = d.wait_ready(90)
-report("A0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
 
-d.cmd(f"switchApp {SETTINGS_SLOT}")
-time.sleep(0.3)
-r = d.cmd("get appId")
-report("A1 in Settings", r.get("name") == "Settings", str(r))
+# TASK-609 (R48): everything below runs ONLY under the __main__ guard.
+# Importing this module must not open a port, resolve one, or reset the
+# board — six modules used to do exactly that, and one such import reset
+# the DUT during the audit that found them.
+def main():
+    global PORT
+    PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
 
-# ── LED picker leg ──────────────────────────────────────────────────────────
-d.tap(*ROW(4))                                    # LED section
-report("B0 LED section entered", d.section() == 4)
+    d = Dut()
+    print(f"== opening {PORT} (DTR reset) ==", flush=True)
+    boot = d.wait_ready(90)
+    report("A0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
 
-# Probe until Colour row opens the picker (mode must be Static|Pulse).
-# Detection: back-tap from the picker returns to the LED *list* (section
-# stays 4); back-tap from the list pops the section (-1).
-picker_reachable = False
-for attempt in range(5):
-    d.tap(*ROW(1))                                # Colour row (list rows are
-    d.tap(*BACK)                                  # at content y, no sub-hdr)
-    if d.section() == 4:
-        picker_reachable = True
-        break
-    # we popped to the category list — re-enter LED, cycle Mode once
-    d.tap(*ROW(4))
-    d.tap(*ROW(0))
-report("B1 picker reachable (mode cycled to Static/Pulse)", picker_reachable,
-       f"attempts={attempt + 1}")
+    d.cmd(f"switchApp {SETTINGS_SLOT}")
+    time.sleep(0.3)
+    r = d.cmd("get appId")
+    report("A1 in Settings", r.get("name") == "Settings", str(r))
 
-if picker_reachable:
-    d.tap(*ROW(1))                                # re-open picker
-    d.tap(*LED_OFF)
-    ok_off = d.section() == 4
-    d.tap(*LED_ON)                                # Off -> Static
-    ok_on = d.section() == 4
-    d.tap(*LED_SAVE)                              # flash() + saveSettings()
-    ok_save = d.section() == 4
-    report("B2 OFF hit, loop alive", ok_off)
-    report("B3 ON hit, loop alive", ok_on)
-    report("B4 SAVE hit (kit flash + persist), loop alive", ok_save)
-    d.tap(*BACK)                                  # picker -> list
-    report("B5 back-tap picker->list", d.section() == 4)
-    # park ledMode at Off (firmware default): Static -> Pulse -> Clock -> Off
-    for _ in range(3):
+    # ── LED picker leg ──────────────────────────────────────────────────────────
+    d.tap(*ROW(4))                                    # LED section
+    report("B0 LED section entered", d.section() == 4)
+
+    # Probe until Colour row opens the picker (mode must be Static|Pulse).
+    # Detection: back-tap from the picker returns to the LED *list* (section
+    # stays 4); back-tap from the list pops the section (-1).
+    picker_reachable = False
+    for attempt in range(5):
+        d.tap(*ROW(1))                                # Colour row (list rows are
+        d.tap(*BACK)                                  # at content y, no sub-hdr)
+        if d.section() == 4:
+            picker_reachable = True
+            break
+        # we popped to the category list — re-enter LED, cycle Mode once
+        d.tap(*ROW(4))
         d.tap(*ROW(0))
-    d.tap(*BACK)                                  # list -> category
-    report("B6 back-tap list->category", d.section() == -1)
+    report("B1 picker reachable (mode cycled to Static/Pulse)", picker_reachable,
+           f"attempts={attempt + 1}")
 
-# ── Time city-picker arrow leg ──────────────────────────────────────────────
-d.tap(*ROW(1))                                    # Time & Location
-report("C0 Time section entered", d.section() == 1)
-d.tap(*CITY_ROW)                                  # -> CityPicker
-d.tap(*ARROW_DN)
-ok_dn = d.section() == 1
-d.tap(*ARROW_DN)
-d.tap(*ARROW_UP)
-ok_up = d.section() == 1
-report("C1 down-arrow taps, loop alive", ok_dn)
-report("C2 up-arrow tap, loop alive", ok_up)
-d.tap(*BACK)                                      # picker -> Main
-report("C3 back-tap picker->main", d.section() == 1)
-d.tap(*BACK)                                      # Main -> category
-report("C4 back-tap main->category", d.section() == -1)
+    if picker_reachable:
+        d.tap(*ROW(1))                                # re-open picker
+        d.tap(*LED_OFF)
+        ok_off = d.section() == 4
+        d.tap(*LED_ON)                                # Off -> Static
+        ok_on = d.section() == 4
+        d.tap(*LED_SAVE)                              # flash() + saveSettings()
+        ok_save = d.section() == 4
+        report("B2 OFF hit, loop alive", ok_off)
+        report("B3 ON hit, loop alive", ok_on)
+        report("B4 SAVE hit (kit flash + persist), loop alive", ok_save)
+        d.tap(*BACK)                                  # picker -> list
+        report("B5 back-tap picker->list", d.section() == 4)
+        # park ledMode at Off (firmware default): Static -> Pulse -> Clock -> Off
+        for _ in range(3):
+            d.tap(*ROW(0))
+        d.tap(*BACK)                                  # list -> category
+        report("B6 back-tap list->category", d.section() == -1)
 
-d.cmd(f"switchApp {SPOTIFY_SLOT}")
-d.close()
+    # ── Time city-picker arrow leg ──────────────────────────────────────────────
+    d.tap(*ROW(1))                                    # Time & Location
+    report("C0 Time section entered", d.section() == 1)
+    d.tap(*CITY_ROW)                                  # -> CityPicker
+    d.tap(*ARROW_DN)
+    ok_dn = d.section() == 1
+    d.tap(*ARROW_DN)
+    d.tap(*ARROW_UP)
+    ok_up = d.section() == 1
+    report("C1 down-arrow taps, loop alive", ok_dn)
+    report("C2 up-arrow tap, loop alive", ok_up)
+    d.tap(*BACK)                                      # picker -> Main
+    report("C3 back-tap picker->main", d.section() == 1)
+    d.tap(*BACK)                                      # Main -> category
+    report("C4 back-tap main->category", d.section() == -1)
 
-npass = sum(1 for _, ok, _ in results if ok)
-print(f"\n== {npass}/{len(results)} PASS ==", flush=True)
-sys.exit(0 if npass == len(results) else 1)
+    d.cmd(f"switchApp {SPOTIFY_SLOT}")
+    d.close()
+
+    npass = sum(1 for _, ok, _ in results if ok)
+    print(f"\n== {npass}/{len(results)} PASS ==", flush=True)
+    sys.exit(0 if npass == len(results) else 1)
+
+
+if __name__ == "__main__":
+    main()

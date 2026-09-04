@@ -111,6 +111,56 @@ if ! "$PYTHON" test_class_order.py; then
     exit 1
 fi
 
+# 4g. import safety — TASK-609 / M-HARNESS2 R48.
+# Six top-level DUT scripts ran their whole suite at module level, so `import
+# prloc_smoke` opened the port, asserted DTR and RESET the board; one such
+# import did exactly that during the review that found them and cost a TASK-557
+# observation window. The negative suite runs first and includes the proof that
+# the CHECKER cannot open the real port while checking that nothing else does —
+# a checker that opened a port to prove nothing opens a port would have
+# reproduced the defect one level up. ~3 s, one guarded child, no DUT.
+if ! "$PYTHON" gate/test_check_import_safety.py; then
+    echo "FAIL: test_check_import_safety.py (TASK-609 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_import_safety.py; then
+    echo "FAIL: check_import_safety.py (TASK-609 import-time board access) FAILED" >&2
+    exit 1
+fi
+
+# 4h. the generated `get`-key list — TASK-600 / M-HARNESS2 R7.
+# gen_get_keys.py claimed two sources and delivered one: its glob was `*.h`
+# after every dbgGet() body had moved to a `.cpp`, and its definition regex did
+# not match an out-of-line `bool CryptoApp::dbgGet(...)` even when pointed at
+# the right file. 43 keys enumerated against 111 that exist, so run/task488's
+# "every key resolves" check covered ~39 % of the surface and reported clean.
+# The gate compares the generator's VISITED bodies against a deliberately
+# dumber full-tree scan, so it can only ever accuse the generator.
+if ! "$PYTHON" gate/test_check_get_keys.py; then
+    echo "FAIL: test_check_get_keys.py (TASK-600 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_get_keys.py; then
+    echo "FAIL: check_get_keys.py (TASK-600 get-key enumeration) FAILED" >&2
+    exit 1
+fi
+
+# 4i. flake declarations vs gating classes — TASK-623 / M-HARNESS2 R37.
+# A RIG/HEALTH/CORE id that is also declared flaky gates nothing: its retry
+# resolves FLAKY-PASS, which is neither a PASS nor a FAIL, so it can never set
+# the blocker its class exists to set. Lands BLOCKING with a one-row dated
+# shrink-only ledger (docs/verification/flake_class_exceptions.md, T091) rather
+# than advisory — C3 is this repo's standing demonstration of what advisory
+# does to a finding count.
+if ! "$PYTHON" gate/test_check_flake_class.py; then
+    echo "FAIL: test_check_flake_class.py (TASK-623 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_flake_class.py; then
+    echo "FAIL: check_flake_class.py (TASK-623 gating-class flake) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —

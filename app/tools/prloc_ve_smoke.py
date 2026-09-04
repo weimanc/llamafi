@@ -42,7 +42,7 @@ import serial
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
+PORT = None
 results = []
 
 # ---- Settings-list geometry (mirrored from firmware — keep in sync) ---------
@@ -122,213 +122,226 @@ def loc(r, i):
 STRIP_X = 257
 STRIP_ROW_Y = [68, 90, 112, 134, 156, 178, 200]
 
-print(f"== opening {PORT} (DTR reset) ==", flush=True)
-d = Dut()
-boot = d.wait_ready(90)
-report("V0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
-orig_active = boot.get("active", 0)
-orig_locs = boot.get("locs") or []
-report("V1 all 4 slots filled (test needs live labels, not -- empty --)",
-       all(l.get("label") for l in orig_locs), str(orig_locs))
 
-filled = [i for i, l in enumerate(orig_locs) if l.get("label")]
-target = next((i for i in filled if i != orig_active), None)
-report("V2 found a non-active filled slot to switch to", target is not None, f"target={target}")
+# TASK-609 (R48): everything below runs ONLY under the __main__ guard.
+# Importing this module must not open a port, resolve one, or reset the
+# board — six modules used to do exactly that, and one such import reset
+# the DUT during the audit that found them.
+def main():
+    global PORT
+    PORT = sys.argv[1] if len(sys.argv) > 1 else resolve_port()
 
-# =========================================================================
-# T_PRL_02 — strip tap switches location
-# =========================================================================
-d.cmd("switchApp 9")   # AppId::PlaneRadar (TASK-347: Settings moved before it, shifting 10→9)
-time.sleep(0.5)
+    print(f"== opening {PORT} (DTR reset) ==", flush=True)
+    d = Dut()
+    boot = d.wait_ready(90)
+    report("V0 boot + cmd loop ready", bool(boot.get("ok")), str(boot))
+    orig_active = boot.get("active", 0)
+    orig_locs = boot.get("locs") or []
+    report("V1 all 4 slots filled (test needs live labels, not -- empty --)",
+           all(l.get("label") for l in orig_locs), str(orig_locs))
 
-d.tap(STRIP_X, STRIP_ROW_Y[target])
-time.sleep(0.3)
-r = d.cmd("get prloc")
-la = d.cmd("get prLastAction")
-report("T_PRL_02a strip tap switched active slot",
-       r.get("active") == target, f"active={r.get('active')} target={target}")
-report("T_PRL_02b prLastAction records the strip hit",
-       la.get("val") == f"STRIP_LOC_{target}", str(la))
+    filled = [i for i, l in enumerate(orig_locs) if l.get("label")]
+    target = next((i for i in filled if i != orig_active), None)
+    report("V2 found a non-active filled slot to switch to", target is not None, f"target={target}")
 
-ae = d.cmd("get activeError")
-report("T_PRL_02c switch resets connecting state (DEV-3 reset)", ae.get("connecting") is True, str(ae))
+    # =========================================================================
+    # T_PRL_02 — strip tap switches location
+    # =========================================================================
+    d.cmd("switchApp 9")   # AppId::PlaneRadar (TASK-347: Settings moved before it, shifting 10→9)
+    time.sleep(0.5)
 
-# Let it settle (connecting -> false) before the no-op check, so a
-# regression that DOES re-reset on a same-slot tap is actually visible.
-settled = d.wait_field("get activeError", "connecting", False, budget=90)
-report("T_PRL_02d fetch settles (connecting -> false) before no-op check", settled.get("connecting") is False, str(settled))
-
-# =========================================================================
-# T_PRL_05a — same-slot strip tap is a no-op (no flicker/reset)
-# =========================================================================
-d.tap(STRIP_X, STRIP_ROW_Y[target])   # tap the SAME slot again
-time.sleep(0.5)
-ae2 = d.cmd("get activeError")
-r2 = d.cmd("get prloc")
-report("T_PRL_05a same-slot tap: active index unchanged", r2.get("active") == target, str(r2))
-report("T_PRL_05a same-slot tap: no state reset (connecting stays false)",
-       ae2.get("connecting") is False, str(ae2))
-
-# =========================================================================
-# T_PRL_09 — rapid double-switch (best-effort empirical epoch-race exercise)
-# NOTE: back-to-back *tap* injection can't do this — a tap while
-# hasPendingAsync() is true sets g_shellBusy, and cmdTap's very first check
-# silently drops (skipped:true) any tap that arrives while g_shellBusy is
-# set (discovered by this script: an earlier tap-based version of this test
-# always landed on the FIRST slot, never the second, because tap #2 was
-# dropped before it ever reached PlaneRadarApp::handleInput()). That's
-# correct product behaviour (the shell won't let interactive taps race a
-# fetch), but it means this leg has to go through `set prloc active <i>`
-# (main.cpp's serial path, which calls _setActiveLoc() directly with no
-# g_shellBusy gate) to actually exercise the epoch race.
-# =========================================================================
-others = [i for i in filled if i != target]
-if len(others) >= 2:
-    a, b = others[0], others[1]
-    d.cmd(f"set prloc active {a}")
-    d.cmd(f"set prloc active {b}")   # no sleep — race the in-flight fetch for `a`
+    d.tap(STRIP_X, STRIP_ROW_Y[target])
     time.sleep(0.3)
     r = d.cmd("get prloc")
-    report("T_PRL_09 rapid double-switch settles on the LAST-set slot, no crash",
-           r.get("active") == b and r.get("ok"), str(r))
+    la = d.cmd("get prLastAction")
+    report("T_PRL_02a strip tap switched active slot",
+           r.get("active") == target, f"active={r.get('active')} target={target}")
+    report("T_PRL_02b prLastAction records the strip hit",
+           la.get("val") == f"STRIP_LOC_{target}", str(la))
+
+    ae = d.cmd("get activeError")
+    report("T_PRL_02c switch resets connecting state (DEV-3 reset)", ae.get("connecting") is True, str(ae))
+
+    # Let it settle (connecting -> false) before the no-op check, so a
+    # regression that DOES re-reset on a same-slot tap is actually visible.
     settled = d.wait_field("get activeError", "connecting", False, budget=90)
-    ac = d.cmd("get prAircraftCount")
-    report("T_PRL_09 fetch for the final slot completes cleanly after the race",
-           settled.get("connecting") is False and ac.get("ok"), f"{settled} count={ac}")
-else:
-    report("T_PRL_09 rapid double-switch", False, "need >=2 other filled slots besides target — skipped, not enough data")
+    report("T_PRL_02d fetch settles (connecting -> false) before no-op check", settled.get("connecting") is False, str(settled))
 
-# =========================================================================
-# T_PRL_05b — deleting the ACTIVE slot falls back to slot 0
-# =========================================================================
-# Make a non-zero slot active first (serial path, guarded on currentAppId
-# like the strip-tap path — same _setActiveLoc() primitive either way).
-victim = next((i for i in filled if i != 0), None)
-report("V3 found a non-zero filled slot to delete-while-active", victim is not None, f"victim={victim}")
-victim_backup = dict(orig_locs[victim]) if victim is not None else {}
-
-if victim is not None:
-    d.cmd(f"set prloc active {victim}")
-    time.sleep(0.3)
-    r = d.cmd("get prloc")
-    report("T_PRL_05b setup: victim slot is active", r.get("active") == victim, str(r))
-
-    d.cmd("switchApp 10")           # Settings (TASK-347: moved from 6 to directly before WebRadio)
-    time.sleep(0.3)
-    d.tap(100, row_y(5))            # Applications (main.cpp kLabels idx 5)
-    time.sleep(0.3)
-    d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar (=206; was 223 in the 9-app/23px era)
-    time.sleep(0.3)
-    d.tap(100, row_y(5))            # Locations
-    time.sleep(0.3)
-    d.tap(100, row_y(victim))       # victim's slot row -> EditLabel prefilled
-    time.sleep(0.3)
-    d.cmd("set kbOk")                # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
-    time.sleep(0.3)
-    d.tap(137, 188)                  # Delete (enabled: non-zero, hasCurrent)
-    time.sleep(0.3)
-    r = d.cmd("get prloc")
-    s = loc(r, victim)
-    report("T_PRL_05b delete-active-slot falls back to slot 0",
-           r.get("active") == 0 and s.get("label", "?") == "", str(r))
-    s0 = loc(r, 0)
-    report("T_PRL_05b prLat/prLon mirror follows the fallback (slot 0 coords)",
-           abs(s0.get("lat", 999) - orig_locs[0]["lat"]) < 1e-3, str(s0))
-
-    d.tap(10, 10); time.sleep(0.2)   # SlotList -> app rows
-    d.tap(10, 10); time.sleep(0.2)   # app rows -> app list
-    d.cmd("switchApp 0")
-
-# =========================================================================
-# T_PRL_03 — -96 GEOCODE_NO_MATCH error path (companion to the -97 leg
-# already proven in prloc_editor_smoke.py)
-# =========================================================================
-scratch = next((i for i in filled if i != 0 and i != victim), None)
-report("V4 found a scratch slot for the -96 leg (untouched by Save)", scratch is not None, f"scratch={scratch}")
-
-if scratch is not None:
-    d.cmd("switchApp 10")           # Settings (TASK-347: moved from 6 to directly before WebRadio)
-    time.sleep(0.3)
-    d.tap(100, row_y(5))            # Applications
-    time.sleep(0.3)
-    d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar
-    time.sleep(0.3)
-    d.tap(100, row_y(5))            # Locations
-    time.sleep(0.3)
-    d.tap(100, row_y(scratch))      # scratch slot row -> EditLabel prefilled
-    time.sleep(0.3)
-    d.cmd("set kbOk")                     # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
-    time.sleep(0.3)
-    d.tap(137, 84)                        # Lookup button (hasCurrent=true layout)
-    time.sleep(0.3)
-    d.cmd("set kbOk")                     # country: prefilled default, submit as-is
-    time.sleep(0.3)
-    stub96 = d.cmd("set geocode err -96")
-    report("T_PRL_03 -96 stub parked", stub96.get("ok") and stub96.get("errorCode") == -96, str(stub96))
-    d.cmd("set kbText 0000ZZ")
-    d.cmd("set kbOk")                     # postcode submit -> LookupPending -> consumes -96 -> LookupError
-    time.sleep(1.2)
-    k = d.cmd("get kb")
-    report("T_PRL_03 -96 error path: keyboard stays closed (LookupError, not a keyboard step)",
-           k.get("active") is False, str(k))
-    d.tap(204, 210)                       # Error screen: Cancel -> SlotList, nothing persisted
-    time.sleep(0.3)
-    r = d.cmd("get prloc")
-    s = loc(r, scratch)
-    report("T_PRL_03 scratch slot untouched after -96 error + Cancel",
-           s.get("label") == orig_locs[scratch]["label"] and
-           abs(s.get("lat", 0) - orig_locs[scratch]["lat"]) < 1e-3, str(s))
-
-# =========================================================================
-# T_PRL_08 — cancel mid-lookup leaves clean state (real fetch, not a stub —
-# see docstring caveat on what this does/doesn't prove)
-# =========================================================================
-if scratch is not None:
-    d.tap(100, row_y(scratch))      # scratch slot row -> EditLabel (still in SlotList from T_PRL_03)
-    time.sleep(0.3)
-    d.cmd("set kbOk")
-    time.sleep(0.3)
-    d.tap(137, 84)                        # Lookup
-    time.sleep(0.3)
-    d.cmd("set kbOk")                     # country default
-    time.sleep(0.3)
-    d.cmd("set kbText 2513AA")
-    d.cmd("set kbOk")                     # postcode submit -> REAL enqueueGeocode(), no stub parked
-    # Cancel immediately — races the real network fetch.
-    d.tap(137, 210)                       # LookupPending: Cancel (sButtonBar n=1 @190, full-width, center x=137)
-    time.sleep(0.3)
-    r = d.cmd("get prloc")
-    s = loc(r, scratch)
-    report("T_PRL_08 cancel-mid-lookup: nothing persisted, scratch slot untouched",
-           s.get("label") == orig_locs[scratch]["label"], str(s))
-    # Give the real fetch time to land in the background, then confirm the
-    # late result sits inert (peek, non-consuming) and didn't corrupt state.
-    time.sleep(5.0)
-    g = d.cmd("get geocode")
+    # =========================================================================
+    # T_PRL_05a — same-slot strip tap is a no-op (no flicker/reset)
+    # =========================================================================
+    d.tap(STRIP_X, STRIP_ROW_Y[target])   # tap the SAME slot again
+    time.sleep(0.5)
+    ae2 = d.cmd("get activeError")
     r2 = d.cmd("get prloc")
-    s2 = loc(r2, scratch)
-    report("T_PRL_08 late real-network result (if any) left the slot alone",
-           s2.get("label") == orig_locs[scratch]["label"], f"geocode_peek={g} slot={s2}")
+    report("T_PRL_05a same-slot tap: active index unchanged", r2.get("active") == target, str(r2))
+    report("T_PRL_05a same-slot tap: no state reset (connecting stays false)",
+           ae2.get("connecting") is False, str(ae2))
 
-    d.tap(10, 10); time.sleep(0.2)
-    d.tap(10, 10); time.sleep(0.2)
-    d.cmd("switchApp 0")
+    # =========================================================================
+    # T_PRL_09 — rapid double-switch (best-effort empirical epoch-race exercise)
+    # NOTE: back-to-back *tap* injection can't do this — a tap while
+    # hasPendingAsync() is true sets g_shellBusy, and cmdTap's very first check
+    # silently drops (skipped:true) any tap that arrives while g_shellBusy is
+    # set (discovered by this script: an earlier tap-based version of this test
+    # always landed on the FIRST slot, never the second, because tap #2 was
+    # dropped before it ever reached PlaneRadarApp::handleInput()). That's
+    # correct product behaviour (the shell won't let interactive taps race a
+    # fetch), but it means this leg has to go through `set prloc active <i>`
+    # (main.cpp's serial path, which calls _setActiveLoc() directly with no
+    # g_shellBusy gate) to actually exercise the epoch race.
+    # =========================================================================
+    others = [i for i in filled if i != target]
+    if len(others) >= 2:
+        a, b = others[0], others[1]
+        d.cmd(f"set prloc active {a}")
+        d.cmd(f"set prloc active {b}")   # no sleep — race the in-flight fetch for `a`
+        time.sleep(0.3)
+        r = d.cmd("get prloc")
+        report("T_PRL_09 rapid double-switch settles on the LAST-set slot, no crash",
+               r.get("active") == b and r.get("ok"), str(r))
+        settled = d.wait_field("get activeError", "connecting", False, budget=90)
+        ac = d.cmd("get prAircraftCount")
+        report("T_PRL_09 fetch for the final slot completes cleanly after the race",
+               settled.get("connecting") is False and ac.get("ok"), f"{settled} count={ac}")
+    else:
+        report("T_PRL_09 rapid double-switch", False, "need >=2 other filled slots besides target — skipped, not enough data")
 
-# =========================================================================
-# Restore — every slot this script touched, and the original active index.
-# =========================================================================
-if victim is not None and victim_backup:
-    d.cmd(f"set prloc {victim} {victim_backup['label']} {victim_backup['lat']} {victim_backup['lon']}")
-    time.sleep(0.2)
-d.cmd(f"set prloc active {orig_active}")
-time.sleep(0.3)
-final = d.cmd("get prloc")
-report("Z0 device restored to pre-test slot contents + active index",
-       final.get("active") == orig_active and
-       all(loc(final, i).get("label") == orig_locs[i].get("label") for i in range(4)),
-       str(final))
+    # =========================================================================
+    # T_PRL_05b — deleting the ACTIVE slot falls back to slot 0
+    # =========================================================================
+    # Make a non-zero slot active first (serial path, guarded on currentAppId
+    # like the strip-tap path — same _setActiveLoc() primitive either way).
+    victim = next((i for i in filled if i != 0), None)
+    report("V3 found a non-zero filled slot to delete-while-active", victim is not None, f"victim={victim}")
+    victim_backup = dict(orig_locs[victim]) if victim is not None else {}
 
-d.close()
-fails = [r for r in results if not r[1]]
-print(f"\n== TASK-324 VE SMOKE: {len(results) - len(fails)}/{len(results)} PASS ==")
-sys.exit(1 if fails else 0)
+    if victim is not None:
+        d.cmd(f"set prloc active {victim}")
+        time.sleep(0.3)
+        r = d.cmd("get prloc")
+        report("T_PRL_05b setup: victim slot is active", r.get("active") == victim, str(r))
+
+        d.cmd("switchApp 10")           # Settings (TASK-347: moved from 6 to directly before WebRadio)
+        time.sleep(0.3)
+        d.tap(100, row_y(5))            # Applications (main.cpp kLabels idx 5)
+        time.sleep(0.3)
+        d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar (=206; was 223 in the 9-app/23px era)
+        time.sleep(0.3)
+        d.tap(100, row_y(5))            # Locations
+        time.sleep(0.3)
+        d.tap(100, row_y(victim))       # victim's slot row -> EditLabel prefilled
+        time.sleep(0.3)
+        d.cmd("set kbOk")                # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
+        time.sleep(0.3)
+        d.tap(137, 188)                  # Delete (enabled: non-zero, hasCurrent)
+        time.sleep(0.3)
+        r = d.cmd("get prloc")
+        s = loc(r, victim)
+        report("T_PRL_05b delete-active-slot falls back to slot 0",
+               r.get("active") == 0 and s.get("label", "?") == "", str(r))
+        s0 = loc(r, 0)
+        report("T_PRL_05b prLat/prLon mirror follows the fallback (slot 0 coords)",
+               abs(s0.get("lat", 999) - orig_locs[0]["lat"]) < 1e-3, str(s0))
+
+        d.tap(10, 10); time.sleep(0.2)   # SlotList -> app rows
+        d.tap(10, 10); time.sleep(0.2)   # app rows -> app list
+        d.cmd("switchApp 0")
+
+    # =========================================================================
+    # T_PRL_03 — -96 GEOCODE_NO_MATCH error path (companion to the -97 leg
+    # already proven in prloc_editor_smoke.py)
+    # =========================================================================
+    scratch = next((i for i in filled if i != 0 and i != victim), None)
+    report("V4 found a scratch slot for the -96 leg (untouched by Save)", scratch is not None, f"scratch={scratch}")
+
+    if scratch is not None:
+        d.cmd("switchApp 10")           # Settings (TASK-347: moved from 6 to directly before WebRadio)
+        time.sleep(0.3)
+        d.tap(100, row_y(5))            # Applications
+        time.sleep(0.3)
+        d.tap(100, row_y(PLANERADAR_APP_IDX, APP_LIST_ROW_H))   # PlaneRadar
+        time.sleep(0.3)
+        d.tap(100, row_y(5))            # Locations
+        time.sleep(0.3)
+        d.tap(100, row_y(scratch))      # scratch slot row -> EditLabel prefilled
+        time.sleep(0.3)
+        d.cmd("set kbOk")                     # resubmit unchanged -> SourceFork (hasCurrent=true, y0=64)
+        time.sleep(0.3)
+        d.tap(137, 84)                        # Lookup button (hasCurrent=true layout)
+        time.sleep(0.3)
+        d.cmd("set kbOk")                     # country: prefilled default, submit as-is
+        time.sleep(0.3)
+        stub96 = d.cmd("set geocode err -96")
+        report("T_PRL_03 -96 stub parked", stub96.get("ok") and stub96.get("errorCode") == -96, str(stub96))
+        d.cmd("set kbText 0000ZZ")
+        d.cmd("set kbOk")                     # postcode submit -> LookupPending -> consumes -96 -> LookupError
+        time.sleep(1.2)
+        k = d.cmd("get kb")
+        report("T_PRL_03 -96 error path: keyboard stays closed (LookupError, not a keyboard step)",
+               k.get("active") is False, str(k))
+        d.tap(204, 210)                       # Error screen: Cancel -> SlotList, nothing persisted
+        time.sleep(0.3)
+        r = d.cmd("get prloc")
+        s = loc(r, scratch)
+        report("T_PRL_03 scratch slot untouched after -96 error + Cancel",
+               s.get("label") == orig_locs[scratch]["label"] and
+               abs(s.get("lat", 0) - orig_locs[scratch]["lat"]) < 1e-3, str(s))
+
+    # =========================================================================
+    # T_PRL_08 — cancel mid-lookup leaves clean state (real fetch, not a stub —
+    # see docstring caveat on what this does/doesn't prove)
+    # =========================================================================
+    if scratch is not None:
+        d.tap(100, row_y(scratch))      # scratch slot row -> EditLabel (still in SlotList from T_PRL_03)
+        time.sleep(0.3)
+        d.cmd("set kbOk")
+        time.sleep(0.3)
+        d.tap(137, 84)                        # Lookup
+        time.sleep(0.3)
+        d.cmd("set kbOk")                     # country default
+        time.sleep(0.3)
+        d.cmd("set kbText 2513AA")
+        d.cmd("set kbOk")                     # postcode submit -> REAL enqueueGeocode(), no stub parked
+        # Cancel immediately — races the real network fetch.
+        d.tap(137, 210)                       # LookupPending: Cancel (sButtonBar n=1 @190, full-width, center x=137)
+        time.sleep(0.3)
+        r = d.cmd("get prloc")
+        s = loc(r, scratch)
+        report("T_PRL_08 cancel-mid-lookup: nothing persisted, scratch slot untouched",
+               s.get("label") == orig_locs[scratch]["label"], str(s))
+        # Give the real fetch time to land in the background, then confirm the
+        # late result sits inert (peek, non-consuming) and didn't corrupt state.
+        time.sleep(5.0)
+        g = d.cmd("get geocode")
+        r2 = d.cmd("get prloc")
+        s2 = loc(r2, scratch)
+        report("T_PRL_08 late real-network result (if any) left the slot alone",
+               s2.get("label") == orig_locs[scratch]["label"], f"geocode_peek={g} slot={s2}")
+
+        d.tap(10, 10); time.sleep(0.2)
+        d.tap(10, 10); time.sleep(0.2)
+        d.cmd("switchApp 0")
+
+    # =========================================================================
+    # Restore — every slot this script touched, and the original active index.
+    # =========================================================================
+    if victim is not None and victim_backup:
+        d.cmd(f"set prloc {victim} {victim_backup['label']} {victim_backup['lat']} {victim_backup['lon']}")
+        time.sleep(0.2)
+    d.cmd(f"set prloc active {orig_active}")
+    time.sleep(0.3)
+    final = d.cmd("get prloc")
+    report("Z0 device restored to pre-test slot contents + active index",
+           final.get("active") == orig_active and
+           all(loc(final, i).get("label") == orig_locs[i].get("label") for i in range(4)),
+           str(final))
+
+    d.close()
+    fails = [r for r in results if not r[1]]
+    print(f"\n== TASK-324 VE SMOKE: {len(results) - len(fails)}/{len(results)} PASS ==")
+    sys.exit(1 if fails else 0)
+
+
+if __name__ == "__main__":
+    main()
