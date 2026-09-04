@@ -176,6 +176,26 @@ if ! "$PYTHON" gate/check_flake_class.py; then
     exit 1
 fi
 
+# 4j. defaulted device reads — TASK-596/585 / M-HARNESS2 R18.
+# A `.get("val", 0)` on a device reply gives a FAILED read the same type as a
+# real one, so the comparison after it cannot tell them apart. WP-G found what
+# that costs: `_stock_ok_count` returned -1, `_wait_chart_complete(-1)` was
+# satisfied by its own first poll, and the Stock family's central fetch oracle
+# was an unconditional pass across nine ids. R18 is a RATCHET, so this lands
+# blocking against a dated, per-file, shrink-only ledger
+# (docs/verification/defaulted_reads_ratchet.md) that is enforced in BOTH
+# directions — a cap above the real count is itself a failure. The negative
+# suite runs first and includes the G-2 regression proper: it FAILS on the
+# pre-TASK-585 helper, which is the only reason to believe it means anything.
+if ! "$PYTHON" gate/test_check_defaulted_reads.py; then
+    echo "FAIL: test_check_defaulted_reads.py (TASK-596 checker+accessor negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_defaulted_reads.py; then
+    echo "FAIL: check_defaulted_reads.py (TASK-596 R18 defaulted-read ratchet) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —

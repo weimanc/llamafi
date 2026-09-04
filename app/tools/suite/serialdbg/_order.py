@@ -232,6 +232,18 @@ EDGE_ADJUDICATION = {
                   "to the front, so its TLS connection is colder and its "
                   "documented 'warm connection completed before tap2' SKIP is "
                   "LESS likely, not more."),
+    "T176": ("DISMISSED",
+             "Surfaced 2026-09-04 by TASK-596, and it is a SCANNER artefact, not "
+             "a new risk: `_drain_data_pipeline`'s quiet test read "
+             "`q.get(\"yieldCount\", 1) == 0` and now reads "
+             "`dut_int(q, \"yieldCount\") == 0`, which is the same condition with "
+             "the defaulted read removed — the `, 1` was all that kept it out of "
+             "_ABS_EDGE. The line is a PRECONDITION on shared pipeline state that "
+             "the helper polls until true, not T176's assertion; T176's oracle is "
+             "`_wait_chart_complete`'s fetchOkCount DELTA, which the scanner does "
+             "not flag. T178, T-BUSY-01 and T_WR_TLS_01 call the same helper and "
+             "already carry rows. @VE: this row is a developer adjudication of a "
+             "false positive, not a re-grading of T176."),
     "T163": ("DISMISSED", "expected = (baseline + 1) % N against a baseline read "
                           "immediately before the drag."),
     "T164": ("DISMISSED", "Sets tbScrollOffset=1 itself before measuring."),

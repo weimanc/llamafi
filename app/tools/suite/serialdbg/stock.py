@@ -28,7 +28,7 @@ stock-002 (heatmap sub-view):
 
 import time
 
-from lib.dut import Dut
+from lib.dut import Dut, DeviceReadError, NoAnswer
 from lib.results import pass_, fail, skip
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -39,13 +39,40 @@ from suite.serialdbg._helpers import (
 )
 
 
+def _diag_val(dut: Dut, var: str, timeout: float = 3.0):
+    """A device value for a FAILURE MESSAGE ONLY. Never an oracle term.
+
+    TASK-585: the typed read raises, and the sites that read state to DESCRIBE a
+    failure already have their verdict. Letting a NoAnswer out of one of those
+    would convert a decided FAIL into an UNMET at the dispatch loop — the read
+    that could not be made was the diagnostic, not the assertion. So the one
+    place a default is still legitimate is named, is a string that no comparison
+    in this file consumes, and is the only such place.
+    """
+    try:
+        return dut.get_val(var, timeout=timeout)
+    except DeviceReadError:
+        return "?"
+
+
 def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
-    """Wait until lastQuoteFetch advances past baseline (fetch completed)."""
+    """Wait until lastQuoteFetch advances past baseline (fetch completed).
+
+    TASK-585: THIS IS THE SECOND INSTANCE OF `G-2`, which the WP-G audit did not
+    name. The old body was `if r.get("ok") and int(r.get("val", 0)) != baseline`
+    — a reply that arrived without a `val` defaulted to `0`, and `baseline` here
+    is non-zero by construction (`T185`/`T173` both skip out when it reads 0), so
+    `0 != baseline` was TRUE and the wait returned success on a read it never
+    made. Identical shape to `_stock_ok_count`'s `-1`, different literal. The
+    typed read makes both unrepresentable.
+    """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        r = _stock_get(dut, "lastQuoteFetch")
-        if r.get("ok") and int(r.get("val", 0)) != baseline:
-            return True
+        try:
+            if dut.get_int("lastQuoteFetch") != baseline:
+                return True
+        except NoAnswer:
+            pass   # bounded poll loop; the deadline is the verdict, not this read
         time.sleep(2.0)
     # TASK-386: diagnostic snapshot on timeout, for every caller, automatically.
     # Return type/signature unchanged — zero risk to existing call sites — but the
@@ -56,14 +83,13 @@ def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
 
 
 def _stock_quote_ok_count(dut: Dut) -> int:
-    """Return current quoteOkCount from firmware, or -1 on error."""
-    r = _stock_get(dut, "quoteOkCount")
-    if r.get("ok"):
-        try:
-            return int(r.get("val", -1))
-        except (ValueError, TypeError):
-            pass
-    return -1
+    """Current quoteOkCount. Raises rather than returning `-1` (TASK-585, `G-2`).
+
+    `T170`'s entire oracle is `current > before` against this counter; with
+    `before = -1` the next poll read the real, already-non-zero count and passed
+    with no fetch in the window at all.
+    """
+    return dut.get_int("quoteOkCount")
 
 
 # _drain_data_pipeline — moved to suite/serialdbg/_helpers.py (TASK-480):
@@ -113,19 +139,30 @@ def t170(dut: Dut):
         skip("T170", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    before = _stock_quote_ok_count(dut)
+    # TASK-585: the baseline is the whole oracle, so a baseline that could not be
+    # read must end the id, not become `-1`. Restore first — the raise leaves the
+    # device in Stock otherwise, and a leaked app is how one unreadable counter
+    # becomes the next six ids' problem.
+    try:
+        before = _stock_quote_ok_count(dut)
+    except DeviceReadError:
+        _restore_from_stock(dut)
+        raise
     print(f"  [T170] switched to Stock (quoteOkCount={before}); waiting for quote fetch…", flush=True)
     deadline = time.monotonic() + 65.0
     advanced = False
     last_progress = None
     last_progress_time = time.monotonic()
     while time.monotonic() < deadline:
-        current = _stock_quote_ok_count(dut)
-        if current > before:
-            advanced = True
-            break
-        r_prog = _stock_get(dut, "stockQuoteProgress", timeout=3.0)
-        prog = r_prog.get("val") if r_prog.get("ok") else None
+        try:
+            current = _stock_quote_ok_count(dut)
+            if current > before:
+                advanced = True
+                break
+            prog = dut.get_int("stockQuoteProgress", timeout=3.0)
+        except NoAnswer:
+            time.sleep(2.0)
+            continue
         if prog != last_progress:
             last_progress = prog
             last_progress_time = time.monotonic()
@@ -136,15 +173,13 @@ def t170(dut: Dut):
             return
         time.sleep(2.0)
     if not advanced:
-        r_prog = _stock_get(dut, "stockQuoteProgress", timeout=3.0)
-        ticker_idx = r_prog.get("val") if r_prog.get("ok") else "?"
+        ticker_idx = _diag_val(dut, "stockQuoteProgress")
         ticker_name = _DEFAULT_TICKERS[ticker_idx] if isinstance(ticker_idx, int) and 0 <= ticker_idx < 8 else "?"
-        r_ff   = _stock_get(dut, "fetchFailed",    timeout=3.0)
-        r_code = _stock_get(dut, "fetchErrorCode", timeout=3.0)
         _restore_from_stock(dut)
         fail("T170", f"quoteOkCount did not advance within 65 s — "
                      f"stuck on ticker {ticker_idx} ({ticker_name}), "
-                     f"fetchFailed={r_ff.get('val')!r} fetchErrorCode={r_code.get('val')!r}")
+                     f"fetchFailed={_diag_val(dut, 'fetchFailed')!r} "
+                     f"fetchErrorCode={_diag_val(dut, 'fetchErrorCode')!r}")
         return
     _restore_from_stock(dut)
     pass_("T170", f"quoteOkCount advanced past {before} — quote fetch completed")
@@ -187,8 +222,11 @@ def t173(dut: Dut):
         skip("T173", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    r_pre = _stock_get(dut, "lastQuoteFetch")
-    baseline = int(r_pre.get("val", 0)) if r_pre.get("ok") else 0
+    try:
+        baseline = dut.get_int("lastQuoteFetch")
+    except DeviceReadError:
+        _restore_from_stock(dut)
+        raise
     if baseline == 0:
         skip("T173", "no quote fetch recorded yet — cannot verify resume cache")
         _restore_from_stock(dut)
@@ -200,9 +238,14 @@ def t173(dut: Dut):
         fail("T173", "could not switch back to Stock")
         _restore_from_stock(dut)
         return
-    r_post = _stock_get(dut, "lastQuoteFetch")
-    _restore_from_stock(dut)
-    post_val = int(r_post.get("val", 0)) if r_post.get("ok") else -1
+    # TASK-585: this used to default to `-1` on a bad read, which then satisfied
+    # `post_val != baseline` and reported a re-fetch the test never observed —
+    # G-2's shape inverted (a false FAIL rather than a false PASS, but the same
+    # unreadable-as-a-value defect).
+    try:
+        post_val = dut.get_int("lastQuoteFetch")
+    finally:
+        _restore_from_stock(dut)
     if post_val != baseline:
         fail("T173", f"lastQuoteFetch changed {baseline}→{post_val} — unexpected re-fetch on resume")
         return
@@ -344,10 +387,12 @@ def t177(dut: Dut):
     deadline = time.monotonic() + 5.0
     fetched = False
     while time.monotonic() < deadline:
-        r = _stock_get(dut, "lastChartFetch")
-        if r.get("ok") and int(r.get("val", 0)) > 0:
-            fetched = True
-            break
+        try:
+            if dut.get_int("lastChartFetch") > 0:
+                fetched = True
+                break
+        except NoAnswer:
+            pass   # bounded poll; the 5 s deadline is the verdict
         time.sleep(0.3)
     _restore_from_stock(dut)
     if r_rng.get("val") != "D5":
@@ -388,15 +433,19 @@ def t178(dut: Dut):
     dut.set_cooldown_zero()
     dut.cmd("tap 137 36", timeout=3.0)  # drill AAPL; fetch enqueued but not returned
     time.sleep(0.1)  # minimal wait — check before dataTask returns
-    r_sv     = _stock_get(dut, "stockSubView")
-    r_len    = _stock_get(dut, "chartLen")
-    r_failed = _stock_get(dut, "fetchFailed")
-    _restore_from_stock(dut)
-    if r_sv.get("val") != "chart":
+    # TASK-596: `chart_len` used to default to `-1`, a value the `!= 0`
+    # comparison FAILS on — a bad read reported a placeholder-state regression
+    # that was never observed. Typed reads, and the restore is now unconditional
+    # rather than sitting between the reads and the assertions.
+    try:
+        sub_view     = dut.get_str("stockSubView")
+        chart_len    = dut.get_int("chartLen")
+        fetch_failed = dut.get_val("fetchFailed")
+    finally:
+        _restore_from_stock(dut)
+    if sub_view != "chart":
         skip("T178", "drill-in did not fire")
         return
-    chart_len    = r_len.get("val", -1)
-    fetch_failed = r_failed.get("val")
     if chart_len != 0:
         fail("T178", f"chartLen={chart_len} after reset+drill-in — expected 0 (placeholder)")
         return
@@ -630,8 +679,10 @@ def _enter_stock_no_force(dut: Dut, timeout: float = 5.0) -> bool:
     if not r.get("ok"):
         return False
     time.sleep(0.4)  # let resume() → _applyLaunchView() run + first paint
-    r2 = dut.cmd("get appId", timeout=timeout)
-    return r2.get("ok", False) and r2.get("name") == "Stock"
+    try:
+        return dut.get_str("appId", field="name", timeout=timeout) == "Stock"
+    except DeviceReadError:
+        return False
 
 
 def t231(dut: Dut):
@@ -664,7 +715,7 @@ def t231(dut: Dut):
         fail(tid, f"stockMode=Chart but launched stockSubView={sv!r} (expected chart)")
         _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
         return
-    tk = _stock_get(dut, "stockChartTicker").get("val", "")
+    tk = dut.get_str("stockChartTicker")
     if not tk:
         fail(tid, "Chart launched with EMPTY ticker — drillToChart(0) precondition not met")
         _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
@@ -734,8 +785,7 @@ def t185(dut: Dut):
     dut.cmd("set fetchFailed 1", timeout=3.0)
     dut.cmd("set fetchErrorCode -99", timeout=3.0)
     time.sleep(0.15)
-    r_pre = _stock_get(dut, "lastQuoteFetch")
-    baseline = int(r_pre.get("val", 0)) if r_pre.get("ok") else 0
+    baseline = dut.get_int("lastQuoteFetch")
     # Zero timestamps so the next tick enqueues immediately.
     dut.cmd("set triggerFetch 1", timeout=3.0)
     # Wait for fetch to complete and lastQuoteFetch to advance.
@@ -947,17 +997,23 @@ def t204(dut: Dut):
 # ── stock-002 (TASK-120): heatmap sub-view, navigation, fetch-gate, chartSymbol guard ──
 
 def _wait_heatmap_count(dut: Dut, timeout_s: float = 60.0) -> int:
-    """Poll get heatmapCount until > 0. Returns count (0 on timeout)."""
+    """Poll get heatmapCount until > 0. Returns count (0 on timeout).
+
+    TASK-596: `0` is still the timeout return, and that is DELIBERATE and safe
+    here in a way `_stock_ok_count`'s `-1` was not — every caller treats 0 as
+    "no heatmap", i.e. the failing direction, so a conflated sentinel cannot
+    manufacture a pass. What changed is the read: an unanswered poll no longer
+    reads as `val=0` mid-loop, and a renamed key now raises instead of spending
+    60 s pretending to poll.
+    """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        r = dut.cmd("get heatmapCount", timeout=3.0)
-        if r.get("ok"):
-            try:
-                val = int(r.get("val", 0))
-                if val > 0:
-                    return val
-            except (ValueError, TypeError):
-                pass
+        try:
+            val = dut.get_int("heatmapCount", timeout=3.0)
+            if val > 0:
+                return val
+        except NoAnswer:
+            pass
         time.sleep(3.0)
     # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
     _diag_snapshot(dut, "_wait_heatmap_count-timeout")
@@ -969,8 +1025,11 @@ def _ensure_stock_list_view(dut: Dut) -> bool:
     Handles leftover state from previous tests (heatmap or chart sub-view).
     Returns True if ListDetail confirmed."""
     for _ in range(3):
-        r = dut.cmd("get stockSubView", timeout=3.0)
-        sv = r.get("val", "")
+        try:
+            sv = dut.get_str("stockSubView", timeout=3.0)
+        except NoAnswer:
+            time.sleep(0.3)
+            continue
         if sv == "list":
             return True
         if sv == "chart":
@@ -1118,8 +1177,7 @@ def t202(dut: Dut):
         _restore_from_stock(dut)
         fail("T202", f"stockSubView={r_sv.get('val')!r} after tile tap — expected 'chart'")
         return
-    r_sym = dut.cmd("get stockChartTicker", timeout=3.0)
-    drilled = r_sym.get("val", "?")
+    drilled = dut.get_str("stockChartTicker")
     _restore_from_stock(dut)
     pass_("T202", f"tile tap → ChartDetail; drilled symbol={drilled!r}")
 
@@ -1226,8 +1284,10 @@ def t192(dut: Dut):
         skip("T192", "could not drill to chart from heatmap")
         _restore_from_stock(dut)
         return
-    r_sym = dut.cmd("get stockChartTicker", timeout=3.0)
-    drilled = r_sym.get("val", "?")
+    # TASK-596: `"?"` on BOTH sides of the later `after_sym != drilled` comparison
+    # made two failed reads compare EQUAL — the same defaulted-to-pass shape as
+    # `G-2`, in the term the audit graded as merely tautological.
+    drilled = dut.get_str("stockChartTicker")
     # Wait for D1 chart fetch to complete before tab-switching (clears g_shellBusy)
     if not _wait_shell_not_busy(dut, timeout_s=45.0):
         skip("T192", "shellBusy did not clear after tile drill — chart fetch stuck?")
@@ -1247,8 +1307,7 @@ def t192(dut: Dut):
         fail("T192", "fetchOkCount did not advance after tab-switch — TASK-121 fix may be missing")
         _restore_from_stock(dut)
         return
-    r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
-    after_sym = r_sym2.get("val", "?")
+    after_sym = dut.get_str("stockChartTicker")
     _restore_from_stock(dut)
     if after_sym != drilled:
         fail("T192", f"chart ticker changed: {drilled!r} → {after_sym!r} after tab-switch")
@@ -1310,8 +1369,10 @@ def t193(dut: Dut):
         skip("T193", "could not drill to chart from heatmap")
         _restore_from_stock(dut)
         return
-    r_sym = dut.cmd("get stockChartTicker", timeout=3.0)
-    drilled = r_sym.get("val", "?")
+    # TASK-596: `"?"` on BOTH sides of the later `after_sym != drilled` comparison
+    # made two failed reads compare EQUAL — the same defaulted-to-pass shape as
+    # `G-2`, in the term the audit graded as merely tautological.
+    drilled = dut.get_str("stockChartTicker")
     # Wait for initial D1 fetch to complete (clears shellBusy), then force re-fetch
     if not _wait_shell_not_busy(dut, timeout_s=45.0):
         skip("T193", "shellBusy did not clear after tile drill")
@@ -1331,10 +1392,8 @@ def t193(dut: Dut):
                       f"fire | entry={entry_diag} | pre-trigger={pre_diag} | timeout={timeout_diag}")
         _restore_from_stock(dut)
         return
-    r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
-    after_sym = r_sym2.get("val", "?")
-    r_cl = dut.cmd("get chartLen", timeout=3.0)
-    chart_len = int(r_cl.get("val", 0)) if r_cl.get("ok") else -1
+    after_sym = dut.get_str("stockChartTicker")
+    chart_len = dut.get_int("chartLen")
     _restore_from_stock(dut)
     if after_sym != drilled:
         fail("T193", f"chart ticker changed after auto-refresh: {drilled!r} → {after_sym!r}")
@@ -1431,8 +1490,7 @@ def t194(dut: Dut):
         skip("T194", "could not drill to chart from list row")
         _restore_from_stock(dut)
         return
-    r_sym = dut.cmd("get stockChartTicker", timeout=5.0)
-    list_ticker = r_sym.get("val", "?")
+    list_ticker = dut.get_str("stockChartTicker", timeout=5.0)
     # Wait for list-drill chart fetch to complete before tab tap
     if not _wait_shell_not_busy(dut, timeout_s=45.0):
         skip("T194", "shellBusy did not clear after list-drill")
@@ -1452,8 +1510,7 @@ def t194(dut: Dut):
                       f"pre-tab-switch={tab_diag} | timeout={timeout_diag}")
         _restore_from_stock(dut)
         return
-    r_sym2 = dut.cmd("get stockChartTicker", timeout=3.0)
-    after_sym = r_sym2.get("val", "?")
+    after_sym = dut.get_str("stockChartTicker")
     _restore_from_stock(dut)
     if after_sym != list_ticker:
         fail("T194", f"ticker changed after list-drill tab-switch: {list_ticker!r} → {after_sym!r}")

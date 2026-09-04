@@ -63,7 +63,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
 from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa: E402
                      set_no_wifi)
-from lib.results import fail, run_with_flake_retry                       # noqa: E402
+import lib.dut as _dut_mod                                               # noqa: E402
+from lib.results import fail, unmet, run_with_flake_retry                # noqa: E402
 
 try:
     import serial
@@ -427,6 +428,22 @@ def main():
                     t095(dut, args.interactive)
                 else:
                     all_tests[tid](dut)
+            # TASK-596 / R18. These two arms must precede the generic ones:
+            # both are RuntimeErrors and would otherwise land in `except
+            # Exception` as an undifferentiated FAIL, which is the reporting
+            # half of the defect the typed read exists to remove.
+            except _dut_mod.NoAnswer as e:
+                # The device never answered THIS question, so the body asserted
+                # nothing. Its premise did not hold — that is an UNMET, which
+                # still blocks and still exits 1 (ADR-066 D4), so nothing is
+                # weakened; what changes is that triage is not told the firmware
+                # regressed when the serial line was busy.
+                unmet(tid, str(e))
+            except _dut_mod.BadField as e:
+                # It answered, and the answer breaks the contract: a renamed key,
+                # a changed reply shape, a wrong-typed value. Reproducible, and
+                # somebody's code is wrong.
+                fail(tid, f"contract: {e}")
             except TimeoutError as e:
                 fail(tid, f"TimeoutError: {e}")
             except Exception as e:

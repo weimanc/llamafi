@@ -11,10 +11,41 @@ import json
 import time
 from contextlib import contextmanager
 
-from lib.dut import Dut
+from lib.dut import Dut, BadField, DeviceReadError, NoAnswer
 from lib.results import skip, pass_
 import coords as _c
 from app_ids_gen import APP_SLOT
+
+
+def dut_int(reply: dict, field: str) -> int:
+    """An int field of an ALREADY-READ reply, raising instead of defaulting.
+
+    TASK-596. `Dut.get_*` covers read-and-extract; this covers the case where one
+    reply carries several fields the caller compares together (`get dataq`), so
+    re-reading per field would sample four different instants of a moving queue.
+    """
+    if field not in reply:
+        raise BadField(field, f"reply has no {field!r} field: {reply!r}")
+    v = reply[field]
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise BadField(field, f"{field}={v!r} is not an integer: {reply!r}")
+    return v
+
+
+def _appid_is(dut: Dut, app_name: str, timeout: float = 5.0) -> bool:
+    """True iff `get appId` says the shell is in `app_name`.
+
+    TASK-596: the four hand-rolled copies of this read used
+    `r.get("ok", False) and r.get("name") == app_name`, where the `False` default
+    made an unanswered read indistinguishable from "the switch did not happen" —
+    and every caller turns that into a skip(). It still returns False on a failed
+    read (the callers' contract is a bool), but the read itself is typed and the
+    conflation now lives in exactly one place instead of four.
+    """
+    try:
+        return dut.get_str("appId", field="name", timeout=timeout) == app_name
+    except DeviceReadError:
+        return False
 
 
 def _tap_and_wait_log(dut: Dut, x: int, y: int, marker: str,
@@ -77,14 +108,21 @@ def _drain_data_pipeline(dut: Dut, timeout_s: float = 200.0, tag: str = "") -> b
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
-            q = dut.cmd("get dataq", timeout=3.0)
-            if (q.get("queueWaiting", 1) == 0 and q.get("inFlight", 0) == -1
-                    and q.get("yieldCount", 1) == 0 and q.get("spAct") != 3):
+            # TASK-596: the three defaults here (`queueWaiting, 1` / `inFlight, 0`
+            # / `yieldCount, 1`) were all in the SAFE direction — a missing field
+            # kept draining rather than declaring quiet, which WP-G explicitly
+            # credited. They are still removed: safe-by-choice is one edit away
+            # from unsafe-by-choice, and `cmdGet.cpp`'s dataq reply prints all
+            # four fields unconditionally, so an absent one is a shape change
+            # this loop should surface rather than absorb for 200 s.
+            q = dut.read_reply("get dataq", timeout=3.0)
+            if (dut_int(q, "queueWaiting") == 0 and dut_int(q, "inFlight") == -1
+                    and dut_int(q, "yieldCount") == 0 and q.get("spAct") != 3):
                 return True
             print(f"  {prefix}draining: inFlight={q.get('inFlight')} "
                   f"queueWaiting={q.get('queueWaiting')} yieldCount={q.get('yieldCount')} "
                   f"spAct={q.get('spAct')}", flush=True)
-        except TimeoutError:
+        except (TimeoutError, NoAnswer):
             pass
         time.sleep(2.0)
     return False
@@ -178,16 +216,20 @@ def _check_residue(dut: Dut, tid: str) -> bool:
     """After switching back to Spotify, verify lastPlaylistDraw advances within 3 s.
     Returns True if PASS was recorded, False if the check was skipped (no Spotify signal).
     Does not call fail() — caller decides on skip vs fail."""
-    r_before = dut.cmd("get lastPlaylistDraw", timeout=3.0)
-    if not r_before.get("ok"):
-        return False
-    t_before = r_before.get("ms", 0)
+    # TASK-596: `r.get("ms", t_before)` defaulted to the BASELINE, so a failed
+    # read read as "no advance" — the safe direction here, but it also meant this
+    # helper could not distinguish "Spotify did not repaint" from "the device did
+    # not answer", which is half of why its callers reach for skip() (D-2 /
+    # TASK-584 owns the other half).
+    t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
-        r = dut.cmd("get lastPlaylistDraw", timeout=1.0)
-        if r.get("ok") and r.get("ms", t_before) != t_before:
-            pass_(tid, f"lastPlaylistDraw advanced {t_before}→{r['ms']} — no TFT state residue")
-            return True
+        try:
+            if dut.get_int("lastPlaylistDraw", field="ms", timeout=1.0) != t_before:
+                pass_(tid, f"lastPlaylistDraw advanced from {t_before} — no TFT state residue")
+                return True
+        except NoAnswer:
+            pass
         time.sleep(0.05)
     return False
 
@@ -203,8 +245,7 @@ def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
     if not r.get("ok"):
         return False
     time.sleep(0.3)
-    r2 = dut.cmd("get appId", timeout=timeout)
-    return r2.get("ok", False) and r2.get("name") == "Stock"
+    return _appid_is(dut, "Stock", timeout)
 
 
 def _restore_from_stock(dut: Dut, timeout: float = 5.0) -> bool:
@@ -213,24 +254,53 @@ def _restore_from_stock(dut: Dut, timeout: float = 5.0) -> bool:
     if not r.get("ok"):
         return False
     time.sleep(0.3)
-    r2 = dut.cmd("get appId", timeout=timeout)
-    return r2.get("ok", False) and r2.get("name") == "Spotify"
+    return _appid_is(dut, "Spotify", timeout)
 
 
 def _stock_get(dut: Dut, var: str, timeout: float = 3.0):
-    """Get a stock debug var; return the response dict."""
-    return dut.cmd(f"get {var}", timeout=timeout)
+    """Get a stock debug var; return the response dict.
+
+    TASK-585/596: routed through `Dut.read_reply`, which CORRELATES the reply
+    against the `var` it echoes. `dut.cmd` returned the first `{`-line on the
+    wire, and every stock body is issued into `stockTickQuotes`' documented
+    8-ticker fetch flood, so "the first JSON line" was routinely the answer to
+    somebody else's question. That is WP-C's raced-reply hazard, and this is the
+    one choke point all 30 stock ids already go through. A read that nothing
+    answered now raises NoAnswer instead of returning `{}`-shaped nothing.
+    """
+    return dut.read_reply(f"get {var}", timeout=timeout)
 
 
 def _stock_ok_count(dut: Dut) -> int:
-    """Return current fetchOkCount from firmware, or -1 on error."""
-    r = _stock_get(dut, "fetchOkCount")
-    if r.get("ok"):
-        try:
-            return int(r.get("val", -1))
-        except (ValueError, TypeError):
-            pass
-    return -1
+    """Current fetchOkCount. Raises rather than returning a sentinel (TASK-585).
+
+    IT USED TO RETURN `-1` ON A BAD READ, and `-1` is a number `_wait_chart_complete`
+    can compare against: `current > before` with `before = -1` is satisfied by the
+    very first poll, no fetch required. That made the family's central fetch
+    oracle an unconditional pass across nine ids (WP-G `G-2`). A count that could
+    not be read is not a count, so it is not representable as one any more.
+    """
+    return dut.get_int("fetchOkCount")
+
+
+def _reject_sentinel_baseline(value) -> None:
+    """Refuse a counter baseline that is not a reading (TASK-585).
+
+    Deliberately a named function taking `value`, not an inline `if before < 0`
+    in `_wait_chart_complete`. `_order.py`'s 0->1-edge scanner keys on the shape
+    "a name like `before*` captured, then compared" — an inline guard makes all
+    eight `_wait_chart_complete` callers read as delta-edge candidates needing
+    adjudication, which they are not: this is argument validation, not an
+    assertion about the device. Same rationale as the docstring stripping the
+    scanner already does.
+    """
+    if value < 0:
+        raise ValueError(
+            f"a negative counter baseline ({value!r}) is not a reading — the "
+            f"firmware counters are unsigned. This is `G-2`'s shape: a sentinel "
+            f"standing in for a failed read, which `_wait_chart_complete` would "
+            f"satisfy on its first poll. Snapshot with `_stock_ok_count()`, "
+            f"which raises instead of returning one.")
 
 
 _CHART_PHASE_NAMES = {0: "TLS/connect", 1: "GET/response", 2: "JSON-parse"}
@@ -244,7 +314,16 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
     On timeout prints stockChartProgress phase and the last dataq sample to aid
     diagnosis (TASK-300: distinguishes queued/parked-in-yield from never-enqueued
     — the fetch's tlsYield() fires BEFORE stockChartProgress is set, so
-    progress=-1 alone can't tell the two apart)."""
+    progress=-1 alone can't tell the two apart).
+
+    TASK-585: `before` is now guaranteed to be a real reading, because
+    `_stock_ok_count` raises rather than handing back `-1`. That guarantee is
+    the whole fix — `_wait_chart_complete(-1)` returned True on its first poll,
+    which made this function an unconditional pass wherever its caller's
+    baseline read had raced (`G-2`, nine ids). The assertion below is defensive
+    and cheap: a negative baseline can no longer be produced by a read, so if one
+    arrives it came from a caller inventing it, and inventing it is the defect."""
+    _reject_sentinel_baseline(before)
     prefix = f"[{test_id}] " if test_id else ""
     deadline = time.monotonic() + timeout_s
     last_q = None
@@ -252,7 +331,11 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
     while time.monotonic() < deadline:
         try:
             current = _stock_ok_count(dut)
-        except TimeoutError:
+        except (TimeoutError, NoAnswer):
+            # A read nobody answered inside a bounded poll loop is not a verdict
+            # — the loop's own deadline is. A BadField is NOT caught: a renamed
+            # or wrong-typed fetchOkCount is a real defect and must reach the
+            # dispatch loop as a FAIL rather than be polled away for 45 s.
             time.sleep(1.0)
             continue
         if current > before:
@@ -269,8 +352,10 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
             except TimeoutError:
                 pass
         time.sleep(1.0)
-    r_prog = dut.cmd("get stockChartProgress", timeout=3.0)
-    phase = r_prog.get("val") if r_prog.get("ok") else "?"
+    try:
+        phase = dut.get_int("stockChartProgress", timeout=3.0)
+    except DeviceReadError:
+        phase = "?"   # diagnostic text only — never an oracle term
     phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
     print(f"  {prefix}_wait_chart_complete timed out — stockChartProgress={phase} "
           f"({phase_name}) dataq={last_q}", flush=True)
@@ -327,8 +412,7 @@ def _switch_to(dut: Dut, app_name: str, timeout: float = 3.0) -> bool:
     x, y = _c.tap_taskbar_slot(APP_SLOT[app_name])
     dut.cmd(f"tap {x} {y}", timeout=timeout)
     time.sleep(0.4)
-    r = dut.cmd("get appId", timeout=timeout)
-    return r.get("ok", False) and r.get("name") == app_name
+    return _appid_is(dut, app_name, timeout)
 
 
 def _diag_snapshot(dut: Dut, tag: str = "") -> str:
@@ -380,10 +464,9 @@ def _wait_shell_not_busy(dut: Dut, timeout_s: float = 45.0) -> bool:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
-            r = dut.cmd("get shellBusy", timeout=5.0)
-            if r.get("ok") and not r.get("busy", True):
+            if not dut.get_bool("shellBusy", field="busy", timeout=5.0):
                 return True
-        except TimeoutError:
+        except (TimeoutError, NoAnswer):
             pass
         time.sleep(1.0)
     # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.

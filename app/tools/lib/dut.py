@@ -407,6 +407,75 @@ class SetupFailure(RuntimeError):
                 f"gen={self.gen or '?'}")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TASK-596 / M-HARNESS2 R18 — the typed read.
+#
+# THE DEFECT THIS TYPE EXISTS TO MAKE UNREPRESENTABLE. The suite reads device
+# state as `int(r.get("val", 0))`. WP-A counted seven different defaults for
+# that one field and six of them are values a comparison can pass on; WP-G then
+# found the live instance — `_stock_ok_count` returns `-1`, `_wait_chart_complete(-1)`
+# is satisfied by the first poll it makes, and the Stock family's central fetch
+# oracle is an unconditional pass across nine ids. The defect is not the default
+# VALUE. It is that a failed read and a real reading have the SAME TYPE, so no
+# call site is forced to distinguish them and none of the 171 of them does.
+#
+# So the accessor returns a value or raises. There is deliberately no
+# `try_get_int()` and no `default=` parameter: either would restore the shape in
+# one line, and the gate (`gate/check_defaulted_reads.py`) would not see it,
+# because the ratchet counts `.get(<key>, <literal>)` on a reply, not the ways a
+# helper could re-offer one.
+#
+# TWO FAILURE MODES, TWO VERDICTS (and this is the part worth arguing about).
+#
+#   BadField  — the device answered THIS question and the answer breaks the
+#               contract: `ok:false` (the firmware does not know the var — a
+#               rename, which is precisely S6's silent-success case), the field
+#               absent, or the value the wrong type. Somebody's code is wrong
+#               and the evidence is reproducible. That is a FAIL.
+#
+#   NoAnswer  — nothing came back for this question inside the window, or every
+#               reply that came back was labelled with a different `var`. The
+#               commonest cause on this rig is not a firmware defect at all: it
+#               is stockTickQuotes' documented 8-ticker serial flood arriving on
+#               top of the read (WP-C's raced-reply hazard, `read_json` returning
+#               the FIRST `{`-line it sees). The test then asserted nothing. Its
+#               premise — "the device answered" — never held, and TASK-624 made
+#               exactly that expressible: it is an `UNMET`, not a FAIL and
+#               emphatically not a SKIP.
+#
+# Why UNMET rather than FAIL for NoAnswer, given UNMET was NOT available when
+# this suite was written: an UNMET already BLOCKS and already exits 1
+# (ADR-066 D4 / IFC-008 I4), so nothing is weakened by the split — a gating-class
+# id that cannot read its device still stops the run. What is gained is that the
+# triage reader stops being told the firmware regressed when the serial line was
+# busy. Reporting a rig-noise read as a FAIL is how a suite trains its owner to
+# re-run reds, and a suite whose reds are re-run by habit has no reds.
+#
+# Both are RuntimeError subclasses, so every existing `except RuntimeError` and
+# every bare `except Exception` in the runners keeps working; the runner's
+# dispatch loop adds the two arms that make the split visible.
+class DeviceReadError(RuntimeError):
+    """Base: a typed read did not yield a trustworthy value (R18)."""
+
+    def __init__(self, var: str, detail: str):
+        super().__init__(detail)
+        self.var = var
+        self.detail = detail
+
+
+class NoAnswer(DeviceReadError):
+    """The device did not answer THIS question. -> UNMET (premise unestablished)."""
+
+
+class BadField(DeviceReadError):
+    """It answered, and the answer breaks the contract. -> FAIL (a real defect)."""
+
+
+#: Sentinel for "the caller did not name a field" — distinct from None, which is
+#: a legitimate thing to look for.
+_UNSET = object()
+
+
 class _TeeSerial:
     """Wraps a pyserial Serial to observe every readline() line (JSON responses
     and bare LOG_D/LOG_W lines alike — everything the harness's own parsing
@@ -988,7 +1057,9 @@ class Dut:
             try:
                 r = json.loads(line)
                 parts.append(r)
-                if r.get("last", True):
+                # TASK-596: `.get("last", True)` was a defaulted reply read.
+                # Same behaviour, no default: absent still terminates.
+                if "last" not in r or r["last"]:
                     break
             except (json.JSONDecodeError, ValueError):
                 pass
@@ -1144,7 +1215,12 @@ class Dut:
                 r = self.read_json(2.0)
             except TimeoutError:
                 break
-            rem = int(r.get("remainingMs", 0))
+            # TASK-596: no default. An ack without `remainingMs` means the
+            # cooldown surface is not what this loop thinks it is; treat it the
+            # way the old `0` default did (stop waiting) but say so.
+            if "remainingMs" not in r:
+                break
+            rem = int(r["remainingMs"])
             if rem <= 0:
                 break
             time.sleep(min(rem / 1000.0, 0.1))
@@ -1152,6 +1228,143 @@ class Dut:
     def set_cooldown_zero(self):
         r = self.cmd("set cooldown 0")
         assert r.get("ok"), f"set cooldown 0 failed: {r}"
+
+    # ── TASK-596 / R18: the typed read ───────────────────────────────────────
+
+    def read_reply(self, cmd_str: str, timeout: float = 3.0,
+                   expect_var: Optional[str] = None) -> dict:
+        """Send `cmd_str` and return the reply that ANSWERS IT, or raise NoAnswer.
+
+        The difference from `cmd()` is the correlation. `read_json` returns the
+        first `{`-line on the wire, which under a concurrent fetch is routinely
+        somebody else's reply (WP-C; WP-G's `G-2` names it as the trigger that
+        makes the `-1` baseline non-hypothetical). Every `get` handler in
+        `cmdGet.cpp` echoes `"var"`, including the `ok:false` unknown-var path,
+        so a mismatch is decidable: keep reading until the deadline rather than
+        adjudicating a reply to a question nobody asked.
+
+        A reply with NO `var` field is ACCEPTED. Correlation is a property of
+        the firmware's reply format, not of this file, and turning an unlabelled
+        but correct reply into a failure would mirror a firmware fact here
+        (LL-114). Accepting it is strictly no worse than today's behaviour.
+        """
+        if expect_var is None and cmd_str.startswith("get "):
+            expect_var = cmd_str[4:].strip().split()[0] if cmd_str[4:].strip() else None
+        self.send(cmd_str)
+        deadline = time.monotonic() + timeout
+        # A SET, and the count kept separately: under the serial flood this loop
+        # exists to survive, a list would grow without bound for the whole
+        # timeout window just to be summarised into five names.
+        seen: set = set()
+        n_seen = 0
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                r = self.read_json(remaining)
+            except TimeoutError:
+                break
+            if expect_var is None or "var" not in r or r["var"] == expect_var:
+                return r
+            n_seen += 1
+            if len(seen) < 8:
+                seen.add(r["var"])
+        raise NoAnswer(
+            expect_var or cmd_str,
+            f"no reply to {cmd_str!r} within {timeout}s"
+            + (f" — {n_seen} reply/replies for other vars arrived instead "
+               f"({', '.join(sorted(seen)[:5])}), which is a raced serial "
+               f"read, not a device answer" if n_seen else ""))
+
+    def get_val(self, var: str, field: str = "val", timeout: float = 3.0):
+        """The raw value of `field` in the reply to `get <var>`, or raise.
+
+        Raises NoAnswer if nothing answered; BadField if the device refused the
+        var (`ok:false` — a renamed or deleted debug key, the S6 case), if the
+        field is absent, or if it is JSON null.
+        """
+        r = self.read_reply(f"get {var}", timeout=timeout)
+        if not r.get("ok"):
+            raise BadField(var, f"device refused `get {var}`: {r!r} — the debug "
+                                f"key does not exist on this build (renamed? "
+                                f"deleted? wrong variant?)")
+        if field not in r:
+            raise BadField(var, f"`get {var}` replied without a {field!r} field: "
+                                f"{r!r} — the reply shape changed under the test")
+        v = r[field]
+        if v is None:
+            raise BadField(var, f"`get {var}` replied {field}=null: {r!r}")
+        return v
+
+    def get_int(self, var: str, field: str = "val", timeout: float = 3.0) -> int:
+        v = self.get_val(var, field=field, timeout=timeout)
+        if isinstance(v, bool):
+            # JSON true/false is an int in Python and would silently become 1/0.
+            raise BadField(var, f"`get {var}` {field}={v!r} is a bool where an "
+                                f"int was asked for")
+        if isinstance(v, int):
+            return v
+        if isinstance(v, float) and v.is_integer():
+            return int(v)
+        if isinstance(v, str):
+            try:
+                return int(v.strip(), 10)
+            except ValueError:
+                pass
+        raise BadField(var, f"`get {var}` {field}={v!r} ({type(v).__name__}) is "
+                            f"not an integer")
+
+    def get_float(self, var: str, field: str = "val", timeout: float = 3.0) -> float:
+        v = self.get_val(var, field=field, timeout=timeout)
+        if isinstance(v, bool):
+            raise BadField(var, f"`get {var}` {field}={v!r} is a bool where a "
+                                f"float was asked for")
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            try:
+                return float(v.strip())
+            except ValueError:
+                pass
+        raise BadField(var, f"`get {var}` {field}={v!r} ({type(v).__name__}) is "
+                            f"not a number")
+
+    def get_str(self, var: str, field: str = "val", timeout: float = 3.0) -> str:
+        v = self.get_val(var, field=field, timeout=timeout)
+        if isinstance(v, str):
+            return v
+        raise BadField(var, f"`get {var}` {field}={v!r} ({type(v).__name__}) is "
+                            f"not a string")
+
+    def get_bool(self, var: str, field: str = "val", timeout: float = 3.0) -> bool:
+        v = self.get_val(var, field=field, timeout=timeout)
+        if isinstance(v, bool):
+            return v
+        # The firmware prints most flags with %u/%d, and a few as "true"/"false"
+        # strings. Both are unambiguous; anything else is not.
+        if isinstance(v, int) and v in (0, 1):
+            return bool(v)
+        if isinstance(v, str) and v.strip().lower() in ("true", "false", "0", "1"):
+            return v.strip().lower() in ("true", "1")
+        raise BadField(var, f"`get {var}` {field}={v!r} ({type(v).__name__}) is "
+                            f"not a boolean")
+
+    # R18's second clause — the one that bites. A restore is a read AND a write,
+    # and a restore satisfied by a default rewrites persisted state with a guess.
+    # `get_*` closes the read half by construction (a snapshot that could not be
+    # read raises, so the restore never runs with an invented value). This closes
+    # the write half: an unacknowledged `set` is not a restore either. TASK-602
+    # owns the context manager that pairs them; this is the primitive it needs,
+    # and it is deliberately not that manager — writing one here would double-book
+    # that row.
+    def set_val(self, var: str, value, timeout: float = 3.0) -> dict:
+        """`set <var> <value>`, raising unless the device acknowledges `ok`."""
+        cmd_str = f"set {var} {value}"
+        r = self.read_reply(cmd_str, timeout=timeout, expect_var=var)
+        if not r.get("ok"):
+            raise BadField(var, f"device refused `{cmd_str}`: {r!r}")
+        return r
 
     def close(self):
         self.ser.close()
