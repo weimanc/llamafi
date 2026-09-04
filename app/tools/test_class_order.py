@@ -24,6 +24,18 @@ THE ASSERTION IS ON THE ABSENCE OF ANY OTHER VERDICT, not on the presence of
 NOT-RUN. A weaker form passes a runner that emits both, which is exactly the
 failure mode §2.2 measured: 200 ids reported as FAIL when none of them ran.
 
+TASK-624 EXTENDS THE TABLE WITH `UNMET` (ADR-066 D5 / IFC-008 I3+I4, R38):
+
+    | stubbed UNMET   | assertion                                              |
+    | HEALTH          | exit 4 BY PRECEDENCE (D4 rule 1), everything NOT-RUN   |
+    | CORE            | exit 1; APP/FEATURE NOT-RUN; zero other verdicts       |
+    | FEATURE (alone) | exit 1 anyway (D4 rule 2) — nothing to blame, still    |
+    |                 | blocks; NOT exit 4; visible in its own summary block   |
+
+plus two arms on the vocabulary itself: that UNMET and NOT-RUN cannot collapse
+into synonyms, and THE MUTATION PROOF — the string predicate this row replaces
+is demonstrably False on a verdict that must block.
+
 Two further arms that are not in EC-G8's table and earn their place anyway:
 
   * THE INERT ARM. With `class_order=False` — today's shipped default, and the
@@ -74,21 +86,24 @@ META = {
 SELECTED = ["F1", "A1", "C1", "F2", "C2"]        # deliberately NOT class order
 
 
-def _dispatch_factory(failing=()):
+def _dispatch_factory(failing=(), unmet=()):
     ran = []
 
     def dispatch(tid):
         ran.append(tid)
         if tid in failing:
             R.fail(tid, "stubbed failure")
+        elif tid in unmet:
+            R.unmet(tid, "stubbed unestablished premise")
         else:
             R.pass_(tid)
     return dispatch, ran
 
 
-def _run(failing=(), health_failed=(), class_order=True, health_mode="gate"):
+def _run(failing=(), health_failed=(), class_order=True, health_mode="gate",
+         unmet=(), health_unmet=()):
     R.reset()
-    dispatch, ran = _dispatch_factory(failing)
+    dispatch, ran = _dispatch_factory(failing, unmet)
     health_calls = []
 
     def run_health(ids):
@@ -96,9 +111,14 @@ def _run(failing=(), health_failed=(), class_order=True, health_mode="gate"):
         for tid in ids:
             if tid in health_failed:
                 R.fail(tid, "stubbed health failure")
+            elif tid in health_unmet:
+                R.unmet(tid, "stubbed unestablished health premise")
             else:
                 R.pass_(tid)
-        return [t for t in ids if t in health_failed]
+        # DELIBERATELY the production predicate, not `t in health_failed`:
+        # health.py:run_health() decides with `verdict_of(t) in BLOCKING`, and
+        # an arm that reimplemented the decision would assert nothing about it.
+        return [t for t in ids if R.verdict_of(t) in R.BLOCKING]
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -248,6 +268,205 @@ def arm_health_downgrades():
     check(_gate.NOT_ESTABLISHED in out, "skip: the summary is stamped too")
 
 
+# ── TASK-624 arms: the typed verdict, and `UNMET` ────────────────────────────
+#
+# ADR-066 D5 / IFC-008 I3+I4, and R38's own verification clause: "the inversion
+# selftest's `UNMET` arm asserts the ABSENCE of any other verdict among the
+# blocked ids, not merely the presence of `NOT-RUN` — a weaker form passes a
+# runner that emits both."
+#
+# WHY THESE ARMS EXIST AT ALL. WP-C found `T-BUSY-05` passing on exactly the
+# regression it existed to catch, and TASK-573 was a gate printing REGRESS on a
+# token that had shipped for years. A change to gating without a test that
+# proves the gate BLOCKS repeats that class of defect one level up (BP-068).
+
+_OTHER_VERDICTS = (R.Verdict.PASS, R.Verdict.FAIL, R.Verdict.SKIP,
+                   R.Verdict.FLAKY_PASS, R.Verdict.UNMET)
+
+
+def arm_unmet_core():
+    print("\n── TASK-624 arm CORE/UNMET — an unmet CORE premise BLOCKS (R38) ──")
+    rc, ran, res, out, _ = _run(unmet=("C1",))
+    check(rc == 1, f"exit 1 — UNMET blocks and owns no code of its own "
+                   f"(ADR-066 D4); NOT 0 and NOT 4 (got {rc})")
+    check(R.verdict_of("C1") is R.Verdict.UNMET,
+          f"the CORE id's verdict is UNMET, not SKIP: {res.get('C1')!r}")
+    check("C2" in ran and R.verdict_of("C2") is R.Verdict.PASS,
+          "the OTHER CORE id still runs — an unmet premise does not invalidate "
+          "its own class, exactly as a CORE FAIL does not")
+    for tid in ("A1", "F1", "F2"):
+        check(res.get(tid, "") == "NOT-RUN: blocked-by=CORE/C1",
+              f"{tid} is NOT-RUN(blocked-by=CORE/C1): {res.get(tid)!r}")
+        check(tid not in ran, f"{tid} was never dispatched")
+    # THE assertion — absence, not presence (R38's verification clause).
+    others = {t: R.verdict_of(t) for t in ("A1", "F1", "F2")
+              if R.verdict_of(t) in _OTHER_VERDICTS}
+    check(not others,
+          f"ZERO PASS/FAIL/SKIP/FLAKY-PASS/UNMET among the blocked ids: {others}")
+
+
+def arm_unmet_health():
+    print("\n── TASK-624 arm HEALTH/UNMET — exit 4 by PRECEDENCE, not by UNMET ──")
+    rc, ran, res, out, _ = _run(health_unmet=("H1",))
+    check(rc == 4,
+          f"exit 4 — ADR-066 D4 rule 1: the unmet premise IS attributable to a "
+          f"class failure that fired, so the existing precedence sets the code "
+          f"and UNMET changes nothing (got {rc})")
+    check(ran == [], f"no CORE/APP/FEATURE id was dispatched at all (ran={ran})")
+    check(all(res.get(t, "") == "NOT-RUN: blocked-by=HEALTH/H1" for t in SELECTED),
+          f"every id is NOT-RUN(blocked-by=HEALTH/H1)")
+    others = {t: R.verdict_of(t) for t in SELECTED
+              if R.verdict_of(t) in _OTHER_VERDICTS}
+    check(not others, f"and ZERO other verdicts among them: {others}")
+    check("[HEALTH-FAIL] H1" in out,
+          "the summary names the failing health id — an UNMET health check has "
+          "NOT certified the board (`C-4`)")
+
+
+def arm_health_run_health_is_typed():
+    print("\n── TASK-624 — health.run_health()'s OWN predicate, not the stub's ──")
+    # arm_unmet_health above drives _gate through an INJECTED run_health. That
+    # proves the gate, not the production decision, so this arm calls the real
+    # `health.run_health()` with its registry stubbed. Without it, health.py
+    # could quietly go back to `startswith("FAIL")` with every other arm green.
+    import suite.serialdbg.health as health
+    saved = dict(health.HEALTH_TESTS)
+    try:
+        health.HEALTH_TESTS.clear()
+        health.HEALTH_TESTS["T_DH_01"] = lambda dut: R.pass_("T_DH_01")
+        health.HEALTH_TESTS["T_DH_02"] = lambda dut: R.unmet(
+            "T_DH_02", "`get wifiCfg` never answered, so nothing was compared")
+        R.reset()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            failed = health.run_health(None, ["T_DH_01", "T_DH_02"])
+        check(failed == ["T_DH_02"],
+              f"an UNMET health check is REPORTED FAILING by run_health() — a "
+              f"health check whose own premise did not hold has not certified "
+              f"the board (`C-4`, R38). Got {failed}")
+        check(R.verdict_of("T_DH_01") is R.Verdict.PASS,
+              "and the passing one is untouched")
+    finally:
+        health.HEALTH_TESTS.clear()
+        health.HEALTH_TESTS.update(saved)
+        R.reset()
+
+
+def arm_unmet_alone():
+    print("\n── TASK-624 arm UNMET ALONE — nothing to blame, and it still exits 1 ──")
+    rc, ran, res, out, _ = _run(unmet=("F1",))
+    check(rc == 1,
+          f"exit 1 — ADR-066 D4 rule 2: a premise that failed on its own, with "
+          f"no class failure to attribute it to, still blocks (got {rc})")
+    check(sorted(ran) == sorted(SELECTED),
+          "a FEATURE UNMET blocks nothing — FEATURE is not a gating class")
+    check("F1" not in R.BLOCKED_BY,
+          "and it carries NO attribution: that is the whole difference from "
+          "NOT-RUN (IFC-008 I3)")
+    check("── UNMET (1)" in out and "premise was never established" in out,
+          "R38: it is VISIBLE in the summary, in its own block, not folded "
+          "into NOT-RUN")
+    check("1 unmet (premise not established)" in out,
+          "and it is counted on the one-line summary")
+    # `E-14`: the declared-flake block repeats rows in the `  <id>: <STATUS>`
+    # shape and run/player-gate's sed parses those ids TWICE. The UNMET block
+    # must not add a second instance of that finding.
+    parseable = [ln for ln in out.splitlines()
+                 if ln.startswith("  F1: UNMET")]
+    check(len(parseable) == 1,
+          f"exactly ONE line in the whole summary matches player-gate's "
+          f"`^  <id>: <STATUS>` sed — the UNMET block must not re-emit a "
+          f"parseable row (`E-14`): {parseable}")
+    # exit 4 is explicitly wrong here — ADR-066 D4's third bullet.
+    check(rc != 4, "NOT exit 4: four PASSes in this run are trustworthy, and 4 "
+                   "tells every consumer to discard all of them")
+    # And the same in the INERT default, because this one is a results-layer
+    # property: TASK-584's residue callers are not under the order switch.
+    rc2, _, _, _, _ = _run(unmet=("F1",), class_order=False)
+    check(rc2 == 1, f"and exit 1 with the order switch OFF too (got {rc2})")
+
+
+def arm_unmet_is_not_not_run():
+    print("\n── TASK-624 — UNMET and NOT-RUN cannot collapse into synonyms (I3) ──")
+    R.reset()
+    # 1. NOT-RUN ALWAYS carries an attribution — an unattributed one is refused.
+    for bad in ("", None, "HEALTH"):
+        try:
+            R.not_run("X1", bad)
+            check(False, f"not_run(tid, {bad!r}) was ACCEPTED — an unattributed "
+                         f"NOT-RUN is an UNMET wearing the wrong name")
+        except ValueError:
+            check(True, f"not_run(tid, {bad!r}) is refused: NOT-RUN always names "
+                        f"the class failure that blocked it")
+    # 2. UNMET may NEVER carry one.
+    try:
+        R.unmet("X2", "blocked-by=CORE/C1")
+        check(False, "unmet() ACCEPTED an attribution — that is exactly how "
+                     "UNMET becomes a second spelling of NOT-RUN")
+    except ValueError:
+        check(True, "unmet() refuses an attribution (ADR-066 D2)")
+    # 3. The biconditional, on real records.
+    R.reset()
+    R.not_run("N1", "CORE/C1")
+    R.unmet("U1", "the app never reached READY")
+    check(R.BLOCKED_BY == {"N1": "CORE/C1"},
+          f"BLOCKED_BY holds the NOT-RUN row and ONLY it: {R.BLOCKED_BY}")
+    check(R.verdict_of("N1") is R.Verdict.NOT_RUN
+          and R.verdict_of("U1") is R.Verdict.UNMET,
+          "and the two verdicts are distinct enum members")
+    check(R.check_verdict_invariants() == [],
+          "a well-formed pair violates nothing")
+    # 4. The checker has teeth: forge the collapse and it must be caught.
+    R.BLOCKED_BY["U1"] = "CORE/C1"
+    bad = R.check_verdict_invariants()
+    check(any("only NOT-RUN may" in v for v in bad),
+          f"an UNMET that acquired an attribution IS caught: {bad}")
+    R.BLOCKED_BY.pop("U1")
+    R.BLOCKED_BY.pop("N1")
+    bad = R.check_verdict_invariants()
+    check(any("NOT-RUN with no blocked_by" in v for v in bad),
+          f"and a NOT-RUN that lost its attribution is caught too: {bad}")
+    R.reset()
+
+
+def arm_typed_not_prefix():
+    print("\n── TASK-624 — THE MUTATION PROOF: the string predicate misses UNMET ──")
+    R.reset()
+    R.unmet("U1", "the app never reached READY")
+    record = R.RESULTS["U1"]
+    # The line _gate.py:129 used to be. This is the defect, demonstrated: it is
+    # False on a verdict that MUST block, which is why 31 CORE ids gated nothing.
+    legacy = record.startswith("FAIL")
+    typed = R.verdict_of("U1") in R.BLOCKING
+    check(legacy is False,
+          f"the LEGACY predicate `record.startswith('FAIL')` is False on "
+          f"{record!r} — restore that line and the gate stops blocking")
+    check(typed is True,
+          "the TYPED predicate `verdict_of(tid) in BLOCKING` is True — the "
+          "gate blocks (R31/R38)")
+    # And a SKIP, which is what these ids record TODAY, is green under both:
+    # the fix is the vocabulary, not only the predicate.
+    R.reset()
+    R.skip("S1", "same precondition, spelled the old way")
+    check(R.RESULTS["S1"].startswith("FAIL") is False
+          and (R.verdict_of("S1") in R.BLOCKING) is False,
+          "a SKIP still gates nothing under EITHER predicate — R28's point: "
+          "the vocabulary had to gain UNMET, a typed gate alone was not enough")
+    # The enum cannot be prefix-tested by accident.
+    check(R.Verdict.FAIL != "FAIL" and not hasattr(R.Verdict.FAIL, "startswith"),
+          "Verdict is a plain Enum, not a str subclass: `== \"FAIL\"` is False "
+          "and `.startswith` does not exist, so IFC-008 I1's shape cannot be "
+          "written against it by accident")
+    # I2 with teeth: a record this layer did not write is REFUSED, not defaulted.
+    try:
+        R.RESULTS["Z1"] = "PROBABLY-FINE: whatever"
+        check(False, "an unknown record string was ACCEPTED — pre-TASK-624 that "
+                     "was silently neither-failed-nor-anything, i.e. green")
+    except R.UnknownVerdict:
+        check(True, "an unknown record string is refused (IFC-008 I2)")
+    R.reset()
+
+
 def arm_adjudication():
     print("\n── @VE §18.6(c) — the 0->1-edge enumeration is a PRECONDITION ──")
     import suite.serialdbg as _suite
@@ -275,6 +494,12 @@ def main():
     arm_inert()
     arm_ordering()
     arm_health_downgrades()
+    arm_unmet_core()
+    arm_unmet_health()
+    arm_health_run_health_is_typed()
+    arm_unmet_alone()
+    arm_unmet_is_not_not_run()
+    arm_typed_not_prefix()
     arm_adjudication()
     R.reset()
     print("")

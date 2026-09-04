@@ -155,11 +155,14 @@ _baseline_rows() {
 # regression that never happened. Worst polarity: the UNRESOLVED flake
 # ("FLAKE(awaiting mandated retry)") parsed fine, the RESOLVED one did not.
 # `NOT-RUN` arrives with TASK-566 and is matched here ahead of time.
+# `UNMET` arrives with TASK-624 (ADR-066 D2) and is matched the same way, for the
+# same reason: a token lib/results.py can WRITE and this alternation cannot READ
+# is dropped, the cell scores MISSING, and MISSING reads as a regression.
 # Order matters: longer tokens first, so the captured status is the FULL token
 # (`FLAKY-PASS`, never a `FLAKY`/`PASS` fragment). The status side allows `-`;
 # the id side deliberately does not.
 _parse_runner_log() {
-  sed -n 's/^  \([A-Za-z0-9_]\{1,\}\): \(FLAKY-PASS\|NOT-RUN\|PASS\|FAIL\|SKIP\|FLAKE\).*/\1 \2/p' "$1"
+  sed -n 's/^  \([A-Za-z0-9_]\{1,\}\): \(FLAKY-PASS\|NOT-RUN\|UNMET\|PASS\|FAIL\|SKIP\|FLAKE\).*/\1 \2/p' "$1"
 }
 
 # Compare one leg. $1=leg $2=file of ids that RAN $3=file of "id status" observed.
@@ -192,6 +195,14 @@ _compare_leg() {
         # That must never read green. (NOT-RUN arrives with TASK-566; inert today.)
         echo "    NOT-RUN   $leg $id  declared $exp but never ran — the gate verified nothing for this cell"
         rc=1 ;;
+      *:UNMET)
+        # TASK-624 / ADR-066 D4 + R38. The cell RAN and asserted nothing: its own
+        # premise never held. Fatal, and labelled distinctly from NOT-RUN on
+        # purpose — a NOT-RUN names the class failure that blocked it, an UNMET
+        # usually has nothing to blame, and the reader needs to know which they
+        # are looking at. rc=1, never a new exit code (§4.1).
+        echo "    UNMET     $leg $id  declared $exp but its premise was never established — the gate verified nothing for this cell"
+        rc=1 ;;
       *)
         echo "    REGRESS   $leg $id  observed $got, declared $exp"
         rc=1 ;;
@@ -211,6 +222,9 @@ _compare_leg() {
       # passed on its retry is not a failure, so out here it is bookkeeping drift
       # like PASS/SKIP, not a regression.
       FLAKY-PASS) echo "    unbaselined $leg $id  FLAKY-PASS — not in the pass set; passed on its mandated retry, NOT counted as a pass" ;;
+      # TASK-624: an undeclared cell whose premise never held asserted nothing.
+      # It is not drift like PASS/SKIP — it is a cell with no verdict at all.
+      UNMET) echo "    UNMET     $leg $id  premise never established — not in the pass set, and it verified nothing"; rc=1 ;;
       *)    echo "    REGRESS   $leg $id  observed $got, not in the pass set"; rc=1 ;;
     esac
   done < "$obs"
@@ -332,12 +346,40 @@ EOF
   _case_line "declared PASS observed NOT-RUN is fatal" 1 \
              "NOT-RUN   A T_PMT_01  declared PASS but never ran" \
              "T_PMT_00 PASS" "T_PMT_01 NOT-RUN" "T_PLR_09 SKIP"
+
+  # ── TASK-624 / ADR-066 D5: the UNMET arm (R38, BP-068) ─────────────────────
+  # THE INVERSION THIS ARM EXISTS FOR: "an UNMET cell reads green". It is the
+  # same defect as TASK-573's, one token later — a status lib/results.py can
+  # write that this comparator cannot read is DROPPED, scores MISSING, and the
+  # gate then reports a firmware regression that never happened. WP-C found
+  # T-BUSY-05 passing on exactly the regression it existed to catch; a gating
+  # change with no negative test repeats that at the framework level.
+  _pcase "parser: UNMET line is captured whole" \
+         '  T_PMT_03: UNMET: the app never reached READY' \
+         'T_PMT_03 UNMET'
+  _pcase "parser: UNMET is not confused with NOT-RUN" \
+         '  T_PMT_03: NOT-RUN: blocked-by=CORE/T_PMT_00' \
+         'T_PMT_03 NOT-RUN'
+  _case_line "declared PASS observed UNMET is fatal, and says so distinctly" 1 \
+             "UNMET     A T_PMT_01  declared PASS but its premise was never established" \
+             "T_PMT_00 PASS" "T_PMT_01 UNMET" "T_PLR_09 SKIP"
+  # A declared SKIP is the one that would have read GREEN before this row: an
+  # UNMET used to BE a SKIP (R28), so SKIP:SKIP scored `ok` and the cell passed.
+  _case_line "declared SKIP observed UNMET is fatal — the exact pre-TASK-624 green" 1 \
+             "UNMET     A T_PLR_09  declared SKIP but its premise was never established" \
+             "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 UNMET"
+  _case "an UNMET cell never reads green under ANY declaration" \
+        1 "T_PMT_00 UNMET" "T_PMT_01 PASS" "T_PLR_09 SKIP"
   # an un-adjudicated baseline row (expected=resv) must not be read as declared
   printf 'T_PMT_00\nT_PMT_01\nT_PLR_09\nT_PLR_99\n' >"$tmp/ran"
   _case "un-adjudicated row is invisible, and its FAIL still fails" \
                                         1 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP" "T_PLR_99 FAIL"
   _case "un-adjudicated row passing is only drift" \
                                         0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP" "T_PLR_99 PASS"
+  # TASK-624: and an UNDECLARED cell that asserted nothing is not drift either.
+  _case_line "un-baselined UNMET is fatal, not bookkeeping drift" 1 \
+             "UNMET     A T_PLR_99  premise never established" \
+             "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP" "T_PLR_99 UNMET"
 
   # TASK-566 / EC-G7: the exit-4 leg. An untaught consumer treats it as a
   # COMPLETED leg and prints REGRESS — the inversion this design exists to

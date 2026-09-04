@@ -42,7 +42,21 @@ appears when the ids were explicitly selected (`run/test-targeted T_DH_01,…`, 
 
 from __future__ import annotations
 
-from lib.results import RESULTS
+from lib.results import (BLOCKING, RESULTS, UnknownVerdict, Verdict,
+                         classify)
+
+
+def _verdict(record):
+    """The typed verdict of a record string, or None if it is unclassifiable.
+
+    `health_verdict()` takes an INJECTED results dict, so it cannot read the
+    shared `VERDICTS` store; it classifies instead. None is deliberately not a
+    verdict — every test below treats it as "not a PASS".
+    """
+    try:
+        return classify(record)
+    except UnknownVerdict:
+        return None
 
 #: what a field renders as when the session cannot supply it.
 UNKNOWN = "?"
@@ -72,13 +86,19 @@ def health_verdict(meta: dict, results: dict = None) -> str:
     ran = {tid: results[tid] for tid in ids if tid in results}
     if not ran:
         return f"not-run(0/{len(ids)})"
-    failed = sorted(t for t, v in ran.items() if v.startswith("FAIL"))
+    # TYPED (TASK-624, R31 — which covers REPORTING as well as gating).
+    # `BLOCKING` is {FAIL, UNMET}: a health check whose own premise never held
+    # did not certify the board, and `C-4` is the finding that such a run gets
+    # announced as healthy anyway. `_verdict` tolerates an injected results dict
+    # holding something this layer never wrote — the conservative answer for an
+    # unclassifiable record is "not a PASS", which is what falls out below.
+    failed = sorted(t for t, v in ran.items() if _verdict(v) in BLOCKING)
     if failed:
         return f"FAIL({','.join(failed)})"
     # FLAKY-PASS is explicitly NOT a PASS (lib/results.py's policy, bucket 2),
     # and neither is a SKIP. Either one means the board was not shown healthy,
     # so it must not read as `ok`.
-    other = sorted(t for t, v in ran.items() if v != "PASS")
+    other = sorted(t for t, v in ran.items() if _verdict(v) is not Verdict.PASS)
     if other:
         return f"degraded({','.join(other)})"
     if len(ran) < len(ids):

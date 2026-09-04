@@ -92,10 +92,10 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-609 | P3 | **DONE 2026-09-04** (`8927b16`) | six `__main__` guards + import-in-subprocess gate with a stubbed transport — [R48](../verification/M-HARNESS2-requirements.md) |
 | TASK-600 | P2 | **DONE 2026-09-04** (`8927b16`) — 43→111 keys | generated key list sees `.cpp` bodies; count compared full-tree in `run/check` — [R7](../verification/M-HARNESS2-requirements.md) |
 | TASK-623 | P3 | **DONE 2026-09-04** (`8927b16`) — blocking, 1-row ledger | cross-check the flake registry against declared gating classes — [R37](../verification/M-HARNESS2-requirements.md) |
-| TASK-624 | P1 | OPEN | closed verdict enum incl. `UNMET`; typed gating; `UNMET` blocks; inversion selftest arm — [R28/R31/R38](../verification/M-HARNESS2-requirements.md). **Build to ADR-066/IFC-008**: `UNMET` exits **1**, owns no code of its own, and is distinct from `NOT-RUN` |
-| TASK-608 | P3 | BLOCKED — TASK-624 | schema-versioned run artifact carrying the run's premise; retire all three summary parsers — [R29/R30](../verification/M-HARNESS2-requirements.md) |
-| TASK-584 | P1 | BLOCKED — TASK-624 | six residue callers convert the regression to a skip — make them fail — [D-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-603 | P2 | BLOCKED — TASK-624 | delete 19 ids, retire 8 bodies to an `UNOBSERVABLE` ledger, no-reachable-fail gate — [R34/R4](../verification/M-HARNESS2-requirements.md) |
+| TASK-624 | P1 | **DONE 2026-09-04** | closed verdict enum incl. `UNMET`; typed gating; `UNMET` blocks; inversion selftest arm — [R28/R31/R38](../verification/M-HARNESS2-requirements.md). **Build to ADR-066/IFC-008**: `UNMET` exits **1**, owns no code of its own, and is distinct from `NOT-RUN` |
+| TASK-608 | P3 | OPEN — TASK-624 done | schema-versioned run artifact carrying the run's premise; retire all three summary parsers — [R29/R30](../verification/M-HARNESS2-requirements.md) |
+| TASK-584 | P1 | OPEN — TASK-624 done | six residue callers convert the regression to a skip — make them fail — [D-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-603 | P2 | OPEN — TASK-624 done | delete 19 ids, retire 8 bodies to an `UNOBSERVABLE` ledger, no-reachable-fail gate — [R34/R4](../verification/M-HARNESS2-requirements.md) |
 | TASK-625 | P3 | BLOCKED — TASK-603 | write the id-retirement procedure into `docs/process/` — [Dev D7](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-587 | P1 | BLOCKED — TASK-603 | five M-CLOCK-STYLES exit criteria re-recorded DEFERRED, not PASS — [H-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-591 | P1 | OPEN | declare all 43 gating-class ids with written reasons; gate on an undeclared class — [R35](../verification/M-HARNESS2-requirements.md). **A TASK-617 exit criterion** |
@@ -107,7 +107,7 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-611 | P3 | OPEN | plan integrity: id collisions, stale rows, duplicate-body detection — [R46](../verification/M-HARNESS2-requirements.md) |
 | TASK-628 | P2 | BLOCKED — TASK-609 | replay engine in `lib/`: stub transport, keyed store, virtual clock, plus its negative test — [R10](../verification/M-HARNESS2-requirements.md) |
 | TASK-629 | P3 | OPEN | host-gate wall-clock budget, measured and printed by the scripts — [Dev D6](../architecture/designs/M-HARNESS2-DEV-review.md) |
-| TASK-630 | P3 | BLOCKED — TASK-624 | scaffold the record — emit the generated fields, leave the author the two that need thought — [Dev D4](../architecture/designs/M-HARNESS2-DEV-review.md) |
+| TASK-630 | P3 | OPEN — TASK-624 done | scaffold the record — emit the generated fields, leave the author the two that need thought — [Dev D4](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-631 | P3 | BLOCKED — TASK-628 | a FAIL carries the last 20 command/reply pairs — [Dev D3](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-632 | P2 | OPEN | dispose of the advisory documentation check: promote with a ledger, or delete it — [QM §3.1](../quality/M-HARNESS2-QM-review.md) |
 

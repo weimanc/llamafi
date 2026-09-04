@@ -4,7 +4,7 @@ Shared boilerplate for satellite VE test suites (TASK-140).
 
 A new satellite suite needs:
     from ve_suite_base import (
-        RESULTS, pass_, fail, skip, flake,
+        RESULTS, pass_, fail, skip, flake, unmet,
         make_arg_parser, run_suite, print_results,
     )
     from lib.dut import Dut
@@ -26,8 +26,12 @@ if TYPE_CHECKING:
 # so every satellite suite keeps its existing import line, exactly like the
 # lib/dut.py shim. flake() now consults docs/verification/flaky.yaml.
 from lib.dut import resolve_port                              # noqa: E402,F401
+# TASK-624: `unmet`, `Verdict` and `verdict_of` are re-exported alongside them.
+# A satellite suite whose precondition did not hold must be able to say so —
+# `unmet()` — rather than reach for `skip()`, which is green (R28).
 from lib.results import (RESULTS, pass_, fail, skip, flake,   # noqa: E402,F401
-                         run_with_flake_retry, print_results)
+                         run_with_flake_retry, print_results,
+                         unmet, Verdict, verdict_of)
 
 
 # ── CLI factory ───────────────────────────────────────────────────────────────

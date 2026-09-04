@@ -5,7 +5,9 @@ M-TESTARCH §4's gating semantics, in one function, with the DUT injected.
   RIG    -> `_setup_fail()` in runner.py: exit 3, zero results printed.
   HEALTH -> exit 4, every other id NOT-RUN(blocked-by=HEALTH/<id>), zero FAILs.
   CORE   -> the failing id is a real FAIL and exit is 1; every APP/FEATURE id is
-            NOT-RUN(blocked-by=CORE/<id>).
+            NOT-RUN(blocked-by=CORE/<id>). "Failing" is `lib.results.BLOCKING`
+            = {FAIL, UNMET}, matched as an ENUM MEMBER, never a string prefix
+            (TASK-624, ADR-066 D5 / IFC-008 I1, R31/R38).
   APP    -> FAIL. Blocks NOTHING — rule 5 was DROPPED (§4.2/§15) because the
             registry cannot express per-app blocking and blocking ALL FEATURE
             on one app's failure bought little.
@@ -30,7 +32,8 @@ reordered suite changes what 557 is measuring (design §7).
 
 from __future__ import annotations
 
-from lib.results import RESULTS, not_run, print_results
+from lib.results import (BLOCKING, RESULTS, Verdict, not_run, print_results,
+                         verdict_of)
 
 from suite.serialdbg import _order
 
@@ -70,7 +73,7 @@ def health_phase(health_ids, run_health, mode="gate", emit=print):
         # A FAILING one keeps its row, so the gate parsers and any archived log
         # carry the reason.
         for tid in ids:
-            if RESULTS.get(tid) == "PASS":
+            if verdict_of(tid) is Verdict.PASS:
                 RESULTS.pop(tid)
         emit("[health] PASS — the board answers correct data, knows which "
              "network it is on, and can switch apps. It is fit to test. "
@@ -125,14 +128,22 @@ def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
             not_run(tid, blocked_by)
             continue
         dispatch(tid)
-        if (class_order and cls == "CORE"
-                and RESULTS.get(tid, "").startswith("FAIL")):
-            # A CORE failure is a genuine FAIL and exit 1 — exit 4 stays
-            # reserved for "no result in this run is trustworthy" (§4 rule 4).
+        verdict = verdict_of(tid)
+        if class_order and cls == "CORE" and verdict in BLOCKING:
+            # TYPED (R31 / IFC-008 I1). This line used to read
+            # `RESULTS.get(tid, "").startswith("FAIL")`, and R28's measurement
+            # is that the class hierarchy's central promise was delivered by a
+            # string-prefix test the COMMON failure mode does not match: 31 of
+            # the 43 CORE ids exit through a `skip()` for a CORE precondition
+            # that did not hold, and a SKIP is green, so those 31 gated nothing
+            # (WP-C `C-5`). `BLOCKING` is {FAIL, UNMET} — R38: an unmet premise
+            # in a gating class blocks the classes above it exactly as a FAIL
+            # does. Exit stays 1 either way; exit 4 remains reserved for "no
+            # result in this run is trustworthy" (§4 rule 4).
             blocked_by = f"CORE/{tid}"
-            emit(f"[order] CORE {tid} FAILED — every remaining APP/FEATURE id "
-                 f"is NOT-RUN({blocked_by}). CORE ids continue: a CORE failure "
-                 f"does not invalidate its own class.")
+            emit(f"[order] CORE {tid} {verdict} — every remaining APP/FEATURE "
+                 f"id is NOT-RUN({blocked_by}). CORE ids continue: a CORE "
+                 f"failure does not invalidate its own class.")
 
     if before_summary is not None:
         # The caller's own end-of-run probes (the TASK-407 exit playerMode

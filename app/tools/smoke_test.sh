@@ -8,6 +8,9 @@ cd "$SCRIPT_DIR"
 
 PYTHON="${PYTHON:-python3}"
 
+#: repo root — app/tools/.. /.. — for the `run/` scripts this file gates.
+PROJ_ROOT_SMOKE="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 # 1. Import check — catches missing-file errors at module load
 # TASK-481: bake_skin.py lives in bake/ now; coords.py stays flat.
 "$PYTHON" -c "import sys; sys.path.insert(0, 'bake'); import coords; import bake_skin" 2>&1 | grep -q "FileNotFoundError" && {
@@ -108,6 +111,18 @@ fi
 # adjudicated, which @VE §18.6(c) makes a precondition of the order switch.
 if ! "$PYTHON" test_class_order.py; then
     echo "FAIL: test_class_order.py (TASK-566 EC-G8 inversion test) FAILED" >&2
+    exit 1
+fi
+
+# 4f2. the comparator's own negative tests — TASK-573, extended by TASK-624.
+# `run/player-gate --selftest` has existed since TASK-573 and was gated by
+# NOTHING, which is how a gate acquires an inversion nobody sees: the FLAKY-PASS
+# defect shipped for years and was found by a run, not by a check. TASK-624 adds
+# the UNMET arms (ADR-066 D5 / R38) — "an UNMET cell reads green" is the same
+# defect one token later — so the selftest is wired in here rather than left as
+# a command someone remembers to type. Host-only, no DUT, no flash, ~0.4 s.
+if ! "$PROJ_ROOT_SMOKE/run/player-gate" --selftest; then
+    echo "FAIL: run/player-gate --selftest (TASK-573/624 comparator) FAILED" >&2
     exit 1
 fi
 

@@ -58,7 +58,7 @@ import time
 from app_ids_gen import APP_ORDER
 from lib import dut as _dutmod
 from lib.dut import Dut
-from lib.results import RESULTS, fail, pass_
+from lib.results import BLOCKING, fail, pass_, verdict_of
 from suite.serialdbg._meta import meta
 
 # ── T_DH_01 ──────────────────────────────────────────────────────────────────
@@ -346,7 +346,12 @@ def run_health(dut: Dut, ids=None) -> list:
             fail(tid, f"TimeoutError: {e}")
         except Exception as e:                                # noqa: BLE001
             fail(tid, f"Exception: {type(e).__name__}: {e}")
-    return [t for t in ids if RESULTS.get(t, "").startswith("FAIL")]
+    # TYPED (TASK-624, R31/R38): `BLOCKING` is {FAIL, UNMET}. A health check
+    # whose own premise could not be established has NOT certified the board —
+    # `C-4` is a skipped health check announced as `[health] PASS` with a
+    # sentence asserting the thing that did not run. Was
+    # `RESULTS.get(t,"").startswith("FAIL")`.
+    return [t for t in ids if verdict_of(t) in BLOCKING]
 
 
 # ── E5: the premise line ─────────────────────────────────────────────────────
