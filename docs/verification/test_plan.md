@@ -175,9 +175,10 @@ A new family rather than `T_SRC_`/`T_CQ_`/`T_CC_`: those three are all about fir
 | `T_DOC_05` | document-split carve-out **plus the edit-after-move and new-citation controls** (E6) |
 | `T_DOC_06` | `CHECK_DOCS_BASE` rev and range (E6) |
 | `T_DOC_07` | C2 glob resolution, including a simulated board split |
-| `T_DOC_08` | C3 scoped to `cyd2usb*`; asserts `cyd` and `trinity` are **not** flagged (they are the sibling project's envs) |
+| `T_DOC_08` | **retired 2026-09-05 (TASK-632)** — C3 was deleted, not promoted; see [retired_test_ids.md](retired_test_ids.md). Number not reused |
 | `T_DOC_09` | C5 link integrity, including anchor stripping and URL-encoded paths |
 | `T_DOC_16` | ROWLEN task-board row length (TASK-536, M-ROWGATE) — over/under/marker-exempt |
+| `T_DOC_17` | ROWLEN's promotion to blocking (TASK-647) — the discovered board corpus and the shrink-only ledger |
 
 **VE notes**: (a) `T_DOC_03`/`T_DOC_04` run against a **committed fixture corpus**, never the live
 tree — the live count moved 280→282 inside a single commit and reads 286 in a clean checkout, because
@@ -193,9 +194,11 @@ TASK-480's migration list.
 also invoked by `app/tools/smoke_test.sh` (so `run/check` gate 9 covers the checker, while gate 12
 runs it against the live corpus). Host-side only: no DUT, no serial, no network.
 
-All sixteen are **passing**: `T_DOC_01..09` as of TASK-475 phase 1, `T_DOC_10..14` added with the
-C6 id-binding gate (TASK-521, M-TESTARCH §6), `T_DOC_15` added with SPIKE retirement (TASK-482,
-M-TOOLING §4 rule 3), `T_DOC_16` added with ROWLEN task-board row length (TASK-536, M-ROWGATE).
+All sixteen live ids are **passing**: `T_DOC_01..07` and `T_DOC_09` as of TASK-475 phase 1,
+`T_DOC_10..14` added with the C6 id-binding gate (TASK-521, M-TESTARCH §6), `T_DOC_15` added with
+SPIKE retirement (TASK-482, M-TOOLING §4 rule 3), `T_DOC_16` added with ROWLEN task-board row length
+(TASK-536, M-ROWGATE), `T_DOC_17` added with ROWLEN's promotion to blocking (TASK-647).
+**`T_DOC_08` is retired** (TASK-632, C3 deleted); the family is 01-07, 09-17.
 Delta/split scenarios build throwaway repos in `mktemp -d`; C6 scenarios build throwaway roots with
 their own `app/tools/` registry; the live tree is never modified by a test.
 
@@ -213,7 +216,7 @@ rule.
 | `T_DOC_05` | integration | document-split carve-out + controls | Split → **0**; edit-after-move → **1**; new broken citation in an untouched file → **1**; pure rename → **0**; verbatim relocation into an existing dissimilar file → **0**; a new citation in that same file → **1** | passing |
 | `T_DOC_06` | integration | `CHECK_DOCS_BASE` rev and range | `B..C` → 1, `A..C` → 2, rev `A` → 2, `HEAD` on a clean tree → 0; env-var override reaches the checker | passing |
 | `T_DOC_07` | unit | C2 glob resolution incl. a simulated board split | Unfiled id → 1 failure; once the id is filed in a **new** `tasks-*.md`, the glob discovers it → 0 | passing |
-| `T_DOC_08` | unit | C3 scope | the fixture's unknown prefixed env is flagged; `cyd` and `trinity` **not** flagged in fixture or live corpus | passing |
+| `T_DOC_08` | — | **RETIRED 2026-09-05 (TASK-632)** — its subject, check C3, was deleted rather than promoted: all 58 standing findings were correct prose in living documents (21 in ADR-061, the decision that deleted `cyd2usb`) | — | retired 2026-09-05 (TASK-632) — see [retired_test_ids.md](retired_test_ids.md) |
 | `T_DOC_09` | unit | C5 link integrity | 4 links, exactly 1 broken; anchors stripped, URL-encoded targets resolved, external links ignored | passing |
 | `T_DOC_10` | unit | **C6.1 negative** — an executable id with no doc row | Positive control clean; dropping one plan row → exactly 1 `orphan`, message names the id, the reason, and the **registry** site (not a doc that never mentions it) | passing |
 | `T_DOC_11` | unit | **C6.3 negative** — the teeth: a declared status that is a lie | `impl` with no body → mismatch; `resv` with a body → mismatch; `blocked` → never a mismatch, with or without a body; **a ledger row cannot suppress a mismatch**, and `mismatch` is rejected as an exception kind | passing |
@@ -222,12 +225,15 @@ rule.
 | `T_DOC_14` | unit | C6 registry discovery + the exemption split | All three registry shapes (dict / `(id, fn)` pairs / function-ref list) discovered with no edit to the checker; an exempt file resolves C6.1 but cannot declare a status — **with the non-exempt control**; no registries → skip loudly, never a silent 100 % | passing |
 | `T_DOC_15` | unit | SPIKE retirement check (TASK-482, M-TOOLING §4 rule 3) | An `app/tools/**/task<NNN>_*` whose leading `TASK-NNN` is in `tasks-archive.md` is flagged; an open task's spike is **not** (positive control, same tree); only the *leading* number is checked (`task123_456_x.py`, 123 archived / 456 not, still flags); a non-spike-shaped filename (`helpers.py`) is never counted | passing |
 | `T_DOC_16` | unit | ROWLEN task-board row length (TASK-536, M-ROWGATE) | A `tasks*.md` row over `ROWLEN_THRESHOLD` (400 chars) fails; an at/under-threshold row passes; an over-threshold row carrying `IGNORE_MARKER` passes (reuses the existing mechanism); `tasks-winamp-player.md` is in-scope, `tasks-archive.md` is never scanned | passing |
+| `T_DOC_17` | unit | **ROWLEN promotion negative** — the discovered corpus and the shrink-only ledger (TASK-647) | An over-length row in a `tasks-*.md` board the checker has never been told about is flagged (the `tasks-harness2.md` defect: hardcoded three-name tuple, board created 2026-09-03, eleven rows over threshold within a day, never scanned); `tasks-archive.md` still out of scope; ROWLEN reports `blocking`; a valid ledger row suppresses exactly its finding with the debt still in the summary; a **stale** row FAILS; no `TASK-` owner, no ISO date, or a key that is not a `TASK-` id all FAIL; the **live** ledger parses clean with every row current | passing |
 
 **Non-vacuity — mutation-tested, not assumed.** Each mechanism was deliberately broken and the suite
 re-run. Caught: inline-backtick suppression reintroduced (`T_DOC_03` ×2), recursive `docs/`
 resolution removed (`T_DOC_03`), exemptions applied to resolution sources (`T_DOC_02`), line ranges
-using the lower bound (`T_DOC_03`), C3 widened to bare `cyd`/`trinity` (`T_DOC_03`/`08`), board glob
-hardcoded to `tasks.md` (`T_DOC_02`), verbatim carve-out removed (`T_DOC_05`).
+using the lower bound (`T_DOC_03`), C3 widened to bare `cyd`/`trinity` (`T_DOC_03`/`08` — both
+mutations are historical: C3 and `T_DOC_08` were deleted by TASK-632), board glob
+hardcoded to `tasks.md` (`T_DOC_02`), verbatim carve-out removed (`T_DOC_05`), ROWLEN's board
+corpus returned to a hardcoded tuple (`T_DOC_17`), ROWLEN's ledger made grow-only (`T_DOC_17`).
 
 > **The carve-out mutation initially ESCAPED**, and the escape is worth recording: every split
 > scenario was being carried by `git diff -M -C` rename/copy detection alone, so deleting the

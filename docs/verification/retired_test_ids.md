@@ -44,6 +44,14 @@ Dispositions and evidence: [M-HARNESS2-task603-disposition.md](M-HARNESS2-task60
 | `T_WR_ERR_04` | retired 2026-09-05 (TASK-603) — `deleted` | WebRadio | as `T_WR_ERR_01`; additionally reached WebRadio via a taskbar tap that lands on the *player* slot | as above |
 | `T_PLR_25` (registry copy only) | *not retired — see note* | LocalPlayer | the duplicate body in `suite/serialdbg/player.py`'s `TESTS` was deleted; it had no variant guard and was a deterministic 60 s false red on the only env that dispatched it | **none.** The id is still `impl`: its sole executable body is `app/tools/test_playorder_player.py`, now carrying an `ALL_TESTS` declaration so C6 binds it there. This is a duplicate-body disposal, not a coverage disposal |
 
+---
+
+## `deleted` — 1 id, 2026-09-05, TASK-632
+
+| id | Status | family | why | coverage lost |
+|---|---|---|---|---|
+| `T_DOC_08` | retired 2026-09-05 (TASK-632) — `deleted` | host gate (`check_docs`) | its subject was check **C3** (`cyd2usb*` build-env names in docs vs `app/platformio.ini`), and C3 itself was deleted rather than promoted. C3 stood advisory for two months at 58-60 findings; measured, **all 58 are correct prose in living documents** — 21 in ADR-061, the decision that *deleted* `cyd2usb`; 10 in C3's own specification quoting its own failure list; the rest archives, closed designs, and `CLAUDE.md`'s note on why the env is excluded from the build matrix. A check whose only honest fix is to falsify the record cannot be cleared honestly (QM's rot rule (c)) | **none.** The residual signal was measured separately: env names in an actionable context (`-e X`, `*ENV*=X`) number 19 corpus-wide, 2 unresolved, both in an archive and a closed design. `pio run -e <missing>` fails on the next command; the sub-signal never needed a gate. The number `T_DOC_08` is not reused |
+
 ### The one genuine coverage gap: the WebRadio error path
 
 Deleting the four `T_WR_ERR_*` bodies removes nothing that was being asserted — but it does leave

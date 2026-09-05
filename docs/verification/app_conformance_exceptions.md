@@ -25,6 +25,13 @@ mechanism**, so that everything else is a live finding from day one.
    parse failure, and an unparsable row is itself a finding.
 4. A row states the **mechanism** that makes the deviation correct — not "known issue".
 
+**Blocking since 2026-09-05.** The matrix landed warn-only (`STRICT_DEFAULT = False`) on one
+unexcepted `A6` cell, with the promotion criterion written into the source: "flip this once A6's
+outstanding cells are closed or excepted". A gate-layer audit re-measured it and found the
+criterion met and unnoticed — `--strict` reads **0 unexcepted findings on both rows**, across
+every registered app, against the 5 rows below. Advisory past its own stated precondition is the
+state C3 sat in for two months; it is not left in that state here.
+
 ## Subjects
 
 | row | subject key | the finding it suppresses |

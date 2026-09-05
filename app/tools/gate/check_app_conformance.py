@@ -35,6 +35,7 @@ Exit status: 0 unless --strict (see STRICT_DEFAULT / the header of the ledger).
 from __future__ import annotations
 
 import argparse
+import functools
 import os
 import re
 import sys
@@ -49,11 +50,16 @@ CMDGET = SRC / "debug" / "serialConsole" / "cmdGet.cpp"  # body moved here, TASK
 sys.path.insert(0, str(TOOLS))
 from app_ids_gen import APP_ORDER  # noqa: E402  (generated; never typed here)
 
-# Warn-only on landing. See the "advisory vs blocking" note in the ledger:
-# A5's unexcepted-failure count is 0, A6's is not, and a gate that lands red
-# cannot be blocking without blocking the tree. Promote by flipping this once
-# A6's outstanding cells are closed or excepted.
-STRICT_DEFAULT = False
+# PROMOTED to blocking 2026-09-05 (TASK-632's audit of the gate layer). It
+# landed warn-only because "A5's unexcepted-failure count is 0, A6's is not",
+# with the promotion criterion written down as "flip this once A6's outstanding
+# cells are closed or excepted". That criterion has been met for some time and
+# nobody re-measured: `--strict` reads **0 unexcepted findings** across both
+# rows for every registered app, with 5 dated, task-owned ledger rows and the
+# stale-row clause live (evaluate(), below). Leaving it advisory after its own
+# stated precondition is satisfied is how C3 spent two months, so it is not
+# left advisory. Measured immediately before this edit, not assumed.
+STRICT_DEFAULT = True
 
 ROWS = ("A5", "A6")
 
@@ -108,6 +114,7 @@ def sources() -> dict[str, str]:
     return out
 
 
+@functools.lru_cache(maxsize=None)
 def strip_comments(text: str) -> str:
     """Blank // and /* */ comments, preserving offsets (so line numbers hold).
 
@@ -156,6 +163,12 @@ _FUNC = re.compile(
 _KEYWORDS = {"if", "for", "while", "switch", "catch", "return", "else", "do", "sizeof"}
 
 
+# Both of these are PURE functions of their single string argument, and the
+# gate's own negative suite calls evaluate() eleven times over a ~1.5 MB tree
+# that differs by one file between cases — 9.3 s of run/check's host budget
+# spent re-deriving identical results (TASK-629). Cached on the text itself,
+# never on a path or an mtime, so a mutated fixture is a different key.
+@functools.lru_cache(maxsize=None)
 def functions(clean: str) -> list[tuple[str, int, int]]:
     """[(name, start_of_body, end_of_body)] — body spans include the braces."""
     out = []
@@ -369,6 +382,7 @@ _DBGGET_DEF = re.compile(
     r"\bbool\s+(?:(\w+)::)?dbgGet\s*\([^)]*\)\s*(?:const\s*)?(?:override\s*)?\{")
 _STRCMP_KEY = re.compile(r'strcmp\(\s*\w+\s*,\s*"([A-Za-z0-9_]+)"')
 _CMDGET_KEY = re.compile(r'strn?cmp\(\s*args\s*,\s*"([A-Za-z0-9_]+)"')
+_SHIM_FWD = re.compile(r"\b(\w+)\s*\([^)]*\)\s*\{[^}]*\bg_(\w+)App\s*\.\s*dbgGet\s*\(")
 
 
 def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
@@ -381,10 +395,39 @@ def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
     # M1 — cmdGet.cpp delegates to a shim that forwards to g_<Name>App.dbgGet().
     shims = {}   # shim name -> app
     for rel, c in clean.items():
-        for m in re.finditer(r"\b(\w+)\s*\([^)]*\)\s*\{[^}]*\bg_(\w+)App\s*\.\s*dbgGet\s*\(", c):
+        # The pattern below cannot match without the literal `dbgGet`, and its
+        # `[^)]*`/`[^}]*` runs backtrack hard over a 100 KB translation unit —
+        # 4.7 s of run/check across the negative suite's eleven evaluations
+        # (TASK-629). This is a filter on the SAME predicate the regex enforces,
+        # not a narrowing of it: a file with no `dbgGet` had no match to lose.
+        if "dbgGet" not in c:
+            continue
+        for m in _SHIM_FWD.finditer(c):
             app = m.group(2)
             if app in APP_ORDER:
                 shims[m.group(1)] = app
+
+    # Every dbgGet() definition in the tree, found ONCE. This used to sit inside
+    # the per-app loop below, so the whole ~1.5 MB corpus was re-scanned with a
+    # backtracking regex once per registered app — 11 x 244 files per evaluate(),
+    # 4.3 s of run/check across the negative suite (TASK-629). Same predicate,
+    # same order, hoisted: (rel, qualifier, body_keys) per definition.
+    defs: list[tuple[str, str | None, list[str]]] = []
+    for rel, text in clean.items():
+        if "dbgGet" not in text:
+            continue
+        for m in _DBGGET_DEF.finditer(text):
+            brace = text.index("{", m.end() - 1)
+            depth, j = 0, brace
+            while j < len(text):
+                if text[j] == "{":
+                    depth += 1
+                elif text[j] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        break
+                j += 1
+            defs.append((rel, m.group(1), _STRCMP_KEY.findall(text[brace:j])))
 
     out = {}
     for app in APP_ORDER:
@@ -396,30 +439,17 @@ def a6_scan(srcs: dict[str, str]) -> dict[str, dict]:
         # own class (`bool XApp::dbgGet(...) {` — M-SRCLAYOUT Stage E moves
         # method bodies out of the header into a companion .cpp).
         owner_rel = owner.get(app)
-        for rel, text in clean.items():
-            for m in _DBGGET_DEF.finditer(text):
-                qualifier = m.group(1)
-                if qualifier is None:
-                    if rel != owner_rel:
-                        continue
-                elif qualifier != app + "App":
+        called = any(re.search(r"\b" + re.escape(sh) + r"\s*\(", cg)
+                     for sh, a in shims.items() if a == app)
+        for rel, qualifier, body_keys in defs:
+            if qualifier is None:
+                if rel != owner_rel:
                     continue
-                brace = text.index("{", m.end() - 1)
-                depth, j = 0, brace
-                while j < len(text):
-                    if text[j] == "{":
-                        depth += 1
-                    elif text[j] == "}":
-                        depth -= 1
-                        if depth == 0:
-                            break
-                    j += 1
-                body_keys = _STRCMP_KEY.findall(text[brace:j])
-                called = any(re.search(r"\b" + re.escape(sh) + r"\s*\(", cg)
-                             for sh, a in shims.items() if a == app)
-                if body_keys and called:
-                    keys += body_keys
-                    how = f"own dbgGet() in {rel}, reached via cmdGet.cpp's delegation chain"
+            elif qualifier != app + "App":
+                continue
+            if body_keys and called:
+                keys += body_keys
+                how = f"own dbgGet() in {rel}, reached via cmdGet.cpp's delegation chain"
         # M2: a cmdGet.cpp branch body that calls the app INSTANCE directly.
         if not keys:
             direct = []

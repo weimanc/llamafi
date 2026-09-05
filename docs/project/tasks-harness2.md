@@ -36,7 +36,7 @@ anything. 579–619 are WP-Z's own numbering, which that document declared provi
 renumberable — **kept rather than renumbered on purpose**, because the human ruled on TASK-616,
 617 and 618 *by those ids*, and six review documents cross-reference them. 621–643 were the PM
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
-WP-Z's reserved band). **Next free id: TASK-647.**
+WP-Z's reserved band). **Next free id: TASK-648.**
 
 **3. TASK-575 is deliberately not a row here.** It lives on
 [tasks-architecture.md](tasks-architecture.md) (host-side FIXED, full `run/test` pass owed) and is
@@ -108,10 +108,11 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-627 | P2 | **DONE 2026-09-05** — `── SKIP by scope (N) ──`, most-skipped scope first | print the per-scope SKIP count in the run summary — [QM §7](../quality/M-HARNESS2-QM-review.md). Fed by the same installed meta provider as the artifact, so it needed 608's typed data … |
 | TASK-611 | P3 | OPEN | plan integrity: id collisions, stale rows, duplicate-body detection — [R46](../verification/M-HARNESS2-requirements.md) |
 | TASK-628 | P2 | BLOCKED — TASK-609 | replay engine in `lib/`: stub transport, keyed store, virtual clock, plus its negative test — [R10](../verification/M-HARNESS2-requirements.md) |
-| TASK-629 | P3 | OPEN | host-gate wall-clock budget, measured and printed by the scripts — [Dev D6](../architecture/designs/M-HARNESS2-DEV-review.md) |
+| TASK-629 | P3 | **PART-DONE 2026-09-05** — host tests 63 s -> 26 s; `run/check` 129 s cold -> see report; budget line not yet printed by the scripts | host-gate wall-clock budget, measured and printed by the scripts — [Dev D6](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-630 | P3 | OPEN — TASK-624 done | scaffold the record — emit the generated fields, leave the author the two that need thought — [Dev D4](../architecture/designs/M-HARNESS2-DEV-review.md) |
 | TASK-631 | P3 | BLOCKED — TASK-628 | a FAIL carries the last 20 command/reply pairs — [Dev D3](../architecture/designs/M-HARNESS2-DEV-review.md) |
-| TASK-632 | P2 | OPEN | dispose of the advisory documentation check: promote with a ledger, or delete it — [QM §3.1](../quality/M-HARNESS2-QM-review.md) |
+| TASK-632 | P2 | **DONE 2026-09-05** — C3 **deleted**, `T_DOC_08` retired | dispose of the advisory documentation check — [QM §3.1](../quality/M-HARNESS2-QM-review.md). All 58 findings measured as correct prose; disposition in [M-DOCLIFE §C3](../architecture/designs/M-DOCLIFE-check-docs-spec.md) |
+| TASK-647 | P2 | **DONE 2026-09-05** — blocking, opening [ledger](../verification/rowlen_exceptions.md) **18 rows, measured**; corpus 103 -> 168 rows across 4 boards | promote ROWLEN to blocking, and discover the board corpus instead of enumerating it — `tasks-harness2.md` was never scanned. [M-ROWGATE §8](../architecture/designs/M-ROWGATE-task-board-length-check.md) |
 | TASK-644 | P3 | OPEN — @Architect | reconcile the specification gaps TASK-624 and TASK-608 surfaced: `ORDER-DEPENDENT` in R28 vs ADR-066 D2's 7-member enum; "attributable" undefined in D4; IFC-008's cross-leg composition rule; whether the artifact copying `cls`/`scope`/`effect` per row is a mirror (LL-114) or a snapshot … [TASK-608 report](../verification/M-HARNESS2-requirements.md) |
 | TASK-645 | P3 | OPEN | the artifact's premise cannot identify what it ran against: "harness version" (R30) has no source in the tree, "the board" (ADR-066 D3) has no identity surviving a USB re-enumeration, and `run/dut-health` exits before `print_results` so emits none — against R29's "every run MUST" |
 | TASK-646 | P2 | OPEN | `run/test-sync`'s 20 ids have no machine interface at all — `run_sync_tests.py` keeps a private pre-TASK-520 results layer with no flake policy, no `NOT-RUN`, no `UNMET` and now no artifact — [A-6](../verification/reviews/M-TESTQUAL-A-harness-review.md) |

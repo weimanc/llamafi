@@ -133,8 +133,29 @@ TEST_ID_RE = re.compile(r"T\d{3}[a-z]?"
 
 # ── source access ─────────────────────────────────────────────────────────────
 
+#: code object -> FunctionDef | None. `inspect.getsource` + `ast.parse` is by far
+#: this gate's largest cost (TASK-629): reachable_functions() re-derives the same
+#: shared helper's tree once per calling test id, and the negative suite runs the
+#: whole evaluation several times over — 22 791 parses, 9 s of run/check's host
+#: budget. Keyed on the CODE OBJECT, not on id() and not on the function: the
+#: code object is what getsource resolves through, a reloaded module produces a
+#: new one (so the mutation arm cannot be served a stale tree), and holding it as
+#: the key keeps it alive, which id() would not.
+_FUNC_AST_CACHE: dict = {}
+
+
 def func_ast(fn):
     """The FunctionDef node for `fn`, or None if its source is unavailable."""
+    code = getattr(fn, "__code__", None)
+    if code is not None and code in _FUNC_AST_CACHE:
+        return _FUNC_AST_CACHE[code]
+    node = _func_ast_uncached(fn)
+    if code is not None:
+        _FUNC_AST_CACHE[code] = node
+    return node
+
+
+def _func_ast_uncached(fn):
     try:
         src = textwrap.dedent(inspect.getsource(fn))
         tree = ast.parse(src)

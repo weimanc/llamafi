@@ -152,6 +152,25 @@ exactly the gap M-DOCLIFE §3 recommendation 5 addresses, and the check found it
 ADR and IFC references are already clean (0 failures).
 
 ### C3 — build-environment names
+
+> **DELETED 2026-09-05 (TASK-632). This section is history.** C3 shipped advisory in phase 1 and
+> never left advisory. At disposition it stood at **58 occurrences across 10 unknown env names, of
+> 381 `cyd2usb*` references** — up from the 58 recorded in `check_docs.py`'s own header and the 60
+> QM measured mid-review, i.e. a count that grew while being audited. Every one of the 58 was
+> measured and classified before the call: **all 58 are correct prose in living documents.**
+> Twenty-one are in `ADR-061`, the decision that *deleted* `cyd2usb`; **ten are in this very
+> section**, quoting C3's own failure list; the remainder are `test_plan-archive.md`, closed
+> designs (`M-NOART`, `M-WEBRADIO-REAL-VIS` recording the five scratch envs it deleted), and
+> `CLAUDE.md`'s note explaining why `[env:cyd2usb]` is excluded from the build matrix. The only
+> way to clear them is to falsify the record, which is QM §3.2's rot condition (c) — "cheap to
+> clear *honestly*" — failing outright.
+>
+> The residual signal was measured rather than assumed: env names in an **actionable** context
+> (`-e X`, `*ENV*=X`) number **19 corpus-wide, of which 2 unresolved**, both in an archive and a
+> closed design's acceptance criteria. `pio run -e <missing>` fails loudly on the next command.
+> A gate was not what was missing. `T_DOC_08` retired with it
+> ([retired_test_ids.md](../../verification/retired_test_ids.md)).
+
 Already specified as ADR-061 D7 check 1; folded in here rather than built twice.
 
 Current failures: `cyd2usb_spike`, `cyd2usb_winamp_bands`, `cyd2usb_winamp_debug_ceefaxspike`,
@@ -282,9 +301,18 @@ Every failure prints `file:line: <what> -> <why>` so it is directly actionable.
 |---|---|---|---|
 | 1 | C5, **C1-`delta`** | C1-full, C2, C3, C4 | none — ship immediately (§4a); **`run/check` invokes it from here**, per the closed OQ1 |
 | 2 | + C2 | C1-full, C3, C4 | ~~PM files TASK-453…474~~ **DONE** — filed 2026-08-16, C2 now reads 0 |
-| 3 | + C3 | C1-full, C4 | ADR-061 D8 lands |
+| 3 | ~~+ C3~~ **cancelled** | C1-full, C4 | ~~ADR-061 D8 lands~~ — **C3 DELETED 2026-09-05 (TASK-632)**: D8 landed and the count still did not fall, because all 58 findings are correct prose. Phase 3 has no subject |
 | 4 | + C4 | C1-full | **[A3]** TASK-508 lands: the ~100–200-header migration **and** the matching rule that fixes the count — *not* merely "scoped per §2" |
 | 5 | + C1-full | — | the **280**-citation backlog cleared — **optional; may never happen** |
+| 6 | + ROWLEN | C1-full | **TASK-647, 2026-09-05** — promoted on a dated shrink-only ledger (opening 18, measured), *not* on a zero. The corpus also changed from a hardcoded three-name tuple to `docs/project/tasks*.md`; see [M-ROWGATE §8](M-ROWGATE-task-board-length-check.md) |
+
+**The lesson this table now records twice.** Phases 2, 4 and 5 all wait for a count to reach zero
+before blocking. That premise is sound for a check whose findings are *defects* and false for one
+whose findings are *facts*: C3 waited two months for a zero it could never reach and was deleted;
+ROWLEN waited ten days, was measured to be scanning the wrong corpus the whole time, and was
+promoted at 18 instead. C6's bargain — blocking plus a dated, shrink-only ledger — is the landing
+for anything that cannot honestly read zero, and "advisory until it reads zero" is the landing for
+nothing.
 
 ### 4a. C1 gets a delta-only blocking mode — @QM amendment, 2026-08-16
 

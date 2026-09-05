@@ -25,13 +25,13 @@ if echo "$output" | grep -q "No such file or directory"; then
     exit 1
 fi
 
-# 3. check-docs harness — T_DOC_01..09 (TASK-475).
+# 3. check-docs harness — T_DOC_01..17, minus the retired 08 (TASK-475).
 # Runs here rather than as its own check_build.sh gate so the documentation
 # gate itself (gate 12) stays one slot: gate 9 covers the CHECKER, gate 12
 # runs it against the live corpus. Host-side only, no DUT, ~2 s.
 # TASK-481: check_*.py + test_check_*.py live in gate/ now.
 if ! "$PYTHON" gate/test_check_docs.py; then
-    echo "FAIL: test_check_docs.py (T_DOC_01..09) FAILED" >&2
+    echo "FAIL: test_check_docs.py (T_DOC_01..17) FAILED" >&2
     exit 1
 fi
 
@@ -229,18 +229,17 @@ fi
 
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
-# cannot be shown to fail is not a gate. The MATRIX itself is advisory today —
-# it lands with one unexcepted finding (A6/Weather), and warn-only is the same
-# bargain check_settings_wiring.py makes. Promote by flipping STRICT_DEFAULT in
-# check_app_conformance.py once that cell is closed or excepted; the ledger
-# (docs/verification/app_conformance_exceptions.md) states the criterion.
+# cannot be shown to fail is not a gate. The MATRIX is blocking too since
+# 2026-09-05: it landed warn-only on one unexcepted A6 cell, with a written
+# promotion criterion, and re-measurement found the criterion met and unnoticed
+# — 0 unexcepted findings on both rows, 5 dated ledger rows, stale rows failing.
+# See STRICT_DEFAULT in check_app_conformance.py.
 if ! "$PYTHON" gate/test_check_app_conformance.py; then
     echo "FAIL: test_check_app_conformance.py (A5/A6 checker negative suite) FAILED" >&2
     exit 1
 fi
 if ! "$PYTHON" gate/check_app_conformance.py; then
-    echo "FAIL: check_app_conformance.py crashed (findings are warn-only; a" \
-         "non-zero exit here means the checker itself broke)" >&2
+    echo "FAIL: check_app_conformance.py (A5/A6 conformance matrix) FAILED" >&2
     exit 1
 fi
 

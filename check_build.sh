@@ -25,6 +25,18 @@ PASS=0
 FAIL=0
 TOTAL=11
 
+# ── Wall-clock budget (TASK-629 / M-HARNESS2 Dev D6) ──────────────────────────
+# Phase 1's exit criterion caps this script at 90 s and run/check-docs at 15 s,
+# "measured and printed by the scripts". Printed rather than asserted, on
+# purpose: a compiler cache miss is not a defect, and a gate that fails because
+# a machine was busy is a gate people stop running — the failure D6 is about.
+# The number is here so a regression is visible on every run instead of being
+# rediscovered in an audit, and so nobody has to time it by hand to find out.
+# Cold and warm are reported separately because they differ by ~2x and only the
+# firmware matrix (gates 1-6) moves: the host half is cache-independent.
+CHECK_BUDGET_S="${CHECK_BUDGET_S:-90}"
+_t0=$(date +%s%N)
+
 ok()   { echo "  PASS  $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL  $1"; FAIL=$((FAIL + 1)); }
 
@@ -133,6 +145,17 @@ fi
 echo "[warn] settings-wiring gate (warn-only, not counted)"
 "$VENV_PY" "$PROJ_ROOT/app/tools/gate/check_settings_wiring.py" || true
 
+_elapsed_ms=$(( ( $(date +%s%N) - _t0 ) / 1000000 ))
+_elapsed=$(( _elapsed_ms / 1000 ))
+_elapsed_s=$(printf "%d.%01d" "$_elapsed" $(( (_elapsed_ms % 1000) / 100 )))
 echo
+if [ "$_elapsed" -le "$CHECK_BUDGET_S" ]; then
+    echo "=== Wall clock: ${_elapsed_s}s (budget ${CHECK_BUDGET_S}s — OK) ==="
+else
+    echo "=== Wall clock: ${_elapsed_s}s — OVER the ${CHECK_BUDGET_S}s budget" \
+         "(M-HARNESS2 Phase 1 exit criterion, Dev D6). Cold builds exceed it;" \
+         "if this is a WARM run, something got slower — profile the host gates" \
+         "with: for t in app/tools/gate/test_*.py; do …; done ==="
+fi
 echo "=== Results: $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

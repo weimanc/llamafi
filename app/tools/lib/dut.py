@@ -255,6 +255,21 @@ _BOOT_PHASE_DEADLINE_S = {
 # first-bytes-lost. Sized to phase 1's budget — the next line we could see.
 _BOOT_PHASE_GRACE_S = _BOOT_PHASE_DEADLINE_S[1]
 
+# How long one `get heap` liveness probe waits for its reply, and how many such
+# probes the boot-not-observed branch makes before calling the shell mute. The
+# 3 s comes from wait_shell_cooldown_clear: the shell drops input for up to 3 s
+# under render load, so a single probe cannot distinguish "busy" from "dead".
+#
+# Named rather than literal (TASK-629) for one reason: test_boot_gate.py drives
+# this branch against a stubbed serial that returns b"" immediately, so the
+# whole 2.0 + 3x3.0 s was pure wall clock the test itself controlled — 26 s of
+# the host gate's 63 s, spent sleeping through deadlines nothing could satisfy.
+# The test now shrinks these the same way _fast_phases() already shrinks
+# _BOOT_PHASE_DEADLINE_S, and pins the production values in a separate check so
+# shrinking them for speed cannot quietly become shrinking them for real.
+_SHELL_PROBE_DEADLINE_S = 3.0
+_SHELL_PROBE_ATTEMPTS = 3
+
 
 def _run_id_file(port: str) -> pathlib.Path:
     """Per-port monotonic run counter, for the generation tag's `<run-id>` half.
@@ -742,11 +757,11 @@ class Dut:
             # (wait_shell_cooldown_clear).
             self.ser.timeout = 1.0
             shell_up = False
-            for _ in range(3):
+            for _ in range(_SHELL_PROBE_ATTEMPTS):
                 self.ser.reset_input_buffer()
                 self.ser.write(b"get heap\n")
                 self.ser.flush()
-                probe_deadline = time.monotonic() + 3.0
+                probe_deadline = time.monotonic() + _SHELL_PROBE_DEADLINE_S
                 while time.monotonic() < probe_deadline:
                     line = self.ser.readline().decode(errors="replace").strip()
                     if '"var":"heap"' in line:

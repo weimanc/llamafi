@@ -9,7 +9,6 @@ Checks
   C1-full   every `file.ext:NNN` citation resolves to an existing file with >= NNN lines   (advisory)
   C1-delta  the same, restricted to citations NEWLY ADDED in a diff                        (BLOCKING)
   C2        every TASK-/ADR-/IFC-/X0NN identifier referenced exists                        (BLOCKING)
-  C3        every `cyd2usb*` build-env name in docs exists in app/platformio.ini           (advisory)
   C4        Status: uses the closed vocabulary (decisions/designs/interfaces)  (BLOCKING)
   C5        relative .md links resolve                                                     (BLOCKING)
   C6        test-id binding: registry <-> docs/verification            (BLOCKING, see below)
@@ -17,16 +16,29 @@ Checks
             M-TOOLING §4 rule 3 — not part of the C1-C6 M-DOCLIFE taxonomy)  (BLOCKING,
             promoted TASK-538 once the known backlog was cleared and it read 0)
   ROWLEN    tasks*.md row length: a row is a pointer, not a record (TASK-536,
-            M-ROWGATE — not part of the C1-C6 M-DOCLIFE taxonomy either)     (advisory)
+            M-ROWGATE — not part of the C1-C6 M-DOCLIFE taxonomy either)  (BLOCKING,
+            promoted TASK-647 on a dated shrink-only ledger, same bargain as C6)
 
 Phase 1 blocked on C5 and C1-delta only: both read 0 on ship day, and a gate
 that fails on day one gets switched off. Phase 2 (TASK-475, 2026-08-25) added
 C2: it has read 0 since phase 1 and still does at promotion time. Phase 4
 (same day) added C4, once TASK-508's ~189-header migration landed and
-re-measurement read 0. Phase 3 (C3) remains advisory: unblocked (ADR-061 D8 /
-TASK-467 landed) but the count is 58 occurrences across 10 unknown env names,
-not near zero — promoting it is a scope call for a human, not a mechanical
-one, per this session's own escalation discipline.
+re-measurement read 0.
+
+C3 (build-env names in docs against app/platformio.ini) was DELETED by TASK-632
+(2026-09-05) rather than promoted. It sat advisory for two months at 58-60
+occurrences, and the disposition was decided by measuring what those were, not
+by taste: **all 58 are correct prose in living documents**. Twenty-one are in
+ADR-061, the decision that DELETED `cyd2usb`; ten are in this check's own
+specification, quoting its own failure list; the rest are archives, closed
+designs, and CLAUDE.md's note explaining why the env is excluded from the build
+matrix. A gate whose only honest fix is to falsify the record has no honest fix
+at all — QM's rot rule (c), and the reason C3 never moved. The one sub-signal
+worth keeping was measured too: env names in an ACTIONABLE context (`-e X`,
+`*ENV*=X`) number 19 across the corpus, of which 2 unresolved, both in an
+archive and a closed design. A `pio run -e` against a missing env announces
+itself on the next command; a check is not what was missing. Deleted with
+`T_DOC_08`, per docs/process/test_id_retirement.md.
 
 Rules that are easy to get wrong, and are therefore spelled out here:
 
@@ -98,7 +110,6 @@ X_RE = re.compile(r"\bX(0\d{2})\b")
 # file naming two tasks (e.g. task399_402_dut_verify.py) is checked against
 # the first only, matching the "five-line grep" simplicity the doc asks for.
 SPIKE_TASK_RE = re.compile(r"^task(\d+)_")
-ENV_RE = re.compile(r"\bcyd2usb[A-Za-z0-9_]*")
 
 
 def is_exempt(rel: str) -> bool:
@@ -289,31 +300,6 @@ def check_c2(c: Corpus) -> Result:
     return r
 
 
-# ── C3 ────────────────────────────────────────────────────────────────────────
-
-def check_c3(c: Corpus) -> Result:
-    r = Result("C3", blocking=False)
-    ini = os.path.join(c.root, "app", "platformio.ini")
-    if not os.path.exists(ini):
-        r.skipped = True
-        r.summary = "skipped (no app/platformio.ini)"
-        return r
-    with open(ini, encoding="utf-8", errors="replace") as fh:
-        envs = set(re.findall(r"^\[env:([^\]]+)\]", fh.read(), re.M))
-    names: set[str] = set()
-    for rel in c.gated:
-        for lineno, line in scannable_lines(c.read(rel)):
-            for m in ENV_RE.finditer(line):
-                r.total += 1
-                if m.group(0) not in envs:
-                    names.add(m.group(0))
-                    r.failures.append(
-                        f"{rel}:{lineno}: {m.group(0)} -> no [env:{m.group(0)}] in app/platformio.ini")
-    r.summary = (f"{len(r.failures)} occurrences of {len(names)} unknown env names "
-                 f"(of {r.total} cyd2usb* references)")
-    return r
-
-
 # ── SPIKE (TASK-482, M-TOOLING §4 rule 3) ──────────────────────────────────────
 # Not part of the C1-C6 doc-decay taxonomy (M-DOCLIFE) — a separate mechanism
 # from the same design doc's retirement rule, checking a naming/archival fact
@@ -362,37 +348,125 @@ def check_spike_retirement(c: Corpus) -> Result:
 # doc's As-built note) that a genuine pointer is short and a smuggled
 # verification narrative is not.
 #
-# Corpus is an explicit filename list, not a directory rule: exactly the
-# three live task boards. tasks-archive.md is deliberately NOT here — it is
-# already in EXEMPT_BASENAMES as the historical record BP-069 moves verbose
-# content TO, and archived rows are expected to be long.
+# TASK-647 (2026-09-05) — PROMOTED advisory -> blocking, and the corpus rule
+# changed with it. Two defects, one commit:
 #
-# Advisory-only per the design doc §4: unlike C5/C2/C4, this has no
-# read-0-on-landing-day guarantee (it doesn't: see the As-built note), so it
-# cannot land blocking without redding out run/check on day one.
+#   1. THE CORPUS WAS A HARDCODED THREE-FILE LIST. `docs/project/tasks-harness2.md`
+#      was created 2026-09-03 and this check never saw a line of it. By
+#      2026-09-04 eleven of its rows were over threshold — one at 829 chars, all
+#      grown in a single day — and `run/check-docs` printed "18 over-length of
+#      103 task-board rows" throughout, a count from which that entire board was
+#      absent. C2 already learned this lesson and globs (`T_DOC_07`: "once the id
+#      is filed in a NEW tasks-*.md, the glob discovers it"); ROWLEN did not.
+#      The corpus is now the same glob, so the next board is in scope the day it
+#      is created rather than the day someone remembers this tuple.
+#   2. ADVISORY. The design doc deferred promotion because the check could not
+#      read 0 on landing day. That premise is C3's, and C3 is what it produced:
+#      two months at ~58 findings, growing during the review that named it.
+#      C6 settled the argument in the other direction — blocking plus a dated,
+#      shrink-only ledger is strictly stronger than advisory-at-any-count,
+#      because an advisory count is scrolled past and a ledger row that stops
+#      failing is itself a failure. Same bargain here, same rules, same file
+#      shape: docs/verification/rowlen_exceptions.md.
+#
+# Ledger rows are keyed on (file, TASK- id), never on a line number: the rows
+# these describe move every time a board is edited, and a key that moves is an
+# exemption that silently transfers to a different row.
+#
+# tasks-archive.md is excluded via EXEMPT_BASENAMES — it is the historical
+# record BP-069 moves verbose content TO, and archived rows are expected to be
+# long. That is the pressure valve, and it is the only one: there is no
+# per-file or wildcard exemption.
 
-ROWLEN_FILES = ("docs/project/tasks.md", "docs/project/tasks-architecture.md",
-                "docs/project/tasks-winamp-player.md")
+ROWLEN_GLOB = "docs/project/tasks*.md"
 ROWLEN_THRESHOLD = 400
 ROW_RE = re.compile(r"^\|\s*\*{0,2}TASK-\d+\*{0,2}\s*\|")
+ROWLEN_LEDGER_REL = "docs/verification/rowlen_exceptions.md"
+
+
+def rowlen_files(c: Corpus) -> list[str]:
+    """The live task boards, discovered — never enumerated by hand. See D1."""
+    out = []
+    for path in sorted(glob.glob(os.path.join(c.root, ROWLEN_GLOB))):
+        rel = os.path.relpath(path, c.root).replace(os.sep, "/")
+        if os.path.basename(rel) in EXEMPT_BASENAMES:
+            continue
+        out.append(rel)
+    return out
+
+
+def _parse_rowlen_ledger(c: Corpus) -> tuple[dict[tuple[str, str], str], list[str]]:
+    """Return ({(file, TASK-id): "ledger:line"}, [malformed-row errors]).
+
+    Row shape, mirroring the C6 ledger exactly:
+        | `docs/project/tasks-x.md` | `TASK-NNN` | why | TASK-NNN | YYYY-MM-DD |
+    """
+    ledger: dict[tuple[str, str], str] = {}
+    errors: list[str] = []
+    if not os.path.exists(c.abspath(ROWLEN_LEDGER_REL)):
+        return ledger, errors
+    header: list[str] | None = None
+    for i, line in enumerate(c.read(ROWLEN_LEDGER_REL).split("\n"), 1):
+        s = line.strip()
+        if not s.startswith("|"):
+            header = None
+            continue
+        cells = _row_cells(s)
+        if all(SEP_CELL_RE.fullmatch(x) for x in cells if x):
+            continue
+        if header is None:
+            header = cells
+            continue
+        rel = cells[0].strip("`* ")
+        if not rel.startswith("docs/project/"):
+            continue
+        where = f"{ROWLEN_LEDGER_REL}:{i}"
+        tid = cells[1].strip("`* ") if len(cells) > 1 else ""
+        owner = cells[3].strip() if len(cells) > 3 else ""
+        since = cells[4].strip() if len(cells) > 4 else ""
+        if not re.fullmatch(r"TASK-\d+", tid):
+            errors.append(f"{where}: subject '{tid}' -> a ROWLEN exception is keyed "
+                          f"on the row's own TASK- id, not on a line number")
+            continue
+        if not TASK_RE.search(owner):
+            errors.append(f"{where}: {tid} -> exception has no owning TASK- id")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", since):
+            errors.append(f"{where}: {tid} -> exception has no ISO date in 'since'")
+        ledger[(rel, tid)] = where
+    return ledger, errors
 
 
 def check_rowlen(c: Corpus) -> Result:
-    r = Result("ROWLEN", blocking=False)
-    for rel in ROWLEN_FILES:
-        path = c.abspath(rel)
-        if not os.path.exists(path):
-            continue
+    r = Result("ROWLEN", blocking=True)
+    ledger, r.failures = _parse_rowlen_ledger(c)
+    seen: set[tuple[str, str]] = set()
+    excepted = 0
+    for rel in rowlen_files(c):
         for lineno, line in scannable_lines(c.read(rel)):
             if not ROW_RE.match(line):
                 continue
             r.total += 1
             n = len(line)
-            if n > ROWLEN_THRESHOLD:
-                r.failures.append(
-                    f"{rel}:{lineno}: row is {n} chars (> {ROWLEN_THRESHOLD}) "
-                    f"-> BP-069: a tasks*.md row is a pointer, not a record")
-    r.summary = f"{len(r.failures)} over-length of {r.total} task-board rows"
+            if n <= ROWLEN_THRESHOLD:
+                continue
+            m = re.search(r"TASK-\d+", line)
+            key = (rel, m.group(0) if m else "?")
+            seen.add(key)
+            if key in ledger:
+                excepted += 1
+                continue
+            r.failures.append(
+                f"{rel}:{lineno}: row is {n} chars (> {ROWLEN_THRESHOLD}) "
+                f"-> BP-069: a tasks*.md row is a pointer, not a record")
+    # A ledger row whose failure no longer occurs is itself a failure — the
+    # clause that makes the list shrink-only, lifted verbatim from C6.
+    for key, where in sorted(ledger.items()):
+        if key not in seen:
+            r.failures.append(
+                f"{where}: stale exception — {key[1]} in {key[0]} is within "
+                f"{ROWLEN_THRESHOLD} chars now; delete this row")
+    r.summary = (f"{len(r.failures)} over-length of {r.total} task-board rows "
+                 f"across {len(rowlen_files(c))} boards; {excepted} on the ledger")
     return r
 
 
@@ -953,12 +1027,13 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
     c = Corpus(root)
 
     blocking: list[Result] = [
-        check_c5(c), check_c6(c), check_c2(c), check_c4(c), check_spike_retirement(c)]
+        check_c5(c), check_c6(c), check_c2(c), check_c4(c), check_spike_retirement(c),
+        check_rowlen(c)]
     # C6 prints its ledger arithmetic even when clean. A blocking check that is
     # invisible on the happy path cannot be distinguished from one that was
     # silently skipped — the failure mode TASK-511 hit from the other side.
     for _r in blocking:
-        if _r.cid == "C6" and not _r.failures and not quiet:
+        if _r.cid in ("C6", "ROWLEN") and not _r.failures and not quiet:
             # A SKIP is not an OK. Labelling one as the other is the same
             # conflation this line exists to prevent.
             print(f"    [{'skip' if getattr(_r, 'skipped', False) else 'ok'}] C6: {_r.summary}")
@@ -971,8 +1046,7 @@ def run(root: str, base_spec: str, quiet: bool, no_git: bool) -> int:
         blocking.append(check_c1_delta(c, base_spec))
         advisory_extra = []
 
-    advisory: list[Result] = advisory_extra + [
-        check_c1_full(c), check_c3(c), check_rowlen(c)]
+    advisory: list[Result] = advisory_extra + [check_c1_full(c)]
 
     counted = [r for r in blocking if not r.skipped]
     total = len(counted)

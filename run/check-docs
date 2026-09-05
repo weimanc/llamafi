@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # run/check-docs — documentation staleness gate (TASK-475, M-DOCLIFE phase 1).
 #
-# Phase 1 blocks on C5 (relative .md links) and C1-delta (positional citations
-# newly added in the diff). C1-full, C2, C3 and C4 print [warn] and cannot fail
-# the build until their own rollout phase.
+# Blocking today: C5 (relative .md links), C1-delta (positional citations newly
+# added in the diff), C2, C4, C6, SPIKE and ROWLEN. C1-full is the only [warn]
+# check left. C3 was DELETED by TASK-632 rather than promoted — see the
+# disposition in check_docs.py's module docstring; ROWLEN was promoted to
+# blocking by TASK-647 on a dated shrink-only ledger
+# (docs/verification/rowlen_exceptions.md, opening size 18).
 #
 #   ./run/check-docs                      # gate the working tree against HEAD
 #   CHECK_DOCS_BASE=HEAD~1 ./run/check-docs   # audit the commit just made
@@ -16,4 +19,26 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
-exec "$VENV_PY" "$PIO_DIR/tools/gate/check_docs.py" --root "$PROJ_ROOT" "$@"
+# TASK-629 / Dev D6: the 15 s budget is measured and printed here, on every run.
+# Under --quiet this script occupies one gate slot inside check_build.sh, which
+# prints its own wall clock, so the line is suppressed there.
+CHECK_DOCS_BUDGET_S="${CHECK_DOCS_BUDGET_S:-15}"
+case " $* " in
+  *" --quiet "*) exec "$VENV_PY" "$PIO_DIR/tools/gate/check_docs.py" --root "$PROJ_ROOT" "$@" ;;
+esac
+
+_t0=$(date +%s%N)
+set +e
+"$VENV_PY" "$PIO_DIR/tools/gate/check_docs.py" --root "$PROJ_ROOT" "$@"
+_rc=$?
+set -e
+_elapsed_ms=$(( ( $(date +%s%N) - _t0 ) / 1000000 ))
+_elapsed=$(( _elapsed_ms / 1000 ))
+_elapsed_s=$(printf "%d.%01d" "$_elapsed" $(( (_elapsed_ms % 1000) / 100 )))
+if [ "$_elapsed" -le "$CHECK_DOCS_BUDGET_S" ]; then
+    echo "=== Wall clock: ${_elapsed_s}s (budget ${CHECK_DOCS_BUDGET_S}s — OK) ==="
+else
+    echo "=== Wall clock: ${_elapsed_s}s — OVER the ${CHECK_DOCS_BUDGET_S}s budget" \
+         "(M-HARNESS2 Phase 1 exit criterion, Dev D6) ==="
+fi
+exit $_rc

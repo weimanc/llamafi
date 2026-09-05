@@ -62,6 +62,29 @@ class _FakeSer:
         self._queued.clear()
 
 
+def _fast_readiness(fn):
+    """Run fn with a tiny phase-0 deadline and tiny shell probes.
+
+    Same idiom, same reason as _fast_phases() below: _FakeSer.readline() returns
+    b"" immediately, so every deadline in the boot-not-observed branch is spun
+    through at full speed and the only thing the wall clock measures is the
+    constants. Before TASK-629 this file spent 2.0 + 3 x 3.0 s per mute _run()
+    — 26 s of run/check's 63 s host budget — sleeping through waits it fully
+    controlled. The PRODUCTION values are asserted separately in
+    production_constant_tests(); shrinking them here must never be able to
+    shrink them there.
+    """
+    orig_phase0 = d._BOOT_PHASE_DEADLINE_S[0]
+    orig_probe = d._SHELL_PROBE_DEADLINE_S
+    d._BOOT_PHASE_DEADLINE_S[0] = 0.05
+    d._SHELL_PROBE_DEADLINE_S = 0.02
+    try:
+        return fn()
+    finally:
+        d._BOOT_PHASE_DEADLINE_S[0] = orig_phase0
+        d._SHELL_PROBE_DEADLINE_S = orig_probe
+
+
 def _run(answers_probe, gate):
     """Returns ('ok', None) if it returned, or ('fail', (reason, message))."""
     orig = d._DUT_BOOT_GATE
@@ -70,7 +93,7 @@ def _run(answers_probe, gate):
         dut = object.__new__(d.Dut)
         dut.ser = _FakeSer(answers_probe)
         try:
-            dut._wait_for_ready()
+            _fast_readiness(dut._wait_for_ready)
             return ("ok", None)
         except d.SetupFailure as e:
             return ("fail", (e.reason, str(e)))
@@ -285,6 +308,26 @@ def tee_setattr_tests():
     check("generation counter survives the setattr change", tee.gen_tag(), "7.1")
 
 
+def production_constant_tests() -> None:
+    """The values _fast_readiness() shrinks, asserted at their real sizes.
+
+    NEGATIVE-CONTROL for the speed-up itself (BP-068): _fast_readiness() makes
+    the gate blind to the constants it overrides, so if someone "fixes" the 27 s
+    by editing dut.py instead of the test, this is what fails. The numbers are
+    derived, not decorative — 3.0 s is wait_shell_cooldown_clear's worst-case
+    input drop, and one attempt cannot tell a busy shell from a dead one.
+    """
+    check("phase-0 deadline is the production 2 s", d._BOOT_PHASE_DEADLINE_S[0], 2.0)
+    check("shell probe waits the shell's own 3 s cooldown",
+          d._SHELL_PROBE_DEADLINE_S, 3.0)
+    check("the probe is retried, not one-shot", d._SHELL_PROBE_ATTEMPTS >= 3, True)
+    # …and the shrink is scoped: it must be back to production after every use.
+    _fast_readiness(lambda: None)
+    check("_fast_readiness restores phase-0", d._BOOT_PHASE_DEADLINE_S[0], 2.0)
+    check("_fast_readiness restores the probe deadline",
+          d._SHELL_PROBE_DEADLINE_S, 3.0)
+
+
 def main() -> int:
     print("test_boot_gate.py — TASK-560 boot-observation gate")
 
@@ -315,6 +358,10 @@ def main() -> int:
     check("gate=warn -> returns instead of aborting", outcome, "ok")
     outcome, _ = _run(False, "warn")
     check("gate=warn -> returns even for a mute board", outcome, "ok")
+
+    print()
+    print("TASK-629 — the production deadlines this file shrinks for speed")
+    production_constant_tests()
 
     print()
     print("TASK-564 — boot-phase gate, generation counter, last-phase stamp")

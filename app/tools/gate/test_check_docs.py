@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""test_check_docs.py — T_DOC_01..T_DOC_16 for run/check-docs (TASK-475, TASK-521, TASK-482, TASK-536).
+"""test_check_docs.py — T_DOC_01..T_DOC_17 for run/check-docs (TASK-475, TASK-521, TASK-482, TASK-536, TASK-647).
+
+T_DOC_08 is RETIRED (TASK-632): C3 was deleted, not promoted. The number is not reused.
 
 Registered in docs/verification/test_plan.md under the T_DOC_ family, reserved
 by @VE before this harness existed. Host-side only: no DUT, no serial, no
@@ -97,15 +99,17 @@ def t_doc_01() -> None:
     # TASK-475 phases 2 and 4 (2026-08-25): C2 and C4 are now blocking
     # alongside C5 (C4 itself is clean in the fixture — both its Status:
     # headers already conform — so it counts but never fails here). TASK-538
-    # promoted SPIKE to blocking too (0 spikes in the fixture, also clean), so
-    # the fixture's [n/N] counted-blocking-check count is now 4: C5, C2, C4,
-    # SPIKE (C6 is skipped in the fixture — no executable registries — so it
-    # is not counted).
-    check(tid, "[4/4]" in out, "standalone output missing [n/N] progress line")
+    # promoted SPIKE to blocking too (0 spikes in the fixture, also clean), and
+    # TASK-647 promoted ROWLEN (the fixture board holds one short row, so it
+    # counts and passes), so the fixture's [n/N] counted-blocking-check count is
+    # now 5: C5, C2, C4, SPIKE, ROWLEN. C6 is skipped in the fixture — no
+    # executable registries — so it is not counted. TASK-632 deleted C3, which
+    # was advisory and never counted here either way.
+    check(tid, "[5/5]" in out, "standalone output missing [n/N] progress line")
 
     # Advisory-only failure must exit 0. Copy the fixture and repair the one
     # broken link (C5) and the four broken ids (C2, now blocking too),
-    # leaving C1/C3 advisory failures in place.
+    # leaving the C1-full advisory failures in place.
     with tempfile.TemporaryDirectory() as tmp:
         alt = os.path.join(tmp, "fx")
         shutil.copytree(FIXTURE, alt)
@@ -147,10 +151,11 @@ def t_doc_02() -> None:
     check(tid, "CLAUDE.md" in c.gated, "CLAUDE.md must be gated")
 
     fx = cd.Corpus(FIXTURE)
-    out = "\n".join(cd.check_c1_full(fx).failures + cd.check_c5(fx).failures
-                    + cd.check_c3(fx).failures)
+    out = "\n".join(cd.check_c1_full(fx).failures + cd.check_c5(fx).failures)
+    # `cyd2usb_reviewonly` was the fifth marker here until TASK-632 deleted C3.
+    # The four ghost.cpp citations cover the same property through C1-full.
     for exempt_marker in ("ghost.cpp:500", "ghost.cpp:501", "ghost.cpp:502",
-                          "ghost.cpp:503", "cyd2usb_reviewonly"):
+                          "ghost.cpp:503"):
         check(tid, exempt_marker not in out,
               f"exempt file was scanned: {exempt_marker} appeared in failures")
 
@@ -321,28 +326,13 @@ def t_doc_07() -> None:
         check(tid, n2 == 0, f"glob must discover the split board file; got {n2}")
 
 
-# ── T_DOC_08 — C3 scope ──────────────────────────────────────────────────────
-
-def t_doc_08() -> None:
-    tid = "T_DOC_08"
-    def flagged_names(res) -> set[str]:
-        # Compare the flagged IDENTIFIER, never a substring of the message:
-        # "cyd" is a substring of every "cyd2usb_bogus" failure line.
-        return {f.split(": ")[-1].split(" ->")[0] for f in res.failures}
-
-    r = cd.check_c3(cd.Corpus(FIXTURE))
-    names_fx = flagged_names(r)
-    check(tid, "cyd2usb_bogus" in names_fx, "unknown cyd2usb_* env must be flagged")
-    check(tid, len(r.failures) == 1, f"fixture C3 must report exactly 1, got {len(r.failures)}")
-    # The sibling project's envs are out of scope entirely.
-    for other in ("cyd", "trinity"):
-        check(tid, other not in names_fx,
-              f"{other} belongs to Spotify-Diy-Thing and must not be flagged")
-    live = cd.check_c3(cd.Corpus(os.path.dirname(os.path.dirname(os.path.dirname(HERE)))))
-    names = flagged_names(live)
-    check(tid, "cyd" not in names and "trinity" not in names,
-          f"live C3 must not flag the sibling project's envs; got {sorted(names)}")
-
+# ── T_DOC_08 — RETIRED 2026-09-05 (TASK-632) ─────────────────────────────────
+# C3 (build-env names in docs vs app/platformio.ini) was deleted, not promoted:
+# all 58 of its standing findings were correct prose in living documents — 21 in
+# ADR-061, the decision that deleted `cyd2usb`, and 10 in C3's own spec quoting
+# its own failure list. The id is recorded in
+# docs/verification/retired_test_ids.md per docs/process/test_id_retirement.md.
+# The number is not reused.
 
 # ── T_DOC_09 — C5 link integrity ─────────────────────────────────────────────
 
@@ -677,8 +667,10 @@ def t_doc_16() -> None:
     at/under-threshold row must PASS, and an over-threshold row carrying the
     existing IGNORE_MARKER must PASS (reusing the mechanism, not a new one).
     Also proves tasks-winamp-player.md is in-scope and tasks-archive.md
-    (already in EXEMPT_BASENAMES) is not scanned at all, even though it is
-    not on the ROWLEN_FILES list either — belt and suspenders.
+    (already in EXEMPT_BASENAMES) is not scanned at all. Since TASK-647 the
+    board corpus is the glob `docs/project/tasks*.md`, so tasks-archive.md's
+    exclusion rests on EXEMPT_BASENAMES alone — this arm is what proves it.
+    T_DOC_17 covers the glob discovery and the ledger.
     """
     tid = "T_DOC_16"
     with tempfile.TemporaryDirectory() as tmp:
@@ -716,16 +708,98 @@ def t_doc_16() -> None:
               f"summary must count both dimensions: {r.summary}")
 
 
+# ── T_DOC_17 — ROWLEN's promotion: the glob corpus and the ledger ────────────
+
+def t_doc_17() -> None:
+    """NEGATIVE: the two defects TASK-647 fixed, each asserted directly.
+
+    (a) THE CORPUS IS DISCOVERED, NOT ENUMERATED. Until TASK-647 the boards were
+        a hardcoded three-name tuple, and `tasks-harness2.md` — created
+        2026-09-03, eleven rows over threshold within a day — was never scanned
+        while the check printed a clean-looking count. The arm below writes an
+        over-length row into a board filename this checker has never heard of
+        and requires it to be flagged. This is the arm that would have failed on
+        2026-09-03.
+
+    (b) THE LEDGER IS SHRINK-ONLY. A valid row suppresses exactly its own
+        finding and the debt stays visible in the summary; a row whose finding
+        no longer occurs is itself a FAILURE; a row with no owning TASK- id, no
+        ISO date, or keyed on a line number instead of a TASK- id, FAILS. Same
+        four properties T_DOC_13 asserts for the C6 ledger, because it is the
+        same bargain — and the reason ROWLEN could land blocking at 18 rather
+        than waiting for a zero it was never going to reach (C3 waited two
+        months and grew).
+    """
+    tid = "T_DOC_17"
+    over = "| TASK-800 | P3 | OPEN | " + ("x" * 400) + " |"
+    short = "| TASK-801 | P3 | OPEN | a pointer |"
+    ledger_hdr = ("# rowlen ledger\n\n## Ledger\n\n"
+                  "| board | row | why | owner | since |\n|---|---|---|---|---|\n")
+
+    def rowlen(root):
+        return cd.check_rowlen(cd.Corpus(root))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = os.path.join(tmp, "r")
+        # (a) a board this checker has never been told about.
+        write(root, "docs/project/tasks-brandnew.md", "# New board\n\n" + over + "\n")
+        write(root, "docs/project/tasks-archive.md", over + "\n")
+        r = rowlen(root)
+        check(tid, any("tasks-brandnew.md" in f for f in r.failures),
+              f"a NEW tasks-*.md board must be discovered by the glob, got {r.failures}")
+        check(tid, not any("tasks-archive.md" in f for f in r.failures),
+              "tasks-archive.md must stay out of scope (EXEMPT_BASENAMES)")
+        check(tid, r.blocking, "ROWLEN must be BLOCKING, not advisory")
+
+        # (b1) a valid ledger row suppresses exactly its finding — and the debt
+        # stays in the summary rather than disappearing.
+        write(root, "docs/verification/rowlen_exceptions.md", ledger_hdr +
+              "| `docs/project/tasks-brandnew.md` | `TASK-800` | narrative | TASK-999 | 2026-09-05 |\n")
+        r = rowlen(root)
+        check(tid, r.failures == [], f"a valid row must suppress its finding, got {r.failures}")
+        check(tid, "1 on the ledger" in r.summary,
+              f"the excepted debt must stay visible in the summary: {r.summary}")
+
+        # (b2) the row is trimmed -> the ledger row is now STALE -> BLOCKING.
+        write(root, "docs/project/tasks-brandnew.md", "# New board\n\n" + short + "\n")
+        r = rowlen(root)
+        check(tid, any("stale exception" in f and "TASK-800" in f for f in r.failures),
+              f"a stale ledger row must itself FAIL, got {r.failures}")
+
+        # (b3) no owner / no date / keyed on a line number.
+        write(root, "docs/project/tasks-brandnew.md", "# New board\n\n" + over + "\n")
+        for row, want in (
+            ("| `docs/project/tasks-brandnew.md` | `TASK-800` | why | | 2026-09-05 |",
+             "no owning TASK- id"),
+            ("| `docs/project/tasks-brandnew.md` | `TASK-800` | why | TASK-999 | soon |",
+             "no ISO date"),
+            ("| `docs/project/tasks-brandnew.md` | `289` | why | TASK-999 | 2026-09-05 |",
+             "keyed on the row's own TASK- id"),
+        ):
+            write(root, "docs/verification/rowlen_exceptions.md", ledger_hdr + row + "\n")
+            r = rowlen(root)
+            check(tid, any(want in f for f in r.failures),
+                  f"malformed ledger row must fail with '{want}', got {r.failures}")
+
+    # (c) the LIVE ledger parses clean and every one of its rows is live. A
+    # ledger that no longer describes the tree is the failure this check exists
+    # to make loud, so it is asserted against the real corpus, not a fixture.
+    live = cd.check_rowlen(cd.Corpus(os.path.dirname(os.path.dirname(os.path.dirname(HERE)))))
+    check(tid, live.failures == [],
+          f"the live ROWLEN ledger must be clean and current: {live.failures}")
+    print(f"    [obs] live ROWLEN: {live.summary}")
+
+
 TESTS = [("T_DOC_01", t_doc_01), ("T_DOC_02", t_doc_02), ("T_DOC_03", t_doc_03),
          ("T_DOC_04", t_doc_04), ("T_DOC_05", t_doc_05), ("T_DOC_06", t_doc_06),
-         ("T_DOC_07", t_doc_07), ("T_DOC_08", t_doc_08), ("T_DOC_09", t_doc_09),
+         ("T_DOC_07", t_doc_07), ("T_DOC_09", t_doc_09),
          ("T_DOC_10", t_doc_10), ("T_DOC_11", t_doc_11), ("T_DOC_12", t_doc_12),
          ("T_DOC_13", t_doc_13), ("T_DOC_14", t_doc_14), ("T_DOC_15", t_doc_15),
-         ("T_DOC_16", t_doc_16)]
+         ("T_DOC_16", t_doc_16), ("T_DOC_17", t_doc_17)]
 
 
 def main() -> int:
-    print("=== test_check_docs.py — T_DOC_01..16 ===")
+    print("=== test_check_docs.py — T_DOC_01..17 (08 retired) ===")
     for tid, fn in TESTS:
         before = len(FAILURES)
         try:

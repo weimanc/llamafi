@@ -62,6 +62,11 @@ one-line title, not a narrative) carries the marker on the same line.
 
 ## 4. Rollout
 
+> **Superseded 2026-09-05 by TASK-647 — see §8.** This section's reasoning ("advisory until it
+> reads near zero") is the reasoning that produced C3, and it produced the same outcome here: the
+> count never moved, and the corpus was silently wrong for a board created two years' worth of
+> board-churn later. ROWLEN is **blocking** on a dated shrink-only ledger.
+
 Lands **advisory only**. Per the same reasoning `TASK-482` used for `SPIKE`: `C5`/`C1-delta`/`C2`/`C4`
 each went blocking specifically because they read 0 on landing day; this check has no such
 guarantee until it's actually run against the corpus. Promotion to blocking is a separate PM/human
@@ -117,3 +122,45 @@ the archive pass only moved the worst offenders, and the bulk of both boards pre
 convention entirely. Reported here rather than adjusting the threshold to hide it, per the task's
 own instruction. No promotion to blocking is proposed by this task — per §4, that stays a separate
 PM/human call once the backlog has actually been worked down.
+
+---
+
+## 8. Promotion to blocking (TASK-647, 2026-09-05)
+
+**Two defects, one commit.** §4 deferred promotion to a later human call; that call is taken here,
+and it surfaced a second defect §4 could not have anticipated.
+
+**8.1 The corpus was enumerated, not discovered.** `ROWLEN_FILES` was a three-name tuple. The
+M-HARNESS2 board `docs/project/tasks-harness2.md` was created 2026-09-03 and was never in it, so
+ROWLEN never read a line of that file. Within one day, **eleven** of its rows were over threshold —
+one at 829 chars — while `run/check-docs` printed `18 over-length of 103 task-board rows`, a
+figure from which the entire board was absent. The rows were trimmed by hand in `03e5b43`; no gate
+participated. §7's own As-built note contains the seed of this: it kept `tasks-winamp-player.md`
+on the list because "any future table-shaped split inherits the check for free" — which is exactly
+what a hardcoded list *cannot* deliver. C2 had already solved this with a glob (`T_DOC_07` asserts
+it). The corpus is now `docs/project/tasks*.md` minus `EXEMPT_BASENAMES`, and the summary line
+prints the board count so a board falling out of scope is visible: `… across 4 boards`.
+
+**8.2 Advisory was the wrong landing.** §4's premise — a check may only go blocking once it reads
+0 — is the premise that kept C3 advisory for two months at ~58 findings while the count grew
+during the review that named it (QM §3.1). C6 settled the argument the other way: **blocking plus
+a dated, shrink-only ledger is strictly stronger than advisory at any count**, because an advisory
+count is scrolled past, and a ledger row whose failure has stopped occurring is itself a blocking
+failure, so the list can only shrink.
+
+**Opening ledger: 18 rows, measured** (not estimated) against the post-`03e5b43` tree on
+2026-09-05, in [`docs/verification/rowlen_exceptions.md`](../../verification/rowlen_exceptions.md).
+All 18 are in `tasks-architecture.md`. `tasks.md`, `tasks-winamp-player.md` and
+`tasks-harness2.md` read **zero** and are protected from the first commit onward — which is the
+whole point: the board that regrows fastest is the newest one, and it is now the one with no
+grandfathering to hide behind.
+
+Rows are keyed on `(board file, the row's own TASK- id)`, never on a line number: board rows move
+on every edit, and a key that moves is an exemption that silently transfers to a different row.
+
+**Negative test**: `T_DOC_17` in `app/tools/gate/test_check_docs.py` — the discovered-corpus arm
+(an over-length row in a board filename the checker has never been told about must be flagged; this
+is the arm that would have failed on 2026-09-03), plus the four ledger arms `T_DOC_13` asserts for
+C6 (valid row suppresses exactly its finding with the debt still in the summary; stale row FAILS;
+missing owner / missing ISO date / a key that is not a `TASK-` id all FAIL), plus a live-corpus arm
+requiring the real ledger to parse clean with every row current.
