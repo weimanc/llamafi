@@ -2104,12 +2104,12 @@ Common preconditions for all DUT tests below:
 
 **Priority A — enqueue-proxy fixes (LL-041 pattern, firmware already has fetchOkCount for charts):**
 
-### T176 fix — chart fetch proven completion
+### Fix for T176 — chart fetch proven completion
 **Current**: asserts `lastChartFetch > 0` (enqueue proxy).
 **Fix**: snapshot `fetchOkCount` before drill-in → drill → assert `fetchOkCount` advanced within 45 s. Identical pattern to T186–T188 (already passing). No firmware change needed.
 **Acceptance**: T176 passes using `_wait_chart_complete(before)`.
 
-### T170 fix — quote fetch proven completion
+### Fix for T170 — quote fetch proven completion
 **Current**: asserts `lastQuoteFetch > 0` (timestamp set in `init()`, not on fetch completion).
 **Fix option A**: add `quoteOkCount` to `StockAppState` (mirrors `fetchOkCount`); increment in `stockTickQuotes()` on success; expose via `dbgGet`/`dbgSet`. Snapshot before switch-in → assert advances within 65 s.
 **Fix option B**: assert `get stockPrice_AAPL` (or similar) returns a non-zero float — data presence implies fetch completed. Requires a `dbgGet` var for price array (not currently exposed).
@@ -2118,41 +2118,41 @@ Common preconditions for all DUT tests below:
 
 **Priority B — pure-observation tests (no causal assertion, low effort to fix or annotate):**
 
-### T136 — scrollOffset initial value
+### Fix for T136 — scrollOffset initial value
 **Current**: reads `scrollOffset` and asserts it equals 0. Proves initial state, not behavior.
 **Fix**: remove as standalone test; fold the `scrollOffset=0` precondition check into T137 setup. T137 already verifies the meaningful behavior (swipe-up increments).
 **Acceptance**: T136 removed from suite; T137 precondition check explicit in setup block.
 **DONE 2026-09-05 (TASK-603)** — body and registry entry deleted; the assertion is a reachable `fail()` in `T137`'s precondition. See [retired_test_ids.md](retired_test_ids.md).
 
-### T178 — chartRange default before fetch
+### Fix for T178 — chartRange default before fetch
 **Current**: asserts `stockChartRange=D1` immediately after drill-in. Trivially true — `drillToChart()` always sets D1.
 **Fix**: extend to assert `fetchFailed=false` AND `chartLen=0` at the same moment (pre-fetch: data not yet arrived). That validates the placeholder state, not just the hardcoded default.
 **Acceptance**: T178 asserts pre-fetch placeholder state (chartLen=0, fetchFailed=false) rather than the trivially-true range default.
 **SUPERSEDED — T178 retired 2026-09-05 (TASK-603).** The fix above was applied and did not help: both fields it asserts on are written by the test's OWN `set triggerFetch 1`, with no firmware transition interposed (R2's canonical self-write oracle). See [retired_test_ids.md](retired_test_ids.md).
 
-### T_GOL_04 — GoL simulation ran
+### Fix for T_GOL_04 — GoL simulation ran
 **Current**: asserts `golAlive >= 0` after 350 ms. Field presence check; 0 is valid.
 **Fix**: assert `golAlive > 0` (at least one live cell after 3+ ticks — valid for any non-trivial initial state) OR assert `golGeneration >= 3` if that variable is exposed. Check firmware for available GoL state vars.
 **Acceptance**: T_GOL_04 asserts that the simulation actually advanced, not just that the field exists.
 
 **Priority C — weak tests requiring Spotify playing (annotate, don't fix now):**
 
-### T078, T082, T_BI_04 — volume drag / PLAY toggle
+### Annotation for T078, T082, T_BI_04 — volume drag / PLAY toggle
 **Issue**: meaningful verification requires observing actual Spotify API calls (volume change, play/pause state). Not feasible without a playing track and external Spotify state check.
 **Action**: add `[PARTIAL — requires Spotify playing for full verification]` annotation to each test in test_plan.md. No code change.
 
-### T090 — reconnect ACK-only
+### Fix for T090 — reconnect ACK-only
 **Current**: asserts `ok=true` and `cmd="reconnect"` only.
 **Fix**: after `reconnect`, assert `get backoff consecutiveFailures=0` within 3 s — proves the reconnect handler ran, not just that the serial command arrived. (T091 already does this with FLAKE annotation; T090 should be merged into or replaced by T091.)
 **Recommendation**: mark T090 as superseded by T091; remove from active suite or demote to smoke-only with explicit comment.
 **Acceptance**: T090 either removed or annotated `[SMOKE — superseded by T091]`.
 
-### T083 — help command
+### Annotation for T083 — help command
 **Action**: annotate `[SMOKE — verifies command registry, not behavior]`. No code change needed; signal level is appropriate for a registry check.
 
 **Priority D — permanently manual (annotate only):**
 
-### T093, T094, T095, T171, T179
+### Annotation for T093, T094, T095, T171, T179
 **Action**: add `[MANUAL — requires human operator / pixel verification]` to each entry in test_plan.md. Confirm `--interactive` flag gates T093–T095. No automation path exists or is planned.
 **PARTLY SUPERSEDED 2026-09-05 (TASK-603)**: `T171` and `T179` are **retired** — a body that is one unconditional `skip()` labelled MANUAL is not coverage, it is a suite-time cost, and annotating it does not change that. Their claims re-enter as new ids against ADR-064's `get sig` (TASK-638). `T093`–`T095` are kept: they are the RIG class, and the real defect there is that no `run/` script passes `--interactive` (TASK-589).
 

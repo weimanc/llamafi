@@ -210,6 +210,65 @@ if ! "$PYTHON" gate/check_defaulted_reads.py; then
     exit 1
 fi
 
+# 4k. restore through the manager — TASK-602 / M-HARNESS2 R17.
+# R17 asks for a mechanism that runs on EVERY exit path, and asks the check to
+# assert the mechanism is USED — because a `finally:` that restores the wrong
+# variable, restores from a defaulted read, restores to a guessed constant, or
+# restores with an unacknowledged `cmd` all match a static "a restore exists"
+# grep and all still leak. All four are fixtures in the negative suite, which
+# runs first and is blocking; the checker credits exactly one shape,
+# `with dut.saved(...)` / `with dut.injected(...)`. R17 is a RATCHET, so the
+# gate is blocking against a dated per-module shrink-only ledger
+# (docs/verification/unrestored_mutations_ratchet.md, 197 rows' worth today),
+# enforced in both directions.
+if ! "$PYTHON" gate/test_check_restore_manager.py; then
+    echo "FAIL: test_check_restore_manager.py (TASK-602 manager+checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_restore_manager.py; then
+    echo "FAIL: check_restore_manager.py (TASK-602 R17 restore-manager ratchet) FAILED" >&2
+    exit 1
+fi
+
+# 4l. plan integrity — TASK-611 / M-HARNESS2 R46, "ids exist once".
+# C6 asks whether every executable id HAS a doc entry; it is id-keyed, so it
+# cannot see an id with two bodies, an id with two plan entries, or an entry that
+# describes a different test than the body it binds. Four of the five checks read
+# ZERO today (A-15's two duplicate bodies were resolved by TASK-603, and the six
+# duplicate declarations were fixed in TASK-611 by retitling the `### T176 fix`
+# work items) — which makes the negative suite load-bearing rather than
+# decorative, since nothing else separates "no violations" from "blind". The
+# remaining six are on a dated shrink-only ledger because fixing them means
+# RENAMING a live id.
+if ! "$PYTHON" gate/test_check_plan_integrity.py; then
+    echo "FAIL: test_check_plan_integrity.py (TASK-611 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_plan_integrity.py; then
+    echo "FAIL: check_plan_integrity.py (TASK-611 R46 plan integrity) FAILED" >&2
+    exit 1
+fi
+
+# 4m. a gating class may not need the outside world — TASK-626 / R36.
+# A CORE id whose precondition is a 45 s live HTTPS fetch runs at index 14 under
+# TASK-566's class order and NOT-RUNs 167 FEATURE ids on a network outage. The
+# checker walks each gating id's CALL CLOSURE, not its body: every one of the
+# eight ids it finds reaches its dependence through a helper, which is how seven
+# of them stayed unwritten-down for a year. It also reads B-2's host-file-layout
+# shape, which is at ZERO since T133's demotion and is NOT exemptable — the
+# ledger parser refuses a row of that kind. The other three kinds sit on a dated
+# shrink-only ledger because demote-or-inject changes what the suite blocks on
+# and is the human's ruling (TASK-617), the same way TASK-591's 20 demotions
+# were. THE GATE READING ZERO IS AN EXIT CRITERION OF TASK-617; it reads 8.
+if ! "$PYTHON" gate/test_check_gating_offline.py; then
+    echo "FAIL: test_check_gating_offline.py (TASK-626 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_gating_offline.py; then
+    echo "FAIL: check_gating_offline.py (TASK-626 R36 offline-gating) FAILED" >&2
+    exit 1
+fi
+
 # 4b. R34 — every registered id can actually go red (TASK-603).
 # Blocking on a dated shrink-only ledger. The negative suite runs first and is
 # blocking for the same reason as the one above: three of its arms are CONTROLS

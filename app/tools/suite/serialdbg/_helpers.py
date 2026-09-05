@@ -581,11 +581,15 @@ def _tb_precondition(dut: Dut, tid: str) -> bool:
 @contextmanager
 def _bgpoll_suspended(dut: "Dut"):
     """Suspend background Spotify polls for the duration of the block.
-    Guarantees bgPoll resumes even if the test body raises.
+    Guarantees bgPoll is put BACK TO WHAT IT WAS even if the test body raises.
     Pre-conditions (e.g. _wait_shell_not_busy) are the caller's responsibility.
+
+    TASK-602 / R17: this delegates to `Dut.saved`, which is the only restore
+    mechanism the gate credits. It used to restore with a literal `1` on the way
+    out — correct for every caller that found it at 1, and a silent WRITE for any
+    that did not; and the `set` was unacknowledged, so a refused restore read as a
+    successful one. `bgPoll` answers `get bgPoll` in the field `enabled`
+    (`spotifyTaskStorage.cpp:923`), not `val`.
     """
-    dut.cmd("set bgPoll 0", timeout=2.0)
-    try:
+    with dut.saved("bgPoll", field="enabled", set_to=0, timeout=2.0):
         yield
-    finally:
-        dut.cmd("set bgPoll 1", timeout=2.0)

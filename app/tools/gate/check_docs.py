@@ -649,6 +649,9 @@ LEDGER_RELS = (
     LEDGER_REL,
     "docs/verification/flake_class_exceptions.md",
     "docs/verification/gating_class_declarations.md",
+    # TASK-611/TASK-626: keyed by test id, same reason as the three above.
+    "docs/verification/plan_integrity_exceptions.md",
+    "docs/verification/gating_offline_exceptions.md",
 )
 LEDGER_KINDS = ("orphan", "undeclared")
 

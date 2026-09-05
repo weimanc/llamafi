@@ -29,10 +29,12 @@ working unchanged. Migrate them to `from lib.dut import Dut` a few at a time.
 from __future__ import annotations
 
 import collections
+import contextlib
 import json
 import os
 import pathlib
 import re
+import sys
 import threading
 import time
 from typing import Optional
@@ -484,6 +486,23 @@ class NoAnswer(DeviceReadError):
 
 class BadField(DeviceReadError):
     """It answered, and the answer breaks the contract. -> FAIL (a real defect)."""
+
+
+class RestoreFailed(RuntimeError):
+    """A restore did not complete. TASK-602 / M-HARNESS2 R17.
+
+    Deliberately NOT a DeviceReadError: this is not "the test could not read its
+    subject", it is "the device is now in a state the next test did not ask for",
+    which is the defect class R17 exists for. It is raised out of the context
+    manager's exit so the run cannot continue quietly on leaked state; the
+    runner maps it to FAIL on the test that armed it, which is the attribution
+    R14 asks for.
+    """
+
+    def __init__(self, var: str, detail: str):
+        super().__init__(detail)
+        self.var = var
+        self.detail = detail
 
 
 #: Sentinel for "the caller did not name a field" — distinct from None, which is
@@ -1393,6 +1412,103 @@ class Dut:
         if not r.get("ok"):
             raise BadField(var, f"device refused `{cmd_str}`: {r!r}")
         return r
+
+    # ── TASK-602 / R17: restore is a mechanism, not a convention ─────────────
+    #
+    # R17's failure modes, all four measured in the tree, and how the shape below
+    # closes each:
+    #
+    #   (a) `C-15` — the restore is on the pass path only, so every FAILURE leaves
+    #       an arbitrary app. Closed by being a context manager at all: the exit
+    #       runs on the exception path, the `return` path and the `skip()` path
+    #       alike, and there is no way to write the body that skips it.
+    #   (b) `C-12`/`D-15`/`E-4` — the restore defaults (`r.get('val', 0)` for
+    #       `playerMode`, four times), so a failed snapshot read silently REWRITES
+    #       persisted state with a literal. Closed by taking the snapshot with
+    #       `get_val`, which RAISES: the snapshot happens before `yield`, so a
+    #       snapshot that could not be read means the body never runs at all.
+    #       There is no path on which this manager restores to a guess.
+    #   (c) an unacknowledged `set` on the way out, which is not a restore. Closed
+    #       by `set_val`, which raises unless the device acks — that is the whole
+    #       reason TASK-596 built `set_val` returning the reply rather than a bool.
+    #   (d) a restore that fails while the body is ALSO failing. Closed loudly: the
+    #       body's exception still propagates (it is the verdict), the restore
+    #       failure is printed at the point it happens and attached to the
+    #       propagating exception as `.restore_errors`, so a leak can never be
+    #       swallowed by the exception that happened to be in flight.
+    #
+    # Why two managers rather than one. `saved()` needs a read-back, and a real
+    # part of the surface has none: `bgPoll`, `wrDeadUrls`, `triggerHeatmap`,
+    # `prInjectAircraft` and `stockMode` are settable and NOT gettable (WP-B
+    # `B-5`; check against `gen_get_keys.py`'s list, which is generated). For
+    # those, a snapshot is not merely missing, it is impossible — so `injected()`
+    # requires the caller to NAME the clearing value instead of inventing one.
+    # That is BP-073 as an API: an injector cannot be armed here without its
+    # clearing path being written down on the same line.
+
+    @contextlib.contextmanager
+    def saved(self, *variables: str, set_to=None, field: str = "val",
+              timeout: float = 3.0):
+        """Snapshot `variables`, run the body, restore them on EVERY exit path.
+
+        `set_to` (single variable only) writes a value after the snapshot, so the
+        common "mutate for the duration of this block" case is one line.
+
+        Raises before the body runs if any snapshot could not be read (NoAnswer
+        -> UNMET, BadField -> FAIL). Raises `RestoreFailed` after a clean body if
+        any restore was not acknowledged.
+        """
+        if set_to is not None and len(variables) != 1:
+            raise ValueError("set_to= applies to exactly one variable")
+        snapshot = {v: self.get_val(v, field=field, timeout=timeout)
+                    for v in variables}
+        if set_to is not None:
+            self.set_val(variables[0], set_to, timeout=timeout)
+        try:
+            yield snapshot
+        finally:
+            self._restore(snapshot, timeout)
+
+    @contextlib.contextmanager
+    def injected(self, var: str, value, clear_to, timeout: float = 3.0):
+        """Arm a write-only debug injector, and clear it on EVERY exit path.
+
+        For flags with no read-back, where `saved()` is impossible. `clear_to` is
+        mandatory and not defaulted: the disarming value is a fact about the
+        firmware that the caller knows and this file does not.
+        """
+        self.set_val(var, value, timeout=timeout)
+        try:
+            yield
+        finally:
+            self._restore({var: clear_to}, timeout)
+
+    def _restore(self, values: dict, timeout: float) -> None:
+        """Write `values` back, loudly. Shared exit path of both managers."""
+        errors = []
+        for var, val in values.items():
+            try:
+                self.set_val(var, val, timeout=timeout)
+            except Exception as e:                      # noqa: BLE001 — see below
+                # Bare `except` on purpose: whatever went wrong, the state is now
+                # unknown, and the one outcome that must not happen is silence.
+                msg = f"restore of {var}={val!r} FAILED: {e}"
+                print(f"    [restore] {msg}")
+                errors.append(RestoreFailed(var, msg))
+        if not errors:
+            return
+        pending = sys.exc_info()[1]
+        if pending is not None:
+            # The body is already failing; its exception is the verdict. Do not
+            # replace it — annotate it, so triage sees both.
+            existing = list(getattr(pending, "restore_errors", []))
+            pending.restore_errors = existing + errors        # type: ignore[attr-defined]
+            return
+        if len(errors) == 1:
+            raise errors[0]
+        raise RestoreFailed(
+            ",".join(e.var for e in errors),
+            "; ".join(e.detail for e in errors))
 
     def close(self):
         self.ser.close()
