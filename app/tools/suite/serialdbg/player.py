@@ -19,7 +19,7 @@ from app_ids_gen import APP_SLOT
 from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
     _restore_spotify, _switch_to, _wait_shell_not_busy, _tap_and_wait_log,
-    _tb_precondition, _TB_N, _tb_set_offset, _get_scroll, _do_drag,
+    _tb_set_offset, _get_scroll, _do_drag,
     _poll_shell_busy,
 )
 from suite.serialdbg.webradio import _switch_to_webradio_capture_heap
@@ -55,62 +55,6 @@ def t_plr_01(dut: Dut):
         fail("T_PLR_01", f"cycle sequence={got} — expected {expected}")
         return
     pass_("T_PLR_01", f"cycle Spotify->{'->'.join(got)} confirmed (x4 taps)")
-
-
-def t_plr_02(dut: Dut):
-    """T_PLR_02: playerMode persists across reboot — set each of the 3 modes,
-    reboot, and check the persisted `set` echo round-trips (no live reboot here;
-    the boot-restore path itself is covered by manual DUT verification per
-    TASK-413's gate notes — this asserts the persisted-value contract the boot
-    code reads from is correct for all 3 values)."""
-    print("T_PLR_02  set/get playerMode round-trips all 3 values (persistence contract)")
-    r_pm0 = dut.cmd("get playerMode", timeout=3.0)
-    ok = True
-    results = {}
-    for name, val in (("spotify", 0), ("webradio", 1), ("player", 2)):
-        r_set = dut.cmd(f"set playerMode {name}", timeout=3.0)
-        r_get = dut.cmd("get playerMode", timeout=3.0)
-        results[name] = (r_set.get("val"), r_get.get("val"), r_get.get("name"))
-        if r_set.get("val") != val or r_get.get("val") != val:
-            ok = False
-    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=3.0)
-    if not ok:
-        fail("T_PLR_02", f"round-trip mismatch: {results}")
-        return
-    pass_("T_PLR_02", f"all 3 modes round-tripped: {results}")
-
-
-def t_plr_03(dut: Dut):
-    """T_PLR_03: taskbar has no leaked slot for WebRadio or LocalPlayer — full
-    scroll cycle stays responsive and neither eject-only app is ever selected
-    by a taskbar tap (TASK-242 regression, generalised to the wider tail)."""
-    print("T_PLR_03  Taskbar excludes WebRadio AND LocalPlayer (full scroll cycle, no crash)")
-    if not _tb_precondition(dut, "T_PLR_03"):
-        return
-    for off in range(_TB_N + 1):
-        target = off % _TB_N
-        if not _tb_set_offset(dut, target):
-            fail("T_PLR_03", f"could not reach scrollOffset={target} (DUT crash/reboot?)")
-            return
-        if not dut.cmd("get appId", timeout=3.0).get("name"):
-            fail("T_PLR_03", f"DUT unresponsive at scrollOffset={target} — taskbar render crash")
-            return
-    # Offset 0 IS the player slot (appIdx == AppId::Spotify) — tapping it while the
-    # player is already active deliberately cycles now (ADR-059 D6, resolvePlayerTap;
-    # covered by T_PLR_01), so it's excluded here: this check is only for the genuine
-    # leak class — a taskbar slot that ISN'T the player slot must never resolve to
-    # WebRadio/LocalPlayer.
-    for target in (_TB_N // 2, _TB_N - 1):
-        _tb_set_offset(dut, target)
-        dut.set_cooldown_zero()
-        x, y = _c.tap_taskbar_slot(0)
-        dut.cmd(f"tap {x} {y}", timeout=5.0)
-        name = dut.cmd("get appId", timeout=3.0).get("name")
-        if name in ("WebRadio", "LocalPlayer"):
-            fail("T_PLR_03", f"taskbar tap at offset {target} selected {name} — must be eject-only")
-            return
-    _restore_spotify(dut)
-    pass_("T_PLR_03", f"full scroll cycle ({_TB_N} offsets) — no crash; WebRadio/LocalPlayer never a taskbar slot")
 
 
 def t_plr_04(dut: Dut):
@@ -357,10 +301,14 @@ _PL_UTF8   = "/playlists/utf8.m3u"
 # gate20()) — entry ids are per-record, not per-file, so it does not need 20
 # distinct audio files; T_PLR_20-24 never decode audio at all (D12's `advance`/
 # `set plCursor`). T_PLR_25 is the one real-playback case and needs actual
-# short files — see _PL_SHORT5 (5 real ~3s tones, not part of
+# short files (/playlists/short5.m3u — 5 real ~3s tones, not part of
 # gen_playlist_fixtures.py since they're binary audio, not generated text).
+# TASK-603: T_PLR_25's registry copy is deleted (WP-E §7.2 — one working test
+# and one copy stranded on the wrong build). The id's sole executable body is
+# now app/tools/test_playorder_player.py, dispatched by leg B of
+# run/player-gate on cyd2usb_player; `_PL_SHORT5` went with it, and no id in
+# this module decodes audio any more.
 _PL_20     = "/playlists/gate20.m3u"
-_PL_SHORT5 = "/playlists/short5.m3u"
 
 
 def _enter_player(dut: Dut, tid: str) -> bool:
@@ -1523,68 +1471,6 @@ def t_plr_24(dut: Dut):
                           f"{expected_pos}, plOrder unchanged (no reshuffle)")
 
 
-def t_plr_25(dut: Dut):
-    """T_PLR_25: auto-advance end to end — the one real-playback case, proving
-    audio_eof_mp3() drives the SAME _stepOrder()/_startPlayback() path the
-    debug surface exercises above. 5 short (~3s) real files, shuffle off,
-    repeat off; advances 5/5 without a WDT reset. Known hazard on this path
-    (do not re-diagnose if hit): TASK-432 (`new Audio()` can throw an
-    uncaught bad_alloc under heap pressure) and TASK-430 (tlsTryYield's
-    1.5s budget on aeConnectFile) — both filed, not this task's to fix."""
-    print("T_PLR_25  Auto-advance end to end (5 real short files)")
-    if not _enter_player(dut, "T_PLR_25"):
-        return
-    errors = []
-    r = _pl_load(dut, _PL_SHORT5, timeout=15.0)
-    if r.get("count", 0) == 0:
-        _leave_player(dut)
-        skip("T_PLR_25", f"fixture {_PL_SHORT5} not on the card")
-        return
-    if not _pl_shuffle(dut, False) or not _pl_repeat(dut, True):
-        _leave_player(dut)
-        fail("T_PLR_25", "could not set shuffle=off repeat=off")
-        return
-
-    dut.cmd("set bgPoll 0", timeout=3.0)
-    played_rows = []
-    play = dut.cmd("set plPlay 0", timeout=10.0)
-    if not play.get("ok"):
-        dut.cmd("set bgPoll 1", timeout=3.0)
-        _leave_player(dut)
-        fail("T_PLR_25", f"set plPlay 0 failed: {play}")
-        return
-
-    deadline = time.monotonic() + 60.0
-    last_row = None
-    stopped_after_last = False
-    while time.monotonic() < deadline:
-        time.sleep(0.5)
-        st = dut.cmd("get plCount", timeout=5.0)
-        if not st.get("ok"):
-            errors.append("DUT stopped responding mid-playback")
-            break
-        cur = st.get("curRow")
-        if cur != last_row and cur is not None and cur >= 0:
-            played_rows.append(cur)
-            last_row = cur
-        if last_row == 4 and not st.get("playing") and len(played_rows) >= 1:
-            # Row 4 (the last) finished and nothing followed — repeat is off,
-            # so this is the expected end, not a hang.
-            stopped_after_last = True
-            break
-
-    dut.cmd("set bgPoll 1", timeout=3.0)
-    _leave_player(dut)
-    if played_rows != [0, 1, 2, 3, 4]:
-        errors.append(f"row sequence {played_rows} != [0,1,2,3,4]")
-    if not stopped_after_last:
-        errors.append("did not observe playback stop after row 4 (repeat off) within 60s")
-    if errors:
-        fail("T_PLR_25", "; ".join(errors))
-    else:
-        pass_("T_PLR_25", f"auto-advanced 5/5 real short files: {played_rows}, no WDT")
-
-
 def t_plr_26(dut: Dut):
     """T_PLR_26: shuffle/repeat persist across reboot; Spotify's own
     shuffle/repeat are never written to g_settings.player* (ADR-059 D9)."""
@@ -1970,8 +1856,6 @@ def t_pmt_04(dut: Dut):
 
 TESTS = {
     "T_PLR_01": t_plr_01,
-    "T_PLR_02": t_plr_02,
-    "T_PLR_03": t_plr_03,
     "T_PLR_04": t_plr_04,
     "T_PLR_05": t_plr_05,
     "T_PLR_06": t_plr_06,
@@ -1993,7 +1877,6 @@ TESTS = {
     "T_PLR_22": t_plr_22,
     "T_PLR_23": t_plr_23,
     "T_PLR_24": t_plr_24,
-    "T_PLR_25": t_plr_25,
     "T_PLR_26": t_plr_26,
     "T_PMT_00": t_pmt_00,
     "T_PMT_01": t_pmt_01,

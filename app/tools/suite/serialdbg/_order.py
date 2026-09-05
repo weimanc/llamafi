@@ -197,14 +197,11 @@ EDGE_ADJUDICATION = {
                  "acquire edge is invisible once anything else holds the arena. "
                  "Already carries a precondition SKIP for a held arena at "
                  "baseline. Leg B only."),
-    "T178": ("EDGE",
-             "The same shape mirrored: asserts chartLen==0 AT REST straight after "
-             "drill-in, so a PREDECESSOR's in-flight fetch spoils it — measured, "
-             "chartLen=33 on the 2026-07-10 full-suite run, mitigated by "
-             "TASK-300's _drain_data_pipeline. THE HIGHEST-RISK CELL IN THE "
-             "REORDER: T-BUSY-01 and T-CDWN-02 both drive Stock chart fetches and "
-             "are CORE, so they move from ~100 ids AFTER this test to ~90 ids "
-             "BEFORE it."),
+    # "T178" held the highest-risk EDGE row in the reorder. The id was
+    # RETIRED 2026-09-05 (TASK-603): its oracle read back two fields its own
+    # `set triggerFetch 1` had written, so the order risk it carried was risk
+    # of a false result on an assertion that could not be true or false.
+    # docs/verification/retired_test_ids.md.
     "T-BUSY-01": ("ORDER-SENSITIVE",
                   "Its own TASK-386 comment records the 'chartLen never exceeded "
                   "0' failure as suite-accumulated-state-dependent. Moves from "
@@ -283,7 +280,7 @@ EDGE_ADJUDICATION = {
     "T_WR_VIS_01": ("DISMISSED", "Station count from its own fetch."),
     "T_WR_VIS_02": ("DISMISSED", "Station count from its own fetch."),
     "T_WR_VIS_04": ("DISMISSED", "Station count from its own fetch."),
-    "T_WR_VOL_03": ("DISMISSED", "Station count from its own fetch."),
+    # "T_WR_VOL_03" retired UNOBSERVABLE 2026-09-05 (TASK-603).
 }
 
 

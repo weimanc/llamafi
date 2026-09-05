@@ -24,7 +24,7 @@
 | T_WR_HEAP_04  | No heap panic / stack overflow over 5-minute playback run                | serial log          | **PASS 2026-07-02** — zero panic strings over ~40 min instrumented run |
 | T_WR_VOL_01   | Volumes 1–10 produce clean output; clipping level identified             | audible             | open — awaiting DUT run  |
 | T_WR_VOL_02   | kMaxVolumeStock determined = (clip − 2); matches design estimate ≈ 10 ±2 | audible             | open — awaiting DUT run  |
-| T_WR_VOL_03   | Normal play uses g_settings.webRadioMaxVolume as ceiling (not 21)        | serial              | open — awaiting DUT run  |
+| T_WR_VOL_03   | Normal play uses g_settings.webRadioMaxVolume as ceiling (not 21)        | — body deleted      | **UNOBSERVABLE since 2026-09-05 (TASK-603)** — the body read no volume at all; its only oracle was `wrState == 2`, and its `set wrVol 21` after `set wrStop 1` hit the no-live-session branch, so it may never have injected the value it existed to see overridden. Needs a `webRadioMaxVolume` readback (a four-line `dbgGet`): owner TASK-615 |
 
 ---
 
@@ -245,7 +245,7 @@
 | Audio decode phase minFreeHeap ≥ 40 KB (provisional, see TASK-208 note above) | TASK-208  | T_WR_HEAP_03          | open — awaiting DUT run |
 | No heap panic / stack overflow over 5-min run          | TASK-208  | T_WR_HEAP_04          | open — awaiting DUT run |
 | kMaxVolumeStock determined; matches ≈ 10 ±2            | TASK-209  | T_WR_VOL_01, 02       | open — awaiting DUT run |
-| Normal play applies webRadioMaxVolume cap              | TASK-209  | T_WR_VOL_03           | open — awaiting DUT run |
+| Normal play applies webRadioMaxVolume cap              | TASK-209  | T_WR_VOL_03 **UNOBSERVABLE** | **DEFERRED** — no test asserts this; see [retired_test_ids.md](../retired_test_ids.md) |
 
 ---
 
@@ -279,5 +279,6 @@ set wrVol 1              # start sweep
 # ... step to 21, note first clip level N
 # kMaxVolumeStock = N - 2
 
-./run/test-targeted T_WR_TLS_01,T_WR_SPOTIFY_RESUME_01,T_WR_COEX_01,T_WR_COEX_02,T_WR_COEX_03,T_WR_COEX_04,T_WR_HEAP_01,T_WR_HEAP_02,T_WR_HEAP_03,T_WR_HEAP_04,T_WR_VOL_01,T_WR_VOL_02,T_WR_VOL_03
+./run/test-targeted T_WR_TLS_01,T_WR_SPOTIFY_RESUME_01,T_WR_COEX_01,T_WR_COEX_02,T_WR_COEX_03,T_WR_COEX_04,T_WR_HEAP_01,T_WR_HEAP_02,T_WR_HEAP_03,T_WR_HEAP_04,T_WR_VOL_01,T_WR_VOL_02
+# T_WR_VOL_03 retired UNOBSERVABLE 2026-09-05 (TASK-603)
 ```

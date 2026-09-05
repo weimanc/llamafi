@@ -62,7 +62,7 @@ def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
     TASK-585: THIS IS THE SECOND INSTANCE OF `G-2`, which the WP-G audit did not
     name. The old body was `if r.get("ok") and int(r.get("val", 0)) != baseline`
     — a reply that arrived without a `val` defaulted to `0`, and `baseline` here
-    is non-zero by construction (`T185`/`T173` both skip out when it reads 0), so
+    is non-zero by construction (`T173` skips out when it reads 0; `T185`, the other such caller, was retired 2026-09-05 under TASK-603), so
     `0 != baseline` was TRUE and the wait returned success on a read it never
     made. Identical shape to `_stock_ok_count`'s `-1`, different literal. The
     typed read makes both unrepresentable.
@@ -186,12 +186,6 @@ def t170(dut: Dut):
     pass_("T170", f"quoteOkCount advanced past {before} — quote fetch completed")
 
 
-# ── T171 — Colour coding (data-dependent) ─────────────────────────────────────
-
-def t171(dut: Dut):
-    """T171 (L3): positive changePct rows render green, negative red. Requires live data. [MANUAL — pixel verification required]"""
-    print("T171  Colour coding (manual pixel check — skipped in automated run)")
-    skip("T171", "pixel verification required — run manually; check green/red rows after fetch")
 
 
 # ── T172 — App switch residue ─────────────────────────────────────────────────
@@ -415,63 +409,8 @@ def t177(dut: Dut):
     pass_("T177", "5D tab: stockChartRange=D5, lastChartFetch advanced")
 
 
-# ── T178 — Pre-fetch placeholder in chart view ────────────────────────────────
-
-def t178(dut: Dut):
-    """T178 (C4): immediately after drill-in, chartLen=0 and fetchFailed=false (placeholder state)."""
-    print("T178  Chart pre-fetch placeholder (chartLen=0, fetchFailed=false)")
-    if not _switch_to_stock(dut):
-        skip("T178", "could not switch to Stock")
-        _restore_from_stock(dut)
-        return
-    # Ensure list view — prior test (T177) may have left us in chart view.
-    if _stock_get(dut, "stockSubView").get("val") == "chart":
-        dut.set_cooldown_zero()
-        dut.cmd("tap 10 7", timeout=3.0)  # back to list
-        time.sleep(0.2)
-    # TASK-300: a chart fetch left in flight by a prior test (T177 only waits
-    # for the ENQUEUE; T176's fetch can arrive minutes late under poll
-    # contention) would land AFTER the reset below and flip chartLen>0 before
-    # the check (observed: chartLen=33, 2026-07-10 full-suite run). Wait for
-    # the pipeline to go quiet so the only fetch in play is our own drill-in's.
-    if not _drain_data_pipeline(dut, tag="T178"):
-        skip("T178", "fetch pipeline never drained within 200 s — "
-                     "cannot isolate placeholder state")
-        _restore_from_stock(dut)
-        return
-    # Reset chart data so chartLen=0 and fetchFailed=false are reliably observable.
-    dut.cmd("set triggerFetch 1", timeout=3.0)
-    dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)  # drill AAPL; fetch enqueued but not returned
-    time.sleep(0.1)  # minimal wait — check before dataTask returns
-    # TASK-596: `chart_len` used to default to `-1`, a value the `!= 0`
-    # comparison FAILS on — a bad read reported a placeholder-state regression
-    # that was never observed. Typed reads, and the restore is now unconditional
-    # rather than sitting between the reads and the assertions.
-    try:
-        sub_view     = dut.get_str("stockSubView")
-        chart_len    = dut.get_int("chartLen")
-        fetch_failed = dut.get_val("fetchFailed")
-    finally:
-        _restore_from_stock(dut)
-    if sub_view != "chart":
-        skip("T178", "drill-in did not fire")
-        return
-    if chart_len != 0:
-        fail("T178", f"chartLen={chart_len} after reset+drill-in — expected 0 (placeholder)")
-        return
-    if fetch_failed not in (False, 0, "false", "0"):
-        fail("T178", f"fetchFailed={fetch_failed!r} after reset+drill-in — expected false")
-        return
-    pass_("T178", "chartLen=0, fetchFailed=false — placeholder state confirmed before fetch returns")
 
 
-# ── T179 — Footer lo/hi (manual) ──────────────────────────────────────────────
-
-def t179(dut: Dut):
-    """T179 (C5): lo: and hi: values visible in footer after fetch. [MANUAL — pixel verification required]"""
-    print("T179  Footer lo/hi (manual pixel check — skipped in automated run)")
-    skip("T179", "pixel verification required — run manually; check lo:/hi: at y=214 after fetch")
 
 
 # ── T180 — Drill-in default range ────────────────────────────────────────────
@@ -483,7 +422,7 @@ def t180(dut: Dut):
         skip("T180", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    # Normalize to list view — prior tests (e.g. T178) may leave Stock in chart view.
+    # Normalize to list view — prior tests may leave Stock in chart view (T178, the usual culprit, was retired 2026-09-05 under TASK-603).
     if _stock_get(dut, "stockSubView").get("val") == "chart":
         _wait_shell_not_busy(dut, timeout_s=10.0)
         dut.set_cooldown_zero()
@@ -811,28 +750,6 @@ def t231(dut: Dut):
     pass_(tid, "stockMode honoured at launch: Chart(ticker set)/Heatmap/List; List is back-nav base")
 
 
-# ── T185 — Error clears on successful fetch ───────────────────────────────────
-
-def t185(dut: Dut):
-    """T185 (error/recovery): error→triggerFetch→lastQuoteFetch advances."""
-    print("T185  Error clears on successful fetch")
-    if not _switch_to_stock(dut):
-        skip("T185", "could not switch to Stock")
-        _restore_from_stock(dut)
-        return
-    dut.cmd("set fetchFailed 1", timeout=3.0)
-    dut.cmd("set fetchErrorCode -99", timeout=3.0)
-    time.sleep(0.15)
-    baseline = dut.get_int("lastQuoteFetch")
-    # Zero timestamps so the next tick enqueues immediately.
-    dut.cmd("set triggerFetch 1", timeout=3.0)
-    # Wait for fetch to complete and lastQuoteFetch to advance.
-    fetched = _wait_quote_fetch(dut, baseline, timeout_s=65.0)
-    _restore_from_stock(dut)
-    if not fetched:
-        fail("T185", "lastQuoteFetch did not advance after triggerFetch within 65 s")
-        return
-    pass_("T185", "triggerFetch triggered re-fetch; lastQuoteFetch advanced — error recovery confirmed")
 
 
 # ── T186–T188 — M-DATATASK-STREAM-PARSE regression suite ─────────────────────
@@ -1442,139 +1359,23 @@ def t193(dut: Dut):
     pass_("T193", f"drilled={drilled!r}; auto-refresh fetched same symbol; chartLen={chart_len}")
 
 
-# ── T194 — Back-to-list clears chartSymbol; re-drill from list uses index ─────
-
-def t194(dut: Dut):
-    """T194: Back to list after heatmap drill clears chartSymbol; list drill uses index ticker."""
-    print("T194  Back-to-list clears chartSymbol; list drill uses index ticker")
-    # TASK-385: entry baseline, same rationale as T193's. T194 runs right after T193 in
-    # suite order and does a heavier fetch cascade (heatmap + 2 chart fetches + a
-    # tab-switch fetch vs T193's 2), so it's the more sensitive canary for suite-
-    # accumulated heap/queue/tlsYield pressure — worth comparing its entry snapshot
-    # against T193's from the same run.
-    entry_diag = _diag_snapshot(dut, "T194-entry")
-    if not _switch_to_stock(dut):
-        skip("T194", "could not switch to Stock")
-        _restore_from_stock(dut)
-        return
-    if not _ensure_stock_list_view(dut):
-        skip("T194", "could not normalize to list view")
-        _restore_from_stock(dut)
-        return
-    # Use HEAT tap to enter heatmap without queuing a new screener fetch (same as T193)
-    if _wait_heatmap_count(dut, timeout_s=3.0) == 0:
-        # No cached data — use triggerHeatmap and wait
-        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
-        if not r.get("ok"):
-            skip("T194", "set triggerHeatmap 1 failed (no cached heatmap data)")
-            _restore_from_stock(dut)
-            return
-        if _wait_heatmap_count(dut, timeout_s=60.0) == 0:
-            skip("T194", "heatmapCount still 0 after 60 s")
-            _restore_from_stock(dut)
-            return
-        time.sleep(2.0)  # allow heatmap result to be polled
-    else:
-        dut.set_cooldown_zero()
-        dut.cmd("tap 220 10", timeout=3.0)  # HEAT button in list → heatmap (no new fetch)
-        time.sleep(0.3)
-        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
-            skip("T194", "HEAT tap did not enter heatmap")
-            _restore_from_stock(dut)
-            return
-    time.sleep(0.5)
-    _wait_shell_not_busy(dut, timeout_s=10.0)
-    dut.set_cooldown_zero()
-    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
-    time.sleep(0.5)
-    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
-        skip("T194", "could not drill to chart from heatmap")
-        _restore_from_stock(dut)
-        return
-    # Wait for chart fetch (clears shellBusy) before back-nav taps
-    if not _wait_shell_not_busy(dut, timeout_s=45.0):
-        skip("T194", "shellBusy did not clear after tile drill")
-        _restore_from_stock(dut)
-        return
-    time.sleep(0.1)
-    # Navigate back: chart → heatmap → list
-    dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)  # chart back → heatmap
-    time.sleep(0.8)  # repaintHeatmap (20 tiles) blocks serial handler briefly
-    # repaintHeatmap's SPI bus activity can cause spurious physical-touch readings that
-    # trigger drillToChartBySym and set _pendingAsync=true → shellBusy=true; wait it out
-    _wait_shell_not_busy(dut, timeout_s=45.0)
-    dut.set_cooldown_zero()
-    dut.cmd("tap 220 10", timeout=3.0)  # HEAT back → list
-    time.sleep(1.5)  # stockTickQuotes HTTP may flood serial immediately on list entry
-    r_sv = dut.cmd("get stockSubView", timeout=5.0)
-    if r_sv.get("val") != "list":
-        skip("T194", f"could not navigate back to list; subView={r_sv.get('val')!r}")
-        _restore_from_stock(dut)
-        return
-    # Drill from list row (AAPL at y=36)
-    time.sleep(0.5)  # let quote-fetch serial flood settle before snapshot + tap
-    # Clear fetchFailed in case a spurious touch during repaintHeatmap left an error state;
-    # fetchFailed=true blocks list-row drills (firmware returns early at line 786)
-    dut.cmd("set fetchFailed 0", timeout=5.0)
-    # A spurious touch during repaintHeatmap can leave g_shellBusy=true; wait it out
-    _wait_shell_not_busy(dut, timeout_s=15.0)
-    before_ok = _stock_ok_count(dut)
-    list_drill_diag = _diag_snapshot(dut, "T194-pre-list-drill")
-    dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=5.0)
-    time.sleep(0.5)
-    if dut.cmd("get stockSubView", timeout=5.0).get("val") != "chart":
-        skip("T194", "could not drill to chart from list row")
-        _restore_from_stock(dut)
-        return
-    list_ticker = dut.get_str("stockChartTicker", timeout=5.0)
-    # Wait for list-drill chart fetch to complete before tab tap
-    if not _wait_shell_not_busy(dut, timeout_s=45.0):
-        skip("T194", "shellBusy did not clear after list-drill")
-        _restore_from_stock(dut)
-        return
-    time.sleep(0.1)
-    # TASK-385: snapshot immediately before the final trigger — the structural twin of
-    # T193's forced-refetch trigger (same _wait_chart_complete/45s-timeout shape).
-    tab_diag = _diag_snapshot(dut, "T194-pre-tab-switch")
-    dut.set_cooldown_zero()
-    dut.cmd("tap 184 9", timeout=3.0)  # 5D tab
-    time.sleep(0.3)
-    if not _wait_chart_complete(dut, before_ok, timeout_s=45.0, test_id="T194"):
-        timeout_diag = _diag_snapshot(dut, "T194-timeout")
-        skip("T194", "fetchOkCount did not advance on list-drilled tab-switch | "
-                      f"entry={entry_diag} | pre-list-drill={list_drill_diag} | "
-                      f"pre-tab-switch={tab_diag} | timeout={timeout_diag}")
-        _restore_from_stock(dut)
-        return
-    after_sym = dut.get_str("stockChartTicker")
-    _restore_from_stock(dut)
-    if after_sym != list_ticker:
-        fail("T194", f"ticker changed after list-drill tab-switch: {list_ticker!r} → {after_sym!r}")
-        return
-    pass_("T194", f"list-drilled={list_ticker!r}; tab-switch preserved it; chartSymbol cleared correctly")
 
 
 TESTS = {
     "T169": t169,
     "T170": t170,
-    "T171": t171,
     "T172": t172,
     "T173": t173,
     "T174": t174,
     "T175": t175,
     "T176": t176,
     "T177": t177,
-    "T178": t178,
-    "T179": t179,
     "T180": t180,
     "T181": t181,
     "T182": t182,
     "T183": t183,
     "T184": t184,
     "T231": t231,
-    "T185": t185,
     "T186": t186,
     "T187": t187,
     "T188": t188,
@@ -1586,5 +1387,4 @@ TESTS = {
     "T203": t203,
     "T192": t192,
     "T193": t193,
-    "T194": t194,
 }

@@ -4,7 +4,7 @@ run_serialdbg_tests.py, TASK-480 stage 2 (pilot family)."""
 import time
 
 from lib.dut import Dut
-from lib.results import pass_, fail
+from lib.results import pass_, fail, unmet
 
 
 def _switch_to_clock(dut: Dut) -> bool:
@@ -34,19 +34,6 @@ def t_clk_01(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "appId=1 confirmed after switchApp")
 
-def t_clk_02(dut: Dut):
-    """T_CLK_02: clockStyle defaults to digital after fresh settings load."""
-    tid = "T_CLK_02"
-    print(f"{tid}  default clockStyle = digital")
-    if not _switch_to_clock(dut):
-        fail(tid, "could not switch to Clock"); return
-    # Force digital first to ensure a known baseline
-    dut.cmd("set clockStyle 0"); time.sleep(0.2)
-    r = dut.cmd("get clockStyle")
-    if r.get("name") != "digital":
-        fail(tid, f"clockStyle={r.get('name')!r} — expected digital"); return
-    _restore_spotify_from_clock(dut)
-    pass_(tid, "clockStyle=digital confirmed")
 
 def t_clk_03(dut: Dut):
     """T_CLK_03: set clockStyle flip — device accepts, readback matches."""
@@ -130,32 +117,45 @@ def t_clk_07(dut: Dut):
     pass_(tid, "bad values rejected with ok=false")
 
 def t_clk_08(dut: Dut):
-    """T_CLK_08: clockStyle persists in settings.json (save confirmed)."""
-    tid = "T_CLK_08"
-    print(f"{tid}  clockStyle persists via settings save")
-    if not _switch_to_clock(dut):
-        fail(tid, "could not switch to Clock"); return
-    dut.cmd("set clockStyle nixie"); time.sleep(0.4)
-    r = dut.cmd("get clockStyle")
-    if r.get("name") != "nixie":
-        fail(tid, f"clockStyle={r.get('name')!r} after save — expected nixie"); return
-    _restore_spotify_from_clock(dut)
-    pass_(tid, "clockStyle=nixie confirmed after save")
+    """T_CLK_08: `set clockStyle` reports that SettingsStorage::save() succeeded.
 
-def t_clk_09(dut: Dut):
-    """T_CLK_09: app switch away and back preserves clockStyle."""
-    tid = "T_CLK_09"
-    print(f"{tid}  style preserved across app switch")
+    TASK-603 (WP-H §1, disposition §4.6). The body used to write the style and
+    then read it back through the same command — true whether or not the save
+    aborted, which is the whole of the claim. `set clockStyle` now returns
+    `saved`, the way `set fmt24h` has since TASK-429
+    (app/src/debug/serialConsole/cmdSet.cpp), so the persistence half has an
+    oracle the harness did not write.
+
+    This is deliberately NOT bundled with the five visual clock claims that need
+    ADR-064's `get sig` (T_CLK_02/09/13/14 are retired UNOBSERVABLE); it was a
+    four-line firmware change, and pricing it as a blocked ledger row would have
+    parked it behind the Clock family rewrite. It is also not a reboot test: the
+    stronger form is `Dut.reboot_and_wait`, the route T_PR_04 and T_PRM_01 take,
+    and that is a separate id under TASK-615.
+    """
+    tid = "T_CLK_08"
+    print(f"{tid}  set clockStyle reports SettingsStorage::save() succeeded")
     if not _switch_to_clock(dut):
         fail(tid, "could not switch to Clock"); return
-    dut.cmd("set clockStyle flip"); time.sleep(0.3)
-    dut.cmd("switchApp 4"); time.sleep(0.6)  # Matrix
-    dut.cmd("switchApp 1"); time.sleep(0.6)  # back to Clock
-    r = dut.cmd("get clockStyle")
-    if r.get("name") != "flip":
-        fail(tid, f"clockStyle={r.get('name')!r} after return — expected flip"); return
+    r_set = dut.cmd("set clockStyle nixie")
+    time.sleep(0.4)
+    saved = r_set.get("saved")
+    if saved is None:
+        unmet(tid, "`set clockStyle` returned no `saved` field — this firmware "
+                   "predates the TASK-603 cmdSet change, so the persistence claim "
+                   "has no oracle on this build. Inconclusive (BP-074), not a pass: "
+                   f"reply was {r_set!r}")
+        return
+    if saved is not True:
+        fail(tid, f"SettingsStorage::save() reported saved={saved!r} — the style is "
+                  f"live in RAM but will NOT survive a reboot")
+        return
+    if dut.get_str("clockStyle", field="name") != "nixie":
+        fail(tid, "clockStyle did not read back as nixie after a reported-successful save")
+        return
     _restore_spotify_from_clock(dut)
-    pass_(tid, "flip style preserved across Matrix→Clock round-trip")
+    pass_(tid, "set clockStyle nixie -> saved=true, and the value reads back")
+
 
 def t_clk_10(dut: Dut):
     """T_CLK_10: appId stays Clock=1 while VFD style is active."""
@@ -204,56 +204,16 @@ def t_clk_12(dut: Dut):
         fail(tid, f"appId={r.get('id')!r} after Clock→Spotify — expected 0"); return
     pass_(tid, "device stable after Clock→Spotify, appId=0")
 
-def t_clk_13(dut: Dut):
-    """T_CLK_13: Flip animation tick gate — 30ms while animating vs 1000ms stable."""
-    tid = "T_CLK_13"
-    print(f"{tid}  Flip tick gate reported correctly")
-    # We cannot directly measure tick interval via serial; we verify that
-    # switching to flip with clockStyle and confirming no crash / app stays responsive.
-    if not _switch_to_clock(dut):
-        fail(tid, "could not switch to Clock"); return
-    dut.cmd("set clockStyle flip"); time.sleep(0.5)
-    # Device should still respond to serial commands during flip animation
-    r = dut.cmd("get clockStyle")
-    if r.get("name") != "flip":
-        fail(tid, f"device unresponsive or wrong style: {r}"); return
-    r2 = dut.cmd("get appId")
-    if r2.get("id") != 1:
-        fail(tid, f"appId lost during flip: {r2}"); return
-    _restore_spotify_from_clock(dut)
-    pass_(tid, "device responsive during Flip style — serial commands answered correctly")
-
-def t_clk_14(dut: Dut):
-    """T_CLK_14: clockStyle readback format — val (int), name (str), last=true."""
-    tid = "T_CLK_14"
-    print(f"{tid}  clockStyle get response format")
-    if not _switch_to_clock(dut):
-        fail(tid, "could not switch to Clock"); return
-    dut.cmd("set clockStyle 2"); time.sleep(0.2)
-    r = dut.cmd("get clockStyle")
-    if r.get("val") != 2:
-        fail(tid, f"val={r.get('val')!r} — expected 2"); return
-    if r.get("name") != "nixie":
-        fail(tid, f"name={r.get('name')!r} — expected nixie"); return
-    if r.get("last") is not True:
-        fail(tid, f"last={r.get('last')!r} — expected true"); return
-    _restore_spotify_from_clock(dut)
-    pass_(tid, f"response has val=2 name=nixie last=true")
-
 
 TESTS = {
     "T_CLK_01": t_clk_01,
-    "T_CLK_02": t_clk_02,
     "T_CLK_03": t_clk_03,
     "T_CLK_04": t_clk_04,
     "T_CLK_05": t_clk_05,
     "T_CLK_06": t_clk_06,
     "T_CLK_07": t_clk_07,
     "T_CLK_08": t_clk_08,
-    "T_CLK_09": t_clk_09,
     "T_CLK_10": t_clk_10,
     "T_CLK_11": t_clk_11,
     "T_CLK_12": t_clk_12,
-    "T_CLK_13": t_clk_13,
-    "T_CLK_14": t_clk_14,
 }

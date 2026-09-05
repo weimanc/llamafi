@@ -58,8 +58,8 @@ and not failed — re-declare the row when it holds.
 | leg | id | expected | note |
 |---|---|---|---|
 | A | T_PLR_01 | PASS | taskbar tap cycles the player mode |
-| A | T_PLR_02 | PASS | mode persists across reboot |
-| A | T_PLR_03 | PASS | no leaked taskbar slot (TASK-242 regression) |
+| A | T_PLR_02 | *(retired 2026-09-05, TASK-603 — no reboot in the body; re-enters as a new id under TASK-615)* | — |
+| A | T_PLR_03 | *(retired UNOBSERVABLE 2026-09-05, TASK-603 — unrepresentable at every taskbar offset; TASK-614 owns the record)* | — |
 | A | T_PLR_04 | PASS | get/set playerMode round-trips all three |
 | A | T_PLR_05 | PASS | tap from another app restores, not cycles |
 | A | T_PLR_06 | PASS | eject is per-mode |

@@ -92,23 +92,10 @@ flaky:
     task: TASK-540
     review_by: 2026-09-26
 
-  - id: T_WR_VOL_03
-    suite: suite/serialdbg/webradio
-    since: 2026-08-26
-    evidence: "Same TASK-540 investigation and same-day parity-run recurrence as
-      T_WR_COEX_01 above — both ids share the identical wrState=5-stuck root
-      cause (T_WR_VOL_03 calls the same station-connect path after forcing
-      wrVol=21)."
-    symptom: "station did not reach PLAYING after wrPlay 0 (state=5)"
-    dependency: "[NETWORK] — radio-browser.info station availability/churn,
-      external to this codebase"
-    suspected: "external station-fetch flakiness per TASK-540's closing
-      disposition, not a firmware defect. Same reopen condition as
-      T_WR_COEX_01."
-    owner: "@VE"
-    task: TASK-540
-    review_by: 2026-09-26
-
+  # T_WR_VOL_03 was declared flaky here (TASK-540, since 2026-08-26). The id was
+  # RETIRED UNOBSERVABLE on 2026-09-05 (TASK-603) — WP-F F-7: it read no volume at
+  # all, so the "station did not reach PLAYING" symptom below was never its subject.
+  # Declaration removed with the body; see docs/verification/retired_test_ids.md.
   - id: T_PLR_17
     suite: suite/serialdbg/player
     since: 2026-08-17

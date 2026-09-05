@@ -87,11 +87,15 @@ Both `impl`. **`[]` → populated.**
 
 ### X057 — taskbar asserts WebRadio is the last `AppId`
 ```yaml
-    test_coverage: [T_PLR_03]
+    test_coverage: []   # CORRECTED 2026-09-05 (TASK-603)
 ```
-`impl`. Also enforced at compile time by three `static_assert`s
-(`app/src/taskbar/taskbar.h:42-63`); add `GATE-COVERED: taskbar.h static_asserts (T0).`
-**`[]` → populated.** M-TESTBASE §1 lists this as zero-coverage; it is not.
+**`T_PLR_03` was retired UNOBSERVABLE on 2026-09-05** — its runtime assertion is
+unrepresentable at every taskbar offset, not just the two it chose, because the
+modulus is the cycle length that excludes the eject-only apps. What remains is
+`GATE-COVERED: taskbar.h static_asserts (T0)` — three `static_assert`s at
+`app/src/shell/taskbar.h:47-65`, which are real and are now the ONLY evidence.
+M-TESTBASE §1 lists this as zero *runtime* coverage; on that narrow reading it
+was right and this file was wrong. See [retired_test_ids.md](../retired_test_ids.md).
 
 ### X058 — browser paging vs the shell busy gate
 ```yaml

@@ -1460,7 +1460,7 @@ automated. HTML export option removed from design — T130 dropped accordingly.
   1. `get scrollOffset` — parse JSON response.
   2. Assert `ok == true`, `key == "scrollOffset"`, `val == 0`.
 - **Expected result**: `{"ok":true,"cmd":"get","key":"scrollOffset","val":0}`.
-- **Status**: **pass** (2026-05-23); **FAIL** (2026-05-24 re-run, commit b1ffe41) — harness ordering bug: T135 runs before T136 and mutates scrollOffset to 1; T136 then sees val=1 ≠ 0. Not a firmware regression. Fix applied (TASK-085): swipe-down cleanup appended to t135(); **pass** (2026-05-24 re-run post-fix; full suite 24/25 pass, 1 skip T140).
+- **Status**: **pass** (2026-05-23); **FAIL** (2026-05-24 re-run, commit b1ffe41) — harness ordering bug: T135 runs before T136 and mutates scrollOffset to 1; T136 then sees val=1 ≠ 0. Not a firmware regression. Fix applied (TASK-085): swipe-down cleanup appended to t135(); **pass** (2026-05-24 re-run post-fix; full suite 24/25 pass, 1 skip T140). **RETIRED 2026-09-05 (TASK-603)** — the body and registry entry are deleted; the assertion now lives as a reachable `fail()` in `T137`'s precondition. This row is the worked example in [test_id_retirement.md](../process/test_id_retirement.md) §0.1: `**pass**` is not one of C6.3's binding tokens, so deleting the id without correcting this line leaves `run/check-docs` green while the corpus asserts a pass for a test that cannot be re-run. See [retired_test_ids.md](retired_test_ids.md).
 
 ---
 

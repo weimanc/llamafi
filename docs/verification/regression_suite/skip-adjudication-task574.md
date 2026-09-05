@@ -7,6 +7,15 @@ prose references in comments; 256 is the AST call-site count).
 
 ---
 
+> **2026-09-05 — TASK-603 retired 18 of the ids adjudicated below.** Deleted: `T136`, `T171`,
+> `T178`, `T179`, `T185`, `T194`, `T_PLR_02`, `T_WR_ERR_01`–`04`, and `T_PLR_25`'s registry copy.
+> Retired `UNOBSERVABLE`: `T_CLK_02`, `T_CLK_09`, `T_CLK_13`, `T_CLK_14`, `T_WR_VOL_03`, `T_PLR_03`.
+> Their rows below are a **historical record of an adjudication that was performed**, not live
+> coverage, and the line/id citations in them are frozen at 2026-09-04. Six of the seven cells
+> counted as "not applicable to an automated run" (`T171`, `T179`, `T136`) are gone with the ids.
+> Register: [retired_test_ids.md](../retired_test_ids.md).
+
+
 ## 1. What was being asked
 
 A prior @VE review found that the "other" bucket among these `skip()` sites contained assertions

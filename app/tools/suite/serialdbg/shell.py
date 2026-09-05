@@ -76,36 +76,76 @@ def t077(dut: Dut):
 
 @meta(scope="Spotify", scope_reason="winamp-view")
 def t078(dut: Dut):
-    """T078: zero-delta drag does not commit ACT_VOLUME. [PARTIAL — requires Spotify playing for full verification]"""
-    print("T078  Zero-delta drag → no ACT_VOLUME")
+    """T078: a zero-delta drag over the volume zone commits no ACT_VOLUME.
+
+    TASK-603 (WP-D D-5). The body used to end with
+    `print("NOTE: verify no 'dequeued action=VOLUME' in log manually")` and
+    assert only that dragState returned to D_IDLE — which a committing drag also
+    does. The marker it deferred to a human DOES exist and IS greppable:
+    `LOG_D("touch", "enqueued ACT_VOLUME pct=%ld", ...)` at
+    app/src/winamp/winampDisplay.cpp:496 and :510, already collected by T082 and
+    T151 in this same module.
+
+    THE POSITIVE CONTROL IS NOT OPTIONAL (WP-E E-6). This is a NEGATIVE log
+    assertion, and four of them in the player family treat a `_wait_for_log`
+    timeout as a pass on a SUPPRESSIBLE `LOG_D` channel — so "no commit" and "no
+    logging" score identically. The control drag runs FIRST: if a real,
+    non-zero-delta drag does not produce the marker either, the channel is not
+    carrying it and the negative half proves nothing. That is `unmet()` (BP-074:
+    an assertion whose precondition never occurred is inconclusive), never a
+    pass.
+    """
+    print("T078  Zero-delta drag → no ACT_VOLUME (with a positive control)")
     dut.set_cooldown_zero()
-    # Verify drag state is idle first
     rg = dut.cmd("get dragState")
     if rg.get("state") != "D_IDLE":
         skip("T078", f"dragState={rg.get('state')} not D_IDLE")
         return
-    # Send zero-delta drag (same start/end — centre of volume zone)
-    _vx = (_c.vol_drag_x()[0] + _c.vol_drag_x()[1]) // 2
-    _vy = _c.vol_drag_y()
-    dut.send(f"drag {_vx} {_vy} {_vx} {_vy} 1")
-    # Wait for drag response
-    try:
-        rd = dut.read_json(timeout=5.0)
-        # Verify we got drag response
-        if rd.get("cmd") != "drag" or not rd.get("ok"):
-            fail("T078", f"unexpected drag response: {rd}")
-            return
-    except TimeoutError:
-        fail("T078", "no drag response within 5 s")
+
+    x1, x2 = _c.vol_drag_x()
+    vy = _c.vol_drag_y()
+    mid = (x1 + x2) // 2
+    MARK = "enqueued ACT_VOLUME"
+
+    # ── positive control: a real drag across the zone MUST emit the marker ──
+    dut.set_cooldown_zero()
+    ctl_lines, ctl_resp = _tc_drag_collect(dut, f"drag {x1} {vy} {x2} {vy} 10",
+                                           [MARK], timeout=15.0)
+    if ctl_resp is None:
+        fail("T078", "no drag response to the positive control within 15 s")
         return
-    # Check dragState returns to IDLE
+    if not ctl_lines:
+        unmet("T078", f"positive control: a full-width volume drag "
+                      f"({x1}->{x2} at y={vy}) emitted no {MARK!r} line, so this "
+                      f"boot's LOG_D('touch') channel is not carrying the marker "
+                      f"the negative half reads. A silent channel and a suppressed "
+                      f"commit are the same observation (E-6) — inconclusive, not a "
+                      f"pass. Raise the runtime log level and re-run.")
+        return
+    time.sleep(0.5)
+
+    # ── the assertion: a zero-delta drag must NOT emit it ──────────────────
+    dut.set_cooldown_zero()
+    zero_lines, zero_resp = _tc_drag_collect(dut, f"drag {mid} {vy} {mid} {vy} 1",
+                                             [MARK], timeout=15.0)
+    if zero_resp is None:
+        fail("T078", "no drag response to the zero-delta drag within 15 s")
+        return
+    if not zero_resp.get("ok"):
+        fail("T078", f"zero-delta drag rejected: {zero_resp}")
+        return
+    if zero_lines:
+        fail("T078", f"zero-delta drag at ({mid},{vy}) COMMITTED a volume change: "
+                     f"{zero_lines!r} — the deadband is not holding")
+        return
+
     time.sleep(0.5)
     rg2 = dut.cmd("get dragState")
     if rg2.get("state") != "D_IDLE":
         fail("T078", f"dragState={rg2.get('state')} after zero-delta drag")
-    else:
-        pass_("T078", "drag complete, state=D_IDLE, no volume commit expected")
-    print("      NOTE: verify no 'dequeued action=VOLUME' in log manually")
+        return
+    pass_("T078", f"control drag emitted {len(ctl_lines)} {MARK!r} line(s); the "
+                  f"zero-delta drag emitted none and returned to D_IDLE")
 
 
 # ── T079 — cooldown gate blocks rapid sequential taps ────────────────────────
@@ -897,13 +937,6 @@ def t135(dut: Dut):
 
 
 
-# ── T136 — get scrollOffset returns 0 at initial state ────────────────────────
-
-@meta(scope="Spotify", scope_reason="winamp-view")
-def t136(dut: Dut):
-    # Merged into T137 setup as an explicit precondition assertion (TASK-112c).
-    # Kept here as a no-op so the dispatch table entry still resolves; run T137 instead.
-    skip("T136", "merged into T137 precondition — run T137")
 
 
 # ── T137 — swipe-up increments scrollOffset ────────────────────────────────────
@@ -3789,7 +3822,6 @@ TESTS = {
     "T133": t133,
     "T134": t134,
     "T135": t135,
-    "T136": t136,
     "T137": t137,
     "T138": t138,
     "T139": t139,

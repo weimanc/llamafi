@@ -667,10 +667,17 @@ void cmdSet(const char *args) {
       return;
     }
     g_settings.clockStyle = (ClockStyle)idx;
-    SettingsStorage::save();
+    // TASK-603 (WP-H §1): report save()'s return, exactly as `set fmt24h` above
+    // does. Without it T_CLK_08 — "clockStyle persists in settings.json" —
+    // could only read the value back through the command that had just written
+    // it in RAM, which is true whether or not the save aborted. `saved` is the
+    // only persistence observable this command has; it does not prove a reboot
+    // survives, and T_CLK_08's own text says so.
+    const bool saved = SettingsStorage::save();
     if (currentAppId == AppId::Clock) g_ClockApp.resume();
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
-                  "\"var\":\"clockStyle\",\"val\":%d,\"name\":\"%s\"}\n", idx, kSN[idx]);
+                  "\"var\":\"clockStyle\",\"val\":%d,\"name\":\"%s\",\"saved\":%s}\n",
+                  idx, kSN[idx], saved ? "true" : "false");
     return;
   }
   if (strcmp(var, "nixieTheme") == 0 || strcmp(var, "vfdTheme") == 0) {

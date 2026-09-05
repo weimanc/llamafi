@@ -196,6 +196,23 @@ if ! "$PYTHON" gate/check_defaulted_reads.py; then
     exit 1
 fi
 
+# 4b. R34 — every registered id can actually go red (TASK-603).
+# Blocking on a dated shrink-only ledger. The negative suite runs first and is
+# blocking for the same reason as the one above: three of its arms are CONTROLS
+# that must NOT flag, and its mutation arm rewrites a live id into each of the
+# four defective shapes and requires the count to rise by exactly one. Shape 4 —
+# the sole fail() behind an error-swallowing `-> bool` helper — is the shape
+# check_defaulted_reads.py structurally cannot see, and reads 0 today; the
+# mutation arm is the only evidence that clause works.
+if ! "$PYTHON" gate/test_check_no_reachable_fail.py; then
+    echo "FAIL: test_check_no_reachable_fail.py (TASK-603 R34 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_no_reachable_fail.py; then
+    echo "FAIL: check_no_reachable_fail.py (TASK-603 R34 no-reachable-fail gate) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX itself is advisory today —

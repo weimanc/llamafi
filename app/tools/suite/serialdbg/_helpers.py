@@ -414,7 +414,8 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
     # TASK-386: heap/backoff snapshot on every timeout, for every caller, automatically
     # — dataq was already sampled above, this adds the two fields it doesn't cover.
     # Return type/signature unchanged (still bool) — zero risk to any of the 9 existing
-    # call sites (T176/T185/T188/T192/T193/T194/T204/T-BUSY-01b/...), and any future
+    # call sites (T176/T188/T192/T193/T204/T-BUSY-01b/...; T185 and T194 retired 2026-09-05, TASK-603),
+    # and any future
     # caller gets this for free without needing to know _diag_snapshot() exists.
     _diag_snapshot(dut, f"{prefix}_wait_chart_complete-timeout")
     return False
@@ -472,13 +473,14 @@ def _diag_snapshot(dut: Dut, tag: str = "") -> str:
     always starts from a fresh flash+boot, so an isolated re-run can only prove a test
     fails-or-doesn't from a *clean* state — it can't observe whatever heap fragmentation,
     dataTask queue backlog, or Spotify-poll/tlsYield contention ~150 prior tests may have
-    left behind by the time T193/T194 run in a real `run/test` full-suite pass. Embedding
+    left behind by the time T193 runs in a real `run/test` full-suite pass (T194, its
+    twin here, was retired 2026-09-05 under TASK-603). Embedding
     this snapshot directly into the fail()/skip() reason (not just printing it) means the
     evidence survives even when the run has no `LOG_FILE=` capture — closing exactly the
     gap TASK-385 was originally blocked on ('no serial capture for this run'). Compare
     against the clean-boot baseline from the 2026-08-02 isolated 5/5-pass investigation:
     heap freeInt~74-118k/lfbInt~41-45k, dataq queueWaiting=0/inFlight=0 pre-trigger,
-    spAct idle between POLL dequeues — a same-run T193/T194 snapshot reading materially
+    spAct idle between POLL dequeues — a same-run T193 snapshot reading materially
     lower/busier than that is evidence for the suite-accumulation hypotheses; a snapshot
     that looks the same as a clean boot points back toward plain connect-level noise
     (TASK-383) instead."""

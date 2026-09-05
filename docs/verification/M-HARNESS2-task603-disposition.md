@@ -1,9 +1,14 @@
 # TASK-603 — disposition of the 35 ids the Developer proposed to remove
 
 > Owner: **Verification Engineer**
-> Status: **PREPARED, NOT EXECUTED** — this document changes nothing. No test body was
-> edited and no id was deleted in preparing it. **Deleting a test body is a coverage change
-> and the human rules on it.**
+> Status: **EXECUTED 2026-09-05** at 12 / 6 / 17, the human having ruled. **213 -> 195**
+> registered ids. Procedure followed for every id:
+> [test_id_retirement.md](../process/test_id_retirement.md) (TASK-625, landed first per §4.7).
+> Terminal record: [retired_test_ids.md](retired_test_ids.md).
+> R34 gate: `app/tools/gate/check_no_reachable_fail.py`, blocking, on an 8-row
+> [ledger](no_reachable_fail_ledger.md). **Where execution disagreed with this document,
+> see §7 — added after the fact and not edited into the prediction.**
+> *Superseded header:* PREPARED, NOT EXECUTED — this document changes nothing.
 > Written: 2026-09-04 · Host-only: no DUT, no serial port, no flash.
 > Board row: [TASK-603](../project/tasks-harness2.md), Phase 1, P2 — from
 > [R34/R4](M-HARNESS2-requirements.md).
@@ -440,3 +445,47 @@ shape 3 and shape 4 without writing the walk.
   and its `id_binding_exceptions.md` entry; §4.7 argues TASK-625 should define that first.
 * **`T_PLR_25`'s two ported improvements.** WP-E §7 names them; porting them is part of executing
   §1 row 12, not part of deciding it.
+
+
+---
+
+## 7. What executing it disagreed with — written after the fact, 2026-09-05
+
+This document was written before the work and the prediction was left standing. Four things came
+out differently, and one of them is a correction to my own arithmetic.
+
+**7.1 The R34 ledger's opening population was wrong in kind, not just in number.** §5.4 said the
+ledger would open holding the shape-4 ids — *"the twelve remaining `_appid_is` / `_switch_to` /
+`_restore_spotify` guards that gate a sole `fail()`"* — plus `T093`. **Measured: shape 4 is zero and
+shape 3 is zero.** Eight ids do carry a helper-guarded `fail()` (`T169`, `T172`, `T173`, `T182`,
+`T231`, `T_GOL_01`, `T_MA_01`, `T_PR_04`), but in every one it is *one of several*, never the only
+one: TASK-584 and TASK-596 had already converted the sole-`fail()` cases to typed call-site reads,
+and §5.2's own list of what TASK-584 fixed says so — I did not carry that forward into §5.4's count.
+The clause is kept and is exercised only by the negative test and the mutation arm, which is the
+right outcome for a shape no other gate in the tree can see.
+
+**7.2 The ledger holds something no audit had counted.** Five ids — `T084`, `T087`, `T091`, `T092`,
+`T-BUSY-01b` — have **no reachable `fail()` at all**, because every exit is `flake()` or `skip()`.
+Four of them are the shell/Spotify-chrome premise tests; `T084` and `T091` say as much inside their
+own `cls_reason` (WP-C `C-6`/`C-7`), but nobody had counted them under `D-2`'s heading. §5.4's
+closing line — *"every other id in the corpus either has a reachable `fail()` today or is in §1's
+delete list"* — is therefore **false as written**, and the gate is what found it. Plus `T093`/`T094`/
+`T095`, whose registry entry is `None`, so the gate cannot see a body through the registry at all.
+
+**7.3 `T_PLR_25`'s deletion had a C6 consequence §4.7 did not anticipate.** Removing the registry
+copy takes the id out of `test_registries()` entirely, and its `test_plan.md` row declares `impl` —
+which is C6.3, the one sub-check that admits no exceptions. The fix is not a plan edit: the
+standalone `test_playorder_player.py` now carries `ALL_TESTS = ["T_PLR_25"]`, so the binding follows
+the body to where the body actually is. This is the shape WP-A `A-15` recommended for
+`test_ae04_teardown.py` and is now precedent.
+
+**7.4 §4.8's own citation was wrong.** `TASKBAR_APP_COUNT` is at `app/src/shell/taskbar.h:47-65`,
+not the `app/src/taskbar/` path §4.8 and `test_plan.md`'s `X057` row both used — a directory that
+does not exist. `run/check-docs`' C1-delta caught it the moment the surrounding row was edited,
+which is the argument for the delta check in one line. The conclusion is unaffected: the modulus is still the cycle length that excludes the
+eject-only apps.
+
+**Unchanged and confirmed:** every §1 deletion, every §2 retirement, §4.5's TASK-583 close (done
+explicitly, with `T_WR_ERR_05` filed `blocked` and the gap written down), §4.6's `T_CLK_08` fix
+(four lines in `cmdSet.cpp`, exactly as WP-H §1 described), §4.1's `T078` fix with the `E-6`
+positive control, and §4.7's ordering — which was right, and cost nothing to honour.

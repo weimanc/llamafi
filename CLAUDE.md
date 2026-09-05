@@ -154,7 +154,7 @@ You do not need to read `test_plan.md` or grep the suite for an id list. Every
 test carries a `scope`, so the file you edited resolves to its ids in one command:
 
 ```sh
-./run/test-targeted --scope app/src/apps/localPlayerApp.cpp   # -> LocalPlayer -> 29 ids
+./run/test-targeted --scope app/src/apps/localPlayerApp.cpp   # -> LocalPlayer -> 26 ids
 ./run/test-targeted --scope LocalPlayer                       # the same set, named directly
 ./run/test-targeted --scope taskbar                           # a non-app scope
 SCOPE=Stock ./run/test-targeted T169,T170                     # both -> intersection

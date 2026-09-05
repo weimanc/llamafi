@@ -380,8 +380,8 @@ re-scope or discard any of these, per the M-ARCH block's rule. **Gate owner** pe
 | id | Covers | Owner | Source | Status |
 |---|---|---|---|---|
 | `T_PLR_01` | taskbar tap cycles the player mode | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:419` | `impl` |
-| `T_PLR_02` | mode persists across reboot | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:420` | `impl` |
-| `T_PLR_03` | no leaked taskbar slot (TASK-242 regression) | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:421` | `impl` |
+| `T_PLR_02` | mode persists across reboot | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:420` | `retired` 2026-09-05 (TASK-603) — the body performed no reboot and read the value back through the command that wrote it. The claim is real and needs `Dut.reboot_and_wait`; it re-enters as a NEW id under TASK-615. See [retired_test_ids.md](retired_test_ids.md) |
+| `T_PLR_03` | no leaked taskbar slot (TASK-242 regression) | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:421` | `UNOBSERVABLE` since 2026-09-05 (TASK-614) — arithmetically unrepresentable at EVERY offset, not at the two chosen: the modulus is the taskbar cycle length that excludes the eject-only apps. Body deleted; claim carried in [retired_test_ids.md](retired_test_ids.md) |
 | `T_PLR_04` | `get`/`set playerMode` round-trips all three | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:422` | `impl` |
 | `T_PLR_05` | tap from another app restores, not cycles | @Dev TASK-413 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:423` | `impl` |
 | `T_PLR_06` | eject is per-mode | @Dev TASK-414 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:429` | `impl` |
@@ -403,7 +403,7 @@ re-scope or discard any of these, per the M-ARCH block's rule. **Gate owner** pe
 | `T_PLR_22` | reshuffle does not re-open on the last track | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:476` | `impl` |
 | `T_PLR_23` | prev replays history | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:477` | `impl` |
 | `T_PLR_24` | tap-to-play moves the bag cursor, no reshuffle | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:478` | `impl` |
-| `T_PLR_25` | auto-advance end to end (the one real-playback case) | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:479` | `impl` |
+| `T_PLR_25` | auto-advance end to end (the one real-playback case) | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:479` | `impl` — **the body is `app/tools/test_playorder_player.py`**, leg B of `run/player-gate` only. TASK-603 deleted the duplicate registry copy in `suite/serialdbg/player.py` (no variant guard; a deterministic 60 s false red on leg A) |
 | `T_PLR_26` | shuffle/repeat persist across reboot | @Dev TASK-418 | `docs/architecture/designs/M-WINAMP-PLAYER-local-playback.md:481` | `impl` |
 
 **`T_PLR_25b` is not an id.** ADR-059 D12 reclassified it to a runtime `configASSERT` on the
@@ -501,7 +501,7 @@ the last column is the honest one.
 | `X054` | `T_PLE_01`–`06` — no bodies | **GENUINELY UNCOVERED** |
 | `X055` | `T_PLE_07`–`13`: only `T_PLE_08` realised, as `T_PLE_WR_155`–`160` `impl`; `T_PLE_14` (seqno-vs-dirty-flag) is fully specified at [M-PLEDIT-ABSTRACTION-playlist-source.md:238](../architecture/designs/M-PLEDIT-ABSTRACTION-playlist-source.md) (method: `get pleditRepaints` across a station-list change vs. 60s idle; pass: bumps exactly once, not otherwise) — `StationListSource::seqno()` (`webRadioApp.h:136`) and the `pleditRepaints` debug var (`winampDisplay.h:1307`) both already exist in code. **Registration gap, not a spec gap** (TASK-509, corrected 2026-08-23): `resv` this id and write the body from the existing design-doc spec | **partial**, and the seqno gap is **GENUINELY UNCOVERED** |
 | `X056` | `T_PLR_01` `impl`, `T_PLR_05` `impl` | **covered** |
-| `X057` | `T_PLR_03` `impl`; plus three `static_assert`s at T0 (`app/src/taskbar/taskbar.h:42-63`) | **covered** |
+| `X057` | `T_PLR_03` **`UNOBSERVABLE`** since 2026-09-05 (TASK-603/TASK-614 — the runtime assertion is unrepresentable at every taskbar offset); the three `static_assert`s at T0 (`app/src/shell/taskbar.h:47-65`) stand and are now the ONLY evidence | **covered at compile time only** — no runtime test |
 | `X058` | `T_PLR_14` `impl`, `T_PLR_15` `impl` | **covered** |
 | `X059` | `T_PLR_31` `blocked` (TASK-424) | **GENUINELY UNCOVERED** |
 | `X060` | `T_PLR_19` `impl` (hit-test) + `golden.sha256` in `run/check` (asset identity, VE-16) | **covered**, split test+gate |
@@ -1819,7 +1819,7 @@ Common preconditions for all DUT tests below:
 - **Steps**: 1. Switch to Stock. 2. Wait for fetch. 3. Visually inspect list rows.
 - **Expected result**: Green text for `+` rows, red for `-` rows.
 - **Harness**: manual only (no pixel-read command). Owner: VE.
-- **Status**: written (2026-05-29).
+- **Status**: **retired 2026-09-05 (TASK-603)** — body deleted, id removed from the registry. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-29).
 
 ### T172 — [stock-001] App switch canvas residue
 
@@ -1895,8 +1895,8 @@ Common preconditions for all DUT tests below:
 - **Preconditions**: Stock in list view.
 - **Steps**: 1. `tap 137 36` (AAPL). 2. Within 100 ms: `get stockSubView` → `"chart"`. 3. `get stockChartRange` → `"D1"`.
 - **Expected result**: Both vars confirmed before dataTask returns the chart payload.
-- **Harness**: `run_serialdbg_tests.py --tests T178`. Owner: VE.
-- **Status**: written (2026-05-29).
+- **Harness**: none — the id is retired.
+- **Status**: **retired 2026-09-05 (TASK-603)** — body deleted, id removed from the registry. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-29).
 
 ### T179 — [stock-001] Footer lo/hi
 
@@ -1907,7 +1907,7 @@ Common preconditions for all DUT tests below:
 - **Steps**: Visual inspection of footer line at y=214.
 - **Expected result**: `lo: X.XX` left-aligned, `hi: Y.YY` right-aligned; numerically `lo < hi`.
 - **Harness**: manual only. Owner: VE.
-- **Status**: written (2026-05-29).
+- **Status**: **retired 2026-09-05 (TASK-603)** — body deleted, id removed from the registry. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-29).
 
 ### T180 — [stock-001] Drill-in always defaults to D1
 
@@ -1973,7 +1973,7 @@ Common preconditions for all DUT tests below:
 - **Steps**: 1. `set fetchFailed 1`. 2. `set fetchErrorCode -99`. 3. Record `lastQuoteFetch`. 4. `set triggerFetch 1`. 5. Poll `get lastQuoteFetch` until it advances (timeout 65 s).
 - **Expected result**: `lastQuoteFetch` value changes — fetch completed; error state recoverable.
 - **Harness**: `run_serialdbg_tests.py --tests T185`. Owner: VE.
-- **Status**: written (2026-05-29).
+- **Status**: **retired 2026-09-05 (TASK-603)** — body deleted, id removed from the registry. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-29).
 
 ---
 
@@ -2116,11 +2116,13 @@ Common preconditions for all DUT tests below:
 **Current**: reads `scrollOffset` and asserts it equals 0. Proves initial state, not behavior.
 **Fix**: remove as standalone test; fold the `scrollOffset=0` precondition check into T137 setup. T137 already verifies the meaningful behavior (swipe-up increments).
 **Acceptance**: T136 removed from suite; T137 precondition check explicit in setup block.
+**DONE 2026-09-05 (TASK-603)** — body and registry entry deleted; the assertion is a reachable `fail()` in `T137`'s precondition. See [retired_test_ids.md](retired_test_ids.md).
 
 ### T178 — chartRange default before fetch
 **Current**: asserts `stockChartRange=D1` immediately after drill-in. Trivially true — `drillToChart()` always sets D1.
 **Fix**: extend to assert `fetchFailed=false` AND `chartLen=0` at the same moment (pre-fetch: data not yet arrived). That validates the placeholder state, not just the hardcoded default.
 **Acceptance**: T178 asserts pre-fetch placeholder state (chartLen=0, fetchFailed=false) rather than the trivially-true range default.
+**SUPERSEDED — T178 retired 2026-09-05 (TASK-603).** The fix above was applied and did not help: both fields it asserts on are written by the test's OWN `set triggerFetch 1`, with no firmware transition interposed (R2's canonical self-write oracle). See [retired_test_ids.md](retired_test_ids.md).
 
 ### T_GOL_04 — GoL simulation ran
 **Current**: asserts `golAlive >= 0` after 350 ms. Field presence check; 0 is valid.
@@ -2146,6 +2148,7 @@ Common preconditions for all DUT tests below:
 
 ### T093, T094, T095, T171, T179
 **Action**: add `[MANUAL — requires human operator / pixel verification]` to each entry in test_plan.md. Confirm `--interactive` flag gates T093–T095. No automation path exists or is planned.
+**PARTLY SUPERSEDED 2026-09-05 (TASK-603)**: `T171` and `T179` are **retired** — a body that is one unconditional `skip()` labelled MANUAL is not coverage, it is a suite-time cost, and annotating it does not change that. Their claims re-enter as new ids against ADR-064's `get sig` (TASK-638). `T093`–`T095` are kept: they are the RIG class, and the real defect there is that no `run/` script passes `--interactive` (TASK-589).
 
 ---
 
@@ -2264,7 +2267,7 @@ Common preconditions for DUT tests below:
   7. `get stockChartTicker` → assert matches the tapped list row ticker (e.g. `"AAPL"`).
 - **Expected result**: `stockChartTicker` shows the index-based ticker (confirming `chartSymbol` was
   cleared when `drillToChart()` was called). Fetch succeeded for that ticker at D5.
-- **Status**: passing [SERIALDBG]. Harness: `run_serialdbg_tests.py --tests T194`. Note: suite-run timing-sensitive; spurious touch events during TFT repaint may set shellBusy — harness uses _wait_shell_not_busy guards to handle.
+- **Status**: **retired 2026-09-05 (TASK-603)** — body deleted. `drillTo()` assigns `chartSymbol[0] = '\0'` unconditionally, so its one `fail()` compared a value with itself: the claim is unrepresentable while the clear is unconditional. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* passing [SERIALDBG], harness `run_serialdbg_tests.py --tests T194`.
 
 ---
 

@@ -28,7 +28,7 @@ from suite.serialdbg._helpers import (
 # mirror T155-T160 exactly but drive WebRadio's StationListSource (synthetic
 # stations via `set wrDeadUrls`, no network needed) instead of Spotify's
 # queue. Entry uses _switch_to_webradio_capture_heap (the real eject path) —
-# NOT _switch_to("WebRadio")/_ensure_webradio, which tap a taskbar slot
+# NOT _switch_to("WebRadio"), which taps a taskbar slot
 # WebRadio doesn't have (eject-only app, see _switch_to_webradio_capture_heap
 # docstring).
 
@@ -295,17 +295,6 @@ def _wait_wr_state(dut: Dut, target: int, timeout: float = 120.0) -> bool:
     return False
 
 
-def _ensure_webradio(dut: Dut, tid: str) -> bool:
-    """Ensure current app is WebRadio; skip with message if not possible."""
-    r = dut.cmd("get appId", timeout=3.0)
-    if r.get("name") == "WebRadio":
-        return True
-    if _switch_to(dut, "WebRadio", timeout=10.0):
-        return True
-    skip(tid, "could not switch to WebRadio")
-    return False
-
-
 def _webradio_enter_with_stations(dut: Dut, tid: str,
                                    fetch_timeout: float = 180.0) -> int:
     """Switch to WebRadio with bgPoll suspended so tlsYield() in fetchWebRadioStations
@@ -477,81 +466,6 @@ def t_wr_eject_02(dut: Dut):
     _restore_spotify(dut)
 
 
-# ── T_WR_ERR_* common helper ─────────────────────────────────────────────────
-
-def _wr_err_test(dut: Dut, tid: str, state_num: int) -> bool:
-    """Enter WebRadio app and inject wrState=state_num.
-
-    Isolation (found during the TASK-277 campaign; latent since TASK-276):
-    auto-skip must be OFF during state injection. With a loaded station list,
-    TASK-276's terminal-retry re-arms on an injected retryable error within
-    one tick (_lastAttemptMs==0 counts as >=30 s idle) and overwrites the
-    injected state with PLAYING — DUT-confirmed both directions 2026-07-07.
-    The old "no stations required" note here dated from the TASK-284
-    broken-fetch era, which starved the retry condition and masked this.
-    Cleanup order matters: clear the injected state BEFORE re-enabling
-    auto-skip, or the retry starts playback under the next test."""
-    # Enter WebRadio if not already there
-    r_id = dut.cmd("get appId", timeout=3.0)
-    if r_id.get("name") != "WebRadio":
-        if not _switch_to_webradio_capture_heap(dut)[0]:
-            skip(tid, "could not enter WebRadio app")
-            return False
-    dut.cmd("set wrAutoSkip 0", timeout=3.0)
-    try:
-        r_set = dut.cmd(f"set wrState {state_num}", timeout=3.0)
-        if not r_set.get("ok"):
-            fail(tid, f"set wrState {state_num} returned ok=false: {r_set}")
-            return False
-        r_get = dut.cmd("get wrState", timeout=3.0)
-        if r_get.get("state") != state_num:
-            fail(tid, f"get wrState={r_get.get('state')} expected {state_num}")
-            return False
-        return True
-    finally:
-        dut.cmd("set wrState 3", timeout=3.0)     # back to STOPPED (quiescent)
-        dut.cmd("set wrAutoSkip 1", timeout=3.0)  # restore firmware default
-
-
-# ── T_WR_ERR_01 — ERROR_BLOCKED ─────────────────────────────────────────────
-
-def t_wr_err_01(dut: Dut):
-    """T_WR_ERR_01: set wrState 6 (ERROR_BLOCKED); verify state round-trip."""
-    print("T_WR_ERR_01  ERROR_BLOCKED (state=6) injection")
-    if _wr_err_test(dut, "T_WR_ERR_01", 6):
-        pass_("T_WR_ERR_01", "set wrState 6 accepted; get wrState=6 (visual: 'Station blocked')")
-
-
-# ── T_WR_ERR_02 — ERROR_UNREACHABLE ──────────────────────────────────────────
-
-def t_wr_err_02(dut: Dut):
-    """T_WR_ERR_02: set wrState 5 (ERROR_UNREACHABLE); verify state round-trip."""
-    print("T_WR_ERR_02  ERROR_UNREACHABLE (state=5) injection")
-    if _wr_err_test(dut, "T_WR_ERR_02", 5):
-        pass_("T_WR_ERR_02", "set wrState 5 accepted; get wrState=5 (visual: 'Station unreachable')")
-
-
-# ── T_WR_ERR_03 — ERROR_WIFI ─────────────────────────────────────────────────
-
-def t_wr_err_03(dut: Dut):
-    """T_WR_ERR_03: set wrState 3 (ERROR_WIFI); verify state round-trip."""
-    print("T_WR_ERR_03  ERROR_WIFI (state=3) injection")
-    if _wr_err_test(dut, "T_WR_ERR_03", 3):
-        pass_("T_WR_ERR_03", "set wrState 3 accepted; get wrState=3 (visual: 'WiFi lost')")
-
-
-# ── T_WR_ERR_04 — CONNECTING ──────────────────────────────────────────────────
-
-def t_wr_err_04(dut: Dut):
-    """T_WR_ERR_04: stop audio then set wrState 1 (CONNECTING); verify state round-trip."""
-    print("T_WR_ERR_04  CONNECTING (state=1) injection")
-    if not _ensure_webradio(dut, "T_WR_ERR_04"):
-        return
-    # Stop audio first so _bufPct resets to 0 (per test design note)
-    dut.cmd("set wrStop 1", timeout=3.0)
-    time.sleep(0.15)
-    if _wr_err_test(dut, "T_WR_ERR_04", 1):
-        pass_("T_WR_ERR_04", "set wrState 1 accepted; get wrState=1 (visual: 'Connecting…', POSBAR empty)")
 
 
 # ── T_WR_COEX_01 — Switch to WebRadio → PLAYING ──────────────────────────────
@@ -777,33 +691,6 @@ def t_wr_heap_04(dut: Dut):
     pass_("T_WR_HEAP_04", "no panic/abort/stack-overflow in 120s playback")
 
 
-# ── T_WR_VOL_03 — Normal _play() applies webRadioMaxVolume cap ───────────────
-
-def t_wr_vol_03(dut: Dut):
-    """T_WR_VOL_03: after set wrVol 21, set wrPlay 0 resets to webRadioMaxVolume; state=PLAYING."""
-    print("T_WR_VOL_03  Normal play applies webRadioMaxVolume cap (not 21)")
-    count = _webradio_enter_with_stations(dut, "T_WR_VOL_03", fetch_timeout=180.0)
-    if count == 0:
-        skip("T_WR_VOL_03", "no stations loaded (network or fetch failure)")
-        return
-    # Stop audio, inject vol=21 bypass, then play — _play() should call setVolume(maxVol)
-    dut.cmd("set wrStop 1", timeout=3.0)
-    time.sleep(0.1)
-    dut.cmd("set wrVol 21", timeout=3.0)
-    time.sleep(0.1)
-    dut.cmd("set wrPlay 0", timeout=3.0)
-    # Wait for PLAYING or ERROR state
-    playing = _wait_wr_state(dut, target=2, timeout=15.0)
-    r_state = dut.cmd("get wrState", timeout=3.0)
-    state = r_state.get("state", -1)
-    if not playing:
-        fail("T_WR_VOL_03", f"station did not reach PLAYING after wrPlay 0 (state={state})")
-        return
-    # Volume reset is confirmed structurally: _play() always calls setVolume(webRadioMaxVolume)
-    # before connecttohost(). Audible clipping at vol=21 vs clean at vol=10 is the full check.
-    pass_("T_WR_VOL_03",
-          "wrPlay 0 reached PLAYING state — _play() called setVolume(webRadioMaxVolume); "
-          "audible clipping check requires human listener")
 
 
 # ── T_WR_VOL_CLAMP — HW-mod volume ceiling clamp logic (TASK-209) ────────────
@@ -959,10 +846,10 @@ def t237(dut: Dut):
 def t276(dut: Dut):
     """T276: TASK-276's terminal-retry re-arm actually recovers a parked ERROR_*.
 
-    No existing test asserts this positively. T_WR_ERR_01-04 only round-trip
-    inject a state with auto-skip OFF (deliberately, so the retry can't
-    interfere with the injection — see _wr_err_test()'s own docstring, which
-    documents the retry firing within one tick when auto-skip is ON). T237
+    No existing test asserts this positively. The four `T_WR_ERR_*` ids that
+    used to sit here only round-trip injected a state with auto-skip OFF, and
+    were deleted under TASK-603 (see docs/verification/retired_test_ids.md);
+    with them went the shared teardown that re-wrote the injected value. T237
     asserts "no loop within 1.5s" of hitting terminal, which is correct for
     ITS OWN scope (the runaway-skip bound) but says nothing about the
     30-second-later re-arm. TASK-393 (2026-08-03, live DUT session) found
@@ -1557,10 +1444,6 @@ TESTS = {
     "T_PLE_WR_160": t_ple_wr_160,
     "T_WR_EJECT_01": t_wr_eject_01,
     "T_WR_EJECT_02": t_wr_eject_02,
-    "T_WR_ERR_01":   t_wr_err_01,
-    "T_WR_ERR_02":   t_wr_err_02,
-    "T_WR_ERR_03":   t_wr_err_03,
-    "T_WR_ERR_04":   t_wr_err_04,
     "T_WR_COEX_01":  t_wr_coex_01,
     "T_WR_COEX_02":  t_wr_coex_02,
     "T_WR_COEX_04":  t_wr_coex_04,
@@ -1568,7 +1451,6 @@ TESTS = {
     "T_WR_HEAP_02":  t_wr_heap_02,
     "T_WR_HEAP_03":  t_wr_heap_03,
     "T_WR_HEAP_04":  t_wr_heap_04,
-    "T_WR_VOL_03":   t_wr_vol_03,
     "T_WR_VOL_CLAMP": t_wr_vol_clamp,
     "T237":          t237,
     "T276":          t276,

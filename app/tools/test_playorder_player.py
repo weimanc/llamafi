@@ -51,8 +51,18 @@ import serial
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from lib.dut import resolve_port  # TASK-479: one port resolver (run/port)
+import coords                     # TASK-603: sprite centres parsed from gen/
 
 PL_SHORT5 = "/playlists/short5.m3u"   # 5 real short tracks (TASK-418 fixture)
+
+# TASK-603 (WP-E §7.2, A-15): this script is now the ONE executable body for
+# T_PLR_25 — the near-identical copy in suite/serialdbg/player.py's TESTS dict
+# was deleted, because it had no variant guard and was a deterministic 60 s
+# false red on the only env that dispatched it. This declaration is what keeps
+# check_docs' C6 binding the id: test_registries() discovers module-level
+# assignments named ALL / *TEST*, so without it the plan's `impl` row would
+# have no executable registry behind it. See docs/process/test_id_retirement.md.
+ALL_TESTS = ["T_PLR_25"]
 
 _REBOOT_MARKERS = ("ets Jul", "rst:0x", "abort() was called")
 
@@ -130,18 +140,26 @@ def run_sequence(ser: serial.Serial, per_track_timeout_s: float) -> list:
     # D9: shuffle off, repeat off — a clean, deterministic 0..4 sweep with a
     # real "stop, don't wrap" ending. Driven via `tap` on the sprite
     # coordinates (no dedicated debug verb — see localPlayerApp.h's sinks).
+    # TASK-603: sprite centres come from coords.tap_shuffle()/tap_repeat(),
+    # which PARSE app/gen/skin_layout.h, rather than the literals 187,96 /
+    # 225,96 this script used to carry. The literals happened to equal the
+    # parsed values, so this changes nothing today — it is the half of the
+    # deleted registry copy that was genuinely better (WP-E §7.2), and it stops
+    # a re-bake of the skin silently aiming these taps at empty chrome.
     print("=== confirm shuffle=off repeat=off (tap sprites until they read that way) ===")
+    sx, sy = coords.tap_shuffle()
+    rx, ry = coords.tap_repeat()
     for _ in range(3):
         sr = cmd(ser, "get shufRep")
         if sr.get("lastShuffle") != 1:
             break
-        cmd(ser, "tap 187 96")   # SHUFFLE_X/Y centre, see gen/skin_layout.h
+        cmd(ser, f"tap {sx} {sy}")
         time.sleep(0.2)
     for _ in range(4):
         sr = cmd(ser, "get shufRep")
         if sr.get("lastRepeat") == 2:
             break
-        cmd(ser, "tap 225 96")   # REPEAT_X/Y centre
+        cmd(ser, f"tap {rx} {ry}")
         time.sleep(0.2)
     sr = cmd(ser, "get shufRep")
     if sr.get("lastShuffle") == 1 or sr.get("lastRepeat") != 2:
