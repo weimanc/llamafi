@@ -23,3 +23,9 @@ gen/wave_atlas.npy
 
 # Soak/probe scratch output — regenerated per run, not a committed artifact.
 tools/rnd_logs/
+
+# TASK-608 / IFC-008: per-run result artifacts. One file per run, uniquely
+# named, never overwritten (that uniqueness IS the staleness guard) — evidence
+# of a run, not of the tree. Nothing reads this directory by name; a consumer
+# that needs an artifact names its own path via RESULTS_JSON.
+tools/.runs/

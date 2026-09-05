@@ -143,26 +143,26 @@ _baseline_rows() {
     }' "$1"
 }
 
-# Extract "id status" from a runner log. suite/serialdbg/runner.py prints a
-# "── Results ──" block of "  <id>: <STATUS>[: reason]" lines; that block only
-# exists if the run reached its summary, so an aborted leg yields nothing and
-# every declared id is then MISSING — which is a regression, correctly.
+# Extract "id status" from the run's ARTIFACT — never from the printed summary.
 #
-# TASK-573: the alternation must carry every token lib/results.py can WRITE, not
-# just the ones this gate expected. `FLAKY-PASS` (results.py:127, a declared flake
-# that passed on its mandated retry) was dropped outright — `FLAKE` != `FLAKY` —
-# so the cell read as MISSING and the gate printed REGRESS for a firmware
-# regression that never happened. Worst polarity: the UNRESOLVED flake
-# ("FLAKE(awaiting mandated retry)") parsed fine, the RESOLVED one did not.
-# `NOT-RUN` arrives with TASK-566 and is matched here ahead of time.
-# `UNMET` arrives with TASK-624 (ADR-066 D2) and is matched the same way, for the
-# same reason: a token lib/results.py can WRITE and this alternation cannot READ
-# is dropped, the cell scores MISSING, and MISSING reads as a regression.
-# Order matters: longer tokens first, so the captured status is the FULL token
-# (`FLAKY-PASS`, never a `FLAKY`/`PASS` fragment). The status side allows `-`;
-# the id side deliberately does not.
-_parse_runner_log() {
-  sed -n 's/^  \([A-Za-z0-9_]\{1,\}\): \(FLAKY-PASS\|NOT-RUN\|UNMET\|PASS\|FAIL\|SKIP\|FLAKE\).*/\1 \2/p' "$1"
+# TASK-608 / ADR-066 D1 / IFC-008 I6. This function used to be a sed regex over
+# `lib/results.py`'s human summary, and that arrangement produced a live false
+# verdict: results.py wrote `FLAKY-PASS`, the alternation carried `FLAKE`,
+# `FLAKE` != `FLAKY`, the line was dropped, the cell scored MISSING and this gate
+# printed REGRESS for a firmware regression that never happened (TASK-573). The
+# summary has no schema and had three parsers; a format like that is not
+# tightenable, so it stopped being the interface. It is still printed, for
+# humans, and nothing here reads it.
+#
+# STALENESS IS THE FAILURE THIS IS DESIGNED AGAINST. A gate scoring a leg against
+# a PREVIOUS run's artifact is worse than a gate with no artifact at all — it is
+# silent and it looks like a result. Three layers, and this function is layer 2:
+# the leg mints a nonce, exports it, and the reader REFUSES (exit 2) any document
+# carrying a different one. Layers 1 and 3 are in lib/artifact.py.
+#
+# $1 = artifact path, $2 = the nonce that leg was run with.
+_read_artifact() {
+  ( cd "$PIO_DIR/tools" && "$VENV_PY" -m lib.artifact "$1" --token "$2" --ids-status )
 }
 
 # Compare one leg. $1=leg $2=file of ids that RAN $3=file of "id status" observed.
@@ -296,31 +296,74 @@ EOF
     fi
   }
 
-  # TASK-573: the parser, on the real line shapes lib/results.py writes. The
-  # captured status must be the FULL token — a `FLAKY` fragment, or a dropped
-  # line, is the defect this fixes.
-  _pcase() { # name raw_log_line expected_parse
-    local name="$1" line="$2" want="$3" got
-    printf '%s\n' "$line" >"$tmp/raw.log"
-    got="$(_parse_runner_log "$tmp/raw.log")"
+  # TASK-608: the reader, against a REAL artifact this gate produced the way a
+  # leg does. These arms are the descendants of TASK-573's parser cases — the
+  # defect they guard is unchanged (a verdict the producer can WRITE that the
+  # consumer cannot READ scores MISSING, and MISSING reads as a regression), but
+  # the surface is now a schema instead of a regex, so the arms also cover the
+  # failures a schema has and prose does not: a stale document, a missing one,
+  # and an unknown schema major.
+  #
+  # `_mkart` writes an artifact with the given `id VERDICT` pairs and token.
+  _mkart() { # file token version [id verdict]...
+    local f="$1" tok="$2" ver="$3"; shift 3
+    local rows="" id v
+    while [ $# -gt 0 ]; do
+      id="$1"; v="$2"; shift 2
+      [ -z "$rows" ] || rows="$rows,"
+      rows="$rows{\"id\":\"$id\",\"verdict\":\"$v\"}"
+    done
+    printf '{"schema":{"name":"esp_spotify.test-run","version":"%s"},' "$ver" >"$f"
+    printf '"run":{"run_token":"%s","exit_code":0},"results":[%s]}\n' "$tok" "$rows" >>"$f"
+  }
+
+  _acase() { # name token_used [id verdict]... -- expected_output
+    local name="$1" tok="$2"; shift 2
+    local args=() want=""
+    while [ $# -gt 0 ]; do
+      if [ "$1" = "--" ]; then shift; want="$1"; break; fi
+      args+=("$1"); shift
+    done
+    _mkart "$tmp/art.json" "nonce-real" "1.0" "${args[@]}"
+    local got
+    got="$(_read_artifact "$tmp/art.json" "$tok" 2>/dev/null || echo "REFUSED")"
     if [ "$got" = "$want" ]; then
       echo "  [PASS] selftest $name"
     else
-      echo "  [FAIL] selftest $name — parsed '$got' want '$want'"; fails=$((fails+1))
+      echo "  [FAIL] selftest $name — read '$got' want '$want'"; fails=$((fails+1))
     fi
   }
 
   echo "── run/player-gate --selftest — negative tests of the comparator ──"
-  _pcase "parser: FLAKY-PASS line is captured whole, not dropped, not 'FLAKY'" \
-         '  T_PMT_04: FLAKY-PASS: attempt1 FLAKE(x) | attempt2 PASS' \
-         'T_PMT_04 FLAKY-PASS'
-  _pcase "parser: unresolved flake still parses as FLAKE" \
-         '  T_PMT_04: FLAKE(awaiting mandated retry): jitter' \
-         'T_PMT_04 FLAKE'
-  _pcase "parser: NOT-RUN line is captured whole" \
-         '  T_PMT_03: NOT-RUN: never dispatched' \
-         'T_PMT_03 NOT-RUN'
-  _pcase "parser: plain PASS still parses" '  T_PMT_00: PASS' 'T_PMT_00 PASS'
+  _acase "reader: FLAKY-PASS is read WHOLE, not as a 'FLAKY' fragment (TASK-573)" \
+         "nonce-real" T_PMT_04 FLAKY-PASS -- "T_PMT_04 FLAKY-PASS"
+  _acase "reader: unresolved FLAKE is distinct from FLAKY-PASS" \
+         "nonce-real" T_PMT_04 FLAKE -- "T_PMT_04 FLAKE"
+  _acase "reader: NOT-RUN is read whole" \
+         "nonce-real" T_PMT_03 NOT-RUN -- "T_PMT_03 NOT-RUN"
+  _acase "reader: UNMET is read whole (ADR-066 D5)" \
+         "nonce-real" T_PMT_03 UNMET -- "T_PMT_03 UNMET"
+  _acase "reader: plain PASS" "nonce-real" T_PMT_00 PASS -- "T_PMT_00 PASS"
+  # THE staleness arm. A leg's OUT_DIR holds a previous run's artifact at the
+  # same path; the nonce differs; the reader must REFUSE it rather than score
+  # the leg against results this run never produced.
+  _acase "reader: a PREVIOUS run's artifact at this path is REFUSED, not read" \
+         "nonce-this-run" T_PMT_00 PASS T_PMT_01 PASS -- "REFUSED"
+  rm -f "$tmp/art.json"
+  if [ "$(_read_artifact "$tmp/art.json" "n" 2>/dev/null || echo REFUSED)" = "REFUSED" ]; then
+    echo "  [PASS] selftest reader: a MISSING artifact is refused, not an empty result set"
+  else
+    echo "  [FAIL] selftest reader: a missing artifact must not read as zero results"
+    fails=$((fails+1))
+  fi
+  _mkart "$tmp/art.json" "n" "2.0" T_PMT_00 PASS
+  if [ "$(_read_artifact "$tmp/art.json" "n" 2>/dev/null || echo REFUSED)" = "REFUSED" ]; then
+    echo "  [PASS] selftest reader: an unknown schema MAJOR is refused, not guessed"
+  else
+    echo "  [FAIL] selftest reader: schema major 2 must not be parsed by a v1 reader"
+    fails=$((fails+1))
+  fi
+  rm -f "$tmp/art.json"
   _case "green run passes"              0 "T_PMT_00 PASS" "T_PMT_01 PASS" "T_PLR_09 SKIP"
   _case "declared PASS observed FAIL"   1 "T_PMT_00 PASS" "T_PMT_01 FAIL" "T_PLR_09 SKIP"
   _case "declared PASS went MISSING"    1 "T_PMT_00 PASS" "T_PLR_09 SKIP"
@@ -354,12 +397,13 @@ EOF
   # gate then reports a firmware regression that never happened. WP-C found
   # T-BUSY-05 passing on exactly the regression it existed to catch; a gating
   # change with no negative test repeats that at the framework level.
-  _pcase "parser: UNMET line is captured whole" \
-         '  T_PMT_03: UNMET: the app never reached READY' \
-         'T_PMT_03 UNMET'
-  _pcase "parser: UNMET is not confused with NOT-RUN" \
-         '  T_PMT_03: NOT-RUN: blocked-by=CORE/T_PMT_00' \
-         'T_PMT_03 NOT-RUN'
+  # TASK-608: these two are now reader arms above (UNMET read whole, NOT-RUN read
+  # whole). They are kept here as the ONE assertion the reader arms cannot make
+  # on their own — that the two verdicts stay DISTINCT in a single document, so
+  # `UNMET` cannot quietly become a second spelling of `NOT-RUN` (IFC-008 I3).
+  _acase "reader: UNMET and NOT-RUN stay distinct in one document" "nonce-real" \
+         T_PMT_02 UNMET T_PMT_03 NOT-RUN -- "T_PMT_02 UNMET
+T_PMT_03 NOT-RUN"
   _case_line "declared PASS observed UNMET is fatal, and says so distinctly" 1 \
              "UNMET     A T_PMT_01  declared PASS but its premise was never established" \
              "T_PMT_00 PASS" "T_PMT_01 UNMET" "T_PLR_09 SKIP"
@@ -523,12 +567,32 @@ _run_runner_leg() {
   echo "$ids" | tr ',' '\n' | sed '/^$/d' > "$OUT_DIR/leg$leg.ran"
   echo ""
   echo "[player-gate] leg $leg — $env — $(wc -l <"$OUT_DIR/leg$leg.ran") runner cells"
+  # TASK-608 layer 2. A fresh nonce per leg, and the target path is REMOVED
+  # first: leg B must never be scored against leg A's artifact, and no leg may
+  # be scored against a rerun's leftovers in the same OUT_DIR. Removing is the
+  # cheap guard; the nonce is the one that actually holds, because it survives
+  # a forgotten rm, a racing run and a hand-copied file.
+  local art="$OUT_DIR/leg$leg.artifact.json"
+  local nonce="pg-$leg-$$-$(date -u +%Y%m%d%H%M%S)"
+  rm -f "$art"
   set +e
-  ( cd "$PIO_DIR" && DUT_ENV="$env" "$VENV_PY" -u tools/suite/serialdbg/runner.py \
+  ( cd "$PIO_DIR" && DUT_ENV="$env" RESULTS_JSON="$art" RESULTS_RUN_TOKEN="$nonce" \
+      "$VENV_PY" -u tools/suite/serialdbg/runner.py \
       --port "$PORT" --tests "$ids" ) 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
-  _parse_runner_log "$log" > "$OUT_DIR/leg$leg.results"
+  : > "$OUT_DIR/leg$leg.results"
+  if ! _read_artifact "$art" "$nonce" > "$OUT_DIR/leg$leg.results"; then
+    # The artifact is missing, unreadable, stale or at an unknown schema major.
+    # NOT a silent empty result set: every declared cell then scores MISSING and
+    # the leg regresses, which is the correct reading of "this run produced no
+    # machine-readable verdicts" — but the reader must be told WHICH it was.
+    : > "$OUT_DIR/leg$leg.results"
+    echo "ERROR [player-gate]: leg $leg produced no usable run artifact ($art)." >&2
+    echo "  Every declared cell for this leg will score MISSING. That is not a" >&2
+    echo "  firmware statement — it means the run did not reach its summary, or" >&2
+    echo "  the file at that path was not this run's (TASK-608 / IFC-008)." >&2
+  fi
   if [ "$rc" = "$SETUP_FAIL_EXIT" ]; then
     echo "ERROR [player-gate]: leg $leg exited SETUP_FAIL ($rc) — rig condition, no verdict" >&2
     _SETUP_FAIL=1; _RC=3

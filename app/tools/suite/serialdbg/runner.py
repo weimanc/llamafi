@@ -64,7 +64,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa: E402
                      set_no_wifi)
 import lib.dut as _dut_mod                                               # noqa: E402
-from lib.results import fail, unmet, run_with_flake_retry                # noqa: E402
+from lib.results import (fail, unmet, run_with_flake_retry,              # noqa: E402
+                         set_meta_provider, set_premise_provider)
 
 try:
     import serial
@@ -360,6 +361,39 @@ def main():
     # verdict, last-phase, gen tag and the id's (cls, scope). Installed after
     # the Dut exists and before any test runs, so no FAIL can escape without it.
     _triage.install(dut, all_meta)
+
+    # TASK-608 / R30 / ADR-066 D3. `lib/` never imports a suite (M-TOOLING), so
+    # the premise fields only this layer can know are INSTALLED, exactly as
+    # _triage.install() installs the mode-P context above. Closures, not a
+    # snapshot: `_gate.EXECUTED_ORDER` and the generation tag are not known yet
+    # and are read when the artifact is built.
+    set_meta_provider(lambda: all_meta)
+    set_premise_provider(lambda: {
+        "entry_point": "suite/serialdbg/runner.py",
+        "argv": sys.argv[1:],
+        "elf": getattr(dut, "elf", None),
+        "elf_expected": getattr(dut, "elf_expected", None),
+        "build_env": getattr(dut, "build_env", None),
+        "board": {"port": getattr(dut, "port", args.port),
+                  "baud": args.baud},
+        "generation": dut.gen_tag(),
+        "class_order_in_force": _gate.ORDER_IN_FORCE,
+        "class_order": list(_gate.EXECUTED_ORDER),
+        "selection": {
+            "ids": list(selected),
+            # WHY these ids — R30 asks for the reason, not just the set, and
+            # "what did this run actually choose to look at" is the question a
+            # later reader cannot reconstruct from the id list alone.
+            "reason": ("--tests" if args.tests else
+                       f"--scope {args.scope}" if args.scope else
+                       "default (every registered id)"),
+            "interactive": bool(args.interactive),
+        },
+        # A downgraded gate must never be silently absent from a result someone
+        # later cites (the same reasoning as _gate's summary stamp).
+        "downgraded_gates": ([f"DUT_HEALTH={health_mode}"]
+                             if health_mode != "gate" else []),
+    })
 
     # Warmup ping: flush any residual DUT serial output before first test.
     try:

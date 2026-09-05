@@ -129,6 +129,33 @@ PORT=/dev/ttyUSB1 ./run/test-targeted T080,T083
 | `BOOT_WAIT` | `8` | Seconds to wait after flashing debug firmware |
 | `TESTS` | (none) | Test IDs for `test-targeted` (comma-separated) |
 | `SCOPE` | (none) | Scope selector for `test-targeted` — app name, non-app scope, or a changed file's path (TASK-570). Same as `--scope` |
+| `RESULTS_JSON` | `app/tools/.runs/run-<UTC>-<pid>-<token>.json` | Where the run writes its result artifact (TASK-608 / IFC-008). Set it when you want the artifact at a path you own |
+| `RESULTS_RUN_TOKEN` | random per run | The staleness nonce. A consumer that sets it can read back with `python3 -m lib.artifact <path> --token <nonce>`, and an artifact from any **other** run is refused rather than scored |
+
+---
+
+## The run result artifact (TASK-608, [IFC-008](../architecture/interfaces/IFC-008.md))
+
+Every suite run emits one JSON document and prints its path. **That document — not the printed
+summary — is the machine interface** (ADR-066 D1): `run/player-gate` reads it, `lib/baseline.py`
+reads it, and nothing parses the `── Results ──` block any more. The summary is still printed,
+unchanged, for humans.
+
+```sh
+python3 -m lib.artifact <artifact.json> --ids-status   # `<id> <VERDICT>` per line
+python3 -m lib.artifact <artifact.json> --exit-code
+python3 -m lib.baseline run1.json run2.json run3.json  # fold N runs (artifacts, not logs)
+```
+
+It carries the run's **premise** (R30) — ELF hash and build env, board, generation tag, class order
+in force, the id set and why it was selected, the flake registry's content hash, any downgraded
+gate — plus every id's typed verdict, class, scope, effect, elapsed and structured reason.
+
+**A stale artifact is the failure this is designed against**, because a gate scored against a
+previous run's file is silent and looks like a result. Three layers: the default path is unique per
+run and never reused (there is deliberately no `latest.json`); a consumer that owns the path passes
+a nonce and any other run's document is refused; and a missing or unknown-schema artifact is an
+error, never an empty result set.
 
 ---
 

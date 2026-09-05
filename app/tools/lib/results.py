@@ -114,12 +114,37 @@ D2/D4/D5, IFC-008 I1-I5, R28/R31/R38):
   to opt out of until a caller records an UNMET on purpose. Exit 4 is NOT used:
   a run of 200 PASS and one UNMET produced 200 trustworthy results, and 4 means
   "no result in this run is trustworthy" (ADR-066 D4, third bullet).
+
+THE ARTIFACT IS THE MACHINE INTERFACE (TASK-608, ADR-066 D1, IFC-008, R29/R30):
+
+  `print_results` still prints the human summary and its shape is UNCHANGED —
+  archived logs and a year of habits read it. What stops is MACHINES reading it.
+  Every run now also emits a schema-versioned JSON document (lib/artifact.py),
+  and the three consumers that parsed the printed text read that instead:
+  `run/player-gate`'s sed, `lib/baseline.py`'s ROW_RE, and
+  `test_triage_context.py`'s re.match.
+
+  `lib/` NEVER IMPORTS A SUITE (M-TOOLING), so the premise fields only a suite
+  can know — the ELF hash, the board, the class order, the id selection and its
+  reason — are INSTALLED into this layer by the runner via
+  `set_premise_provider()`, exactly as `set_fail_context()` is. With no provider
+  installed (every host unit test, and the five unrelated suites) the artifact
+  still emits, carrying the premise fields this layer can know by itself and
+  `null` for the rest. A null field is an honest "this run did not state it";
+  an absent artifact would be a silent one.
+
+  THE FIVE UNRELATED CALLERS ARE UNTOUCHED. Emitting a file changes no verdict
+  and no return code, and none of them installs a provider or reads an artifact.
 """
 
 from __future__ import annotations
 
+import datetime
 import enum
+import os
 import sys
+import time
+import uuid
 from typing import Callable, Optional
 
 from . import flaky as _flaky
@@ -204,6 +229,29 @@ BLOCKED_BY: dict[str, str] = {}
 
 _BLOCKED_BY_MARK = "blocked-by="
 
+#: tid -> {"started_at", "ended_at", "elapsed_s", "_t0"} (R30). Maintained by
+#: `RESULTS.set_typed`; `started_at`/`_t0` only exist if a dispatch loop called
+#: `begin()`. A retried flake keeps its FIRST `_t0`, so the elapsed of a
+#: FLAKY-PASS spans both attempts — which is the honest number for "what this
+#: id cost this run", and the one a per-class budget wants.
+TIMING: dict[str, dict] = {}
+
+
+def _utcnow() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def begin(tid: str) -> None:
+    """Mark `tid` dispatched, for the artifact's per-id elapsed (R30).
+
+    Optional by design: the five unrelated `print_results` callers do not call
+    it and their artifacts simply carry `elapsed_s: null`. A harness that lied
+    about elapsed would be worse than one that admits it did not measure.
+    """
+    TIMING[tid] = {"started_at": _utcnow(), "ended_at": None,
+                   "elapsed_s": None, "_t0": time.monotonic()}
+
 
 class _ResultsDict(dict):
     """`RESULTS`, with `VERDICTS` and `BLOCKED_BY` maintained in lockstep.
@@ -220,6 +268,19 @@ class _ResultsDict(dict):
             raise TypeError(f"verdict must be a Verdict, got {verdict!r}")
         dict.__setitem__(self, tid, record)
         VERDICTS[tid] = verdict
+        # R30 wants per-record timestamps and elapsed. `ended` is free — it is
+        # the moment the verdict was written. `started` is only knowable to a
+        # dispatch loop, so it comes from begin() and is None otherwise; an
+        # elapsed this layer cannot measure is reported as null rather than
+        # invented from the verdict time.
+        TIMING[tid] = {
+            "started_at": (TIMING.get(tid) or {}).get("started_at"),
+            "ended_at": _utcnow(),
+            "elapsed_s": (None if (TIMING.get(tid) or {}).get("_t0") is None
+                          else round(time.monotonic()
+                                     - TIMING[tid]["_t0"], 3)),
+            "_t0": (TIMING.get(tid) or {}).get("_t0"),
+        }
         if verdict is Verdict.NOT_RUN:
             BLOCKED_BY[tid] = record.split(_BLOCKED_BY_MARK, 1)[-1].strip()
         else:
@@ -243,6 +304,7 @@ class _ResultsDict(dict):
         dict.clear(self)
         VERDICTS.clear()
         BLOCKED_BY.clear()
+        TIMING.clear()
 
     def setdefault(self, *a, **k):                  # not used; refuse it
         raise NotImplementedError("use RESULTS[tid] = record")
@@ -299,6 +361,201 @@ def check_verdict_invariants() -> list:
         if tid not in RESULTS:
             bad.append(f"{tid}: blocked_by with no record at all")
     return bad
+
+# ── the artifact's installed premise (TASK-608 / R30) ────────────────────────
+#
+# `lib/` never imports a suite (M-TOOLING §3). The premise fields only a suite
+# can know are INSTALLED here by the runner, the same shape and for the same
+# reason as set_fail_context() above. Two hooks, both optional, both silent on
+# error: an artifact is a record, and a broken record must never change a run's
+# verdict.
+
+_PREMISE: Optional[Callable[[], dict]] = None
+_META: Optional[Callable[[], dict]] = None
+
+#: This process's run identity. `run_token` is the staleness nonce (lib/artifact
+#: L2): a consumer that owns the path exports RESULTS_RUN_TOKEN and the reader
+#: refuses any artifact carrying a different one. Generated when absent so a run
+#: nobody instrumented still has a unique identity.
+RUN_TOKEN = os.environ.get("RESULTS_RUN_TOKEN") or uuid.uuid4().hex[:16]
+RUN_STARTED_AT = _utcnow()
+_RUN_T0 = time.monotonic()
+
+
+def set_premise_provider(provider: Optional[Callable[[], dict]]) -> None:
+    """Install (or, with None, remove) the run-premise provider (R30)."""
+    global _PREMISE
+    _PREMISE = provider
+
+
+def set_meta_provider(provider: Optional[Callable[[], dict]]) -> None:
+    """Install the `{tid: {cls, scope, effect}}` provider.
+
+    Feeds the artifact's per-id class/scope/effect (IFC-008 "per-id") and the
+    per-scope SKIP census in the summary (TASK-627).
+    """
+    global _META
+    _META = provider
+
+
+def _call(provider, what: str) -> dict:
+    if provider is None:
+        return {}
+    try:
+        out = provider()
+    except Exception as e:
+        print(f"[artifact] {what} provider failed ({type(e).__name__}: {e}) — "
+              f"the artifact will carry nulls for it")
+        return {}
+    return dict(out or {})
+
+
+def _structured_reason(verdict: Verdict, record: str) -> dict:
+    """R32 / IFC-008 I7: a code plus prose, not prose alone.
+
+    The code is the verdict token plus, where the record already names one, the
+    machine-set discriminator this layer itself wrote — `blocked-by`,
+    `flake-reproduced`, `flake-never-retried`, `premise-unmet`. Deliberately NOT
+    a taxonomy of test-body prose: inventing reason codes for messages 195 test
+    bodies write freehand would be a mirror of the prose, not a structure over
+    it. Grouping across runs works on `code` today and gets finer as bodies are
+    taught to pass one (TASK-630's row).
+    """
+    body = record.split(":", 1)[1].strip() if ":" in record else ""
+    code = verdict.value
+    if verdict is Verdict.NOT_RUN:
+        code = "blocked-by-class"
+    elif verdict is Verdict.UNMET:
+        code = "premise-unmet"
+    elif verdict is Verdict.FAIL and "declared flake REPRODUCED" in record:
+        code = "flake-reproduced"
+    elif verdict is Verdict.FAIL and "never retried" in record:
+        code = "flake-never-retried"
+    return {"code": code, "prose": body, "record": record}
+
+
+def build_document(exit_code: int, health_fail: Optional[str] = None,
+                   violations: Optional[list] = None,
+                   order: Optional[list] = None) -> dict:
+    """The IFC-008 document for the run recorded in this process.
+
+    Additive-only within SCHEMA_MAJOR — a new key here is a MINOR bump, a
+    removed or re-meant one is a MAJOR bump and every reader must be taught.
+    """
+    from . import artifact as _artifact           # deferred: artifact reads us
+    from . import flaky as _fl
+
+    meta = _call(_META, "meta")
+    premise = _call(_PREMISE, "premise")
+    # `order` orders; it never SELECTS. print_results(all_tests) filters its
+    # PRINTED rows to the caller's list, and a row recorded under an id outside
+    # that list is invisible in the text — which is exactly how a cell scores
+    # MISSING in a gate (TASK-573). The artifact carries every recorded id, in
+    # the caller's order first and anything else after it.
+    ids = [t for t in (order or []) if t in RESULTS]
+    ids += [t for t in RESULTS if t not in set(ids)]
+
+    reg, _err = _fl.get_registry()
+    counts = {v.value: 0 for v in Verdict}
+    per_class: dict = {}
+    rows = []
+    for tid in ids:
+        record = RESULTS[tid]
+        v = VERDICTS[tid]
+        m = meta.get(tid) or {}
+        t = TIMING.get(tid) or {}
+        counts[v.value] += 1
+        cls = m.get("cls")
+        bucket = per_class.setdefault(
+            cls or "UNCLASSED",
+            {"elapsed_s": 0.0, "counts": {}, "measured_ids": 0})
+        bucket["counts"][v.value] = bucket["counts"].get(v.value, 0) + 1
+        if t.get("elapsed_s") is not None:
+            bucket["elapsed_s"] = round(bucket["elapsed_s"] + t["elapsed_s"], 3)
+            bucket["measured_ids"] += 1
+        rows.append({
+            "id": tid,
+            "verdict": v.value,
+            "cls": cls,
+            "scope": m.get("scope"),
+            "effect": m.get("effect"),
+            "blocked_by": BLOCKED_BY.get(tid),
+            "started_at": t.get("started_at"),
+            "ended_at": t.get("ended_at"),
+            "elapsed_s": t.get("elapsed_s"),
+            "reason": _structured_reason(v, record),
+        })
+    for bucket in per_class.values():
+        # An elapsed summed over only SOME of a class's ids is not that class's
+        # elapsed. Say which it is rather than letting a budget read a partial
+        # sum as a total (R53's measurement is the consumer).
+        bucket["elapsed_complete"] = (
+            bucket["measured_ids"] == sum(bucket["counts"].values()))
+
+    return {
+        "schema": {"name": _artifact.SCHEMA_NAME,
+                   "version": _artifact.SCHEMA_VERSION},
+        "run": {
+            "run_token": RUN_TOKEN,
+            "started_at": RUN_STARTED_AT,
+            "ended_at": _utcnow(),
+            "elapsed_s": round(time.monotonic() - _RUN_T0, 3),
+            "exit_code": exit_code,
+            "counts": counts,
+            "health_fail": health_fail,
+            "unmet": [r["id"] for r in rows if r["verdict"] == "UNMET"],
+            "not_run": {r["id"]: r["blocked_by"] for r in rows
+                        if r["verdict"] == "NOT-RUN"},
+            "invariant_violations": list(violations or []),
+        },
+        "premise": {
+            # R30's list. What this layer can know by itself is filled in; the
+            # rest comes from the installed provider and is null when no
+            # provider is installed — an honest "this run did not state it".
+            "harness_version": _artifact.SCHEMA_VERSION,
+            "entry_point": premise.get("entry_point")
+                           or os.path.basename(sys.argv[0] or "?"),
+            "argv": premise.get("argv") or list(sys.argv[1:]),
+            "flake_registry_path": str(reg.path) if reg else None,
+            "flake_registry_sha256": _fl.registry_sha256(),
+            "elf": premise.get("elf"),
+            "elf_expected": premise.get("elf_expected"),
+            "build_env": premise.get("build_env"),
+            "board": premise.get("board"),
+            "generation": premise.get("generation"),
+            "class_order_in_force": premise.get("class_order_in_force"),
+            "class_order": premise.get("class_order"),
+            "selection": premise.get("selection"),
+            "downgraded_gates": premise.get("downgraded_gates") or [],
+        },
+        "per_class": per_class,
+        "results": rows,
+    }
+
+
+def write_artifact(exit_code: int, health_fail: Optional[str] = None,
+                   violations: Optional[list] = None,
+                   order: Optional[list] = None):
+    """Emit the run artifact. -> the path, or None if it could not be written.
+
+    Never raises: R29 makes the artifact the interface, but a run that produced
+    real verdicts and then failed to write a file must still report those
+    verdicts and still return its own rc. The failure is printed, loudly, so it
+    cannot be mistaken for "the consumer had nothing to read because nothing
+    ran" — which is the reading the consumer must NOT make (lib/artifact L3).
+    """
+    from . import artifact as _artifact
+    try:
+        doc = build_document(exit_code, health_fail, violations, order)
+        path = os.environ.get(_artifact.ENV_PATH) or _artifact.default_path(
+            RUN_TOKEN, RUN_STARTED_AT)
+        return _artifact.write(path, doc)
+    except Exception as e:
+        print(f"\n[artifact] FAILED to write the run artifact "
+              f"({type(e).__name__}: {e}). The verdicts above stand; any gate "
+              f"reading the artifact will refuse this run rather than score it.")
+        return None
+
 
 # ── mode P: the fail-context hook (TASK-571) ─────────────────────────────────
 
@@ -544,6 +801,7 @@ def print_results(all_tests: Optional[list] = None, exit_on_finish: bool = True,
 
     Counting is TYPED throughout (R31) — not one `startswith` remains.
     """
+    from .artifact import SCHEMA_VERSION as _ARTIFACT_VERSION
     _finalize()
     print("\n── Results ──────────────────────────────────")
     violations = check_verdict_invariants()
@@ -600,6 +858,33 @@ def print_results(all_tests: Optional[list] = None, exit_on_finish: bool = True,
             # above stays the only parseable one.
             print(f"    · {tid}  {RESULTS[tid][len('UNMET: '):]}")
 
+    if skipped:
+        # TASK-627 / QM §7 and LL-148. `skip()` prints GREEN and nothing
+        # aggregated it, so cluster C10 — the heatmap injector wedging a
+        # sub-view — emitted seven identical skip lines every run for a year and
+        # was invisible in all of them. A per-scope count is what makes a wedged
+        # FAMILY visible: one scope holding most of a run's skips is a shape a
+        # reader notices, where seven lines scattered through 195 are not.
+        # Counted per SCOPE, not per class, because a wedge is a property of the
+        # app under test. Ids with no record (`meta` unavailable, or a suite
+        # with no meta provider at all) are counted under `?` rather than
+        # dropped — a census that silently omits what it cannot classify is the
+        # same defect one altitude up.
+        meta = _call(_META, "meta")
+        by_scope: dict = {}
+        for tid, v in VERDICTS.items():
+            if v is Verdict.SKIP:
+                sc = (meta.get(tid) or {}).get("scope") or "?"
+                by_scope.setdefault(sc, []).append(tid)
+        print(f"\n── SKIP by scope ({skipped}) ──")
+        for sc, tids in sorted(by_scope.items(),
+                               key=lambda kv: (-len(kv[1]), kv[0])):
+            print(f"  {sc:<20} {len(tids):>3}  {', '.join(sorted(tids))}")
+        print("  A SKIP is a statement about the CONFIGURATION. A whole scope")
+        print("  skipping is usually a statement about the RUN — a wedged app,")
+        print("  a precondition nothing re-establishes — and that is an UNMET")
+        print("  wearing a green coat (R28). Check the scope with the most.")
+
     summary = (f"\n{passed} passed, {failed} failed, {skipped} skipped, "
                f"{len(flaky_pass)} declared-flake (passed on retry)")
     if unmet_ids:
@@ -630,6 +915,20 @@ def print_results(all_tests: Optional[list] = None, exit_on_finish: bool = True,
               f"subject. Exit 4, NOT 1: nothing here is a statement about the "
               f"firmware.")
         rc = HEALTH_FAIL_EXIT
+
+    # R29 / ADR-066 D1: the machine interface. Written LAST, so `exit_code` is
+    # the code the process will actually return — an artifact whose exit_code
+    # disagreed with the process's would be a second interface to reconcile.
+    # Emitted for every caller, including the five unrelated ones: it changes no
+    # verdict and no rc, and a suite that emits nothing has no premise on record.
+    path = write_artifact(rc, health_fail=health_fail, violations=violations,
+                          order=order)
+    if path:
+        # IFC-008's transport clause: "a JSON file written once per run, at a
+        # path the run reports". Printed, so a human reading a log can find it.
+        print(f"\n[artifact] {path}  (schema {_ARTIFACT_VERSION}, run_token "
+              f"{RUN_TOKEN})")
+
     if exit_on_finish:
         sys.exit(rc)
     return rc

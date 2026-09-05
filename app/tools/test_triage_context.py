@@ -121,12 +121,23 @@ rec = R.RESULTS["T_PLR_25"]
 check_in("T_TRI_14a", "FAIL: boom  [triage] ", rec)
 check_in("T_TRI_14b", "gen=7.1 cls=FEATURE scope=LocalPlayer", rec)
 
-print("T_TRI_15  the record still starts with FAIL — run/player-gate's parser")
-# `sed -n 's/^  \([A-Za-z0-9_]\{1,\}\): \(FLAKY-PASS\|...\|FAIL\|...\).*/\1 \2/p'`
-import re                                                        # noqa: E402
-summary = f"  T_PLR_25: {rec}"
-m = re.match(r"^  ([A-Za-z0-9_]+): (FLAKY-PASS|NOT-RUN|PASS|FAIL|SKIP|FLAKE).*", summary)
-check("T_TRI_15a", (m.group(1), m.group(2)) if m else None, ("T_PLR_25", "FAIL"))
+print("T_TRI_15  the annotated record classifies as FAIL and reaches the artifact")
+# TASK-608: this case used to re-implement `run/player-gate`'s summary-text sed
+# and assert the annotated record survived it — the THIRD parser of an
+# unspecified machine interface, and the one that made the format look
+# specified. The gate reads the artifact now (ADR-066 D1), so what must hold is
+# the TYPED claim: the annotation does not change the record's verdict, and the
+# verdict a consumer reads out of the artifact is FAIL.
+check("T_TRI_15a", R.classify(rec), R.Verdict.FAIL)
+check("T_TRI_15b", R.verdict_of("T_PLR_25"), R.Verdict.FAIL)
+_doc = R.build_document(exit_code=1)
+check("T_TRI_15c",
+      __import__("lib.artifact", fromlist=["x"]).id_status(_doc).get("T_PLR_25"),
+      "FAIL")
+# The mode-P context must survive into the artifact's structured reason (R32),
+# not only into the printed line — that is where triage will read it from now.
+check_in("T_TRI_15d", "[triage] ",
+         [r for r in _doc["results"] if r["id"] == "T_PLR_25"][0]["reason"]["record"])
 
 print("T_TRI_16  the annotated record is exactly one line")
 check("T_TRI_16a", "\n" in rec, False)

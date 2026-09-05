@@ -243,6 +243,21 @@ def get_registry(path=None):
     return reg, None
 
 
+def registry_sha256(path=None):
+    """The declared-flaky set's content hash, or None if it cannot be read.
+
+    R30 names it as a run-premise field: two runs whose flake declarations
+    differ are not comparable, and "which flaky.yaml was in force" has until now
+    been recoverable only from the commit the run happened to sit on. Hashed
+    rather than embedded — the file is the record, this is the identity of it.
+    """
+    import hashlib
+    try:
+        return hashlib.sha256(_resolve_path(path).read_bytes()).hexdigest()
+    except Exception:
+        return None
+
+
 def reset_cache() -> None:
     """Drop the memoised registry (tests switch FLAKY_YAML between cases)."""
     global _CACHE, _CACHE_ERROR

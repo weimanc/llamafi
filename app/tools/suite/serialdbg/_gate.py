@@ -32,10 +32,19 @@ reordered suite changes what 557 is measuring (design §7).
 
 from __future__ import annotations
 
-from lib.results import (BLOCKING, RESULTS, Verdict, not_run, print_results,
-                         verdict_of)
+from lib.results import (BLOCKING, RESULTS, Verdict, begin, not_run,
+                         print_results, verdict_of)
 
 from suite.serialdbg import _order
+
+#: TASK-608 / R30. What the run actually did with the order switch, recorded
+#: where runner.py's premise provider can read it without this module having to
+#: know about the artifact. Set by run_suite(); `EXECUTED_ORDER` is the sequence
+#: ids were dispatched in, which under the switch is NOT the selection order.
+ORDER_IN_FORCE = False
+EXECUTED_ORDER: list = []
+HEALTH_MODE_USED = None
+
 
 #: `DUT_HEALTH` (design §6 R1/R2, same shape as `DUT_BOOT_GATE`).
 #:   gate  the default: a health failure blocks the run and exits 4
@@ -99,7 +108,11 @@ def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
     the health phase does not run, nothing is blocked, and the exit code is
     print_results()'s own 0/1.
     """
+    global ORDER_IN_FORCE, EXECUTED_ORDER, HEALTH_MODE_USED
     selected = list(selected)
+    ORDER_IN_FORCE = bool(class_order)
+    HEALTH_MODE_USED = health_mode
+    EXECUTED_ORDER = list(selected)
     health_failed = []
 
     if class_order:
@@ -121,12 +134,14 @@ def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
                  f"of {len(selected)} ids change position")
         selected = order
 
+    EXECUTED_ORDER = list(selected)
     blocked_by = None
     for tid in selected:
         cls = (meta.get(tid) or {}).get("cls", "FEATURE")
         if blocked_by and cls in _order.CORE_BLOCKS:
             not_run(tid, blocked_by)
             continue
+        begin(tid)          # TASK-608 / R30: per-id start + elapsed
         dispatch(tid)
         verdict = verdict_of(tid)
         if class_order and cls == "CORE" and verdict in BLOCKING:

@@ -591,6 +591,13 @@ class _TeeSerial:
 class Dut:
     def __init__(self, port: str, baud: int = 115200, timeout: float = 3.0,
                  log_file: Optional[str] = None):
+        # TASK-608 / R30. The build identity the ELF guard reads below, and the
+        # port, held on the instance so the run's premise can be stated without
+        # a second device read. None until _verify_debug_firmware() has run.
+        self.elf = None
+        self.elf_expected = None
+        self.build_env = _DUT_ENV
+        self.port = port
         self.ser = serial.Serial()
         self.ser.port = port
         self.ser.baudrate = baud
@@ -1119,6 +1126,12 @@ class Dut:
             _fw_bytes = _fw.read_bytes()
             _expected_elf = _fw_bytes[176:180].hex()
             _info = self.cmd("info", timeout=3.0)
+            # TASK-608 / R30 / ADR-067 D1: the build identity this guard already
+            # reads is the run's premise. Recorded here rather than re-read at
+            # summary time — a premise field that costs a second device read is
+            # a premise field that perturbs the run it describes.
+            self.elf = _info.get("elf")
+            self.elf_expected = _expected_elf
             if _info.get("ok") and _info.get("elf") and _info["elf"] != _expected_elf:
                 raise SetupFailure(
                     "elf-mismatch",

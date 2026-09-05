@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lib/baseline.py — fold N runner logs into one per-id baseline. TASK-566.
+"""lib/baseline.py — fold N run artifacts into one per-id baseline. TASK-566.
 
 WHY A TOOL AND NOT A PASTED TABLE. EC-G9 asks for "a >=3-run pre-declared-flaky
 baseline" before the runner's execution order changes, and @VE §18.6(a) then
@@ -16,38 +16,47 @@ folded to "mostly passes". @VE §18.6(b) is explicit that flake candidates are
 promoted or dismissed BEFORE run 1 and not read off the results, and a tool that
 picked a majority answer would quietly do the thing that ruling forbids.
 
-    python3 -m lib.baseline run1.log run2.log run3.log
-    python3 -m lib.baseline --md run*.log        # markdown table
+    python3 -m lib.baseline run1.json run2.json run3.json
+    python3 -m lib.baseline --md run*.json        # markdown table
+
+TASK-608: IT READS ARTIFACTS, NOT LOGS. This module used to carry its own copy
+of `run/player-gate`'s summary-text regex — the SECOND of the three parsers of
+an unspecified machine interface, and it was already one token behind (no
+`UNMET`, added to results.py by TASK-624). That is the whole defect shape: a
+verdict the producer can WRITE that a consumer cannot READ is dropped silently,
+and here it would have dropped an id out of the fold entirely, turning an
+unstable id into an `ABSENT-SOMETIMES` row or out of the table altogether. Under
+ADR-066 D1 the artifact is the interface and a new verdict cannot be missed,
+because the reader never enumerates the vocabulary at all.
+
+The log parser is DELETED rather than kept as a fallback. R29's acceptance
+number for summary parsers is zero, and a fallback path is a parser that stays
+load-bearing exactly when the artifact is missing — i.e. in the case the
+artifact exists to make loud. Folding runs that predate the artifact is
+therefore no longer possible from their logs; that is a real, accepted loss of
+retrospective reach, stated here rather than worked around.
 """
 
 from __future__ import annotations
 
 import collections
 import os
-import re
 import sys
 
-#: The same alternation `run/player-gate:_parse_runner_log` uses, longest-first
-#: so the captured token is whole. `FLAKE` != `FLAKY` was TASK-573's live defect;
-#: it is not repeated here by construction, not by care.
-ROW_RE = re.compile(
-    r"^  ([A-Za-z0-9_-]+): (FLAKY-PASS|NOT-RUN|PASS|FAIL|SKIP|FLAKE)")
+from . import artifact as _artifact
 
-STATUSES = ("PASS", "FLAKY-PASS", "SKIP", "FLAKE", "FAIL", "NOT-RUN")
+STATUSES = ("PASS", "FLAKY-PASS", "SKIP", "FLAKE", "FAIL", "NOT-RUN", "UNMET")
 
 
-def parse_log(path: str) -> dict:
-    """-> {id: status}. Reads the whole file: the summary block is the only
-    place these rows appear, and anchoring on the '── Results ──' header would
-    silently yield {} for a run that aborted before printing it — which is a
-    fact worth keeping, not an error to hide."""
-    out = {}
-    with open(path, errors="replace") as fh:
-        for line in fh:
-            m = ROW_RE.match(line.rstrip("\n"))
-            if m:
-                out[m.group(1)] = m.group(2)
-    return out
+def parse_run(path: str) -> dict:
+    """-> {id: verdict token} for one run artifact.
+
+    Raises on a missing or unreadable artifact. Deliberately: the old
+    log-parsing version returned `{}` for a run that aborted before its summary,
+    which is indistinguishable from a run in which nothing was selected, and
+    both then read as ABSENT rows in the fold.
+    """
+    return _artifact.id_status(_artifact.load(path))
 
 
 def fold(runs: list) -> dict:
@@ -73,7 +82,7 @@ def classify(statuses: list) -> str:
 
 
 def report(paths: list, markdown: bool = False) -> str:
-    runs = [parse_log(p) for p in paths]
+    runs = [parse_run(p) for p in paths]
     table = fold(runs)
     L = []
     A = L.append
@@ -117,7 +126,9 @@ def main(argv):
     md = "--md" in argv
     paths = [a for a in argv if not a.startswith("--")]
     if not paths:
-        return "usage: python3 -m lib.baseline [--md] <runner log> …"
+        return ("usage: python3 -m lib.baseline [--md] <run artifact .json> …\n"
+                "  (TASK-608: run artifacts, not runner logs — the summary text\n"
+                "   is not a machine interface, ADR-066 D1 / IFC-008 I6)")
     print(report(paths, markdown=md))
     return 0
 

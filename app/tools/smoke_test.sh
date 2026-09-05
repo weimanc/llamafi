@@ -114,6 +114,20 @@ if ! "$PYTHON" test_class_order.py; then
     exit 1
 fi
 
+# 4f1. the run artifact — TASK-608 / ADR-066 D1 / IFC-008 / R29+R30.
+# The artifact is now the SOLE machine interface to a run, so the failure that
+# matters is a consumer reading something and being WRONG about it. The stale
+# arms are the point: a gate scored against a PREVIOUS run's artifact is silent
+# and looks like a result, where a missing one is loud. Also pins that the five
+# unrelated print_results callers' rc arithmetic is untouched, that the summary
+# LINE keeps its pre-TASK-627 shape, and — mechanically, over the tree — that
+# R29's count of summary-text parsers stays at zero. Host-only, no DUT, ~0.3 s.
+# Runs BEFORE the comparator selftest below, which now reads artifacts it makes.
+if ! "$PYTHON" test_run_artifact.py; then
+    echo "FAIL: test_run_artifact.py (TASK-608 run artifact) FAILED" >&2
+    exit 1
+fi
+
 # 4f2. the comparator's own negative tests — TASK-573, extended by TASK-624.
 # `run/player-gate --selftest` has existed since TASK-573 and was gated by
 # NOTHING, which is how a gate acquires an inversion nobody sees: the FLAKY-PASS
