@@ -10,6 +10,12 @@
 > "compile-time default, no numeric-entry UI" location lean
 > (`settingsStorage.h:106`, M-PLANERADAR design D4) and the "strip is
 > display-only" phase-0 decision (`planeRadarApp.h:209`, phase0-preview-ui.md)
+> Verification caveat (2026-09-06): the VE gate closed 2026-07-16 with **two PASS cells weaker than
+> the word PASS** — `T_PRL_07`'s reflash-survival leg (an impression across the milestone, not an
+> observation by that test) and `T_PRL_01b` (a PASS cell for a test not fully executed). **Human
+> ruling 2026-09-06: accept and move on** — not re-opened, no work scheduled, and neither cell
+> re-recorded as met; the evidence is informal, unrepeatable and not mechanically verified. Record:
+> [m-pr-locations-dut.md](../../verification/regression_suite/m-pr-locations-dut.md), last section.
 > Date: 2026-07-13
 > Deps: M-PLANERADAR (done), dataTask, ADR-029, KeyboardWidget
 > (M-SETTINGS-001), Settings AppsSection

@@ -144,3 +144,11 @@ It is:
 
 A future reader must not read this section as the criteria having been satisfied. It is a decision to
 stop spending on them, taken with the gap fully in view.
+
+**Follow-on milestone, same shape, same disposition.** M-CLOCK-THEMES (TASK-345) — the Nixie/VFD
+colour theme picker built on top of these styles — has **no VE suite and no document in this
+directory**; its DUT-verification exit criterion ("DUT-verified via `screendump` … actual on-device
+colour") was closed on a human eyeballing eight captures, and was **accepted by human ruling
+2026-09-06**, not met. That evidence cannot be reproduced even in principle today: `run/screendump`
+is hard-broken at import since TASK-555 (TASK-589). Record:
+[M-CLOCK-THEMES.md](../../architecture/designs/M-CLOCK-THEMES.md), last section.

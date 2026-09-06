@@ -2,7 +2,12 @@
 
 > Owner: Verification Engineer
 > Milestone: M-PR-LOCATIONS (TASK-324, parent design doc verification sketch)
-> Status: **closed 2026-07-16 — T_PRL_01a/02/03/04/05/06/07/09/10 PASS; T_PRL_01b PASS (cited, minus one leg); T_PRL_11 blocked (external); T_PRL_08 partially provable by design (see notes)**
+> Status: **closed 2026-07-16 — T_PRL_01a/02/03/04/05/06/07/09/10 PASS; T_PRL_01b PASS (cited, minus one leg); T_PRL_11 blocked (external); T_PRL_08 partially provable by design (see notes)**.
+> **Two of those PASS cells rest on evidence weaker than the word PASS** — `T_PRL_07`'s
+> reflash-survival leg (an impression across the milestone, not an observation by this test) and
+> `T_PRL_01b` (a PASS cell for a test not fully executed). **Human ruling 2026-09-06: accept and move
+> on** — the milestone is **not** re-opened and no work is scheduled; the two cells are **not**
+> re-recorded as met. See the last section of this file.
 > DUT: ESP32-2432S028R CYD2USB, firmware `cyd2usb_winamp_debug`
 > Design: `docs/architecture/designs/M-PR-LOCATIONS-location-presets.md` §Verification sketch
 
@@ -147,3 +152,39 @@ leg was not run it usually says so. Two cells are weaker than their PASS suggest
 
 Neither is H-2's class — no oracle here is blind to its own subject. They are "PASS" doing duty for
 "partly cited, partly assumed".
+
+---
+
+## 2026-09-06 — human ruling: the milestone stands closed; the two weak cells stay weak
+
+**Ruled by:** the human operator, 2026-09-06, on @PM's escalation of the TASK-587 sweep's two
+findings above. **Ruling: accept and move on.**
+
+**What this changes.** M-PR-LOCATIONS is **not re-opened** and **no further work is scheduled** on
+`T_PRL_07`'s reflash-survival leg or on `T_PRL_01b`'s space-postcode-encoding leg. No task row is
+opened by this ruling. (Unrelated residuals keep their own lives: `T_PRL_11` stays blocked on
+TASK-243, `T_PRL_08` stays PARTIAL by design.)
+
+**What this does not change — read this before quoting the ruling.** Neither cell is re-scored, and
+neither is re-recorded as met. The sweep section above stays the record of what each one actually
+rests on. Nothing here converts an impression into an observation.
+
+**The evidence, stated exactly.**
+
+* **`T_PRL_07`, reflash-survival leg** — *"implicit (many reflashes this milestone, always
+  correct)"*: a **recollection formed across TASK-319…324**, not an observation this test made. It
+  is **informal** (no run, no recorded before/after, no build hash), **unrepeatable** (nothing
+  identifies which reflashes, or what was read back after each), and **not mechanically verified**
+  (no body reflashes and re-reads `get prloc`). The *other* leg of the same row — the flash-fs wipe —
+  **was** run, and is properly evidenced by a byte-exact `cmp` of the esptool backup and restore.
+  That leg is unaffected by this ruling.
+* **`T_PRL_01b`** — a **PASS cell for a test that was not fully executed**. The live Nominatim leg is
+  cited from TASK-320's close-out and was re-confirmed incidentally by `T_PRL_08`; the
+  space-postcode-encoding leg (a UK postcode) has **never been run**. The row is candid about this,
+  and it is still booked as PASS.
+
+Making them real would be cheap and is deliberately not being spent: one reflash with a `get prloc`
+read-back either side for the first, one UK-postcode lookup for the second.
+
+A future reader must not read this section as those cells having been proven. It is a decision to
+stop spending on them, taken with the gap fully in view.

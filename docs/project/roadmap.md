@@ -445,6 +445,14 @@ all DEFERRED (H-2 / TASK-587; see
 human visual inspection on 2026-09-06 — **not** mechanical verification, and **not** the criteria
 being satisfied; they stay DEFERRED. Meeting them would still take ADR-064's `get sig` (TASK-638/639)
 and a firmware tick counter (TASK-615).  
+**Follow-on — M-CLOCK-THEMES (TASK-345, Nixie/VFD colour theme picker):** done (2026-07-18; firmware
+shipped), **but its DUT-verification exit criterion was never mechanically met**. That criterion asks
+for `screendump`-confirmed on-device colour; what closed it was a human eyeballing eight captures.
+**Human ruling 2026-09-06** — accept and move on: **not blocked**, no work scheduled. The criterion is
+**not** re-recorded as met. The evidence is informal, unrepeatable and not mechanically verified, and
+it **cannot be reproduced even in principle today** — `run/screendump` has been hard-broken at import
+since TASK-555 (TASK-589). Record:
+[M-CLOCK-THEMES.md](../architecture/designs/M-CLOCK-THEMES.md) (last section).  
 **Design:** [M-CLOCK-STYLES.md](../architecture/designs/M-CLOCK-STYLES.md)  
 **Deps:** M-SETTINGS-001 (done), M-APP-REGISTRY (done)
 
@@ -1134,6 +1142,15 @@ BP-048.
 
 **Status:** **closed 2026-07-16** — all of TASK-315..325 landed; TASK-324's
 VE gate closed (see `docs/verification/regression_suite/m-pr-locations-dut.md`).
+**Two PASS cells in that gate are weaker than the word PASS** (TASK-587 sweep,
+2026-09-06): `T_PRL_07`'s reflash-survival leg is booked on "implicit (many
+reflashes this milestone, always correct)" — an impression across the milestone,
+not an observation by that test — and `T_PRL_01b` is a PASS cell for a test not
+fully executed (the space-postcode-encoding leg was never run). **Human ruling
+2026-09-06: accept and move on** — the milestone is **not** re-opened, no work is
+scheduled, and neither cell is re-recorded as met. That evidence is informal,
+unrepeatable and not mechanically verified. Record: the last section of
+`m-pr-locations-dut.md`.
 Residuals intentionally left open, not gaps in this milestone: TASK-318's
 -120 assert re-deferred to M-CERT-ERRCODE (its own milestone); T_PRL_11
 blocked on TASK-243 (external, Spotify Premium lapsed). T_PRL_07's
