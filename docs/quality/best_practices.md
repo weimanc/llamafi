@@ -826,6 +826,38 @@ passes, which is what LL-140 asked for and never got.
 
 ---
 
+### BP-075 — Close a criterion against the oracle it names; a human judgement is ACCEPTED, never PASS
+
+**Adopted from**: LL-146
+**Date adopted**: 2026-09-06
+**Rule**: An exit criterion is closed only against evidence that observes the thing the criterion is
+about, and the closing record states **the oracle the criterion demands and the oracle that actually
+produced the evidence, side by side**. A criterion's disposition uses an evidence-kind vocabulary —
+**MET** (an oracle observed the criterion's own subject, in an identified run), **CITED** (met by a
+named earlier run, with the legs it does not cover listed), **ACCEPTED** (the gap is real and the
+project is choosing not to close it: requires the accepter, the date, the evidence stated for what it
+actually was, and an explicit "accepted risk, not a satisfied criterion" line), or **DEFERRED/UNMET**
+(carries an owning task and what would settle it). `PASS` stays a property of a *test id* against its
+own assertion and is never a criterion's disposition. A summary header may not be stronger than its
+weakest cell. A test that could not run is neither a pass nor a filed failure — a SKIP caused by
+harness breakage satisfies no limb of any criterion and becomes an outstanding observation with an
+owner and a due date.
+**Rationale**: Fifteen criteria across five milestones and one review were found closed on evidence
+weaker than their headers claimed — a render booked on an aircraft count, "Nixie: tubes within
+y:5..85" booked on "DUT accepts, no crash", thirteen behavioural criteria booked on another
+milestone's navigation suite, a pixel claim citing a task from an unrelated milestone. Three separate
+passes found them and each treated its find as a one-off, because `PASS` was one token doing the work
+of four: ran-and-passed, cited, partly assumed and human-eyeballed all rendered identically, so an
+accepted risk was typographically indistinguishable from a satisfied criterion and there was nothing
+to count. Acceptance is a legitimate disposition — three of the five milestones were accepted by
+human ruling on 2026-09-06 — but it must be *visible* and *countable*, which is the property whose
+absence let the class hide. See LL-146 for the full case list and root cause.
+**Applies to**: VE (suite headers, coverage tables), PM (roadmap status lines, milestone closes),
+Architect (design-doc exit criteria, as-built lines), QM (audit sweeps — the acceptance list is the
+sweep's starting point)
+
+---
+
 ## Entry Format
 
 ```
