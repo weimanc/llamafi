@@ -19,6 +19,10 @@ no network. ~0.1 s.
     | N2  | atom takes a value outside its domain    | fail             |
     | N2b | ...as classified by the OBSERVER, not by  | fail             |
     |     | the test fixture (see the arm's docstring)|                  |
+    | N2c | stockQuoteProgress takes a ticker index    | fail             |
+    |     | (a value the pre-TASK-660 [0,7] bound      |                  |
+    |     | accepted, and the real {0,-1} domain does  |                  |
+    |     | not) — proves the narrowing bites          |                  |
     | N3  | atom never returns to -1 after the fetch | fail             |
     | N4  | no fetch completed inside the window     | unmet, not fail  |
     | P1  | a clean, correct observation             | pass             |
@@ -86,13 +90,57 @@ def arm_n2():
     # And the boundary must NOT trip it: 2 is inside the domain.
     outcome, _ = _progress_atom_verdict("cryptoFetchPhase", obs([-1, 0, 1, 2]))
     check("N2", outcome == "pass", f"in-domain boundary 2 -> {outcome}")
-    # stockQuoteProgress has a wider domain; 7 is legal there and not elsewhere.
-    outcome, _ = _progress_atom_verdict("stockQuoteProgress",
-                                        obs([-1, 7], var="stockQuoteProgress"))
-    check("N2", outcome == "pass", f"7 legal for stockQuoteProgress -> {outcome}")
     outcome, _ = _progress_atom_verdict("stockChartProgress",
                                         obs([-1, 7], var="stockChartProgress"))
     check("N2", outcome == "fail", f"7 illegal for stockChartProgress -> {outcome}")
+
+
+def arm_n2c():
+    """THE NARROWED BOUND MUST BITE (TASK-660, BP-068).
+
+    `stockQuoteProgress` is a busy flag with domain {0, -1} — the firmware
+    writes 0 at the top of the spark fetch and -1 at the bottom, and nothing
+    else is reachable. Its bound read (0, 7) until TASK-660, copied from a
+    `dataTask.h` comment that TASK-249 had already made false. Under [0,7] the
+    clause could not fail on any build: the only value a correct build can
+    produce is 0, and {0} is inside [0,7].
+
+    This arm is the proof that the narrowing changed an outcome. Each ticker
+    index the old bound accepted must now be rejected, so a firmware change
+    that reintroduced per-symbol indices would be caught. The old bound is
+    asserted dead here on purpose: restoring it turns this arm red."""
+    lo, hi = _PROGRESS_ATOM_DOMAIN["stockQuoteProgress"]
+    check("N2c", (lo, hi) == (0, 0),
+          f"stockQuoteProgress domain is the as-built {{0, -1}}, bound {(lo, hi)}")
+    # Every value the vacuous [0,7] bound accepted and the real domain does not.
+    for v in range(1, 8):
+        outcome, msg = _progress_atom_verdict(
+            "stockQuoteProgress", obs([-1, v], var="stockQuoteProgress"))
+        check("N2c", outcome == "fail",
+              f"ticker-index {v} rejected (old [0,7] accepted it) -> {outcome}")
+        check("N2c", str(v) in msg, f"message names the offending value {v}")
+    # And the positive control: the one legal in-flight value still passes, so
+    # the narrowing did not simply break the id for every observation.
+    outcome, _ = _progress_atom_verdict("stockQuoteProgress",
+                                        obs([-1, 0], var="stockQuoteProgress"))
+    check("N2c", outcome == "pass", f"busy-flag 0 still legal -> {outcome}")
+
+    # END-TO-END through the real observer, for the same reason N2b exists: the
+    # fixture computes `bad` itself, so a fixture-only arm would not exercise
+    # the classification under test.
+    dut = FakeDut("stockQuoteProgress", [-1, 0, 3, -1, -1])
+    calls = {"n": 0}
+
+    def done():
+        calls["n"] += 1
+        return calls["n"] >= 4
+
+    o = _observe_progress_atom(dut, "stockQuoteProgress", done,
+                               timeout_s=5.0, test_id="N2c")
+    check("N2c", o["bad"] == [3],
+          f"observer classified ticker-index 3 as out-of-domain: {o['bad']}")
+    outcome, _ = _progress_atom_verdict("stockQuoteProgress", o)
+    check("N2c", outcome == "fail", f"end-to-end ticker index -> {outcome}")
 
 
 def arm_n2b():
@@ -227,7 +275,8 @@ def arm_n6():
 
 def main():
     print("=== test_progress_atoms.py — M-DATATASK-PROGRESS oracle negatives ===")
-    for fn in (arm_n1, arm_n2, arm_n2b, arm_n3, arm_n4, arm_p1, arm_n5, arm_n6):
+    for fn in (arm_n1, arm_n2, arm_n2b, arm_n2c, arm_n3, arm_n4, arm_p1,
+               arm_n5, arm_n6):
         fn()
     if FAILURES:
         print(f"\nFAILED arms: {sorted(set(FAILURES))}")

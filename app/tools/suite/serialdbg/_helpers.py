@@ -385,7 +385,14 @@ _CHART_PHASE_NAMES = {0: "TLS/connect", 1: "GET/response", 2: "JSON-parse"}
 #: `httpFetchJsonBuffered` phase writes (`dataTaskStorage.cpp:313-336`).
 #: -1 is the sentinel in every case and is NOT part of the domain.
 _PROGRESS_ATOM_DOMAIN = {
-    "stockQuoteProgress": (0, 7),
+    # stockQuoteProgress is a BUSY FLAG, not a ticker index: {0, -1}, so the
+    # bound here is (0, 0). It read (0, 7) until 2026-09-06 (TASK-659/660),
+    # copied from a `dataTask.h` comment that TASK-249 had already made false
+    # when it collapsed the eight per-ticker GETs into one multi-symbol spark
+    # request. A [0,7] bound cannot fail on any build — {0} is inside it — so
+    # it asserted nothing; (0, 0) is the bound that would catch a firmware
+    # change reintroducing per-symbol indices. Do not widen it back.
+    "stockQuoteProgress": (0, 0),
     "weatherFetchPhase":  (0, 2),
     "cryptoFetchPhase":   (0, 2),
     "stockChartProgress": (0, 2),

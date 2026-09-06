@@ -61,7 +61,7 @@ new assertions, A-7 a deferral. **Nothing was re-scored PASS.** These rows carry
 | TASK-657 | P2 | OPEN — @VE · needs a DUT window | M-DATATASK-PROGRESS (A-6): `T_DTP_01`/`T_DTP_02`/`T_WX_07`/`T_CX_07` written 2026-09-06 and **never run on hardware**. Run all four to a verdict. Host negatives green — `test_progress_atoms.py`, 6 mutations caught |
 | TASK-658 | P3 | OPEN — @VE · BLOCKED on TASK-638 | M-SETTINGS-STUB (A-7): C3/C4 (`T-SET-04`/`T-SET-05`) deferred to ADR-064 `get sig` — `inkCount == 0` outside the content-panel rect, and `sig(before) == sig(after)` across Spotify→Settings→Spotify. Neither needs a golden |
 | TASK-659 | P3 | **DONE 2026-09-06** | two record defects corrected: `stockQuoteProgress` is a busy flag `{0,-1}`, not a `0..7` ticker index; `M-SETTINGS-CRYPTO` was never needed and is not filed — [roadmap.md](roadmap.md) (both entries), [IFC-001](../architecture/interfaces/IFC-001.md), [M-DATATASK-PROGRESS](../architecture/designs/M-DATATASK-PROGRESS.md). Fallout: TASK-660 |
-| TASK-660 | P3 | OPEN — @VE | TASK-659 fallout, host-only edit: narrow `_PROGRESS_ATOM_DOMAIN["stockQuoteProgress"]` from `(0,7)` to `(0,0)` so `T_DTP_01`'s domain clause can actually fail, and drop `T170`'s two "stuck on ticker N (SYM)" messages — there is no per-ticker step to name. Both in `app/tools/suite/serialdbg/`. Verdict owed by TASK-657's run |
+| TASK-660 | P3 | **DONE 2026-09-06** | TASK-659 fallout, host-only: `_PROGRESS_ATOM_DOMAIN["stockQuoteProgress"]` narrowed `(0,7)`→`(0,0)` so `T_DTP_01`'s domain clause can fail; negative arm `N2c` proves it bites; `T170`'s two "stuck on ticker N (SYM)" messages dropped — [test_plan.md](../verification/test_plan.md) `T_DTP_01`. DUT verdict still owed by TASK-657 |
 
 ## Open — M-PR-MOTION (2026-07-18)
 

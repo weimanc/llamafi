@@ -131,7 +131,10 @@ def t169(dut: Dut):
 
 # ── T170 — Pre-fetch placeholders ─────────────────────────────────────────────
 
-_DEFAULT_TICKERS = ["AAPL", "AMD", "AMZN", "ARM", "GOOG", "META", "MSFT", "NVDA"]
+# `_DEFAULT_TICKERS` lived here and was used only to name a symbol from
+# `stockQuoteProgress` in T170's two failure messages. The atom is a busy flag,
+# not an index, so those names were fabricated; both messages and the list were
+# removed by TASK-660.
 
 
 def t170(dut: Dut):
@@ -169,17 +172,24 @@ def t170(dut: Dut):
             last_progress = prog
             last_progress_time = time.monotonic()
         elif prog is not None and prog != -1 and time.monotonic() - last_progress_time > 20.0:
-            ticker_name = _DEFAULT_TICKERS[prog] if isinstance(prog, int) and 0 <= prog < 8 else "?"
+            # stockQuoteProgress is a busy flag ({0, -1}), not a ticker index —
+            # a non-idle value says a quote fetch is in flight, and nothing
+            # about which symbol (TASK-659/660). Do not name one.
             _restore_from_stock(dut)
-            fail("T170", f"stockQuoteProgress stuck at ticker {prog} ({ticker_name}) for >20 s")
+            fail("T170", f"stockQuoteProgress stuck at {prog} for >20 s — a quote "
+                         f"fetch was in flight and never cleared")
             return
         time.sleep(2.0)
     if not advanced:
-        ticker_idx = _diag_val(dut, "stockQuoteProgress")
-        ticker_name = _DEFAULT_TICKERS[ticker_idx] if isinstance(ticker_idx, int) and 0 <= ticker_idx < 8 else "?"
+        prog = _diag_val(dut, "stockQuoteProgress")
+        # Busy flag, not a ticker index (TASK-659/660): 0 means a quote fetch
+        # was in flight and never completed; -1 means none was ever in flight
+        # in the window. Neither tells us which symbol — say only what is known.
+        state = ("a quote fetch was in flight and did not clear" if prog == 0 else
+                 "no quote fetch was ever in flight" if prog == -1 else
+                 f"stockQuoteProgress={prog!r}, outside its {{0, -1}} domain")
         _restore_from_stock(dut)
-        fail("T170", f"quoteOkCount did not advance within 65 s — "
-                     f"stuck on ticker {ticker_idx} ({ticker_name}), "
+        fail("T170", f"quoteOkCount did not advance within 65 s — {state}, "
                      f"fetchFailed={_diag_val(dut, 'fetchFailed')!r} "
                      f"fetchErrorCode={_diag_val(dut, 'fetchErrorCode')!r}")
         return
@@ -192,7 +202,7 @@ def t170(dut: Dut):
 #
 # TASK-657 (oracle sweep A-6). See `_helpers._observe_progress_atom` for what
 # these assert and why that and not more. The two weather/crypto siblings are
-# T_WX_06 / T_CX_06 in shell.py, beside the fetches they observe.
+# T_WX_07 / T_CX_07 in shell.py, beside the fetches they observe.
 #
 # NEITHER ID HAS EVER RUN ON HARDWARE (2026-09-06). They were written host-side
 # with no DUT available and owe their first hardware run — recorded in the same
@@ -201,7 +211,8 @@ def t170(dut: Dut):
 
 def t_dtp_01(dut: Dut):
     """T_DTP_01: stockQuoteProgress leaves its -1 sentinel across a quote fetch,
-    stays inside its domain, and returns to -1. M-DATATASK-PROGRESS Phase 1."""
+    stays inside its {0, -1} busy-flag domain, and returns to -1.
+    M-DATATASK-PROGRESS Phase 1."""
     print("T_DTP_01  stockQuoteProgress atom is written during a quote fetch")
     if not _switch_to_stock(dut):
         unmet("T_DTP_01", "could not switch to Stock — no quote fetch to observe")
@@ -221,13 +232,18 @@ def t_dtp_01(dut: Dut):
     if outcome == "unmet":
         unmet("T_DTP_01", msg)
     elif outcome == "fail":
-        # AS-BUILT NOTE, read 2026-09-06 and not yet ruled on: the firmware
-        # writes `s_stockQuoteProgress = 0` once at the top of the spark fetch
-        # and `-1` at the bottom (dataTaskStorage.cpp:471, :523) — there is no
-        # per-ticker loop any more, so the documented 0..7 ticker-index domain
-        # (dataTask.h:339) is as-built unreachable and the atom is a busy flag.
-        # That is a documentation/implementation divergence, NOT a reason to
-        # weaken this assertion: {0} is inside [0,7], so a correct build passes.
+        # DOMAIN NOTE (TASK-660, ruled 2026-09-06 by TASK-659). The domain is
+        # {0, -1}: `s_stockQuoteProgress` is written 0 once at the top of the
+        # spark fetch and -1 once at the bottom (dataTaskStorage.cpp:471, :523).
+        # It is a busy flag; there has been no per-ticker loop since TASK-249
+        # collapsed the eight per-ticker GETs into one multi-symbol request.
+        #
+        # This id asserted the old documented [0,7] bound until TASK-660. That
+        # was not the more rigorous choice — it was the vacuous one: {0} is
+        # inside [0,7], so the clause passed on every build and could not fail
+        # on any. The bound is now (0, 0) in `_PROGRESS_ATOM_DOMAIN`, which is
+        # what would catch a firmware change reintroducing per-symbol indices.
+        # Do not widen it back to match a stale comment.
         fail("T_DTP_01", msg)
     else:
         pass_("T_DTP_01", msg)
