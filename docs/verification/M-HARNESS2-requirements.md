@@ -424,7 +424,10 @@ flake.
 *Rationale*: `C-7`/`E-3`/`F-8` — every flake declaration examined across three families is mismatched
 with its call sites in both directions, and `F-4` spent a year filed as network churn. A flake
 declaration is where order dependence goes to be forgotten.
-*Verification*: the outcome exists in the result schema (§8) and the shuffle job emits it.
+*Verification*: the shuffle job emits it, per id, over the two IFC-008 artifacts the two orders
+produced. **Corrected 2026-09-06 (@Architect, TASK-644 — ADR-066 D2a):** this line previously read
+"the outcome exists in the result schema (§8)". It does not and must not — `ORDER-DEPENDENT` is a
+comparison outcome across two runs, not a per-id run verdict, and the verdict enum stays at seven.
 *Priority*: SHOULD.
 
 ---
@@ -531,7 +534,16 @@ one that matters most — a precondition that did not hold — is spelled `SKIP`
 | `UNMET` | the test's premise could not be established — the precondition failed | **no; it is not a result about the firmware and never green** |
 | `NOT-RUN` | never dispatched, blocked by a lower-class failure; carries `blocked-by` | no |
 | `FLAKY-PASS` | a pre-declared flake that passed on retry; both attempts reported | no — never counted as a pass, never satisfies a declared pass set |
-| `ORDER-DEPENDENT` | R21's shuffle outcome | no |
+
+**Corrected 2026-09-06 (@Architect, TASK-644 — ADR-066 D2a).** This table listed an eighth row,
+`ORDER-DEPENDENT`, "R21's shuffle outcome". **That row was wrong and is removed; the verdict enum is
+seven members.** `ORDER-DEPENDENT` is a **cross-run comparison outcome**, not a verdict: no single
+run can determine it, because it is a statement about the *difference* between two runs and is only
+knowable to something holding both artifacts. R21 stands unchanged and is not weakened — it is
+implemented by the shuffle job emitting `ORDER-DEPENDENT` per id, naming both orders, over two
+ordinary seven-verdict artifacts. **R21's implementer (TASK-636) MUST NOT add an eighth enum member.**
+See ADR-066 D2a for the three-scope split against `_order.py`'s static `ORDER-SENSITIVE` adjudication
+category, which is a third and different thing again.
 
 *Rationale*: `C-5` — 31 of the 43 CORE ids have a `skip()` exit and each one is a CORE precondition
 that did not hold, which is exactly the condition the class exists to stop the run on; 262 `skip()`

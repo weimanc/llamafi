@@ -589,3 +589,16 @@ met, and none of the thirteen may be re-recorded PASS on the strength of it. Own
    wired; by whom and under which milestone is not recorded. `M-SETTINGS-CRYPTO` appears **nowhere**
    in `roadmap.md` except in that parenthesis — it was never filed. Flagged to @PM; not resolved
    here, because deciding which milestone owns E9/E10 is a scoping ruling, not a citation fix.
+
+   **RULED 2026-09-06 (@Architect, TASK-659): E9/E10 belong to THIS milestone, and
+   `M-SETTINGS-CRYPTO` is not filed — it was a deferral that was cancelled before implementation.**
+   The `roadmap.md` parenthesis is plan-time prose that the same day's decisions superseded and
+   nobody unwound. Two facts settle it. **(a)** ADR-043 D3 — *"Word IDs stored directly in
+   `g_settings.cryptoCoins`. No symbol→ID mapping"* — removes the first of the two prerequisites the
+   deferral named. **(b)** Commit `4a94053` (TASK-172, this milestone) delivers the crypto wiring in
+   full as **W6–W9**, including W9's *"`fetchCrypto()` builds URL and JSON keys dynamically"* — the
+   second prerequisite. `git log -S"configureCrypto" -- app/src` shows that commit and two later pure
+   moves, and nothing else: there is no other milestone this work could have come from. Nothing was
+   wired under no milestone; the scope sentence was simply stale. `roadmap.md`'s entry is corrected.
+   E9/E10 stay **DEFERRED** for the reason all eleven are — the behaviour was never observed
+   (TASK-656) — which is unaffected by this ruling.

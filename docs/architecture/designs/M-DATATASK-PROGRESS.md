@@ -48,6 +48,17 @@ Because Core 0 writes and Core 1 reads, `volatile` is sufficient for single-scal
 
 ### Initial implementation: `fetchStockQuote()`
 
+> **AS-BUILT CORRECTION — 2026-09-06 (@Architect, TASK-659).** The sketch below is the design as
+> written and is **no longer the code**. TASK-249 replaced the eight sequential per-ticker GETs with
+> **one multi-symbol spark request** (8 TLS handshakes ≈ 16 s → 1 ≈ 2 s), which deleted the loop the
+> `0..7` ticker index lived in. As built, `dataTaskStorage.cpp:471` writes `0` once at the top of the
+> fetch and `:523` writes `-1` once at the bottom: **`stockQuoteProgress` is a busy flag with domain
+> `{0, -1}`, and no other value is reachable.** Read everything below as the design's intent, not as
+> the contract — the contract is `dataTask.h` and IFC-001, both corrected. The specific claim this
+> costs is Phase 1's headline benefit, *"stuck on ticker N (SYM)"*: the atom cannot name a symbol,
+> because there is no longer a per-symbol step to name. What survives is the coarser and still-real
+> distinction between *a fetch is in flight* and *nothing was ever enqueued*.
+
 ```cpp
 // dataTaskStorage.cpp
 static volatile int8_t s_stockQuoteProgress = -1;  // -1=idle, 0-7=ticker index
@@ -116,7 +127,7 @@ This pattern is valuable anywhere a Core 0 dataTask function has multiple discre
 
 | Function | Steps | Progress indicator | Status |
 |---|---|---|---|
-| `fetchStockQuote()` | 8 ticker fetches | `stockQuoteProgress` (ticker index 0–7) | **Shipped** — Phase 1 (TASK-173/174) |
+| `fetchStockQuote()` | **1 multi-symbol spark request** (was 8 ticker fetches until TASK-249) | `stockQuoteProgress` — **busy flag, `{0, -1}`**, not a ticker index (TASK-659) | **Shipped** — Phase 1 (TASK-173/174); domain superseded by TASK-249 |
 | `fetchWeather()` | 1 HTTP + 1 JSON parse | `weatherFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:61,116,126,141,160`; exposed via `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) |
 | `fetchCrypto()` | 1 HTTP + 1 JSON parse | `cryptoFetchPhase` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:62,188,196,200,212,234`; exposed via `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) |
 | `fetchStockChart()` | 1 HTTP + streaming parse | `stockChartProgress` (0=TLS, 1=GET, 2=parse, -1=idle) | **Shipped** — `dataTaskStorage.cpp:63,314/695 etc.`; exposed via `app/src/debug/serialConsole/cmdGet.h` (`cmdGet`) |

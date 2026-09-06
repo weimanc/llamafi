@@ -384,8 +384,13 @@ Add volatile per-step progress atoms to dataTask functions that run multi-step H
 sequences on Core 0. Expose via global serialdbg `get` commands so tests (and operators)
 can observe in-progress state on Core 1 without waiting for a committed result.
 
-Phase 1: `fetchStockQuote()` — `stockQuoteProgress` (int8_t, -1=idle, 0–7=ticker index).
-Turns T170 timeout failures from "quoteOkCount did not advance" into "stuck on ticker N (SYM)".
+Phase 1: `fetchStockQuote()` — `stockQuoteProgress` (int8_t). **As shipped this is a BUSY FLAG,
+domain `{0, -1}`, not the `0–7` ticker index this line claimed until 2026-09-06 (TASK-659).**
+TASK-249 collapsed the eight per-ticker GETs into one multi-symbol spark request, so the per-ticker
+loop the index described no longer exists and the "stuck on ticker N (SYM)" enrichment Phase 1 was
+sold on **cannot fire as described** — the atom can only say *a fetch is in flight*, never which
+symbol. That is still a real second failure mode (in-flight vs never-enqueued) and Phase 1's value
+is not zero, but the record now says what the code does.
 
 Phase 2: extended to `fetchWeather()`, `fetchCrypto()`, `fetchStockChart()`, `fetchStockChartBySym()` — `weatherFetchPhase`, `cryptoFetchPhase`, `stockChartProgress` (0=TLS, 1=GET, 2=parse, -1=idle).
 
@@ -407,10 +412,32 @@ them. Currently the Settings UI saves preferences (Matrix color/speed, Life spee
 Aquarium fish/speed, Stock tickers/default view, Crypto coins/currency) but every app
 ignores `g_settings` and uses hardcoded defaults.
 
-Scope: Matrix, Life, Aquarium, Stock — pull-on-resume model. Crypto deferred (coin
-symbol→CoinGeckoId mapping + dynamic URL required; separate milestone M-SETTINGS-CRYPTO).
+Scope: Matrix, Life, Aquarium, Stock **and Crypto** — pull-on-resume model.
 Stock also requires a `configureStockTickers()` path to `dataTaskStorage.cpp` so the
 network layer fetches the user-configured symbols.
+
+**Scope corrected 2026-09-06 (@Architect, TASK-659).** This paragraph read *"Crypto deferred (coin
+symbol→CoinGeckoId mapping + dynamic URL required; separate milestone M-SETTINGS-CRYPTO)"* — a
+**plan-time deferral that was cancelled before implementation and never unwound in the prose.**
+`M-SETTINGS-CRYPTO` was never filed because it was never needed, and **it is not being filed now.**
+Established from the history, not inferred:
+
+- **ADR-043 (2026-06-12) dissolved the deferral's stated prerequisite.** Its decision 3 —
+  *"Word IDs stored directly in `g_settings.cryptoCoins`. No symbol→ID mapping"* — removes the
+  symbol→CoinGeckoId mapping this line said a separate milestone was required for. `cgIdToDisplay()`
+  is a 12-entry **display-label** lookup, the opposite direction, and cheap.
+- **The crypto work landed inside this milestone, on the same day, in the same commit.** `4a94053`
+  *"feat(M-SETTINGS-APP-WIRE): wire per-app settings to app behaviour (TASK-172)"* carries **W6**
+  (`cryptoCoins[6][8]→[6][16]`, CoinGecko word-ID defaults), **W7** (`CryptoApp` calls
+  `configureCrypto()` from `init()`/`resume()`), **W8** (Crypto settings UI), and **W9**
+  (`configureCrypto()` + `fetchCrypto()` **building the URL and JSON keys dynamically**) — the second
+  of the two prerequisites, also delivered here. `git log -S"configureCrypto" -- app/src` returns this
+  commit and two later pure moves (`78caa95`, `1d682be`), and nothing else.
+
+So nothing was "wired under no milestone": **E9/E10 are legitimately this milestone's criteria and
+this milestone legitimately closed over them.** Their `DEFERRED` status is unchanged and is a separate
+matter — they are deferred because the *behaviour* was never observed (TASK-656), not because the
+*work* belongs elsewhere.
 
 **Status:** done (2026-06-12 — TASK-172; W1–W9 all shipped). **Exit criteria re-cited 2026-09-06**
 (oracle sweep A-1, human ruling): the `T-SET-01..08` citation is **withdrawn** — those are

@@ -336,7 +336,13 @@ void configureCrypto(const char ids[6][16], const char* ccy);
 
 // Live progress indicators — safe to read from any core without locking.
 // -1 = idle (function not running), 0..N = step currently in progress.
-// stockQuoteProgress: ticker index 0-7 currently being fetched.
+// stockQuoteProgress: BUSY FLAG — 0 = a quote fetch is in flight, -1 = idle.
+//   NOT a ticker index. It documented "ticker index 0-7" until 2026-09-06
+//   (TASK-659), but TASK-249 had already collapsed the eight per-ticker GETs
+//   into ONE multi-symbol spark request, so the per-ticker loop that domain
+//   described no longer exists: the atom is written 0 once at the top of the
+//   fetch and -1 once at the bottom (dataTaskStorage.cpp:471, :523) and no
+//   other value is reachable. Domain is {0, -1}.
 // weatherFetchPhase / cryptoFetchPhase / stockChartProgress: 0=TLS, 1=GET, 2=parse.
 int8_t stockQuoteProgress();
 int8_t weatherFetchPhase();

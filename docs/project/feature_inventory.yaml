@@ -701,7 +701,9 @@ features:
       275×240 canvas (header y=0..239 spans both views). Error state: `fetchFailed`
       guard shows "STOCK FETCH FAILED / NET ERR <code> / retrying in 60s..." and
       suppresses tap drill-in in list view; back always active in chart view.
-      dataTask queue events: DATA_FETCH_STOCK_QUOTE (quote for all 8 tickers sequentially),
+      dataTask queue events: DATA_FETCH_STOCK_QUOTE (ONE multi-symbol spark request covering
+      all configured tickers — TASK-249 replaced the original 8 sequential per-ticker GETs;
+      corrected 2026-09-06, TASK-659),
       DATA_FETCH_STOCK_CHART (single ticker/range). Quote fetch every 60 s; chart fetch
       every 60 s (D1) or 300 s (5D/1M/6M). fetchStockQuote() and fetchStockChart()
       use http.getStream() — Yahoo Finance returns Content-Length (not chunked), so
