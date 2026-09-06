@@ -65,7 +65,9 @@ from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa
                      set_no_wifi)
 import lib.dut as _dut_mod                                               # noqa: E402
 from lib.results import (fail, unmet, run_with_flake_retry,              # noqa: E402
-                         set_meta_provider, set_premise_provider)
+                         set_exchange_provider, set_meta_provider,
+                         set_premise_provider)
+import lib.replay as _replay                                             # noqa: E402
 
 try:
     import serial
@@ -362,6 +364,15 @@ def main():
     # the Dut exists and before any test runs, so no FAIL can escape without it.
     _triage.install(dut, all_meta)
 
+    # TASK-631 / Dev D3. The last 20 command/reply pairs, so a FAIL carries the
+    # exchanges that led to it instead of sending triage to a serial log that
+    # `run/test`'s firmware restore may already have outlived. Installed HERE,
+    # after the Dut exists and before any test runs, for the same reason mode P
+    # is: no blocking verdict may escape without its context. Costs one
+    # `deque.append` per command; nothing is built on a green run.
+    _fail_ring = _replay.FailRing().wrap(dut)
+    set_exchange_provider(_fail_ring.snapshot)
+
     # TASK-608 / R30 / ADR-066 D3. `lib/` never imports a suite (M-TOOLING), so
     # the premise fields only this layer can know are INSTALLED, exactly as
     # _triage.install() installs the mode-P context above. Closures, not a
@@ -447,6 +458,7 @@ def main():
         print()
 
     def _dispatch(tid):
+        _fail_ring.begin(tid)           # TASK-631: attribute exchanges to an id
         try:
             dut.cmd(f"get __TEST_{tid}__", timeout=2.0)
         except TimeoutError:

@@ -302,4 +302,14 @@ if ! "$PYTHON" gate/check_app_conformance.py; then
     exit 1
 fi
 
+# ── TASK-628/631 — the replay engine's negative suite (R10's own verification
+# clause, BP-068). Blocking at zero from the day it lands: this is the mechanism
+# that decides whether a mutation result may be counted, so a broken one
+# manufactures the acceptance number the programme exists to disbelieve. 40 arms
+# over the real T_MA_03 body; no DUT, no port, ~0.25 s.
+if ! "$PYTHON" lib/test_replay.py; then
+    echo "FAIL: lib/test_replay.py (TASK-628/631 replay-engine negative suite) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"

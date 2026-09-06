@@ -69,7 +69,9 @@ import re
 #: MAJOR.MINOR. See the schema note above.
 SCHEMA_NAME = "esp_spotify.test-run"
 SCHEMA_MAJOR = 1
-SCHEMA_MINOR = 0
+#: 1.1 (TASK-631): `results[].exchanges` — the last 20 command/reply pairs
+#: behind a blocking verdict, or null. Additive, so 1.0 readers are unaffected.
+SCHEMA_MINOR = 1
 SCHEMA_VERSION = f"{SCHEMA_MAJOR}.{SCHEMA_MINOR}"
 
 #: Where a run writes when the caller named no path (layer L1).

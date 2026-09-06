@@ -236,6 +236,58 @@ _BLOCKED_BY_MARK = "blocked-by="
 #: id cost this run", and the one a per-class budget wants.
 TIMING: dict[str, dict] = {}
 
+# ── TASK-631 / Dev D3: the last 20 exchanges behind a blocking verdict ────────
+#
+# WHAT PROBLEM. Triage reads a serial log by hand today: find the run, find the
+# id in it, scroll back to the commands that led there. The log is a different
+# artefact from the verdict, is not always kept, and after `run/test` restores
+# firmware it is frequently the only evidence left — of a board that has since
+# been reset (TASK-426's lesson, one layer down).
+#
+# WHERE IT LIVES. The ARTIFACT, never the text summary. The summary is
+# line-oriented and `run/player-gate` parsed it with sed for years; TASK-573 is
+# what a summary line that silently fails to parse costs. A twenty-line dump per
+# FAIL would also bury the one line a human is looking for. Mode P (TASK-571)
+# already puts the ONE-line triage context in the text; this is its machine half.
+#
+# WHY FAIL **AND** UNMET. `BLOCKING`, not `{FAIL}`. An UNMET is a `NoAnswer` —
+# the device stopped answering — and the twenty commands before the silence are
+# the most useful twenty lines the harness can hand anybody. Carrying them for a
+# FAIL and withholding them for an UNMET would make the more mysterious of the
+# two verdicts the less evidenced one.
+
+#: tid -> [exchange, ...], captured at the moment the blocking verdict was
+#: written. Empty on a green run, and on any run with no provider installed.
+EXCHANGES: dict[str, list] = {}
+
+#: `fn(tid) -> list`, installed by the runner from `lib.replay.FailRing`.
+#: `lib/` never imports a suite and the runner owns the `Dut`, so this follows
+#: the same installed-hook shape as `set_fail_context`/`set_meta_provider`.
+_EXCHANGE_PROVIDER: Optional[Callable[[str], list]] = None
+
+
+def set_exchange_provider(provider: Optional[Callable[[str], list]]) -> None:
+    """Install (or, with None, remove) the fail-context exchange provider."""
+    global _EXCHANGE_PROVIDER
+    _EXCHANGE_PROVIDER = provider
+
+
+def _capture_exchanges(tid: str) -> None:
+    """Snapshot the ring for `tid`. Silent on any error, always.
+
+    Same rule as `fail_context`: this is a reporting affordance, and a broken
+    one must never change a run's verdict. A traceback out of `set_typed` would
+    do exactly that — it would turn a recorded FAIL into an unrecorded crash.
+    """
+    if _EXCHANGE_PROVIDER is None:
+        return
+    try:
+        rows = _EXCHANGE_PROVIDER(tid)
+    except Exception:
+        return
+    if rows:
+        EXCHANGES[tid] = list(rows)
+
 
 def _utcnow() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime(
@@ -285,6 +337,14 @@ class _ResultsDict(dict):
             BLOCKED_BY[tid] = record.split(_BLOCKED_BY_MARK, 1)[-1].strip()
         else:
             BLOCKED_BY.pop(tid, None)
+        # TASK-631. Snapshot HERE and not at document-build time: by then the
+        # next test has already overwritten the ring, and the twenty exchanges
+        # the artifact would carry would be the wrong test's. Only for a
+        # blocking verdict — a green run never builds a payload at all, which is
+        # the "costs nothing a user would notice" clause, kept mechanically
+        # rather than promised.
+        if verdict in BLOCKING:
+            _capture_exchanges(tid)
 
     def __setitem__(self, tid, record):             # compatibility path
         self.set_typed(tid, classify(record), record)
@@ -305,6 +365,7 @@ class _ResultsDict(dict):
         VERDICTS.clear()
         BLOCKED_BY.clear()
         TIMING.clear()
+        EXCHANGES.clear()
 
     def setdefault(self, *a, **k):                  # not used; refuse it
         raise NotImplementedError("use RESULTS[tid] = record")
@@ -473,6 +534,7 @@ def build_document(exit_code: int, health_fail: Optional[str] = None,
         if t.get("elapsed_s") is not None:
             bucket["elapsed_s"] = round(bucket["elapsed_s"] + t["elapsed_s"], 3)
             bucket["measured_ids"] += 1
+        row_exchanges = EXCHANGES.get(tid) if v in BLOCKING else None
         rows.append({
             "id": tid,
             "verdict": v.value,
@@ -484,6 +546,10 @@ def build_document(exit_code: int, health_fail: Optional[str] = None,
             "ended_at": t.get("ended_at"),
             "elapsed_s": t.get("elapsed_s"),
             "reason": _structured_reason(v, record),
+            # TASK-631, schema 1.1 (additive). Present ONLY on a blocking
+            # verdict and ONLY when a ring was installed; `null` everywhere else
+            # says "not recorded", which is different from "there were none".
+            "exchanges": row_exchanges,
         })
     for bucket in per_class.values():
         # An elapsed summed over only SOME of a class's ids is not that class's

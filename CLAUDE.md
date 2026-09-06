@@ -305,7 +305,7 @@ PN532 detection runs unconditionally in `setup()` (`NFC_ENABLED` in the .ino). O
 `GitHubPages/` hosts the ESPWebTools browser flasher (Chrome/Edge) — a build artifact deployment target, not part of firmware.
 
 **Host tooling** (`app/tools/`, per [M-TOOLING-host-tool-architecture.md](docs/architecture/designs/M-TOOLING-host-tool-architecture.md)):
-- `lib/` — shared layer: `dut.py` (DUT session: port resolve, open, send, expect), `flaky.py`/`results.py` (suite reporting).
+- `lib/` — shared layer: `dut.py` (DUT session: port resolve, open, send, expect), `flaky.py`/`results.py` (suite reporting), `artifact.py` (the schema-versioned run artifact, TASK-608), `replay.py` (TASK-628: record a session at the transport, replay it against the real bodies with no device; also TASK-631's fail ring). `lib/test_replay.py` is its negative suite, blocking in `run/check`.
 - `gate/` — host gates `run/check`/`run/check-docs` invoke: the five `check_*.py` scripts + their `test_check_*.py` tests. Leaves — nothing else depends on `gate/`.
 - `gen/` — codegen writing into `app/gen/`, staleness-gated (`gen_app_registry.py`, `gen_mem_layout.py`, …).
 - `bake/` — asset bakes writing into `app/gen/`, `golden.sha256`-gated (`bake_skin.py`, `bake_nixie.py`, …).
