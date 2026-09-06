@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # run/test — full DUT validation loop (BP-020)
-# Runs full serialdbg suite. Always restores prod firmware + monitor on exit.
+# Runs full serialdbg suite. VERIFIES the board is on the debug build and REFUSES
+# (exit 3) if it is not. It does NOT flash and it does NOT restore — ADR-067.
 # Usage: ./run/test
 #        BOOT_WAIT=12 ./run/test
 #        PORT=/dev/ttyUSB1 ./run/test
@@ -14,6 +15,11 @@ source "$(dirname "$0")/lib.sh"
 _PORT_EXPLICIT="${PORT:-}"
 PORT=$(resolve_port)
 
+# ADR-067/TASK-633: declare the build, do not flash it. FIRST, before the
+# settings snapshot below touches the board at all — a wrong-build run must
+# leave the rig exactly as it found it.
+require_build "$ENV_DEBUG" test "$PORT" || exit $?
+
 # TASK-506: snapshot persisted settings before the suite runs so they can be
 # restored after — same content BP-049 already asks every DUT session to
 # capture by hand (`./run/spiffs pull` + a timestamped copy), just automated
@@ -22,7 +28,7 @@ PORT=$(resolve_port)
 # suite — the settings a test suite mutates are real but recoverable
 # (BP-049's own point), not worth losing 30+ minutes of test results over.
 SETTINGS_SNAPSHOT_DIR="$(mktemp -d)"
-echo "[test] step 0b/6 — snapshotting settings.json (TASK-506/BP-049)"
+echo "[test] step 0b/4 — snapshotting settings.json (TASK-506/BP-049)"
 if "$(dirname "$0")/spiffs" pull >/dev/null 2>&1 \
     && [ -f "$PIO_DIR/data/spiffs-dump/settings.json" ]; then
   cp "$PIO_DIR/data/spiffs-dump/settings.json" "$SETTINGS_SNAPSHOT_DIR/settings.json"
@@ -35,18 +41,13 @@ fi
 _TEST_RC=0
 _cleanup() {
   local rc=$_TEST_RC
-  local restore_pt; restore_pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
+  local pt; pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
   echo ""
-  echo "[test] step 5/6 — restoring $ENV_PROD (rc=$rc so far)"
-  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$restore_pt") || {
-    echo "ERROR [test]: prod restore failed — DUT still running debug firmware" >&2
-    rc=99
-  }
-  echo "[test] step 5b/6 — restoring settings.json from the pre-run snapshot (TASK-506)"
+  echo "[test] step 3/4 — restoring settings.json from the pre-run snapshot (TASK-506)"
   local settings_restored=0
   if [ -n "$SETTINGS_SNAPSHOT_DIR" ] && [ -f "$SETTINGS_SNAPSHOT_DIR/settings.json" ]; then
     if SRC_FILE="$SETTINGS_SNAPSHOT_DIR/settings.json" "$(dirname "$0")/spiffs" push settings.json; then
-      settings_restored=1   # `spiffs push` already restarted the monitor — step 6 below skips it
+      settings_restored=1   # `spiffs push` already restarted the monitor — step 4 below skips it
     else
       echo "WARN [test]: settings.json restore failed — device may carry test-mutated settings (BP-049: pull+diff manually)" >&2
     fi
@@ -54,38 +55,19 @@ _cleanup() {
   else
     echo "WARN [test]: no settings.json snapshot to restore" >&2
   fi
-  echo "[test] step 6/6 — restarting monitor"
+  # NOTE: this restores SETTINGS, not FIRMWARE. ADR-067 deletes the firmware
+  # restore only. A settings snapshot is data the suite itself mutated on a
+  # board it did not own; putting it back is the suite cleaning up after
+  # itself, not an entry point owning firmware lifecycle.
+  echo "[test] step 4/4 — restarting monitor (rc=$rc; firmware NOT restored — ADR-067)"
   if [ "$settings_restored" = "1" ]; then
     echo "[test] monitor already restarted by the settings-restore step above — skipping"
   else
-    restart_monitor "$restore_pt"
+    restart_monitor "$pt"
   fi
-  # TASK-434 item 1: the harness exits SETUP_FAIL_EXIT (3) for a RIG condition —
-  # WiFi never came up, wrong firmware flashed, port busy. Re-state it AFTER the
-  # prod restore, because the restore's flash output is the last thing in the log
-  # and a reader who greps for PASS/FAIL finds neither. Note rc is deliberately
-  # read after the restore block: a restore failure overwrites it with 99, and in
-  # that case this line is the only surviving evidence that no tests ever ran.
-  if [ "$rc" = "3" ] || [ "$_TEST_RC" = "3" ]; then
-    echo ""
-    echo "[SETUP-FAIL] rig condition — NO TESTS RAN. This is not a test failure."
-    echo "             See the [SETUP-FAIL] block and serial tail above the restore output."
-  fi
-  # TASK-566 / EC-G7: exit 4 is NEW and is NOT exit 3. Untaught, a HEALTH
-  # failure falls through here and reads as a completed run — the exact
-  # inversion M-TESTARCH exists to prevent, and it already happened once
-  # for FLAKY-PASS (TASK-573).
-  if [ "$rc" = "4" ] || [ "$_TEST_RC" = "4" ]; then
-    echo ""
-    echo "[HEALTH-FAIL] the BOARD was not a valid test subject — NO TESTS RAN."
-    echo "             This is NOT a rig condition and NOT a test failure. The"
-    echo "             board is running and it answered; it is not fit to be a"
-    echo "             subject. Do not blame the cable, the port or the host."
-    echo "             Diagnose the DEVICE: ./run/monitor-read for the boot above,"
-    echo "             and the last-phase=/gen= stamps in the [SETUP-FAIL] block."
-    echo "             (M-TESTARCH §4: exit 3 = the host could not address a"
-    echo "             board; exit 4 = the board is not a valid subject.)"
-  fi
+  # TASK-434 item 1 / TASK-566: rig (3) and health (4) restated last, because a
+  # reader greps the tail for PASS/FAIL and finds neither.
+  explain_exit_code "$rc" test
   exit "$rc"
 }
 trap _cleanup EXIT INT TERM
@@ -95,7 +77,7 @@ trap _cleanup EXIT INT TERM
 # cryptic fetch-test FAILs 30+ minutes in. FAIL lines here name the cause up
 # front; ERROR lines (host can't reach a federation mirror) are expected noise.
 # Never gates the run — the DUT's network vantage differs from the host's.
-echo "[test] step 0/6 — TLS-pin preflight (warn-only)"
+echo "[test] step 0/4 — TLS-pin preflight (warn-only)"
 if PREFLIGHT_OUT=$("$(dirname "$0")/check-datatask-certs" 2>&1); then
   echo "$PREFLIGHT_OUT" | grep -E "^(PASS|FAIL|ERROR)" || true
 else
@@ -110,25 +92,17 @@ else
   fi
 fi
 
-echo "[test] step 1/6 — killing monitor"
+echo "[test] step 1/4 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
-echo "[test] step 2/6 — flashing $ENV_DEBUG to $PORT"
-(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
-# TASK-559: esptool just hard-reset the DUT. Record it where lib/dut.py's
-# DRD guard can see it, so the harness open below waits out the remainder of
-# the window instead of landing inside it (BOOT_WAIT=8 < _DUT_DRD_WINDOW_S=12).
-stamp_reset_gap "$PORT"
+# No flash step (ADR-067 D1). The board's build identity is verified on the port
+# the runner opens below (lib/dut.py::_verify_debug_firmware), which costs no
+# extra open and therefore no extra DTR reset — see run/lib.sh's ADR-067 block.
+#
+# TASK-563: no blind boot sleep either. Readiness is decided by watching the
+# boot the open itself causes, not by guessing.
 
-
-# TASK-563: no blind boot sleep. The post-flash reset gap is stamped above
-# and enforced by lib/dut.py, which waits out the remainder on open
-# (TASK-559); readiness is then decided by watching the boot the open
-# itself causes, not by guessing. BOOT_WAIT never described this boot
-# anyway -- TASK-561 measured 46 s to console on a NO_AP_FOUND boot
-# against a BOOT_WAIT of 8.
-
-echo "[test] step 4/6 — running full test suite"
+echo "[test] step 2/4 — running full test suite"
 _LOG_ARGS=()
 if [ -n "${LOG_FILE:-}" ]; then
   echo "[test] raw serial log: $LOG_FILE"

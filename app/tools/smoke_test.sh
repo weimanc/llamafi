@@ -269,6 +269,23 @@ if ! "$PYTHON" gate/check_gating_offline.py; then
     exit 1
 fi
 
+# 4a-bis. ADR-067/R51 — no DUT entry point flashes, and none restores (TASK-633).
+# Blocking at ZERO with NO ledger: there is nothing to shrink from, and a single
+# re-introduced restore re-creates the exact obstruction ADR-067 removed — a
+# script that cannot be run at all on a board pinned to a debug build (TASK-557).
+# The negative suite runs first and is blocking: its central arm re-introduces
+# the restore (bare and inside an EXIT trap) and requires the gate to catch both,
+# and its second half drives the refusal decision against a FAKED Dut, proving
+# the condition -> exit-code mapping on a host with no board attached.
+if ! "$PYTHON" gate/test_check_entrypoint_lifecycle.py; then
+    echo "FAIL: test_check_entrypoint_lifecycle.py (TASK-633 checker + refusal negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_entrypoint_lifecycle.py; then
+    echo "FAIL: check_entrypoint_lifecycle.py (TASK-633 ADR-067 entry-point lifecycle) FAILED" >&2
+    exit 1
+fi
+
 # 4b. R34 — every registered id can actually go red (TASK-603).
 # Blocking on a dated shrink-only ledger. The negative suite runs first and is
 # blocking for the same reason as the one above: three of its arms are CONTROLS

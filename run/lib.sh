@@ -8,13 +8,20 @@ VENV_PY="${VENV_PY:-$([ -x "$_venv_default" ] && echo "$_venv_default" || comman
 PIO_DIR="$PROJ_ROOT/app"
 SESSION="spotify-mon"
 ENV_PROD="cyd2usb_winamp"
-# TASK-435 item 2: the debug env the test scripts flash and the harness verifies
-# against. Overridable so a suite can run on a second testable variant —
-# DUT_ENV=cyd2usb_player ./run/test-targeted T_PLR_01,T_PLR_02
-# The same variable is read by suite/serialdbg/runner.py for its ELF-hash guard
-# (it inherits the environment), so the two cannot disagree about which binary
-# is supposed to be on the device. ENV_PROD is deliberately NOT overridable:
-# every test script's trap restores production, and that must stay production.
+# ENV_PROD is now used for ONE thing: `pio device monitor -e <env>` needs an env
+# to pick up the monitor's decoder settings. It is NOT flashed by anything here.
+# ADR-067 D1 deleted the restore: a DUT entry point verifies and refuses, it
+# never flashes and it never restores. The superseded comment that used to sit
+# here read "ENV_PROD is deliberately NOT overridable: every test script's trap
+# restores production, and that must stay production" — no trap restores
+# anything any more, so the reason is gone with the behaviour.
+#
+# TASK-435 item 2: the debug env the harness verifies against. Overridable so a
+# suite can run on a second testable variant —
+#   DUT_ENV=cyd2usb_player ./run/test-targeted T_PLR_01,T_PLR_02
+# The same variable is read by suite/serialdbg/runner.py and by lib/dut.py's
+# ELF-hash guard (they inherit the environment), so the host and the guard
+# cannot disagree about which binary is supposed to be on the device.
 ENV_DEBUG="${DUT_ENV:-cyd2usb_winamp_debug}"
 BOOT_WAIT="${BOOT_WAIT:-8}"
 # Shared by restart_monitor() below, run/monitor-start and run/monitor-read —
@@ -136,14 +143,17 @@ resolve_port() {
   exit 1
 }
 
-# Re-resolve the port immediately before a trap-guarded restore flash, instead
-# of trusting the value resolve_port() cached at script start (ADR-062/
-# TASK-547). A run/test* session spans minutes across multiple flash/DUT-open
-# operations; the CH340 has re-enumerated mid-run (this is the second time —
-# lib/dut.py's resolve_port() docstring already recorded an earlier instance),
-# and the trap-guarded restore is the ONE thing every run/* script's safety
-# promise depends on ("DUT is never left broken") — it must not silently keep
-# using a device path that no longer exists.
+# Re-resolve the port at cleanup time instead of trusting the value
+# resolve_port() cached at script start (ADR-062/TASK-547). A run/test* session
+# spans minutes across multiple DUT-open operations; the CH340 has re-enumerated
+# mid-run (this is the second time — lib/dut.py's resolve_port() docstring
+# already recorded an earlier instance), so the cleanup path must not silently
+# keep using a device path that no longer exists.
+#
+# ADR-067/TASK-633: the caller it was written for — the trap-guarded restore
+# flash — is GONE. What remains on that path is restart_monitor(), which opens
+# the same port and is just as exposed to a rename. The function is unchanged;
+# only its consumer is.
 #
 # Respects an explicit PORT=... override (the documented multi-rig/manual-pin
 # use case, e.g. `PORT=/dev/ttyUSB1 ./run/test`): never second-guesses it,
@@ -357,6 +367,144 @@ restart_monitor() {
   # consecutive sessions across a flash cycle stay in one timeline.
   tmux pipe-pane -o -t "$SESSION" "cat >> '$MONITOR_LOG'" 2>/dev/null || \
     echo "WARN [restart_monitor]: pipe-pane failed — disk log not running" >&2
+  return 0
+}
+
+# ── ADR-067: verify and refuse ───────────────────────────────────────────────
+#
+# TASK-633. A DUT entry point READS what is on the board and REFUSES if it is
+# not what the run needs. It never flashes and it never restores. Flashing is an
+# explicit caller action through run/flash*, which is already how flash-player,
+# flash-webradio and screendump behave.
+#
+# The refusal code is 3, not 4 (ADR-067 D2). The board is present, addressable
+# and answering; what is wrong is that the host is pointed at a subject the run
+# did not ask for. M-TESTARCH precedence §4 rule 2 already names `elf-mismatch`
+# and `prod-firmware-flashed` in the RIG vocabulary, at exit 3. Exit 4 is a
+# HEALTH condition — the board is unfit — and routing a wrong-build refusal
+# there would split one condition across two codes depending on which layer
+# noticed it.
+#
+# Two halves, because they fail at different times and only one needs a board:
+#
+#   require_build  — HOST side, no serial port. Declares which env this run
+#                    needs, exports it as DUT_ENV so lib/dut.py's ELF guard
+#                    checks the right binary, and refuses NOW if the host has
+#                    no built artifact to compare against. "I cannot verify" is
+#                    a refusal, not a warning: a run that skips the comparison
+#                    is exactly the state this ADR exists to end.
+#   lib/dut.py     — BOARD side, on the port the driver was going to open
+#                    anyway. _verify_debug_firmware() reads `info`'s elf and
+#                    raises SetupFailure(elf-mismatch / prod-firmware-flashed).
+#
+# The split is deliberate: the board half costs no extra port open, and
+# therefore no extra DTR reset. A standalone "verify" open would reset the
+# board a second time inside the DRD window (BP-018) — the guard would create
+# the hazard it exists to protect against.
+
+#: exit code for a rig refusal (M-TESTARCH §4 rule 2). Not 4.
+SETUP_FAIL_EXIT=3
+
+# Print the refusal and return SETUP_FAIL_EXIT. Never silent, never a warning.
+#   $1 script name   $2 what the run wanted   $3 what is actually there
+#   $4 the remedy line
+refuse_build() {
+  local who="$1" wanted="$2" found="$3" remedy="$4"
+  echo "" >&2
+  echo "╔══════════════════════════════════════════════════════════════════════╗" >&2
+  echo "║  REFUSED — the board is not running the build this run needs         ║" >&2
+  echo "╚══════════════════════════════════════════════════════════════════════╝" >&2
+  echo "  entry point : $who" >&2
+  echo "  WANTED      : $wanted" >&2
+  echo "  ON THE BOARD: $found" >&2
+  echo "" >&2
+  echo "  $remedy" >&2
+  echo "" >&2
+  echo "  NO TESTS RAN. This is a rig condition (exit $SETUP_FAIL_EXIT), not a test" >&2
+  echo "  failure and not a health failure — the board answered fine." >&2
+  echo "" >&2
+  echo "  ADR-067: this entry point does not flash and does not restore. The" >&2
+  echo "  board keeps whatever build the last flash put there, including after" >&2
+  echo "  this run. Flashing is yours to do, on purpose, with run/flash*." >&2
+  echo "" >&2
+  return "$SETUP_FAIL_EXIT"
+}
+
+# Declare the build this run requires. Call it BEFORE the port is opened.
+#   $1  env name (e.g. cyd2usb_winamp_debug)
+#   $2  entry-point name, for the refusal
+#   $3  port (optional). When given, the BOARD is read too, via
+#       lib/verify_build.py — one uniform refusal at the entry point rather
+#       than fourteen drivers each mapping an exception to an exit code.
+#
+# Exports DUT_ENV, so every downstream consumer — lib/dut.py's ELF guard,
+# suite/serialdbg/runner.py, the artifact's premise — verifies against the same
+# binary this line names. Before ADR-067 the scripts with a non-default env
+# (ae04, wr-gate, wr-soak, browser-player, playorder-player) flashed one build
+# and left the guard comparing against another; player-gate was the only one
+# that got this right, and it did so by setting DUT_ENV per leg.
+require_build() {
+  local env="$1" who="${2:-$(basename "$0")}" bin
+  [ -n "$env" ] || { echo "ERROR [require_build]: no env given" >&2; return 2; }
+  export DUT_ENV="$env"
+  bin="$PIO_DIR/.pio/build/$env/firmware.bin"
+  if [ ! -f "$bin" ]; then
+    refuse_build "$who" "$env" \
+      "unknown — the host has no built artifact for '$env' to compare against" \
+      "Build it, then flash it, then re-run:
+    cd app && $PIO run -e $env
+    ./run/flash-debug          # or the run/flash* script for this env"
+    return $?
+  fi
+  echo "[$who] requires build '$env' — the board is verified against it and the"
+  echo "[$who] run is REFUSED (exit $SETUP_FAIL_EXIT) if it is running anything else."
+  echo "[$who] Nothing is flashed and nothing is restored (ADR-067)."
+
+  # Board side. Skipped only when no port was given — the caller then relies on
+  # its own driver's Dut guard, which is the same check one layer down.
+  local port="${3:-}"
+  [ -n "$port" ] || return 0
+  local rc=0
+  # NO_WIFI: a build identity does not need the network, and making the
+  # preflight wait for an AP would turn a WiFi outage into a wrong-build report.
+  ( cd "$PIO_DIR" && NO_WIFI=1 "$VENV_PY" -m lib.verify_build \
+      --port "$port" --env "$env" --who "$who" ) || rc=$?
+  [ "$rc" = "0" ] || return "$rc"
+  # The verify open just reset the board (DTR). Stamp it where lib/dut.py's DRD
+  # guard can see it, so the driver's own open waits out the remainder of the
+  # window instead of landing inside it (BP-018 / TASK-559).
+  stamp_reset_gap "$port"
+  return 0
+}
+
+# Re-state a rig/health exit AFTER the rest of the cleanup, so a reader who
+# greps the tail for PASS/FAIL finds the reason instead of neither. Was
+# duplicated verbatim in test, test-targeted, test-sync and player-gate.
+#   $1  the exit code   $2  entry-point name
+explain_exit_code() {
+  local rc="$1" who="${2:-$(basename "$0")}"
+  if [ "$rc" = "3" ]; then
+    echo ""
+    echo "[SETUP-FAIL] rig condition — NO TESTS RAN. This is not a test failure."
+    echo "             Wrong build on the board, WiFi never came up, or the port"
+    echo "             was busy. See the [SETUP-FAIL]/REFUSED block above."
+    echo "             Nothing was flashed and nothing was restored — the board"
+    echo "             is still on whatever build it was on (ADR-067)."
+  fi
+  # TASK-566 / EC-G7: exit 4 is NEW and is NOT exit 3. Untaught, a HEALTH
+  # failure falls through and reads as a completed run — the exact inversion
+  # M-TESTARCH exists to prevent, and it already happened once (TASK-573).
+  if [ "$rc" = "4" ]; then
+    echo ""
+    echo "[HEALTH-FAIL] the BOARD was not a valid test subject — NO TESTS RAN."
+    echo "             This is NOT a rig condition and NOT a test failure. The"
+    echo "             board is running and it answered; it is not fit to be a"
+    echo "             subject. Do not blame the cable, the port or the host."
+    echo "             Diagnose the DEVICE: ./run/monitor-read for the boot above,"
+    echo "             and the last-phase=/gen= stamps in the [SETUP-FAIL] block."
+    echo "             (M-TESTARCH §4: exit 3 = the host could not address a"
+    echo "             board; exit 4 = the board is not a valid subject.)"
+  fi
   return 0
 }
 

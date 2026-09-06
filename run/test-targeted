@@ -28,69 +28,41 @@ TESTS="${TESTS:-${1:-}}"
 _PORT_EXPLICIT="${PORT:-}"
 PORT=$(resolve_port)
 
+# ADR-067/TASK-633: declare the build, do not flash it. A refusal here happens
+# before the monitor is touched, so a wrong-build run leaves the rig exactly as
+# it found it.
+require_build "$ENV_DEBUG" test-targeted "$PORT" || exit $?
+
 _TEST_RC=0
 _cleanup() {
   local rc=$_TEST_RC
-  local restore_pt; restore_pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
+  local pt; pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
   echo ""
-  echo "[test-targeted] step 5/6 — restoring $ENV_PROD (rc=$rc so far)"
-  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$restore_pt") || {
-    echo "ERROR [test-targeted]: prod restore failed" >&2
-    rc=99
-  }
-  echo "[test-targeted] step 6/6 — restarting monitor"
-  restart_monitor "$restore_pt"
-  # TASK-434 item 1: the harness exits SETUP_FAIL_EXIT (3) for a RIG condition —
-  # WiFi never came up, wrong firmware flashed, port busy. Re-state it AFTER the
-  # prod restore, because the restore's flash output is the last thing in the log
-  # and a reader who greps for PASS/FAIL finds neither. Note rc is deliberately
-  # read after the restore block: a restore failure overwrites it with 99, and in
-  # that case this line is the only surviving evidence that no tests ever ran.
-  if [ "$rc" = "3" ] || [ "$_TEST_RC" = "3" ]; then
-    echo ""
-    echo "[SETUP-FAIL] rig condition — NO TESTS RAN. This is not a test failure."
-    echo "             See the [SETUP-FAIL] block and serial tail above the restore output."
-  fi
-  # TASK-566 / EC-G7: exit 4 is NEW and is NOT exit 3. Untaught, a HEALTH
-  # failure falls through here and reads as a completed run — the exact
-  # inversion M-TESTARCH exists to prevent, and it already happened once
-  # for FLAKY-PASS (TASK-573).
-  if [ "$rc" = "4" ] || [ "$_TEST_RC" = "4" ]; then
-    echo ""
-    echo "[HEALTH-FAIL] the BOARD was not a valid test subject — NO TESTS RAN."
-    echo "             This is NOT a rig condition and NOT a test failure. The"
-    echo "             board is running and it answered; it is not fit to be a"
-    echo "             subject. Do not blame the cable, the port or the host."
-    echo "             Diagnose the DEVICE: ./run/monitor-read for the boot above,"
-    echo "             and the last-phase=/gen= stamps in the [SETUP-FAIL] block."
-    echo "             (M-TESTARCH §4: exit 3 = the host could not address a"
-    echo "             board; exit 4 = the board is not a valid subject.)"
-  fi
+  echo "[test-targeted] step 3/3 — restarting monitor (rc=$rc; nothing restored — ADR-067)"
+  restart_monitor "$pt"
+  # TASK-434 item 1: the harness exits 3 for a RIG condition and 4 for a HEALTH
+  # one. Re-stated last, because a reader greps the tail for PASS/FAIL and finds
+  # neither.
+  explain_exit_code "$rc" test-targeted
   exit "$rc"
 }
 trap _cleanup EXIT INT TERM
 
 echo "[test-targeted] running: ${TESTS:-<scope ${SCOPE}>}"
 
-echo "[test-targeted] step 1/6 — killing monitor"
+echo "[test-targeted] step 1/3 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
-echo "[test-targeted] step 2/6 — flashing $ENV_DEBUG to $PORT"
-(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
-# TASK-559: esptool just hard-reset the DUT. Record it where lib/dut.py's
-# DRD guard can see it, so the harness open below waits out the remainder of
-# the window instead of landing inside it (BOOT_WAIT=8 < _DUT_DRD_WINDOW_S=12).
-stamp_reset_gap "$PORT"
+# No flash step. The board's build identity is verified on the port the runner
+# opens below (lib/dut.py::_verify_debug_firmware), which costs no extra open
+# and therefore no extra DTR reset — see run/lib.sh's ADR-067 block.
+#
+# TASK-563: no blind boot sleep either. Readiness is decided by watching the
+# boot the open itself causes, not by guessing. BOOT_WAIT never described that
+# boot anyway — TASK-561 measured 46 s to console on a NO_AP_FOUND boot against
+# a BOOT_WAIT of 8.
 
-
-# TASK-563: no blind boot sleep. The post-flash reset gap is stamped above
-# and enforced by lib/dut.py, which waits out the remainder on open
-# (TASK-559); readiness is then decided by watching the boot the open
-# itself causes, not by guessing. BOOT_WAIT never described this boot
-# anyway -- TASK-561 measured 46 s to console on a NO_AP_FOUND boot
-# against a BOOT_WAIT of 8.
-
-echo "[test-targeted] step 4/6 — running tests: ${TESTS:-<scope ${SCOPE}>}"
+echo "[test-targeted] step 2/3 — running tests: ${TESTS:-<scope ${SCOPE}>}"
 _LOG_ARGS=()
 if [ -n "${LOG_FILE:-}" ]; then
   echo "[test-targeted] raw serial log: $LOG_FILE"

@@ -811,12 +811,15 @@ firmware it ran against, and MUST refuse to run rather than silently reflash whe
 and the board's build disagree.
 *Rationale*: the TASK-557 pin, and the blocker above — a trap that fires on success, on failure and
 on interrupt, against a standing instruction not to restore production. Also `F-19`: a gate that
-cannot say what firmware it measured cannot support a milestone claim. Note the safe resolution is an
-opt-out, **not** killing the script mid-flight, which races the trap-guarded restore and can boot-loop
-the board.
+cannot say what firmware it measured cannot support a milestone claim.
+*Resolution (ADR-067, landed TASK-633 2026-09-06)*: **not** an opt-out. The restore is deleted from
+all fourteen entry points; each declares the build it needs, reads the board, and refuses with exit 3
+(`elf-mismatch`, RIG). `DUT_NO_RESTORE=1` was the dated interim only, and its retirement condition is
+met. Killing a script mid-flight remains wrong (ADR-067 D5) — it now races a flash or a measurement
+rather than a restore.
 *Priority*: MUST.
-*Verification*: the opt-out exists, is exercised in a dry run, and the ELF hash appears in the result
-artifact (R30).
+*Verification*: `gate/check_entrypoint_lifecycle.py`, blocking at zero, with its 20-arm negative
+suite; the ELF hash appears in the result artifact (R30).
 
 **R52 — preconditions are declared, checked once, and shared. SHOULD.** Fixtures (SD contents,
 credentials, queue state, station lists) SHOULD be declared per test, verified once per session, and

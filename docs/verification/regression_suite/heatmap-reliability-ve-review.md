@@ -94,6 +94,14 @@ Per TASK-130 spec: *"T214–T218 all pass or each failing test has a filed bug t
 
 **Exit criterion met.** One re-run of T217 required after pattern fix.
 
+> **2026-09-06 — TASK-587 sweep.** Read this "met" narrowly. The criterion is a disjunction ("all
+> pass **or** each failing test has a filed bug task"), and two of the five ids did not run: T215 is
+> SKIP behind FM-2 (filed, so the disjunction covers it) and **T217 is SKIP because the harness was
+> broken** — a test that could not run is neither a pass nor a filed failure, and the re-run it names
+> is not recorded anywhere as having happened. This is not H-2's defect (no oracle here is blind to
+> its subject); it is a criterion marked met while one of its observations is still outstanding.
+> Owner **@VE**: either evidence the T217 re-run or downgrade this line.
+
 ---
 
 ## Hand-off to Developer

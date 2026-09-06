@@ -12,13 +12,18 @@ source "$(dirname "$0")/lib.sh"
 MINUTES="${MINUTES:-${1:-10}}"
 PORT=$(resolve_port)
 
+# ADR-067/TASK-633: declare the build this run needs and READ THE BOARD.
+# Refuses with exit 3 (RIG, `elf-mismatch`) if they differ. Runs before the
+# monitor is touched, so a refused run leaves the rig as it found it.
+require_build "$ENV_DEBUG" stress "$PORT" || exit $?
+
 _RC=0
 _cleanup() {
   local rc=$_RC
   echo ""
-  echo "[stress] restoring $ENV_PROD (rc=$rc so far)"
-  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
-    echo "ERROR [stress]: prod restore failed" >&2; rc=99; }
+  # ADR-067 D1: the production restore that used to run here is DELETED,
+  # not guarded. A test entry point does not own firmware lifecycle. The
+  # board keeps whatever build the last flash put there.
   echo "[stress] restarting monitor"
   restart_monitor "$PORT"
   exit "$rc"
@@ -28,8 +33,10 @@ trap _cleanup EXIT INT TERM
 echo "[stress] 1/4 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
-echo "[stress] 2/4 — flashing $ENV_DEBUG to $PORT"
-(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+echo "[stress] 2/4 — build already verified; NOT flashing (ADR-067)"
+# ADR-067 D1: no flash here. require_build() above read the board and
+# refused with exit 3 if it was not running the build this run needs.
+# Flashing is the caller's explicit action, through run/flash*.
 
 stamp_reset_gap "$PORT"
 # TASK-563: no blind boot sleep. The post-flash reset gap is stamped above

@@ -133,13 +133,37 @@ The monitor holds the port exclusively — all `run/flash*` and `run/test*` scri
 
 ### 5a. Pre-run checklist (BP-020)
 
-Use `./run/test` — it enforces the 6-step sequence atomically with a `trap EXIT` restore guarantee (production firmware always restored, even on Ctrl-C or mid-step failure):
+Use `./run/test`. **It does not flash and it does not restore** (ADR-067/TASK-633, 2026-09-06). It
+*declares* the build it needs, *reads* what the board is actually running, and **refuses with exit 3**
+(`elf-mismatch` — a RIG condition, not a test failure) if they differ. Flash the debug build yourself
+first:
+
+```sh
+./run/flash-debug
+```
 
 ```sh
 ./run/test
 ```
 
-The script executes internally: kill monitor → flash debug → wait 8s → run suite → restore prod → restart monitor. Never split these steps manually. The 8s wait is overridable: `BOOT_WAIT=12 ./run/test`.
+The script executes internally: verify build (refuse if wrong) → snapshot settings → kill monitor →
+run suite → restore **settings** → restart monitor. Never split these steps manually.
+
+**What changed, and why it matters to you:** the old sequence was *kill monitor → flash debug → wait
+8s → run suite → **restore prod** → restart monitor*, with an EXIT trap that reflashed production no
+matter how the script ended. That trap is **deleted, not guarded**. Two consequences:
+
+* **The board stays on the debug build after a run.** Nothing puts production back. If you want
+  production on the board, `./run/flash` it — deliberately.
+* **A pinned board is no longer unrunnable.** TASK-557 pins this rig to `-DBOD_WATCH`; the old trap
+  made every test script refuse to co-exist with that pin, which is what ADR-067 was written to fix.
+
+`DUT_NO_RESTORE=1`, the dated interim exception that let Phase 2 run before this landed, **has met
+its retirement condition and is gone.** Nothing reads it.
+
+Note the settings restore is *not* the firmware restore: the suite mutates persisted settings on a
+board it does not own, and putting those back is the suite cleaning up after itself (BP-049), not an
+entry point owning firmware lifecycle.
 
 ### 5b. Targeted feature validation (BP-021)
 
@@ -193,11 +217,12 @@ For manual tests: consult `docs/verification/test_plan.md` for exact steps and e
 
 ### 5e. Soak & gate scripts (TASK-502)
 
-Unattended long-running DUT scripts, each self-contained (flash → run →
-restore production firmware + monitor, same guarantee as `run/test`), not
-otherwise referenced by this doc:
+Unattended long-running DUT scripts. **Since ADR-067 none of them flashes and none of them restores**
+— each verifies the build named below and refuses with exit 3 if the board is running something else.
+Flash the required build first with the matching `run/flash*` script. Not otherwise referenced by
+this doc:
 
-| Script | Flashes | Purpose |
+| Script | Requires (flash it first) | Purpose |
 |--------|---------|---------|
 | `run/ae04` | `cyd2usb_webradio` | T_AE_04 (ADR-059) — teardown ordering under eject-mid-CONNECTING |
 | `run/wr-soak` | `cyd2usb_webradio` | TASK-271 — unattended WebRadio playback + A-lite arena-churn soak |

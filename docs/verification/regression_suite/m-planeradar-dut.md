@@ -104,3 +104,32 @@
   (SPIFFS-editable via `run/spiffs push`, TASK-305) — an empty airspace at
   that location is graceful-empty (correct), not a failure; T_PR_02 only
   requires `prLastHttp==200`, not `prAircraftCount>0`.
+
+---
+
+## 2026-09-06 — TASK-587 sweep: four cells this report should not be read as proving
+
+TASK-587 re-recorded five M-CLOCK-STYLES criteria that read PASS against oracles which could not
+observe them (**H-2**). H-2 was found only because WP-H happened to read that one document, so the
+rest of `regression_suite/` was swept. **This report is the sweep's main hit.** Nothing below is
+re-scored here — the milestone closed 2026-07-11 and re-opening a closed milestone is @VE's and
+@PM's call, not @Developer's. These are the cells, named so the next reader does not re-inherit them:
+
+| cell | what it says | what its oracle actually read |
+|---|---|---|
+| **criterion 1** / `T_PR_02` | "Live **render** within one poll of app entry" — PASS | `connecting==false`, `prAircraftCount==1`. A count in a result struct. No pixel, no radar, no sweep line. A PlaneRadar drawing nothing would pass this |
+| **criterion 6** / `T_PR_06` | "Synthetic-injection **render** test" — PASS | `prAircraftCount==3` after `prInjectAircraft`. The id's own name says render; the oracle is the injector's own write, read back |
+| **criterion 3** / `T_PR_05` | header: "all 6 exit criteria satisfied" | **SKIP** — "no fetch error surfaced in 20 attempts". The header footnotes this as "network-dependent, not a gap", but a criterion whose only observation did not happen is not satisfied; it is unobserved. The doc is candid in the body and overstates in the header |
+| **criterion 4** / `pr-soak` | "≥30 min coexistence" — PASS | ran against a 403-retrying Spotify session, not playback. **The VE design notes say this outright** — "not literally what the design doc's exit criterion 4 says" — and the header still reads "satisfied" |
+
+Criteria 1 and 6 are H-2's exact shape and are settled by the same mechanism: ADR-064's
+`get sig` (`inkCount`/`distinctColors` over the radar canvas, ADR-064 D3), no golden needed.
+Criteria 3 and 4 are a different and milder defect — **the body is honest and the header is not**,
+which is a summary-line problem, not an oracle problem.
+
+**Also stale, unrelated to the sweep:** the note above says `T_PR_02` "only requires
+`prLastHttp==200`", and the VE design note ~40 lines earlier says `prLastHttp` is ambiguous for
+success, must not be gated on, and that `T_PR_02` was moved onto `get activeError` for exactly that
+reason. The last line of this file describes the version of the test that was replaced.
+
+**Owner: @VE.** Escalated rather than actioned.

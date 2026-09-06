@@ -98,7 +98,7 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-584 | P1 | **DONE 2026-09-04** — 6/6 now `fail()` on their subject; 32-scenario host proof | six residue callers convert the regression to a skip — make them fail — [D-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md) … |
 | TASK-603 | P2 | **DONE 2026-09-05** — executed at 12/6/17; **213 -> 195 ids**; R34 gate blocking on an 8-row ledger | delete 12 ids, retire 6 bodies to `UNOBSERVABLE`, no-reachable-fail gate — [R34/R4](../verification/M-HARNESS2-requirements.md). Disposition: [M-HARNESS2-task603-disposition.md](../verification/M-HARNESS2-task603-disposition.md) … |
 | TASK-625 | P3 | **DONE 2026-09-05** — landed FIRST, ahead of TASK-603, per disposition §4.7 | write the id-retirement procedure into `docs/process/` — [Dev D7](../architecture/designs/M-HARNESS2-DEV-review.md). [test_id_retirement.md](../process/test_id_retirement.md); worked example is `T136`'s stale archive `Status: pass`, which no C6 sub-check can see |
-| TASK-587 | P1 | OPEN — unblocked; **scope shrank to 5 - 2 = 3** | five M-CLOCK-STYLES exit criteria re-recorded DEFERRED, not PASS — [H-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md). TASK-603 already re-recorded **C3** and **C4** DEFERRED, because both rested on ids it retired UNOBSERVABLE … |
+| TASK-587 | P1 | **DONE 2026-09-06** — 5 re-recorded (C2/C5/C6/C7/C8); milestone now **0 of 8** met, was "14/14" | M-CLOCK-STYLES criteria re-recorded DEFERRED, not PASS — [H-2](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Mechanisms named: `get sig` (ADR-064), a firmware counter, `tap`. Suite-wide sweep filed in-place; **M-PLANERADAR c1/c6 are H-2's shape**, @VE |
 | TASK-598 | P2 | OPEN — **re-opened by TASK-603** | the four `_02` ids (`T_MA_02`, `T_GOL_02`, `T_WX_02`, `T_CX_02`) share one fate — [D-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). The 12/6/17 ruling puts all four in **keep-and-fix**, i.e … |
 | TASK-591 | P1 | **DONE 2026-09-04** — **CORE 43 -> 23**; 25 gating declared + 20 demoted, 4 [ledgered](../verification/gating_class_declarations.md) pending TASK-634 | every gating class declared with a written reason; `check_test_meta.py` G1/G2/G3 blocking — [R35](../verification/M-HARNESS2-requirements.md). **TASK-617 exit criterion NOT met while the ledger holds rows** |
 | TASK-626 | P1 | **GATE DONE 2026-09-05 — the 8 demotions need a human ruling**; host-layout 0, unexemptable; 7 named ids + `T_X07_01` [ledgered](../verification/gating_offline_exceptions.md) | a gating class may not need the network or the host file layout — [R36](../verification/M-HARNESS2-requirements.md). **A TASK-617 exit criterion, NOT met** — the gate reads 8 |
@@ -121,10 +121,17 @@ new gates in it — **stop and re-scope the whole programme.**
 
 ## Phase 2 — the 80-minute session (board)
 
-**Entry: TASK-618 — RULED 2026-09-03, so this phase is unblocked in principle.** It is *satisfied*
-when TASK-633 lands; until then the sanctioned dated interim exception (`DUT_NO_RESTORE=1`, owned by
-TASK-618) is the permitted path. **Killing a script mid-flight is not a workaround** — it races the
-trap-guarded restore and can boot-loop the board.
+**Entry: TASK-618 — RULED 2026-09-03. SATISFIED 2026-09-06 by TASK-633.** The entry points now
+verify and refuse (ADR-067): they read the board's build identity and exit 3 (`elf-mismatch`, RIG) if
+it is not what the run needs. **The restore is gone from all fourteen scripts**, so a board pinned to
+a debug build (TASK-557) no longer blocks this phase, and `DUT_NO_RESTORE=1` — the dated interim
+exception owned by TASK-618 — has met its retirement condition and is **@PM's row to retire** (a
+stale row is itself a blocking failure, ADR-067 D3).
+**The standing hazard is unchanged (ADR-067 D5):** never kill a `run/flash*` or soak script
+mid-flight. It no longer races a restore, but it still races a flash or an in-flight measurement.
+**What changed for the operator:** the board keeps whatever build the last flash put there, including
+after a run. Flash what you need first, with `run/flash-debug` / `run/flash-player` /
+`run/flash-webradio`; the entry point will tell you loudly if you got it wrong.
 **Exit:** each of the three armed-injector clusters confirmed or refuted with a dated record; both
 isolated-vs-in-suite splits measured; the CORE skip census taken; the three cluster fixes landed.
 **Stop criterion — the one most wanted on the record:** if the session **refutes all three
@@ -133,7 +140,7 @@ corpus retrofit is cut to delta-scoped rules only.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-633 | P1 | OPEN — ADR-067 | DUT entry points verify-and-refuse, refusal is **exit 3** (`elf-mismatch`, RIG); delete the restore trap — it is shared across 15 `run/*` scripts, not two; update `CLAUDE.md` — [R51](../verification/M-HARNESS2-requirements.md) |
+| TASK-633 | P1 | **DONE 2026-09-06** — 14 entry points + `lib.sh`; gate blocking **at zero, no ledger**; 27-arm negative suite | DUT entry points verify-and-refuse, **exit 3** (`elf-mismatch`, RIG); restore DELETED from all 14. `require_build` + `lib/verify_build.py`; `SKIP_FLASH` gone. **`DUT_NO_RESTORE=1` retires — @PM** — [R51](../verification/M-HARNESS2-requirements.md) |
 | TASK-634 | P1 | BLOCKED — TASK-633 | run the 80-minute session and file its dated records — [WP-Z §5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-579 | P1 | BLOCKED — TASK-634 | the WebRadio forced-connect-fail injector nothing clears — [F-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-580 | P1 | BLOCKED — TASK-634 | the heatmap injector wedges the sub-view and the block behind it — [G-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |

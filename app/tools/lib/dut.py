@@ -1195,15 +1195,16 @@ class Dut:
                 "╔══════════════════════════════════════════════════════════╗\n"
                 "║  PRODUCTION FIRMWARE DETECTED — SERIAL_DEBUG not active  ║\n"
                 "╚══════════════════════════════════════════════════════════╝\n"
-                f"Reflash the debug build ({_DUT_ENV}) before running tests:\n"
+                f"The debug console is compiled out of this build, so NO test can\n"
+                f"run against it. ADR-067: nothing was flashed and nothing will be\n"
+                f"restored — the board keeps what it has. Flash the debug build\n"
+                f"({_DUT_ENV}) yourself, then re-run:\n"
+                "  ./run/flash-debug\n"
+                "or, explicitly:\n"
                 "  tmux kill-session -t spotify-mon\n"
                 "  cd app\n"
                 f"  ~/.platformio/penv/bin/pio run -e {_DUT_ENV} \\\n"
-                "      -t upload --upload-port /dev/ttyUSB0\n"
-                "  tmux new-session -d -s spotify-mon \\\n"
-                "      'cd app && \\\n"
-                "       ~/.platformio/penv/bin/pio device monitor \\\n"
-                "       -e cyd2usb_winamp -p /dev/ttyUSB0'\n"
+                "      -t upload --upload-port <port>\n"
             )
 
         # ADR-042 E1 gate: verify elf hash matches the compiled debug build.
@@ -1228,20 +1229,34 @@ class Dut:
             self.elf = _info.get("elf")
             self.elf_expected = _expected_elf
             if _info.get("ok") and _info.get("elf") and _info["elf"] != _expected_elf:
-                raise SetupFailure(
+                # ADR-067: this refusal is now the ONLY thing standing between a
+                # run and the wrong subject — no entry point flashes the build
+                # first any more, so this message is read by a human who must
+                # act on it, not by one watching a reflash scroll past.
+                _f = SetupFailure(
                     "elf-mismatch",
                     f"\n"
                     f"╔══════════════════════════════════════════════════════════╗\n"
-                    f"║  FIRMWARE ELF MISMATCH — wrong debug build flashed       ║\n"
+                    f"║  FIRMWARE ELF MISMATCH — wrong build on the board        ║\n"
                     f"╚══════════════════════════════════════════════════════════╝\n"
-                    f"  Flashed elf: {_info['elf']}\n"
-                    f"  Expected:    {_expected_elf}\n"
-                    f"  Expected build: {_DUT_ENV} (set DUT_ENV to target another variant)\n"
-                    f"Reflash it before running tests:\n"
-                    f"  cd app\n"
-                    f"  ~/.platformio/penv/bin/pio run -e {_DUT_ENV} \\\n"
-                    f"      -t upload --upload-port /dev/ttyUSB0\n"
+                    f"  ON THE BOARD: elf {_info['elf']}\n"
+                    f"  WANTED:       elf {_expected_elf}  (build {_DUT_ENV})\n"
+                    f"                set DUT_ENV to target another variant\n"
+                    f"\n"
+                    f"  NOTHING WAS FLASHED AND NOTHING WILL BE RESTORED (ADR-067).\n"
+                    f"  The board keeps the build it has. Put the one you want on\n"
+                    f"  it yourself, then re-run:\n"
+                    f"    ./run/flash-debug        # or run/flash-player, run/flash-webradio\n"
+                    f"  or, explicitly:\n"
+                    f"    cd app && ~/.platformio/penv/bin/pio run -e {_DUT_ENV} \\\n"
+                    f"        -t upload --upload-port <port>\n"
                 )
+                # Read by lib/verify_build.py to name what is on the board in
+                # its own refusal, without re-parsing this text.
+                _f.flashed_elf = _info["elf"]
+                _f.expected_elf = _expected_elf
+                _f.expected_env = _DUT_ENV
+                raise _f
 
     def _assert_owner(self):
         if threading.current_thread() is not self._owner_thread:

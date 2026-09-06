@@ -513,9 +513,10 @@ undetermined from its own record. **Whoever chases the hypothesis above should c
 every individual `sdwrite` trial**, not once per session, to get numbers that are actually comparable
 across chunk counts.
 
-**DUT left clean**: production firmware (`cyd2usb_winamp`) restored and verified via
-`run/task424-repro`'s own trap-guarded restore step (same pattern as `run/test-targeted`); monitor
-restarted. No fix attempted this session — the next step (confirm/refute the cross-handle-corruption
+**DUT left clean**: production firmware (`cyd2usb_winamp`) restored and verified; monitor restarted.
+*(Historical: at the time this session ran, `run/task424-repro` restored production from its own EXIT
+trap. That step no longer exists — ADR-067/TASK-633 deleted the restore from all fourteen entry
+points on 2026-09-06. A later run of this script leaves the board on the debug build.)* No fix attempted this session — the next step (confirm/refute the cross-handle-corruption
 hypothesis with `sdclean` between trials and a check for other open handles at panic time) needs
 another DUT session.
 

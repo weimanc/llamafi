@@ -18,11 +18,14 @@
 # is two per-mode suites concatenated and the gate's objective is lost.
 # Condition (b): the two-build drive follows run/task488's DUT_TREE shape — one
 # script, one trap, per-leg DUT_ENV so each leg's ELF-hash guard checks the binary
-# that is actually on the device.
+# that is actually on the device. Since ADR-067 that guard is the WHOLE mechanism:
+# the gate reads the board and refuses (exit 3) rather than flashing the leg build.
 #
-# NEVER kill this mid-flight (timeout / Ctrl-C / host suspend). The trap-guarded
-# production restore races and can leave the DUT boot-looping. Budget ~45 min for a
-# full two-leg run: 2 flashes, 4 boots, 2 x 90 s settle.
+# NEVER kill this mid-flight (timeout / Ctrl-C / host suspend). It no longer races
+# a restore (ADR-067 deleted it), but it still races an in-flight measurement, and
+# host suspend resets the USB device under it. Budget ~45 min for a full two-leg
+# run: 4 boots, 2 x 90 s settle. NOTE both leg builds must ALREADY be on the board
+# in turn: the gate verifies and refuses (exit 3), it does not flash.
 #
 # Usage
 #   ./run/player-gate                        # full gate, both legs
@@ -38,8 +41,10 @@
 #   LEG_A_TESTS    override leg A's runner id list                (default: full leg A set)
 #   LEG_B_TESTS    override leg B's runner id list                (default T_PMT_00,03,04)
 #   SKIP_SCRIPTS   1 = skip leg B's two standalone playback scripts
-#   SKIP_FLASH     1 = do not flash; run against whatever is on the device. For
-#                  negative tests and re-runs only — the ELF-hash guard still fires.
+#   SKIP_FLASH     REMOVED (ADR-067/TASK-633). This gate never flashes now, so
+#                  there is nothing to skip. Setting it does nothing; it is
+#                  refused loudly rather than ignored, because a caller who sets
+#                  it believes something about this script that is no longer true.
 #   BASELINE       path to the pass-set markdown            (default: the doc above)
 #   OUT_DIR        artifact dir                             (default: mktemp -d)
 #   RECORD         1 = write $OUT_DIR/observed.md
@@ -59,10 +64,11 @@
 #       board, 4 = the board is not a valid subject. Also emitted when
 #       DUT_HEALTH=warn|skip downgraded the premise (@VE ruling §18.2) — a gate
 #       run whose health premise was downgraded is not a gate run.
-#   99  production restore FAILED — the DUT is not on production firmware
+#   (99 is retired: it meant "production restore FAILED", and ADR-067/TASK-633
+#    deleted the restore. Nothing emits it.)
 #
-# Always, on every exit path including failure and interrupt: reflash cyd2usb_winamp
-# (production) and restart the tmux serial monitor. Copied from run/test's trap.
+# On every exit path including failure and interrupt: restart the tmux serial
+# monitor. NOT a firmware restore — the board keeps the leg build it ends on.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
@@ -73,7 +79,13 @@ BASELINE="${BASELINE:-$PROJ_ROOT/docs/verification/regression_suite/player-gate-
 LEGS="${LEGS:-A,B}"
 SETTLE_S="${SETTLE_S:-90}"
 SKIP_SCRIPTS="${SKIP_SCRIPTS:-0}"
-SKIP_FLASH="${SKIP_FLASH:-0}"
+if [ -n "${SKIP_FLASH:-}" ]; then
+  echo "ERROR [player-gate]: SKIP_FLASH is gone (ADR-067/TASK-633). This gate" >&2
+  echo "  no longer flashes anything, so there is nothing to skip — it VERIFIES" >&2
+  echo "  the board and refuses with exit 3 if the build is wrong. Flash the leg" >&2
+  echo "  build yourself first: ./run/flash-player or ./run/flash-debug." >&2
+  exit 2
+fi
 RECORD="${RECORD:-0}"
 ALLOW_NO_CROSSMODE="${ALLOW_NO_CROSSMODE:-0}"
 
@@ -493,16 +505,14 @@ _cleanup() {
   [ "$rc" = "0" ] && [ "$trigger" != "0" ] && rc=$trigger
   local restore_pt; restore_pt=$(restore_port "$PORT" "$_PORT_EXPLICIT")
   echo ""
-  echo "[player-gate] restoring $ENV_PROD (rc=$rc so far)"
-  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$restore_pt") || {
-    echo "ERROR [player-gate]: prod restore failed — DUT still running a test build" >&2
-    rc=99
-  }
-  echo "[player-gate] restarting monitor"
+  # ADR-067 D1: the production restore that used to run here is DELETED, not
+  # guarded. A gate does not own firmware lifecycle. The board keeps whatever
+  # build the last flash put there — including a leg-B build after a two-leg run.
+  echo "[player-gate] restarting monitor (firmware NOT restored — ADR-067)"
   restart_monitor "$restore_pt"
   # run/test's step-6 lesson (TASK-434 item 1): a rig condition must be re-stated
-  # AFTER the restore, because the restore's flash output is the last thing in the
-  # log and a reader who greps for the verdict finds neither PASS nor FAIL.
+  # LAST, because a reader greps the tail for the verdict and finds neither PASS
+  # nor FAIL.
   if [ "$_SETUP_FAIL" = "1" ]; then
     echo ""
     echo "[SETUP-FAIL] rig condition — NO VERDICT. This is not a gate failure."
@@ -537,27 +547,19 @@ fi
 
 trap _cleanup EXIT INT TERM
 
-_flash() { # $1 = env
-  if [ "$SKIP_FLASH" = "1" ]; then
-    echo "[player-gate] SKIP_FLASH=1 — not flashing $1 (the ELF-hash guard still checks it)"
-    return 0
-  fi
-  echo "[player-gate] flashing $1 to $PORT"
-  (cd "$PIO_DIR" && "$PIO" run -e "$1" -t upload --upload-port "$PORT")
-# TASK-559: esptool just hard-reset the DUT. Record it where lib/dut.py's
-# DRD guard can see it, so the harness open below waits out the remainder of
-# the window instead of landing inside it (BOOT_WAIT=8 < _DUT_DRD_WINDOW_S=12).
-stamp_reset_gap "$PORT"
-
-  # BP-018-class: the upload's end-of-flash reset and the next serial open both
-  # toggle DTR; too close together they trip the ESP32 double-reset-detector and
-  # produce a stuck, non-clean boot (run/browser-player measured this).
-  # TASK-563: no blind boot sleep. The post-flash reset gap is stamped above
-  # and enforced by lib/dut.py, which waits out the remainder on open
-  # (TASK-559); readiness is then decided by watching the boot the open
-  # itself causes, not by guessing. BOOT_WAIT never described this boot
-  # anyway -- TASK-561 measured 46 s to console on a NO_AP_FOUND boot
-  # against a BOOT_WAIT of 8.
+_require_leg_build() { # $1 = env
+  # ADR-067 D1/TASK-633. This used to be _flash(): it uploaded $1 and the leg's
+  # ELF guard then verified what it had just written, which is a tautology
+  # wearing a check's clothes. Now the leg DECLARES the build it needs and the
+  # board is READ. A mismatch is exit 3 — RIG, `elf-mismatch` — and the caller
+  # flashes it themselves with run/flash-player / run/flash-debug.
+  #
+  # SKIP_FLASH is gone with the flash it named. There is nothing left to skip:
+  # not flashing is now the only behaviour, and the verification it used to
+  # leave running is now the whole function.
+  require_build "$1" player-gate "$PORT" || return $?
+  # BP-018-class: require_build stamps the reset gap after its own port open, so
+  # lib/dut.py waits out the remainder before the leg's runner opens the port.
 }
 
 # $1=leg $2=env $3=id list -> writes $OUT_DIR/leg$1.{log,results,ran}
@@ -638,7 +640,7 @@ tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
 _LEGS_RUN=""
 if _want_leg A; then
-  _flash "$ENV_LEG_A"
+  _require_leg_build "$ENV_LEG_A" || exit $?
   _run_runner_leg A "$ENV_LEG_A" "$LEG_A_TESTS" || true
   [ "$_SETUP_FAIL" = "1" ] && exit 3
   [ "$_HEALTH_FAIL" = "1" ] && exit 4
@@ -646,7 +648,7 @@ if _want_leg A; then
 fi
 
 if _want_leg B; then
-  _flash "$ENV_LEG_B"
+  _require_leg_build "$ENV_LEG_B" || exit $?
   _run_runner_leg B "$ENV_LEG_B" "$LEG_B_TESTS" || true
   [ "$_SETUP_FAIL" = "1" ] && exit 3
   [ "$_HEALTH_FAIL" = "1" ] && exit 4

@@ -128,3 +128,22 @@
   `prloc_manual_smoke.py`, `prloc_ve_smoke.py`) are independent, standalone,
   and safe to re-run — each captures the DUT's pre-test state and restores
   it before exiting.
+
+---
+
+## 2026-09-06 — TASK-587 sweep
+
+Swept for H-2's pattern (a criterion recorded PASS against an oracle that cannot observe it). This
+report is **substantially clean** — its oracles read the fields their claims are about, and where a
+leg was not run it usually says so. Two cells are weaker than their PASS suggests, recorded for
+@VE, not re-scored:
+
+* **`T_PRL_07`, reflash-survival leg** — "implicit (many reflashes this milestone, always correct)".
+  That is an impression formed across a milestone, not an observation made by this test. The
+  flash-fs-wipe leg in the same row *was* run and is evidenced (`cmp`-verified); only the first leg
+  rests on recollection.
+* **`T_PRL_01b`** — "PASS (cited, minus one leg)": the space-postcode-encoding leg was not re-run.
+  The row is candid, and it is still a PASS cell for a test that was not fully executed.
+
+Neither is H-2's class — no oracle here is blind to its own subject. They are "PASS" doing duty for
+"partly cited, partly assumed".

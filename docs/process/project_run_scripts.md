@@ -18,7 +18,7 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/monitor-read            # dump last 200 lines; ./run/monitor-read 500 for more
 ./run/build                   # compile production firmware
 ./run/build-debug             # compile debug firmware
-./run/flash                   # flash production firmware (kills + restores monitor)
+./run/flash                   # flash production firmware (kills + restarts monitor)
 ./run/flash-debug             # flash debug firmware (kills monitor, does NOT restart)
 ./run/flash-fs                # upload SPIFFS only — full format/rewrite (use run/spiffs push instead)
 ./run/spiffs ls               # list files on device (non-destructive)
@@ -109,13 +109,20 @@ Quick smoke (< 2 min, always-passing):
 ./run/test-smoke
 ```
 
-All three scripts run the same 6-step sequence (BP-020):
-1. Kill monitor
-2. Flash debug firmware
-3. Wait `BOOT_WAIT` seconds (default 8) for boot + WiFi
-4. Run tests
-5. Restore production firmware  ← runs even on failure / Ctrl-C (trap)
-6. Restart monitor              ← runs even on failure / Ctrl-C (trap)
+All three scripts run the same sequence (BP-020), **as revised by ADR-067/TASK-633 (2026-09-06)**:
+1. **Verify the build.** The run declares which env it needs; the board's build identity is read and
+   compared. A mismatch is **exit 3** (`elf-mismatch`, RIG) and **no tests run**.
+2. Kill monitor
+3. Run tests
+4. Restart monitor              ← runs even on failure / Ctrl-C (trap)
+
+**Steps 2 and 5 of the old sequence — "flash debug firmware" and "restore production firmware" — are
+gone.** A DUT entry point no longer owns firmware lifecycle: it never flashes and it never restores.
+Flash what the run needs yourself, first, with `run/flash-debug` (or `run/flash-player`,
+`run/flash-webradio`). **The board keeps that build after the run.**
+
+The `BOOT_WAIT` wait is gone from these three as well (TASK-563): readiness is decided by watching
+the boot the port open itself causes, not by guessing.
 
 ---
 

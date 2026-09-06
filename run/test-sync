@@ -9,15 +9,18 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 PORT=$(resolve_port)
 
+# ADR-067/TASK-633: declare the build this run needs and READ THE BOARD.
+# Refuses with exit 3 (RIG, `elf-mismatch`) if they differ. Runs before the
+# monitor is touched, so a refused run leaves the rig as it found it.
+require_build "$ENV_DEBUG" test-sync "$PORT" || exit $?
+
 _TEST_RC=0
 _cleanup() {
   local rc=$_TEST_RC
   echo ""
-  echo "[test-sync] step 5/6 — restoring $ENV_PROD (rc=$rc so far)"
-  (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT") || {
-    echo "ERROR [test-sync]: prod restore failed" >&2
-    rc=99
-  }
+  # ADR-067 D1: the production restore that used to run here is DELETED,
+  # not guarded. A test entry point does not own firmware lifecycle. The
+  # board keeps whatever build the last flash put there.
   echo "[test-sync] step 6/6 — restarting monitor"
   restart_monitor "$PORT"
   # TASK-434 item 1: the harness exits SETUP_FAIL_EXIT (3) for a RIG condition —
@@ -53,8 +56,10 @@ trap _cleanup EXIT INT TERM
 echo "[test-sync] step 1/6 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
-echo "[test-sync] step 2/6 — flashing $ENV_DEBUG to $PORT"
-(cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+echo "[test-sync] step 2/6 — build already verified; NOT flashing (ADR-067)"
+# ADR-067 D1: no flash here. require_build() above read the board and
+# refused with exit 3 if it was not running the build this run needs.
+# Flashing is the caller's explicit action, through run/flash*.
 # TASK-559: esptool just hard-reset the DUT. Record it where lib/dut.py's
 # DRD guard can see it, so the harness open below waits out the remainder of
 # the window instead of landing inside it (BOOT_WAIT=8 < _DUT_DRD_WINDOW_S=12).

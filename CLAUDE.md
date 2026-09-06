@@ -78,9 +78,17 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
 
 - **The board is pinned to the debug build** while TASK-557 is open. Human ruling, 2026-09-03: the
   pin forbids **restoring production**; rebuilding and flashing *the same debug env* is fine
-  provided `-DBOD_WATCH` survives. `run/test` and `run/test-targeted` restore production from an
-  EXIT trap, so they cannot be run as-is — `DUT_NO_RESTORE=1` is a dated interim exception, retired
-  when TASK-633 converts the entry points to verify-and-refuse.
+  provided `-DBOD_WATCH` survives. **This is no longer a blocker** — ADR-067/TASK-633 (2026-09-06)
+  deleted the production restore from all fourteen DUT entry points, so `run/test` and the rest run
+  fine on a pinned board. `DUT_NO_RESTORE=1` **has met its retirement condition and is gone**; it is
+  not read by anything and setting it does nothing.
+- **DUT entry points verify and refuse — they never flash and never restore (ADR-067).** Every
+  `run/test*`, soak and gate script *reads* the board's build identity and **refuses with exit 3**
+  (`elf-mismatch`, a RIG condition) if it is not running the build the run declared. **You flash the
+  board yourself, on purpose,** with `run/flash-debug` / `run/flash-player` / `run/flash-webradio`
+  before the run. **The board keeps whatever build the last flash put there, including after a run** —
+  nothing puts production back for you. That is the trade ADR-067 makes: two commands where there was
+  one, in exchange for a test script that can no longer destroy the state you were investigating.
 - **PlatformIO is not on PATH.** Use `~/.platformio/penv/bin/pio` (alias `pio` if you want).
 - **Board:** ESP32-2432S028R "Cheap Yellow Display", **two-USB variant** — production target is `cyd2usb_winamp`; requires `-DTFT_INVERSION_ON` (inherited from `cyd2usb` base). The plain `cyd` env produces inverted colors on this hardware.
 - **Serial port:** `/dev/ttyUSB0`, CH340 (USB VID:PID `1A86:7523`).
@@ -127,7 +135,7 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
                                #   flashed; it does not flash. NEVER as a post-mortem: the
                                #   reset destroys the wedge you were diagnosing (TASK-426) —
                                #   read run/monitor-read FIRST. (TASK-565, M-TESTARCH §5 E4)
-./run/test                    # full DUT validation loop (BP-020, trap-guarded)
+./run/test                    # full DUT validation loop (BP-020; verifies the build, refuses exit 3)
 ./run/test-targeted T1,T2     # targeted loop for a specific feature
 ./run/test-targeted --scope X # targeted loop by SCOPE — an app name, one of
                               # shell|boot|taskbar|spotify-chrome|rig, or the PATH of
@@ -139,11 +147,11 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/player-gate              # M-TESTBASE phase-1 player gate, two-leg ordered regression run (TASK-519)
 ./run/wr-gate [trials]         # ADR-045 MVP exit-criterion gate for M-WEBRADIO close (TASK-238)
 ./run/pr-fetch-soak [min]      # PlaneRadar fetch-failure-rate soak by payload size (TASK-361)
-./run/stress [min]            # multi-app fetch stress/soak (TASK-248; flash debug → soak → restore prod)
-./run/wr-soak [min]           # WebRadio playback + A-lite arena-churn soak (TASK-271; flash webradio build → soak → restore prod)
-./run/ae04 [cycles]           # T_AE_04 audio-engine teardown ordering, eject mid-CONNECTING (TASK-409; flash webradio build → test → restore prod)
+./run/stress [min]            # multi-app fetch stress/soak (TASK-248; REQUIRES debug already flashed)
+./run/wr-soak [min]           # WebRadio playback + A-lite arena-churn soak (TASK-271; REQUIRES cyd2usb_webradio flashed)
+./run/ae04 [cycles]           # T_AE_04 audio-engine teardown ordering, eject mid-CONNECTING (TASK-409; REQUIRES cyd2usb_webradio flashed)
 ./run/task488 [ids]           # T_488_04-11 refactor verification (TASK-488; DUT_TREE=<worktree> flashes another checkout for an A/B)
-./run/pr-soak [min]           # PlaneRadar + Spotify coexistence soak (TASK-307; flash debug → soak → restore prod)
+./run/pr-soak [min]           # PlaneRadar + Spotify coexistence soak (TASK-307; REQUIRES debug already flashed)
 ./run/audit-origin [--grep-only] # origin-relative render/hit-test audit (TASK-082/251)
 ./run/screendump               # pull an exact DUT screenshot via SERIAL_DEBUG (requires debug firmware)
 ./run/check                   # 11-gate build check (check_build.sh)
