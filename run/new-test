@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# run/new-test — scaffold a new test's record. TASK-630 / Dev D4.
+#
+#   ./run/new-test <scope> <ID> [--cls CORE] [--title "…"] [--effect …]
+#   ./run/new-test LocalPlayer T_PLR_40 --cls CORE --title "queue survives eject"
+#
+# Prints, and edits nothing. It fills in every field DERIVABLE from the tree —
+# the family module, the scope seed, the class seed, the effect, the registry
+# line in the exact shape check_player_binding.py regexes, the test_plan.md
+# entry C6 binds against, and a body that already satisfies R34/R18/R17.
+#
+# It REFUSES the fields that need judgement: the oracle, and a gating
+# `cls_reason`. The stub it emits for a gating class is deliberately under
+# check_test_meta.py's 80-character floor, so a scaffolded gating test reds
+# run/check until a person writes the sentence. That refusal is the point — a
+# scaffold that guesses the judgement fields is how a declaration becomes
+# theatre (QM §4).
+#
+# Host-only: no DUT, no port, no build, no network.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+(cd "$PIO_DIR" && exec "$VENV_PY" tools/suite/scaffold.py "$@")

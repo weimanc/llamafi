@@ -366,20 +366,32 @@ def wait_heartbeat(dut: Dut, timeout: float = 35.0) -> dict:
 
 
 # ── test registry ─────────────────────────────────────────────────────────────
-
-RESULTS: dict[str, str] = {}
-
-def pass_(tid: str, detail: str = ""):
-    RESULTS[tid] = "PASS"
-    print(f"  [PASS] {tid}" + (f"  {detail}" if detail else ""))
-
-def fail(tid: str, reason: str):
-    RESULTS[tid] = f"FAIL: {reason}"
-    print(f"  [FAIL] {tid}  {reason}")
-
-def skip(tid: str, reason: str):
-    RESULTS[tid] = f"SKIP: {reason}"
-    print(f"  [SKIP] {tid}  {reason}")
+#
+# TASK-646 / WP-A `A-6`. Until now this file carried a PRIVATE copy of the
+# result layer — a bare `RESULTS` dict and three one-line recorders — frozen at
+# the shape `lib/results.py` had before TASK-520 unified it. Everything the
+# shared layer grew since then, these twenty ids did not have:
+#
+#   * the flaky policy (ADR-059 D13 / M-TESTARCH §7). `flake()` did not exist
+#     here, so an id could not be declared flaky at all, and the mandated single
+#     retry with BOTH outcomes reported had nowhere to run.
+#   * `NOT-RUN` (TASK-566) and `UNMET` (TASK-624). Every non-pass was FAIL or
+#     SKIP, so "the premise never held" and "the firmware is wrong" were the
+#     same cell — the C-5 conflation, in the one suite that could not report it.
+#   * the run artifact (TASK-608 / R29). `run/test-sync` had NO machine
+#     interface: its twenty verdicts existed only as printed text that nothing
+#     was allowed to parse (IFC-008 I6).
+#   * the typed store, `verdict_of()` and `check_verdict_invariants()`.
+#
+# Same import-and-re-export shape as `ve_suite_base.py`, and for the same reason
+# as `lib/dut.py` in M-TESTBASE P1: one write path, one policy, one place it can
+# be fixed. The private `Dut` class above is a SEPARATE duplication and is
+# deliberately untouched here — one session layer is TASK-599's row (R47), which
+# is blocked behind Phase 5, and folding it in under this row would put an
+# unreviewed session change on the same commit as a verdict change.
+from lib.results import (RESULTS, fail, flake, not_run, pass_,  # noqa: E402,F401
+                         print_results, run_with_flake_retry, set_premise_provider,
+                         skip, unmet, verdict_of)
 
 
 # ── T097 — Spotify-side pause reflects on DUT within one poll ─────────────────
@@ -1304,6 +1316,35 @@ def main():
     dut = Dut(args.port, args.baud, timeout=5.0)
     print(f"Connected. Running: {selected}\n")
 
+    # TASK-646 / R30. `lib/` never imports a suite (M-TOOLING), so the premise
+    # fields only this file can know are INSTALLED, exactly as
+    # suite/serialdbg/runner.py installs its own. What this suite CANNOT state
+    # is stated as null with a NAMED reason rather than invented: the ELF hash,
+    # the build env and the board identity all come from the shared session
+    # layer's setup probes, and this file still has its own `Dut` (TASK-599).
+    # A null field is an honest "this run did not state it"; a fabricated one
+    # would put an identity on a result that has none.
+    set_premise_provider(lambda: {
+        "entry_point": "run_sync_tests.py",
+        "argv": sys.argv[1:],
+        "elf": None,
+        "elf_expected": None,
+        "build_env": None,
+        "board": {"id": None,
+                  "id_source": "unread:private session layer (TASK-599/R47)",
+                  "transport": {"port": args.port, "baud": args.baud}},
+        "generation": None,
+        "class_order_in_force": False,
+        "class_order": [],
+        "selection": {
+            "ids": list(selected),
+            "reason": ("--tests" if args.tests != default_tests
+                       else "default (T097-T116 less the interactive pair)"),
+            "interactive": bool(args.interactive),
+        },
+        "downgraded_gates": [],
+    })
+
     skip_notice = [t for t in selected if t in _INTERACTIVE_TESTS and not args.interactive]
     if skip_notice:
         print(f"NOTE: {skip_notice} will SKIP — re-run with --interactive.\n")
@@ -1317,22 +1358,40 @@ def main():
         # T110 closes/reopens the port itself; skip force_fresh_poll for it.
         if tid not in _NO_FORCE_POLL:
             if not force_fresh_poll(dut, timeout=15.0):
-                fail(tid, "pre-test force_fresh_poll failed — DUT not polling")
+                # TASK-646. Was `fail()`. This is the textbook UNMET (R28 /
+                # ADR-066 D2): the id WAS dispatched, its own precondition — a
+                # live poll — never held, and it asserted nothing about the
+                # firmware. It is NOT a NOT-RUN either: no class failure blocked
+                # it, and there is nothing to attribute it to. Nothing is
+                # weakened by the change — UNMET blocks and exits 1 exactly as
+                # FAIL did (IFC-008 I4) — what changes is that triage is no
+                # longer told the firmware regressed when the DUT simply was
+                # not polling, which is this suite's single most common
+                # non-result.
+                unmet(tid, "pre-test force_fresh_poll failed — DUT not polling")
                 continue
-        try:
-            if tid in _INTERACTIVE_TESTS:
-                ALL_TESTS[tid] if ALL_TESTS[tid] else (
-                    lambda t=tid: globals()[f"t{t[1:].lower()}"](dut, args.interactive))()
-                fn = t112 if tid == "T112" else t113
-                fn(dut, args.interactive)
-            else:
-                ALL_TESTS[tid](dut)
-        except TimeoutError as e:
-            fail(tid, f"TimeoutError: {e}")
-        except Exception as e:
-            import traceback
-            fail(tid, f"Exception: {e}")
-            traceback.print_exc()
+
+        def _once(tid=tid):
+            try:
+                if tid in _INTERACTIVE_TESTS:
+                    fn = t112 if tid == "T112" else t113
+                    fn(dut, args.interactive)
+                else:
+                    ALL_TESTS[tid](dut)
+            except TimeoutError as e:
+                fail(tid, f"TimeoutError: {e}")
+            except Exception as e:
+                import traceback
+                fail(tid, f"Exception: {e}")
+                traceback.print_exc()
+
+        # TASK-646. The mandated single retry (policy rule 2): a DECLARED flake
+        # is retried once and both outcomes reported. Without this call a
+        # declared flake here would be recorded as `FLAKE(awaiting mandated
+        # retry)` and converted to a FAIL by `_finalize()` — the shared layer's
+        # deliberate punishment for a dispatch loop that does not retry. This
+        # loop now retries.
+        run_with_flake_retry(tid, _once)
         time.sleep(0.5)
 
     # Ensure port is closed
@@ -1341,14 +1400,26 @@ def main():
     except Exception:
         pass
 
-    print("\n── Results ──────────────────────────────────")
-    passed  = sum(1 for v in RESULTS.values() if v == "PASS")
-    failed  = sum(1 for v in RESULTS.values() if v.startswith("FAIL"))
-    skipped = sum(1 for v in RESULTS.values() if v.startswith("SKIP"))
-    for tid, result in sorted(RESULTS.items()):
-        print(f"  {tid}: {result}")
-    print(f"\n{passed} passed, {failed} failed, {skipped} skipped")
-    sys.exit(0 if failed == 0 else 1)
+    # TASK-646. Was a private summary block with three `startswith` counts and
+    # its own `sys.exit`. Three things change and none of them silently:
+    #
+    #   1. counting is TYPED (R31) — `startswith("FAIL")` also matched nothing
+    #      else here today, but it is the exact shape IFC-008 I1 forbids, and it
+    #      is why `FLAKY-PASS` was once read as `FLAKE` (TASK-573).
+    #   2. the row ORDER is the SELECTION order, not `sorted(RESULTS)`. For the
+    #      default `--tests` set those are the same list — T097…T116 sort as
+    #      they are registered — and for an explicit `--tests T110,T097` the
+    #      rows now read in the order the run executed them, which is the order
+    #      the log above them is in.
+    #   3. the run emits the artifact (R29), because `print_results` does. That
+    #      is the whole point of the row: these twenty ids gain a machine
+    #      interface, the same one everything else already had.
+    #
+    # `health_fail` is NOT passed: this suite runs no HEALTH class, so there is
+    # no id to name, and exit 4 must never be inferred from bucket counts
+    # (design §18.4). `exit_on_finish` is left at its default, so the process
+    # still exits from here exactly as it did.
+    print_results(selected)
 
 
 if __name__ == "__main__":

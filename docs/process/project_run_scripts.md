@@ -35,6 +35,15 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/audit-origin            # (re)generate the origin/hit-test audit PNG (never stale)
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
 ./run/dut-health              # PRE-FLIGHT ONLY: the HEALTH class, T_DH_01-03 — exit 0/4
+                               #   (3 = rig; 1 = a broken results record, TASK-645). Emits a run
+                               #   artifact like every other entry point (R29).
+./run/new-test <scope> <ID>   # scaffold a new test's record (TASK-630). Host-only; prints and
+                               #   edits nothing. Generates the family module, the scope/cls/effect
+                               #   seeds, the registry line, the test_plan.md entry and a body
+                               #   skeleton that already satisfies R34/R18/R17. REFUSES the oracle
+                               #   and a gating cls_reason — the stub it emits is under
+                               #   check_test_meta's 80-character floor, so a scaffolded gating
+                               #   test reds run/check until a person writes the sentence.
 ```
 
 ### `run/dut-health` — is this board fit to test?
@@ -173,6 +182,7 @@ error, never an empty result set.
 | `run/test-smoke` | §5b Quick smoke preset |
 | `run/test-sync` | §5b Targeted feature validation (sync suite T097-T116) |
 | `run/check` | §2 Build (11-gate check_build.sh) |
+| `run/new-test` | §5b — scaffold a new test's record (TASK-630) |
 | `run/ae04` | §5e Soak & gate scripts |
 | `run/wr-soak` | §5e Soak & gate scripts |
 | `run/wr-gate` | §5e Soak & gate scripts |

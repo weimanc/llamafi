@@ -399,8 +399,13 @@ def main() -> int:
           "artifact only",
           "exchanges" not in R.RESULTS[TID] and len(R.RESULTS[TID].splitlines()) == 1,
           R.RESULTS[TID][:70])
-    check("T7 the artifact declares the MINOR that added the field",
-          doc["schema"]["version"] == "1.1", doc["schema"]["version"])
+    # The field arrived in 1.1 and the schema only moves forward, so the
+    # assertion is ">= the MINOR that added it", not "== 1.1": pinning the
+    # equality made an unrelated additive bump (TASK-645's 1.2) red this arm,
+    # which is a test asserting the schema never grows.
+    check("T7 the artifact declares at least the MINOR that added the field",
+          tuple(int(x) for x in doc["schema"]["version"].split("."))
+          >= (1, 1), doc["schema"]["version"])
 
     # Green run: the payload must not merely be small, it must not be BUILT.
     R.RESULTS.clear()

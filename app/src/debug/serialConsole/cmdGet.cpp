@@ -47,6 +47,25 @@ void cmdGet(const char *args) {
                   );
     return;
   }
+  // TASK-645 (M-HARNESS2 R30 / ADR-066 D3): the BOARD's own identity, so a run
+  // artifact can say which physical board produced it. The host had nothing but
+  // `{port, baud}`, which is a fact about the CABLE — a USB re-enumeration
+  // renames /dev/ttyUSB0 to /dev/ttyUSB1 on the same board, and moving a second
+  // board onto the free node gives two different boards the same premise. The
+  // efuse MAC is factory-programmed, survives re-enumeration, reflashing and an
+  // NVS wipe, and is the one number on the device nothing in this project can
+  // change. Additive per ADR-065 D4; read-only; no state touched.
+  if (strcmp(args, "boardId") == 0) {
+    uint64_t mac = ESP.getEfuseMac();     // 48-bit, low bytes first
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"boardId\","
+                  "\"val\":\"%02x%02x%02x%02x%02x%02x\",\"src\":\"efuse-mac\","
+                  "\"rev\":%u,\"last\":true}\n",
+                  (unsigned)((mac >> 0)  & 0xFF), (unsigned)((mac >> 8)  & 0xFF),
+                  (unsigned)((mac >> 16) & 0xFF), (unsigned)((mac >> 24) & 0xFF),
+                  (unsigned)((mac >> 32) & 0xFF), (unsigned)((mac >> 40) & 0xFF),
+                  (unsigned)ESP.getChipRevision());
+    return;
+  }
   // TASK-410 (T_AE_07/09/10): raw engine state for `set aePlayFile` — isRunning()
   // and the pump's result enum, independent of WebRadioApp's own dbgGet (which
   // reads WRPlayState, never touched by aeConnectFile()'s bypass path).

@@ -150,11 +150,14 @@ def case_declarations_are_not_definitions():
 
 def case_fix_actually_recovered_the_app_keys():
     """The measurement TASK-600 exists for: keys reachable ONLY through a
-    per-app body must now be present. `cmdGet.cpp` alone yields 43."""
+    per-app body must now be present. `cmdGet.cpp` alone yielded 43 when this
+    was written and 44 since TASK-645 added `get boardId`; the arm asserts the
+    RELATIONSHIP (source 2 contributes the bulk), so the literal is a tripwire
+    on the source-1 count and is updated with it, never relaxed away."""
     keys, _ = G.collect_with_sites()
     cmdget = set(re.findall(r'strcmp\(args,\s*"([A-Za-z0-9_]+)"',
                             G.CMDGET.read_text()))
-    assert len(cmdget) == 43, f"cmdGet.cpp source-1 count changed: {len(cmdget)}"
+    assert len(cmdget) == 44, f"cmdGet.cpp source-1 count changed: {len(cmdget)}"
     assert len(keys) > len(cmdget) + 50, (
         f"source 2 is still contributing almost nothing: {len(keys)} total "
         f"vs {len(cmdget)} from cmdGet.cpp")
@@ -178,7 +181,7 @@ CASES = [
     ("E5  a count below the floor",             case_count_below_floor),
     ("P1  the live tree is clean",              case_live_tree_is_clean),
     ("P2  declarations are not definitions",    case_declarations_are_not_definitions),
-    ("P3  the app keys came back (43 -> 111)",  case_fix_actually_recovered_the_app_keys),
+    ("P3  the app keys came back (44 -> 112)",  case_fix_actually_recovered_the_app_keys),
     ("P4  the floor equals reality",            case_floor_matches_reality),
 ]
 

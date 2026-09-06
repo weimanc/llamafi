@@ -631,6 +631,16 @@ class Dut:
         self.elf = None
         self.elf_expected = None
         self.build_env = _DUT_ENV
+        # TASK-645 / ADR-066 D3. WHICH BOARD produced this run. `{port, baud}`
+        # is a fact about the cable, not the board: a USB re-enumeration renames
+        # ttyUSB0 to ttyUSB1 on the same hardware, and plugging a second board
+        # into the freed node gives two different boards an identical premise.
+        # Filled by _read_board_id() below from the factory efuse MAC; stays
+        # None with a NAMED reason when the firmware does not answer, because
+        # "this run did not state which board" is honest and a fabricated
+        # identity is not.
+        self.board_id = None
+        self.board_id_source = "unread"
         self.port = port
         self.ser = serial.Serial()
         self.ser.port = port
@@ -681,6 +691,10 @@ class Dut:
         try:
             self._wait_for_ready()
             self._verify_debug_firmware()
+            # TASK-645. Read HERE, beside the ELF identity and for the same
+            # reason (R30's note two screens down): a premise field that costs a
+            # device read at summary time perturbs the run it describes.
+            self._read_board_id()
         except SetupFailure as e:
             e.tail = self.ser.tail()
             # TASK-564: one stamp site for every readiness-path failure —
@@ -690,6 +704,53 @@ class Dut:
             # this is not a constructor argument.
             e.stamp(self.last_phase(), self.gen_tag())
             raise
+
+    #: shape of a `get boardId` value: twelve lowercase hex digits (a 48-bit MAC).
+    _BOARD_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+
+    def _read_board_id(self) -> None:
+        """One read of `get boardId` (TASK-645). Best-effort, never raises.
+
+        A board-identity read must not be able to fail a run: the identity is a
+        LABEL on the result, and a harness that refused to test because it could
+        not read a label would be trading a real capability for a record. Every
+        failure path therefore lands on a NAMED `board_id_source` — `absent` for
+        firmware predating the key, `malformed` for an answer that does not
+        parse, `unanswered` for silence — and the artifact carries the reason
+        instead of an identity. Deliberately NOT a fallback to the port: the
+        whole finding is that the port is not an identity.
+        """
+        try:
+            r = self.cmd("get boardId", timeout=3.0)
+        except Exception as e:
+            self.board_id_source = f"unanswered:{type(e).__name__}"
+            return
+        if not r or not r.get("ok"):
+            # Firmware without the key. Expected on any build older than
+            # TASK-645, and on every production build (the console is
+            # SERIAL_DEBUG-only), so it is not a warning.
+            self.board_id_source = "absent"
+            return
+        val = str(r.get("val") or "").strip().lower()
+        if not self._BOARD_ID_RE.match(val):
+            self.board_id_source = "malformed"
+            return
+        self.board_id = val
+        self.board_id_source = str(r.get("src") or "efuse-mac")
+
+    def board(self) -> dict:
+        """The artifact's `premise.board` (TASK-645 / ADR-066 D3).
+
+        `id` is the board. `transport` is how this run reached it — kept,
+        because "which port was it on" is still worth knowing when a run
+        misbehaves, but demoted out of the identity position it never earned.
+        """
+        return {
+            "id": self.board_id,
+            "id_source": self.board_id_source,
+            "transport": {"port": self.port,
+                          "baud": getattr(self.ser, "baudrate", None)},
+        }
 
     def gen_tag(self) -> str:
         """This session's generation tag (TASK-564, design §16.2/§16.5).

@@ -312,4 +312,29 @@ if ! "$PYTHON" lib/test_replay.py; then
     exit 1
 fi
 
+# ── TASK-646 / WP-A A-6 — one results layer, not five. The checker's negative
+# suite runs first (BP-068) and carries the migration's own identity arms:
+# `run_sync_tests.py`'s recorders must BE `lib.results`'s objects, not merely
+# look like them. Blocking, on a 1-row dated ledger
+# (docs/verification/private_results_exceptions.md). No DUT, ~0.2 s.
+if ! "$PYTHON" gate/test_check_private_results.py; then
+    echo "FAIL: test_check_private_results.py (TASK-646 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_private_results.py; then
+    echo "FAIL: check_private_results.py (TASK-646 A-6 private results layer) FAILED" >&2
+    exit 1
+fi
+
+# ── TASK-630 — the record scaffold's negative suite (Dev D4, BP-068). Blocking
+# at zero from the day it lands, and the arm that matters most is the REFUSAL
+# one: if `run/new-test` ever emits a `cls_reason` long enough to satisfy
+# check_test_meta's 80-character floor, gating classes start shipping with
+# machine-written justifications, which is the declaration becoming theatre
+# (QM §4). Runs the real gate code over the emitted text; no DUT, ~0.3 s.
+if ! "$PYTHON" suite/test_scaffold.py; then
+    echo "FAIL: suite/test_scaffold.py (TASK-630 scaffold negative suite) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"

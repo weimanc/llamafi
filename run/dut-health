@@ -11,6 +11,14 @@
 # Exit 0 = fit. Exit 4 = [HEALTH-FAIL], and every result a suite produced
 # against this board would be uninterpretable. Exit 3 = a RIG condition (no
 # board, port held, production firmware flashed) — nothing was measured.
+# Exit 1 = the results layer reported an IFC-008 invariant violation in its own
+# record (TASK-645). That is NOT a statement about the board; it says the
+# verdicts cannot be vouched for, so announcing a fit board would be a lie.
+#
+# It emits a run artifact like every other entry point (TASK-645 / R29): until
+# then this script exited three lines before print_results, so the one tool
+# whose entire job is to say whether the board is a valid subject was the only
+# one that said it in prose alone. The path is printed at the end of the run.
 #
 # ~15 s typical, up to ~60 s on a degraded boot. That is boot + checks: the
 # checks themselves are ~10 s of round-trips, but opening the port RESETS the

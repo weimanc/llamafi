@@ -126,6 +126,38 @@ for k in ("harness_version", "entry_point", "elf", "build_env", "board",
     check(f"T_ART_03[{k}]", k in prem, True)
 check("T_ART_03z", prem["elf"], None)
 
+print("T_ART_16  the premise identifies the HARNESS, not the schema (TASK-645)")
+# The defect this replaces: `harness_version` was `artifact.SCHEMA_VERSION`, so
+# every run ever made by every version of the harness reported the same string —
+# and that string was already in the document under `schema.version`. R30 asks
+# what CODE produced the run. The arm is stated as an INEQUALITY against the
+# schema version precisely so the old value cannot come back unnoticed.
+_doc16 = A.load(p2)
+check("T_ART_16a", _doc16["premise"]["harness_version"]
+      != _doc16["schema"]["version"], True)
+check("T_ART_16b", bool(re.match(r"^src-[0-9a-f]{12}$",
+                                 str(_doc16["premise"]["harness_version"]))), True)
+_h = _doc16["premise"]["harness"]
+check("T_ART_16c", len(str(_h["source_sha256"])), 64)
+check("T_ART_16d", _h["source_files"] > 50, True)
+# Provenance rides ALONGSIDE and is never folded into the identity: a dirty tree
+# must still be distinguishable from another dirty tree.
+check("T_ART_16e", "git_commit" in _h and "git_dirty" in _h, True)
+check("T_ART_16f", str(_h.get("git_commit") or "") not in
+      _doc16["premise"]["harness_version"], True)
+
+print("T_ART_17  the premise identifies the BOARD, not the cable (TASK-645)")
+# ADR-066 D3 asks which board the run ran against. `{port, baud}` is a fact
+# about the cable: a USB re-enumeration renames the port on the same board, and
+# a second board on the freed node inherits the same premise. The identity slot
+# must exist and must be NAMED-null rather than back-filled from the port.
+_b17 = _doc16["premise"]["board"]
+check("T_ART_17a", _b17 is None or ("id" in _b17), True)
+_probe = {"id": None, "id_source": "absent",
+          "transport": {"port": "/dev/ttyUSB0", "baud": 115200}}
+check("T_ART_17b", _probe["id"] is None and _probe["id_source"] == "absent", True)
+check("T_ART_17c", "/dev/tty" not in str(_probe["id"]), True)
+
 print("T_ART_04  an INSTALLED premise provider fills them in (M-TOOLING: lib/")
 print("          never imports a suite, so the suite installs)")
 p4 = TMP / "run4.json"

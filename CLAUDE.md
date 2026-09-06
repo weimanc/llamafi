@@ -111,11 +111,17 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/spiffs pull [file]      # extract all → app/data/spiffs-dump/, or single file → stdout
 ./run/spiffs push [file]      # write single file or merge app/data/ (non-destructive, no format)
 ./run/spiffs rm <file>        # remove single file from device
+./run/new-test <scope> <ID>   # scaffold a new test's record (TASK-630): generates the family
+                              #   module, scope/cls/effect seeds, the registry line, the
+                              #   test_plan.md entry and a gate-clean body skeleton; REFUSES the
+                              #   oracle and a gating cls_reason. Host-only, prints, edits nothing.
 ./run/monitor-start           # start tmux serial monitor
 ./run/monitor-stop            # kill monitor (idempotent)
 ./run/monitor-read [N]        # dump last N lines (default 200)
 ./run/dut-health              # PRE-FLIGHT ONLY: HEALTH class T_DH_01-03 — is this board fit
-                               #   to test now? exit 0/4. ~15 s typical, up to ~60 s on a
+                               #   to test now? exit 0/4 (1 = broken record, TASK-645; 3 = rig).
+                               #   Emits a run artifact like every other entry point.
+                               #   ~15 s typical, up to ~60 s on a
                                #   degraded boot (its own port open RESETS the board, so the
                                #   boot is part of the price). Needs debug firmware already
                                #   flashed; it does not flash. NEVER as a post-mortem: the

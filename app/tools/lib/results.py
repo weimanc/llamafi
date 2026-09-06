@@ -505,7 +505,12 @@ def build_document(exit_code: int, health_fail: Optional[str] = None,
     """
     from . import artifact as _artifact           # deferred: artifact reads us
     from . import flaky as _fl
+    from . import version as _version
 
+    try:
+        harness = _version.harness_identity()
+    except Exception as e:                        # never fail a run for a label
+        harness = {"id": None, "error": f"{type(e).__name__}: {e}"}
     meta = _call(_META, "meta")
     premise = _call(_PREMISE, "premise")
     # `order` orders; it never SELECTS. print_results(all_tests) filters its
@@ -578,7 +583,15 @@ def build_document(exit_code: int, health_fail: Optional[str] = None,
             # R30's list. What this layer can know by itself is filled in; the
             # rest comes from the installed provider and is null when no
             # provider is installed — an honest "this run did not state it".
-            "harness_version": _artifact.SCHEMA_VERSION,
+            # TASK-645. Was `_artifact.SCHEMA_VERSION` — the version of the
+            # DOCUMENT FORMAT, which the document already carries two keys up
+            # under `schema.version`. R30 asks what CODE produced the run, and
+            # that had no source in the tree at all. It does now: a content hash
+            # over `app/tools/**/*.py` + `run/*`, with git alongside as
+            # provenance. See lib/version.py for why the hash is the identity
+            # and `git describe` is not. ~19 ms, no network, no build.
+            "harness_version": harness["id"],
+            "harness": harness,
             "entry_point": premise.get("entry_point")
                            or os.path.basename(sys.argv[0] or "?"),
             "argv": premise.get("argv") or list(sys.argv[1:]),

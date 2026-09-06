@@ -71,7 +71,28 @@ SCHEMA_NAME = "esp_spotify.test-run"
 SCHEMA_MAJOR = 1
 #: 1.1 (TASK-631): `results[].exchanges` — the last 20 command/reply pairs
 #: behind a blocking verdict, or null. Additive, so 1.0 readers are unaffected.
-SCHEMA_MINOR = 1
+#:
+#: 1.2 (TASK-645): `premise.harness` (new, additive) plus two premise fields that
+#: changed value-space — `premise.harness_version` now carries the HARNESS's
+#: identity (lib/version.py) rather than a copy of `schema.version`, and
+#: `premise.board` is `{id, id_source, transport}` rather than `{port, baud}`.
+#:
+#: WHY THAT IS A MINOR AND NOT A MAJOR, stated so a later reader can disagree
+#: with the reasoning rather than guess at it. The MAJOR rule protects READERS
+#: from a field whose meaning moved under them. Neither of these fields ever
+#: carried the value its own contract specified: R30 asks which harness produced
+#: the run and got the document format's version number; ADR-066 D3 asks which
+#: BOARD it ran against and got the cable. Filling a field with the value it was
+#: always defined to hold is a defect fix, not a re-meaning. The reader count was
+#: taken mechanically, not assumed: `premise.` has ZERO consumers outside this
+#: package (`lib/baseline.py` reads `id_status` only, `run/player-gate` reads
+#: `results[]`, `test_run_artifact.py` asserts key PRESENCE), so nothing can be
+#: taught what nothing reads. T_ART_16/17 keep both fields from regressing.
+#: **Whether a corrected field is a MINOR or a MAJOR is a specification question
+#: and belongs to @Architect — parked on TASK-644, which already owns IFC-008's
+#: unfilled clauses. If the ruling is MAJOR, the change is `SCHEMA_MAJOR = 2`
+#: and this comment; nothing else here moves.**
+SCHEMA_MINOR = 2
 SCHEMA_VERSION = f"{SCHEMA_MAJOR}.{SCHEMA_MINOR}"
 
 #: Where a run writes when the caller named no path (layer L1).

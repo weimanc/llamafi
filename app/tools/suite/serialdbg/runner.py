@@ -64,9 +64,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa: E402
                      set_no_wifi)
 import lib.dut as _dut_mod                                               # noqa: E402
-from lib.results import (fail, unmet, run_with_flake_retry,              # noqa: E402
-                         set_exchange_provider, set_meta_provider,
-                         set_premise_provider)
+from lib.results import (fail, print_results, unmet,                     # noqa: E402
+                         run_with_flake_retry, set_exchange_provider,
+                         set_meta_provider, set_premise_provider)
 import lib.replay as _replay                                             # noqa: E402
 
 try:
@@ -385,8 +385,11 @@ def main():
         "elf": getattr(dut, "elf", None),
         "elf_expected": getattr(dut, "elf_expected", None),
         "build_env": getattr(dut, "build_env", None),
-        "board": {"port": getattr(dut, "port", args.port),
-                  "baud": args.baud},
+        # TASK-645 / ADR-066 D3. Was `{port, baud}` — a fact about the cable,
+        # which a USB re-enumeration invalidates and a second board can
+        # duplicate. `Dut.board()` puts the efuse MAC in the identity position
+        # and demotes the transport to where it belongs.
+        "board": dut.board(),
         "generation": dut.gen_tag(),
         "class_order_in_force": _gate.ORDER_IN_FORCE,
         "class_order": list(_gate.EXECUTED_ORDER),
@@ -439,11 +442,38 @@ def main():
     if args.dut_health:
         dut.close()
         print(f"\n{_health.RESET_WARNING}")
+        # TASK-645 / R29: "EVERY run MUST emit a schema-versioned artifact".
+        # This path used to `sys.exit()` from here, three lines before
+        # `print_results` — so `run/dut-health`, the one entry point whose whole
+        # job is to state whether the board is a valid subject, was the only
+        # entry point that stated it in prose alone. Its three ids recorded real
+        # verdicts and no machine could read them, which is the same shape as
+        # the summary-text parsing R29 exists to retire: a verdict that exists
+        # and is unreadable.
+        #
+        # `exit_on_finish=False` because the 0/4 mapping below is this entry
+        # point's own contract (`run/dut-health`: 0 fit, 3 rig, 4 not a valid
+        # subject) and must not be inferred from bucket counts. `health_fail`
+        # carries the exit-4 case into the ARTIFACT as well as the text, so a
+        # reader of the artifact alone sees the same verdict a reader of the log
+        # does.
+        rc = print_results(list(health_selected), exit_on_finish=False,
+                           health_fail=(",".join(health_failed) or None))
         if health_failed:
             print(f"\n[HEALTH-FAIL] {','.join(health_failed)} — this board is NOT "
                   f"a valid test subject right now. Every result a suite produced "
                   f"against it would be uninterpretable.", flush=True)
             sys.exit(HEALTH_FAIL_EXIT)
+        if rc != 0:
+            # Not reachable from a health FAIL (that is the branch above). This
+            # is the results layer reporting that its OWN record is broken — an
+            # IFC-008 I2/I3 invariant violation. Exiting 0 on it would announce
+            # a fit board on the strength of a record the layer just said it
+            # cannot vouch for.
+            print(f"\n[health] rc={rc} from the results layer — see the "
+                  f"[VERDICT-INVARIANT] block above. NOT a statement about the "
+                  f"board.", flush=True)
+            sys.exit(rc)
         print("\n[health] PASS — the board answers correct data, knows which "
               "network it is on, and can switch apps. It is fit to test.",
               flush=True)
