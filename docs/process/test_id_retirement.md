@@ -104,7 +104,9 @@ its own gate on a dangling key:
   go. `test_class_order.py` stays green as `unadjudicated()` shrinks; the row itself is dead data.
 * `docs/verification/flaky.yaml` — a flake declaration for a deleted id is checked by
   `check_flake_class.py`.
-* `docs/verification/gating_class_declarations.md` — R35's ledger; a row for a deleted id is stale.
+* `docs/verification/gating_offline_exceptions.md` — R36's ledger; a row for a deleted id is stale.
+  (R35's ledger, `gating_class_declarations.md`, was emptied by TASK-626 on 2026-09-06 and deleted
+  per its own retirement rule. If it ever comes back, it belongs on this list too.)
 * `docs/verification/id_binding_exceptions.md` — C6's ledger. **A stale row here is a blocking
   failure by design**, so this one will announce itself; it is listed so it is not a surprise.
 * `run/` scripts and `regression_suite/*.md` re-run command lines that name the id explicitly.

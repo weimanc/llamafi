@@ -7,6 +7,12 @@ prose references in comments; 256 is the AST call-site count).
 
 ---
 
+> **2026-09-06 — TASK-598 retired four more:** `T_MA_02`, `T_GOL_02`, `T_WX_02`, `T_CX_02`
+> (`deleted`; rows 64, 68, 73 and 80 below). **TASK-626** on the same day rewrote `T-CDWN-02`: row
+> 101's category-**C** finding is discharged — the "tap2 not skipped" exit is now a `fail()`,
+> guarded by the `shellBusy` reading that row named as the precondition of converting it — and the
+> 60 s fetch-count half it shared a body with is now the separate id `T-CDWN-04`.
+>
 > **2026-09-05 — TASK-603 retired 18 of the ids adjudicated below.** Deleted: `T136`, `T171`,
 > `T178`, `T179`, `T185`, `T194`, `T_PLR_02`, `T_WR_ERR_01`–`04`, and `T_PLR_25`'s registry copy.
 > Retired `UNOBSERVABLE`: `T_CLK_02`, `T_CLK_09`, `T_CLK_13`, `T_CLK_14`, `T_WR_VOL_03`, `T_PLR_03`.

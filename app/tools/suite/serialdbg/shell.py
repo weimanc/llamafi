@@ -1367,25 +1367,11 @@ def t_ma_01(dut: Dut):
     pass_("T_MA_01", "Spotify→Matrix→Spotify round-trip confirmed via get appId")
 
 
-# ── T_MA_02 — Matrix BUG-1 guard ─────────────────────────────────────────────
-
-def t_ma_02(dut: Dut):
-    """T_MA_02: Canvas tap while Matrix active returns hit=CLOCK (Winamp zones bypassed)."""
-    print("T_MA_02  Matrix BUG-1 guard")
-    if not _switch_to(dut, "Matrix"):
-        skip("T_MA_02", "could not switch to Matrix")
-        _restore_spotify(dut)
-        return
-    # Tap centre of Matrix canvas (x=137, y=120) — x < TASKBAR_X.
-    dut.set_cooldown_zero()
-    r = dut.cmd("tap 137 120", timeout=3.0)
-    # Restore before asserting.
-    _restore_spotify(dut)
-    hit = r.get("hit", "")
-    if hit != "CLOCK":
-        fail("T_MA_02", f"expected hit=CLOCK while Matrix active, got {hit!r}")
-        return
-    pass_("T_MA_02", f"hit={hit!r} — Winamp zones correctly bypassed for Matrix")
+# T_MA_02 / T_GOL_02 / T_WX_02 / T_CX_02 retired 2026-09-06 (TASK-598) — all four
+# asserted `hit == "CLOCK"`, a fixed literal in cmdTap's terminal `else` on a branch
+# selected by the app id `_switch_to` had verified on the line before. Replacement:
+# `T_APPKEY_01`, blocked on TASK-637 (ADR-063 D3's per-app identity guard).
+# See docs/verification/retired_test_ids.md.
 
 
 # ── T_MA_03 — Matrix→Spotify canvas residue ──────────────────────────────────
@@ -1441,25 +1427,6 @@ def t_gol_01(dut: Dut):
         fail("T_GOL_01", "GoL→Spotify switch-back failed")
         return
     pass_("T_GOL_01", "Spotify→GoL→Spotify round-trip confirmed via get appId")
-
-
-# ── T_GOL_02 — GoL BUG-1 guard ───────────────────────────────────────────────
-
-def t_gol_02(dut: Dut):
-    """T_GOL_02: Canvas tap while GoL active returns hit=CLOCK (Winamp zones bypassed)."""
-    print("T_GOL_02  GoL BUG-1 guard")
-    if not _switch_to(dut, "Life"):
-        skip("T_GOL_02", "could not switch to Life")
-        _restore_spotify(dut)
-        return
-    dut.set_cooldown_zero()
-    r = dut.cmd("tap 137 120", timeout=3.0)
-    _restore_spotify(dut)
-    hit = r.get("hit", "")
-    if hit != "CLOCK":
-        fail("T_GOL_02", f"expected hit=CLOCK while GoL active, got {hit!r}")
-        return
-    pass_("T_GOL_02", f"hit={hit!r} — Winamp zones correctly bypassed for GoL")
 
 
 # ── T_GOL_03 — GoL→Spotify canvas residue ────────────────────────────────────
@@ -1539,25 +1506,6 @@ def t_wx_01(dut: Dut):
         fail("T_WX_01", "Weather→Spotify switch-back failed")
         return
     pass_("T_WX_01", "Spotify→Weather→Spotify round-trip confirmed via get appId")
-
-
-# ── T_WX_02 — Weather BUG-1 guard ────────────────────────────────────────────
-
-def t_wx_02(dut: Dut):
-    """T_WX_02: Canvas tap while Weather active returns hit=CLOCK (Winamp zones bypassed)."""
-    print("T_WX_02  Weather BUG-1 guard")
-    if not _switch_to(dut, "Weather"):
-        skip("T_WX_02", "could not switch to Weather")
-        _restore_spotify(dut)
-        return
-    dut.set_cooldown_zero()
-    r = dut.cmd("tap 137 120", timeout=3.0)
-    _restore_spotify(dut)
-    hit = r.get("hit", "")
-    if hit != "CLOCK":
-        fail("T_WX_02", f"expected hit=CLOCK while Weather active, got {hit!r}")
-        return
-    pass_("T_WX_02", f"hit={hit!r} — Winamp zones correctly bypassed for Weather")
 
 
 # ── T_WX_03 — Weather→Spotify canvas residue ─────────────────────────────────
@@ -1717,25 +1665,6 @@ def t_cx_01(dut: Dut):
     pass_("T_CX_01", "Spotify→Crypto→Spotify round-trip confirmed via get appId")
 
 
-# ── T_CX_02 — Crypto BUG-1 guard ─────────────────────────────────────────────
-
-def t_cx_02(dut: Dut):
-    """T_CX_02: Canvas tap while Crypto active returns hit=CLOCK (Winamp zones bypassed)."""
-    print("T_CX_02  Crypto BUG-1 guard")
-    if not _switch_to(dut, "Crypto"):
-        skip("T_CX_02", "could not switch to Crypto")
-        _restore_spotify(dut)
-        return
-    dut.set_cooldown_zero()
-    r = dut.cmd("tap 137 120", timeout=3.0)
-    _restore_spotify(dut)
-    hit = r.get("hit", "")
-    if hit != "CLOCK":
-        fail("T_CX_02", f"expected hit=CLOCK while Crypto active, got {hit!r}")
-        return
-    pass_("T_CX_02", f"hit={hit!r} — Winamp zones correctly bypassed for Crypto")
-
-
 # ── T_CX_03 — Crypto→Spotify canvas residue ──────────────────────────────────
 
 def t_cx_03(dut: Dut):
@@ -1861,15 +1790,20 @@ def t_cx_07(dut: Dut):
 
 # ── T_X07_01 — dataTask cross-feature: rapid Weather↔Crypto switching ────────
 
-@meta(cls="CORE", cls_reason=
-      "Moving between families is the suite's most frequent operation, and it does "
-      "it fast: `_restore_spotify` plus the next test's `_switch_to` puts two "
-      "switches back to back several hundred times a run. T147 proves ONE switch "
-      "works; this proves the sequence does not wedge the shell or the dataTask. If "
-      "it does, the board every subsequent id runs on is not the board they were "
-      "written for. Recorded with the declaration: the docstring's 'no dataTask "
-      "queue corruption' has no oracle — `get dataq` is never read (WP-C) — so the "
-      "class rests on the five `appId` comparisons and the closing liveness check.")
+@meta(cls="FEATURE", cls_reason=
+      "TASK-626, approved 2026-09-06. DEMOTED from the CORE declared by TASK-591, "
+      "which did not know what this gate later measured: the id's premise IS two "
+      "activation fetches. Its subject is rapid Weather<->Crypto switching under "
+      "dataTask contention, and the contention is supplied by Weather's and Crypto's "
+      "fetch-on-activation — so unlike the other seven R36 cases there is no version "
+      "of it that holds offline. Injecting the precondition would delete the subject, "
+      "and no exception exists for a gating class that needs the network, so the "
+      "class goes rather than the id. Its failure is LOCAL on the evidence it "
+      "actually has: `get dataq` is never read (WP-C), so the docstring's 'no dataTask "
+      "queue corruption' has no oracle, and what remains is five `appId` comparisons "
+      "plus a liveness `info` — the single-switch half of which T147 already asserts "
+      "and declares CORE. The churn claim keeps running as a FEATURE id; it simply no "
+      "longer NOT-RUNs 167 ids when the weather or crypto endpoint is unreachable.")
 def t_x07_01(dut: Dut):
     """T_X07_01 (X007): rapid Weather→Crypto→Weather→Crypto→Spotify; DUT stable throughout."""
     print("T_X07_01  dataTask cross-feature: rapid Weather↔Crypto switching")
@@ -1942,6 +1876,20 @@ def _get_shell_busy(dut: Dut) -> bool | None:
 
 # ── T-BUSY-01 — StockApp row tap triggers busy; clears on fetch complete ──────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-626, approved 2026-09-06. DEMOTED from a SEEDED CORE (the seed came from "
+      "shell.py's catch-all scope, not from an argument anyone made). Its failure is "
+      "LOCAL: what it observes is StockApp's own chart fetch completing and the amber "
+      "clearing behind it, so a failure costs the Stock chart assertions and nothing "
+      "else. The `shellBusy` premise the whole suite leans on — the flag rises when "
+      "work is enqueued and clears when it finishes — is asserted on BOTH edges, with "
+      "a hard `fail()` on each, by T-BUSY-02, which is declared CORE and needs no "
+      "network. This id cannot carry that premise anyway: `shell.py`'s busy-rose half "
+      "is downgraded to a printed note, leaving `busy == False` at rest, which cannot "
+      "distinguish auto-clear from never-rose. And its pass/fail is a network outcome "
+      "— `_poll_chart_len_positive` is 45 s of live HTTPS to Yahoo and a timeout is a "
+      "hard `fail()` — so under the class order it would NOT-RUN the FEATURE suite on "
+      "an outage (R36).")
 def t_busy_01(dut: Dut):
     """T-BUSY-01: switchApp(Stock) → tap AAPL row → shellBusy true → chartLen>0 → shellBusy false."""
     print("T-BUSY-01  StockApp row tap → amber → clears on fetch complete")
@@ -1989,6 +1937,17 @@ def t_busy_01(dut: Dut):
 
 # ── T-BUSY-01b — StockApp tab-range tap also triggers busy ────────────────────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-626, approved 2026-09-06. DEMOTED from a SEEDED CORE, same family and same "
+      "argument as T-BUSY-01, and this is the weaker of the two. Its failure is LOCAL: "
+      "it observes StockApp's 5D range tab re-issuing a chart fetch, so a failure costs "
+      "the Stock range-tab assertion alone. It cannot carry the `shellBusy` premise for "
+      "anyone: its negative outcome is a `skip()` (`warm fetch too fast`), so a genuine "
+      "regression in which the tap raises nothing is indistinguishable from a fast "
+      "fetch and the id reports green — the raise half it exists to supply is "
+      "unfalsifiable in practice, and three `skip()` exits stand in front of it. "
+      "T-BUSY-02 holds the premise with a hard `fail()` on both edges. Two live chart "
+      "fetches make its precondition unsatisfiable offline besides (R36).")
 def t_busy_01b(dut: Dut):
     """T-BUSY-01b: drill to chart, tap 5D tab → shellBusy true."""
     print("T-BUSY-01b  StockApp tab-range tap → amber")
@@ -2061,19 +2020,35 @@ def t_busy_02(dut: Dut):
       "hurts most. If an ordinary canvas tap in a passive app raises `shellBusy`, "
       "`_wait_shell_not_busy` never returns for the Clock, Matrix, Life and Aquarium "
       "families, their preconditions all expire into skips, and the run reports "
-      "green having exercised none of them. Six apps asserted in one pass, all "
-      "device-observed, one hard `fail()`.")
+      "green having exercised none of them. Four apps asserted in one pass, all "
+      "device-observed, one hard `fail()`. R36 (TASK-626, approved 2026-09-06): the "
+      "two fetch-on-activation apps this id used to include, Weather and Crypto, were "
+      "REMOVED from the list rather than the class being demoted — see the note in "
+      "the body for why that costs no coverage.")
 def t_busy_03(dut: Dut):
-    """T-BUSY-03: Clock/Weather/Crypto/Matrix/Life/Aquarium canvas taps → shellBusy false."""
+    """T-BUSY-03: Clock/Matrix/Life/Aquarium canvas taps → shellBusy false."""
     print("T-BUSY-03  Passive apps — no amber on canvas tap")
     # Use switchApp <id> for all — avoids taskbar scroll issues.
+    #
+    # TASK-626 / R36 (approved 2026-09-06): Weather and Crypto were dropped from this
+    # list. They fetch on activation, which made a CORE id's precondition depend on
+    # two live HTTP endpoints — under the class order an outage there would NOT-RUN
+    # every FEATURE id below. Dropping them costs NO coverage, and that is a fact
+    # about `cmdTap`, not a judgement: `debug/serialConsole/cmdTouch.cpp` dispatches
+    # an injected canvas tap by `currentAppId`, and Weather, Crypto, Matrix, Life and
+    # Aquarium all fall through the same terminal `else` (`hit=CLOCK`) — one branch,
+    # no app handler, no `hasPendingAsync()` check, hence no `setBusy` call reachable.
+    # Clock is the one with a branch of its own (`CLOCKAPP`), and it too makes no
+    # `setBusy` call ("no async, so no setBusy propagation"). So the four retained
+    # apps drive every code path the six drove; Weather and Crypto were duplicates of
+    # the Matrix/Life/Aquarium path plus a network dependency. The claim the cls_reason
+    # states — `_wait_shell_not_busy` must keep returning for the passive families —
+    # names exactly Clock, Matrix, Life and Aquarium.
     PASSIVE_APPS = [
         (name, APP_SLOT[name])
-        for name in ["Clock", "Weather", "Crypto", "Matrix", "Life", "Aquarium"]
+        for name in ["Clock", "Matrix", "Life", "Aquarium"]
         if name in APP_SLOT
     ]
-    # Apps that do network fetches on first activation need a longer settle time.
-    _FETCH_APPS = {"Weather", "Crypto"}
     errors = []
     for app_name, app_id in PASSIVE_APPS:
         _wait_shell_not_busy(dut, timeout_s=10.0)
@@ -2082,8 +2057,7 @@ def t_busy_03(dut: Dut):
             if not r.get("ok"):
                 errors.append(f"{app_name}: switchApp failed: {r}")
                 continue
-            settle = 3.0 if app_name in _FETCH_APPS else 0.5
-            time.sleep(settle)
+            time.sleep(0.5)
             r_tap = dut.cmd("tap 137 120", timeout=5.0)
             if not r_tap.get("ok"):
                 errors.append(f"{app_name}: tap failed: {r_tap}")
@@ -2105,6 +2079,18 @@ def t_busy_03(dut: Dut):
 
 # ── T-BUSY-05 — App switch while busy clears amber ────────────────────────────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-626, approved 2026-09-06. DEMOTED from a SEEDED CORE. Its failure is LOCAL "
+      "in the strongest sense available: today the id cannot report a failure at all. "
+      "WP-C `C-1` — the guard at the end of the body is inverted (`if any(b is not "
+      "True ...)` is False exactly when all three post-switch reads are `True`, i.e. "
+      "when the amber did NOT clear), so control falls through to `pass_()` precisely "
+      "when the regression is present, and four `skip()` exits mean it usually never "
+      "reaches the assertion. A test that passes on its own regression cannot license "
+      "stopping the run; nothing downstream is protected by it. Re-promotion is "
+      "arguable once TASK-582 corrects C-1 and it has been run on hardware, not "
+      "before. Its precondition (`set triggerFetch 1` + a Stock activation fetch) is "
+      "not satisfiable offline either (R36).")
 def t_busy_05(dut: Dut):
     """T-BUSY-05: Stock row tap (busy) → switchApp(Spotify) → shellBusy false × 3."""
     print("T-BUSY-05  App switch while busy → amber clears")
@@ -2249,7 +2235,57 @@ def t_cdwn_01(dut: Dut):
                       "shell drain (~200 ms) + serial RTT may exceed the VIS 300 ms gate")
 
 
-# ── T-CDWN-02 — g_shellBusy gate in cmdTap blocks second canvas tap ───────────
+# ── T-CDWN-02 / T-CDWN-04 — the cmdTap g_shellBusy gate, split ───────────────
+#
+# TASK-626 / R36, approved 2026-09-06. One body used to carry two assertions of
+# very different kinds:
+#
+#   PRIMARY   — a canvas tap issued while the shell is busy comes back
+#               `skipped:true`. The oracle is the SHELL's tap gate; it resolves
+#               the instant the reply arrives, and it is what earns the CORE
+#               class, because the whole corpus reads `skipped` to know whether
+#               its tap landed.
+#   SECONDARY — the refused tap did not ALSO enqueue a fetch: exactly one chart
+#               fetch resolves. Its oracle is Yahoo Finance answering an ESP32
+#               over TLS within 60 s.
+#
+# Bundled, the second made the first's id network-dependent, and under TASK-566's
+# class order a Yahoo outage would NOT-RUN the 167 FEATURE ids below it. They are
+# now two ids: `T-CDWN-02` keeps the primary and the class, `T-CDWN-04` carries
+# the secondary as a FEATURE id that may take as long as it likes and fail on a
+# network it cannot reach without stopping anything.
+#
+# WHY A SECOND ID AND NOT A NON-BLOCKING ASSERTION IN ONE BODY. Both were
+# offered. An in-body "assertion that cannot block" leaves the 60 s live fetch
+# and the `fetchOkCount` reads inside a CORE id's call closure, so the id still
+# spends a minute of every gated run waiting on an external service and R36's
+# checker — correctly — still reads it as network-dependent. Splitting removes
+# the wait and the reads from the gating body outright. It also forces the thing
+# that was actually missing: with the fetch-count half gone, `T-CDWN-02` had no
+# reachable `fail()` left at all (R34), which is the plain statement of what
+# skip-adjudication row 101 recorded — the PRIMARY assertion's own negative
+# outcome was a `skip()`. Fixed here, with the `shellBusy` reading that row named
+# as the precondition of converting it.
+
+
+def _cdwn_stale_chart_list(dut: Dut) -> None:
+    """In StockApp: return to the list view and force the chart cache stale, so
+    the next drill tap enqueues a real chart fetch and `shellBusy` rises.
+
+    Shared by `T-CDWN-02` and `T-CDWN-04` at ONE lexical site on purpose. The
+    `set triggerFetch 1` here cannot go through `Dut.injected()`: the firmware
+    accepts only the literal `1` (`app/src/stock/stockApp.cpp:222`, `strcmp(val,
+    "1") == 0`), so the clear-to write a restore manager performs on exit would
+    be refused and raise — and there is nothing to clear anyway, the command
+    zeroes cache timestamps rather than arming a latch. R17's ratchet counts
+    write SITES, so sharing this one keeps the split count-neutral.
+    """
+    dut.cmd("tap 10 7", timeout=5.0)
+    time.sleep(0.3)
+    # tap-to-list triggers a quote refresh; wait for it before issuing more commands.
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    dut.cmd("set triggerFetch 1", timeout=2.0)
+
 
 @meta(scope="Stock", scope_reason="drives-stock-only",
       cls="CORE", cls_reason=
@@ -2260,16 +2296,19 @@ def t_cdwn_01(dut: Dut):
       "dropping, taps double up and `skipped` stops meaning anything, everywhere. "
       "Scope is declared `Stock` per WP-B B-1 (it drives StockApp exclusively and a "
       "Stock change must select it); the class is declared CORE anyway because the "
-      "ORACLE is the shell's tap gate, not the chart. Owed, and listed for R36: its "
-      "60 s secondary assertion is a live Yahoo fetch whose stall calls an "
-      "UNDECLARED `flake()` — a network outage must not be able to NOT-RUN the "
-      "FEATURE suite (WP-C C-7).")
+      "ORACLE is the shell's tap gate, not the chart. TASK-626: the 60 s live-Yahoo "
+      "assertion that made this id network-dependent is now T-CDWN-04 (FEATURE), and "
+      "the gate assertion it left behind is a real `fail()` guarded by a `shellBusy` "
+      "reading, not the `skip()` WP-C C-7 objected to. The residue R36 still reports "
+      "is the ARMING — `set triggerFetch 1` plus a Stock activation — which is a "
+      "local write and a local enqueue; see the ledger row.")
 def t_cdwn_02(dut: Dut):
-    """T-CDWN-02: tap row while busy → second tap dropped by cmdTap g_shellBusy gate → one fetch, not two.
+    """T-CDWN-02: a canvas tap issued while shellBusy is true is refused by cmdTap's
+    g_shellBusy gate — the reply carries skipped:true.
 
-    Primary assertion: second cmdTap returns skipped:true (gate active).
-    Secondary assertion: exactly one fetch resolves (fetchOkCount+fetchErrCount == 1).
-    Cold ESP32 TLS to Yahoo Finance can take 30–40 s; we wait up to 60 s for resolution.
+    One assertion, and it is the gating one. The verdict resolves on the shell's
+    own reply; nothing here waits on a fetch to COMPLETE, only on one to be
+    enqueued. The "exactly one fetch resolved" half is T-CDWN-04.
     """
     print("T-CDWN-02  cmdTap g_shellBusy gate blocks second tap")
     if not _switch_to_stock(dut):
@@ -2277,39 +2316,104 @@ def t_cdwn_02(dut: Dut):
         return
     _wait_shell_not_busy(dut, timeout_s=10.0)
     with _bgpoll_suspended(dut):
-        dut.cmd("tap 10 7", timeout=5.0)
-        time.sleep(0.3)
-        # tap-to-list triggers a quote refresh; wait for it before issuing more commands.
-        _wait_shell_not_busy(dut, timeout_s=10.0)
-        dut.cmd("set triggerFetch 1", timeout=2.0)
-        dut.cmd("set fetchErrCount 0", timeout=2.0)
-        n = _stock_ok_count(dut)
-        if n < 0:
-            _restore_from_stock(dut)
-            skip("T-CDWN-02", "get fetchOkCount failed")
-            return
+        _cdwn_stale_chart_list(dut)
         r_d = dut.cmd("tap 137 36", timeout=5.0)
         if r_d.get("skipped"):
             _restore_from_stock(dut)
             skip("T-CDWN-02", "drill tap skipped — shell still busy after precondition wait")
             return
+        # BP-074 / skip-adjudication row 101. The negative outcome below used to be
+        # a skip() for one stated reason: nothing established that the gate was ARMED
+        # when tap2 arrived, so "tap2 was delivered" had a second, innocent
+        # explanation (the fetch had already resolved). Read the gate's own input
+        # first, typed — a silent device raises NoAnswer -> UNMET at the runner, a
+        # device that answers `false` means the premise did not occur, and only with
+        # `true` in hand is a delivered tap2 a defect. That converts the assertion.
+        armed = dut.get_bool("shellBusy", field="busy", timeout=2.0)
+        if not armed:
+            _restore_from_stock(dut)
+            unmet("T-CDWN-02", "shellBusy was false between the drill tap and tap2 — "
+                               "the busy gate this id is about was never armed, so "
+                               "whatever tap2 returns says nothing about it")
+            return
+        # Gate armed → tap2 MUST come back skipped.
+        tap2_r = dut.cmd("tap 137 36", timeout=8.0)
+        print(f"  [T-CDWN-02] tap2 response: {tap2_r}", flush=True)
+        _restore_from_stock(dut)
+    # R18: `skipped` is the field this id exists to read. A reply without it is a
+    # changed reply shape, which is a defect to report, not a False to assume.
+    if not isinstance(tap2_r, dict) or "skipped" not in tap2_r:
+        fail("T-CDWN-02", f"the tap2 reply carries no `skipped` field ({tap2_r!r}) — "
+                          f"cmdTap's reply shape changed under the corpus that reads it")
+        return
+    if not tap2_r["skipped"]:
+        fail("T-CDWN-02", f"shellBusy was true when tap2 was issued and cmdTap "
+                          f"delivered it anyway (reply={tap2_r}) — the g_shellBusy "
+                          f"gate did not drop the tap, so `skipped` no longer means "
+                          f"what T079, T-BUSY-05 and every other `r.get('skipped')` "
+                          f"check in the corpus read it as")
+        return
+    pass_("T-CDWN-02", "shellBusy=true at tap2; cmdTap returned skipped:true — gate active")
+
+
+# ── T-CDWN-04 — the refused tap did not also enqueue a fetch ─────────────────
+
+@meta(scope="Stock", scope_reason="drives-stock-only",
+      cls="FEATURE", cls_reason=
+      "TASK-626, approved 2026-09-06. This is T-CDWN-02's former SECOND assertion, "
+      "split off as its own id so it is not gating. Its failure is LOCAL: it says a "
+      "tap the shell refused nonetheless reached StockApp and started a duplicate "
+      "chart fetch — a StockApp double-fetch, costing the Stock assertions and some "
+      "bandwidth, with the shell's gate itself already proven intact by T-CDWN-02 "
+      "before this id runs. It may not gate for a second reason: its oracle is Yahoo "
+      "Finance answering an ESP32 over TLS inside 60 s, and R36 forbids a class that "
+      "can stop the run resting on an external service.")
+def t_cdwn_04(dut: Dut):
+    """T-CDWN-04: after a drill tap plus a second tap the gate refused, exactly one
+    chart fetch resolves — the refused tap did not enqueue a fetch of its own.
+
+    Cold ESP32 TLS to Yahoo Finance can take 30-40 s; we wait up to 60 s for
+    resolution. A fetch that never resolves is UNMET, not a pass and not a flake:
+    the count this id compares against 1 was never produced.
+    """
+    print("T-CDWN-04  refused tap enqueued no second fetch")
+    if not _switch_to_stock(dut):
+        skip("T-CDWN-04", "could not switch to StockApp")
+        return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        _cdwn_stale_chart_list(dut)
+        dut.cmd("set fetchErrCount 0", timeout=2.0)
+        n = _stock_ok_count(dut)
+        r_d = dut.cmd("tap 137 36", timeout=5.0)
+        if r_d.get("skipped"):
+            _restore_from_stock(dut)
+            skip("T-CDWN-04", "drill tap skipped — shell still busy after precondition wait")
+            return
         # tap1 processed → send tap2 IMMEDIATELY (no subView check adds no delay).
         tap2_r = dut.cmd("tap 137 36", timeout=8.0)
-        tap2_skipped = tap2_r.get("skipped", False) if isinstance(tap2_r, dict) else False
-        print(f"  [T-CDWN-02] tap2 response: {tap2_r}", flush=True)
-        if not tap2_skipped:
+        if not isinstance(tap2_r, dict) or "skipped" not in tap2_r:
             _restore_from_stock(dut)
-            skip("T-CDWN-02", "tap2 not skipped — warm connection completed fetch before tap2 arrived")
+            fail("T-CDWN-04", f"the tap2 reply carries no `skipped` field ({tap2_r!r}) "
+                              f"— cmdTap's reply shape changed")
             return
-        print(f"  [T-CDWN-02] gate confirmed (skipped:true); waiting up to 60 s for fetch to resolve…", flush=True)
+        if not tap2_r["skipped"]:
+            # No refused tap → nothing to say about what a refused tap enqueued.
+            # T-CDWN-02 owns the gate itself and fails there if the gate is broken.
+            _restore_from_stock(dut)
+            unmet("T-CDWN-04", "tap2 was delivered rather than refused, so this id's "
+                               "subject — what a REFUSED tap enqueues — did not occur "
+                               "(T-CDWN-02 owns the gate assertion)")
+            return
+        print("  [T-CDWN-04] gate confirmed (skipped:true); waiting up to 60 s "
+              "for the fetch to resolve…", flush=True)
         deadline = time.monotonic() + 60.0
         fetch_ok = n
         fetch_err = 0
         while time.monotonic() < deadline:
             try:
                 cur_ok = _stock_ok_count(dut)
-                cur_err_r = dut.cmd("get fetchErrCount", timeout=5.0)
-                cur_err = cur_err_r.get("val", 0) if isinstance(cur_err_r, dict) else 0
+                cur_err = dut.get_int("fetchErrCount", timeout=5.0)
                 if cur_ok > n or cur_err > 0:
                     fetch_ok  = cur_ok
                     fetch_err = cur_err
@@ -2320,16 +2424,34 @@ def t_cdwn_02(dut: Dut):
         _restore_from_stock(dut)
     total = (fetch_ok - n) + fetch_err
     if total == 0:
-        flake("T-CDWN-02", "gate confirmed (skipped:true) but fetch never resolved within 60 s (network unavailable)")
+        unmet("T-CDWN-04", "no fetch resolved within 60 s, so there is no count to "
+                           "compare against 1 — the network, not the firmware, is "
+                           "what this observed")
         return
     if total >= 2:
-        fail("T-CDWN-02", f"gate confirmed but {total} fetches resolved — second tap may have triggered a fetch despite skipped:true")
+        fail("T-CDWN-04", f"{total} fetches resolved after one drill tap and one "
+                          f"REFUSED tap — the refused tap reached StockApp and "
+                          f"enqueued a fetch despite skipped:true")
         return
-    pass_("T-CDWN-02", f"gate confirmed (skipped:true); exactly 1 fetch resolved (ok={fetch_ok-n} err={fetch_err})")
+    pass_("T-CDWN-04", f"exactly 1 fetch resolved after the refused tap "
+                       f"(ok={fetch_ok - n} err={fetch_err})")
 
 
 # ── T-CDWN-03 — Taskbar tap bypasses g_shellBusy gate ────────────────────────
 
+@meta(cls="FEATURE", cls_reason=
+      "TASK-626, approved 2026-09-06. DEMOTED from a SEEDED CORE. Its failure is LOCAL "
+      "because the claim it is supposed to hold — a taskbar tap is never dropped by "
+      "the busy gate, so the suite can always leave an app — is never actually "
+      "exercised: nothing between the row tap and the taskbar tap checks that "
+      "`shellBusy` was true when the taskbar tap arrived, and `set triggerFetch 1` "
+      "makes that likely, not certain. On a warm or failed fetch the body passes "
+      "without the bypass ever being on the path. BP-074: an assertion whose "
+      "precondition never occurred is inconclusive, not a pass, and an inconclusive "
+      "verdict cannot gate 167 ids. What remains falsifiable — the taskbar tap lands "
+      "on Clock — is the same claim T_BI_02 and T147 already assert without a fetch. "
+      "Precondition not satisfiable offline (R36); TASK-634 owes the measurement of "
+      "how often `shellBusy` is genuinely true here.")
 def t_cdwn_03(dut: Dut):
     """T-CDWN-03: tap row (busy) → taskbar Clock tap (x≥275) → appId=Clock, shellBusy=false."""
     print("T-CDWN-03  Taskbar tap passes g_shellBusy gate → app switches")
@@ -3914,23 +4036,19 @@ TESTS = {
     "T_BI_04": t_bi_04,
     # matrix-001
     "T_MA_01": t_ma_01,
-    "T_MA_02": t_ma_02,
     "T_MA_03": t_ma_03,
     # gol-001
     "T_GOL_01": t_gol_01,
-    "T_GOL_02": t_gol_02,
     "T_GOL_03": t_gol_03,
     "T_GOL_04": t_gol_04,
     # weather-001
     "T_WX_01": t_wx_01,
-    "T_WX_02": t_wx_02,
     "T_WX_03": t_wx_03,
     "T_WX_04": t_wx_04,
     "T_WX_05": t_wx_05,
     "T_WX_07": t_wx_07,
     # crypto-001
     "T_CX_01": t_cx_01,
-    "T_CX_02": t_cx_02,
     "T_CX_03": t_cx_03,
     "T_CX_04": t_cx_04,
     "T_CX_05": t_cx_05,
@@ -3946,6 +4064,7 @@ TESTS = {
     "T-CDWN-01":  t_cdwn_01,
     "T-CDWN-02":  t_cdwn_02,
     "T-CDWN-03":  t_cdwn_03,
+    "T-CDWN-04":  t_cdwn_04,
     # velocity-scroll-001 (TASK-104)
     "T155": t155,
     "T156": t156,

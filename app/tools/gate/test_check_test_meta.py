@@ -233,10 +233,19 @@ def case_the_declared_gating_ids_carry_real_sentences():
     sentence, not a tag, and no two ids share one (a copy-pasted reason is a
     restatement of the class name by another route)."""
     recs = _suite.build_all_meta()
+    gating = {t for t, r in recs.items() if r["cls"] in C.GATING}
     declared = {t: (r.get("cls_reason") or "").strip()
                 for t, r in recs.items()
                 if r["cls"] in C.GATING and r.get("cls_declared") and r.get("cls_reason")}
-    assert len(declared) >= 25, f"only {len(declared)} declared gating reasons"
+    # DERIVED, not a typed floor. This used to read `>= 25` — TASK-591's census
+    # frozen as a literal — and it went red the moment TASK-626 demoted five ids
+    # out of CORE, i.e. on a change that made the corpus BETTER by this check's
+    # own standard. The invariant is not "there are at least N of them", it is
+    # "every id whose class can block declares that class with a reason", which
+    # is what G1 enforces and what this positive control should assert.
+    assert gating, "no gating ids at all — the census cannot be right"
+    assert set(declared) == gating, \
+        f"gating ids with no declared reason: {sorted(gating - set(declared))}"
     short = {t: len(v) for t, v in declared.items() if len(v) < C.MIN_CLS_REASON}
     assert not short, f"reasons too short to be arguments: {short}"
     dupes = [t for t, v in declared.items()

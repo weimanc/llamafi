@@ -232,11 +232,24 @@ def test_ledger_and_live():
     fns, reg = C.load_package()
     live = C.findings(meta, fns, reg)
     ids = sorted({t for _k, t, _m in live})
-    check("C7: the seven ids TASK-591 named are all reported",
-          set(ids) >= {"T-BUSY-01", "T-BUSY-01b", "T-BUSY-05", "T-CDWN-02",
-                       "T-CDWN-03", "T-BUSY-03", "T_BI_03"}, ids)
-    check("C8: T_X07_01 — the eighth, on no prior R36 list — is reported",
-          "T_X07_01" in ids, ids)
+    # C7/C8 used to assert the eight ids of the 2026-09-05 measurement were all
+    # still reported. That is a census frozen as a literal, and it went red on
+    # 2026-09-06 for the one change it should have been happiest about: the
+    # human's TASK-626 rulings, which demoted five of the eight out of CORE, split
+    # `T-CDWN-02`'s live-Yahoo half off, and re-pointed `T-BUSY-03` at the four
+    # passive apps. A positive control that fails when the finding it describes is
+    # FIXED teaches the next person to delete the control. The two arms below
+    # assert the invariants instead: what the ruling removed stays removed, and
+    # the live set and the ledger are the same set.
+    RULED_OUT = {"T-BUSY-01", "T-BUSY-01b", "T-BUSY-05", "T-CDWN-03",
+                 "T-BUSY-03", "T_X07_01"}
+    check("C7: the six ids ruled on 2026-09-06 no longer report — demotions, a "
+          "split and a re-point, not a ledger edit",
+          not (set(ids) & RULED_OUT), sorted(set(ids) & RULED_OUT))
+    check("C8: the live findings and the shipped ledger name the SAME ids — a "
+          "finding off the ledger, or a row with no finding, is the failure",
+          set(ids) == {k[1] for k in C.parse_ledger()[0]},
+          (ids, sorted({k[1] for k in C.parse_ledger()[0]})))
     check("C9: the host-file-layout count is ZERO (T133's demotion held)",
           [f for f in live if f[0] == "host-file-layout"] == [],
           [f[1] for f in live if f[0] == "host-file-layout"])

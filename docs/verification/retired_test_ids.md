@@ -71,6 +71,57 @@ the WebRadio **error-path** claim with no id at all, and that is a real gap, not
 
 ---
 
+## `deleted` — 4 ids, 2026-09-06, TASK-598
+
+The four "BUG-1 guard" ids, held together as one fate throughout — WP-D
+[`D-1`](reviews/M-TESTQUAL-D-audit-shell-review.md), TASK-603's disposition §4.3 ("**not**
+keep-one-delete-three"). The human's 12/6/17 ruling had put them in keep-and-fix (branch A: give the
+four small apps a real `cmdTap` branch); on **2026-09-06** that was reversed to branch B, delete all
+four, with the replacement filed against the observability contract instead of against a fourth
+hand-written `cmdTap` branch.
+
+| id | Status | family | why | coverage lost |
+|---|---|---|---|---|
+| `T_MA_02` | retired 2026-09-06 (TASK-598) — `deleted` | Matrix | asserts `hit == "CLOCK"`, a fixed string literal in `cmdTap`'s terminal `else` — a branch selected purely by `currentAppId`, which `_switch_to` verified with `get appId` on the line before, and which calls no app handler and no `injectTouch()`. The claimed regression, "Winamp hit-zones leak into a small app", is **unrepresentable** on the path the body drives | **none from this construction** — see the gap note below for what was never covered in the first place |
+| `T_GOL_02` | retired 2026-09-06 (TASK-598) — `deleted` | Life | verbatim copy of `T_MA_02` with one app name changed; same literal, same branch, same firmware line | as `T_MA_02` |
+| `T_WX_02` | retired 2026-09-06 (TASK-598) — `deleted` | Weather | as `T_GOL_02` | as `T_MA_02` |
+| `T_CX_02` | retired 2026-09-06 (TASK-598) — `deleted` | Crypto | as `T_GOL_02` | as `T_MA_02` |
+
+**Evidence, checkable in one read.** `app/src/debug/serialConsole/cmdTouch.cpp:141-144` is the
+terminal `else` of a chain that dispatches on `currentAppId`; Matrix, Life, Weather, Crypto and
+Aquarium all reach it, and it is a bare `Serial.printf` of `"hit":"CLOCK","action":"NONE"`. The file
+says so itself at `:52-54`: *"Other apps retain BUG-1 guard (hit=CLOCK) — they don't need tap
+dispatch in tests."* Four ids, one assertion, zero behavioural content. The one thing the bodies
+could genuinely detect is unrelated to their claim: a stuck `shell::state().busy` returns
+`hit="CANVAS"`, `skipped=true` (`app/src/debug/serialConsole/cmdTouch.cpp:47-51`) — and that is
+`T-CDWN-02`'s subject, asserted there deliberately.
+
+### The gap: nothing checks that an app's debug surface belongs to the app
+
+What the four ids *named* — a tap is not routed to the wrong app's handler — is a real claim, and
+after this deletion **no id holds it**. It was never held: the ids asserted a printf on a branch
+chosen by the identity they had just verified, which is why deleting them costs nothing measurable.
+Stating it plainly rather than as a subtraction:
+
+* **From 2026-09-06 no test asserts that a per-app debug key answers only while its owning app is
+  active.** The four deleted ids did not assert it either; the difference is that the corpus now
+  says so instead of showing four green rows.
+* **The replacement id is `T_APPKEY_01`, and it is `blocked` on [TASK-637](../project/tasks-harness2.md).**
+  It belongs against **[ADR-063](../architecture/decisions/ADR-063.md) D3** — *"a per-app key is
+  refused with a named error when its owning app is not the active app"*, one shared guard in the
+  console's delegation path, asserted by **one generated conformance row over `APP_ORDER`**, all
+  thirteen apps at once, including the four with no `dbgGet` today. That is the shape the claim
+  actually has: identity is a shell fact enforced negatively, not thirteen hand-written `cmdTap`
+  branches (ADR-063 rejects that alternative by name — *"thirteen places for the same fact to be
+  wrong, no cross-check"*). It cannot be written until the shell-side guard exists, which is
+  TASK-637's subject and is gated by ADR-063 D6's `.dram0.bss` stop criterion.
+* **Why not branch A.** Branch A was "give the four small apps a real `cmdTap` branch calling
+  `handleInput()` and reporting `CONSUMED`/`NONE`". It would have produced four more hand-written
+  console branches for four apps that have no canvas interaction to report, and it fixes the class
+  for four apps out of thirteen. D3 fixes it for all thirteen and is already decided.
+
+---
+
 ## `UNOBSERVABLE` — 6 ids, 2026-09-05, TASK-603
 
 Dispositions and evidence: [M-HARNESS2-task603-disposition.md](M-HARNESS2-task603-disposition.md) §2 and §4.8.

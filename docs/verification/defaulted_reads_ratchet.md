@@ -40,7 +40,7 @@ catch `NoAnswer` and let the loop's own deadline be the verdict; never catch `Ba
 
 | module | cap | owner | since |
 |---|---|---|---|
-| `suite/serialdbg/shell.py` | 53 | TASK-596 | 2026-09-04 |
+| `suite/serialdbg/shell.py` | 47 | TASK-596 | 2026-09-04 |
 | `suite/serialdbg/player.py` | 37 | TASK-596 | 2026-09-05 |
 | `suite/serialdbg/webradio.py` | 33 | TASK-596 | 2026-09-05 |
 | `suite/serialdbg/teletext.py` | 9 | TASK-596 | 2026-09-04 |
@@ -48,9 +48,13 @@ catch `NoAnswer` and let the loop's own deadline be the verdict; never catch `Ba
 | `suite/serialdbg/clock.py` | 2 | TASK-596 | 2026-09-04 |
 | `suite/serialdbg/health.py` | 1 | TASK-596 | 2026-09-04 |
 
-**Total: 143**, down from 171 when the gate was written (2026-09-04) and from 146 on
+**Total: 137**, down from 171 when the gate was written (2026-09-04), from 146 on
 2026-09-05, when TASK-603's deletions took three defaulted-read sites out of
-`player.py` (39 -> 37) and `webradio.py` (34 -> 33) with the bodies. The gate caught the
+`player.py` (39 -> 37) and `webradio.py` (34 -> 33) with the bodies, and from 143 on 2026-09-06,
+when TASK-598's four deletions and TASK-626's `T-CDWN-02` split took `shell.py` 53 -> 47 (the split
+replaced `tap2_r.get("skipped", False)` with an explicit reply-shape `fail()` in both halves —
+`skipped` is the field those ids exist to read, so its absence is a defect to report, not a `False`
+to assume). The gate caught the
 stale caps itself: a cap above the real count is headroom to reintroduce the defect, and
 is a failure in its own right. `lib/dut.py` (2),
 `suite/serialdbg/_helpers.py` (9) and `suite/serialdbg/stock.py` (14) went to zero in TASK-596 /

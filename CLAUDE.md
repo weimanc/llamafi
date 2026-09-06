@@ -213,10 +213,11 @@ scripts** — 7 checkers and 10 negative suites, five of the checkers paired wit
 
 `gate/check_test_meta.py` (TASK-570) gained an **R35 arm** in Phase 1 (TASK-591): every id whose
 class can block — RIG, HEALTH, CORE — must declare that class with a **written reason** saying why
-its failure invalidates the rest of the run, never `_meta.seed_cls()`'s default. Blocking, with 4
-dated rows on the shrink-only `docs/verification/gating_class_declarations.md`. Writing the reasons
+its failure invalidates the rest of the run, never `_meta.seed_cls()`'s default. Writing the reasons
 was the audit: **CORE went from 43 ids to 23**, the other 20 demoted to FEATURE with a declared
-reason each.
+reason each. TASK-626 (2026-09-06) demoted the last 5 network-dependent ones — **CORE is 18**, all
+declared — so the R35 ledger `gating_class_declarations.md` reached zero rows and was deleted per
+its own retirement rule. The gate is now **blocking at zero with no ledger**.
 
 Exit 0 = all pass. Minimum safety gate before committing structural changes (see BP-008).
 

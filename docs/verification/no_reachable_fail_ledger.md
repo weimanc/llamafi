@@ -8,9 +8,10 @@
 `check_no_reachable_fail.py` (R34) asserts that every id in `build_all_tests()` can actually produce
 a **FAIL**. Blocking-at-zero was not available on day one — the first run measured **8** findings —
 so the gate lands **blocking with this ledger**, in the same form as
-[`defaulted_reads_ratchet.md`](defaulted_reads_ratchet.md),
-[`gating_class_declarations.md`](gating_class_declarations.md) and
-[`id_binding_exceptions.md`](id_binding_exceptions.md).
+[`defaulted_reads_ratchet.md`](defaulted_reads_ratchet.md) and
+[`id_binding_exceptions.md`](id_binding_exceptions.md). (R35's own ledger,
+`gating_class_declarations.md`, was the same form and is **gone** — TASK-626 emptied it on
+2026-09-06 and it was deleted per its own retirement rule.)
 
 **The rules that make this a gate and not an amnesty:**
 

@@ -204,9 +204,12 @@ EDGE_ADJUDICATION = {
     # docs/verification/retired_test_ids.md.
     "T-BUSY-01": ("ORDER-SENSITIVE",
                   "Its own TASK-386 comment records the 'chartLen never exceeded "
-                  "0' failure as suite-accumulated-state-dependent. Moves from "
-                  "~180 to the front of the run, so exposure DECREASES — but it "
-                  "changes, which is the point of listing it."),
+                  "0' failure as suite-accumulated-state-dependent. TASK-626 "
+                  "(2026-09-06) demoted it to FEATURE, so it no longer moves to "
+                  "the front under class order — it stays at ~180 and its "
+                  "exposure is UNCHANGED by the switch, where before the "
+                  "demotion the switch decreased it. Still listed: the order "
+                  "sensitivity is a property of the body, not of the class."),
     "T165": ("ORDER-SENSITIVE",
              "Requires tbScrollOffset==0 and SKIPs when a predecessor left it "
              "non-zero. A silent non-result, never a red — the failure mode "
@@ -224,11 +227,14 @@ EDGE_ADJUDICATION = {
              "cached data when lastHeatmapFetch != 0 — so predecessor state can "
              "carry the assertion."),
     "T-CDWN-02": ("DISMISSED",
-                  "Compares against `n = _stock_ok_count(dut)` read in-test; the "
-                  "assertion is a delta, not an edge. Note for the A/B: it moves "
-                  "to the front, so its TLS connection is colder and its "
-                  "documented 'warm connection completed before tap2' SKIP is "
-                  "LESS likely, not more."),
+                  "Was: compares against `n = _stock_ok_count(dut)` read "
+                  "in-test, a delta and not an edge. TASK-626 (2026-09-06) split "
+                  "the fetch-count assertion out to `T-CDWN-04`, so this id now "
+                  "reads no counter at all — DISMISSED a fortiori. It is still "
+                  "CORE and still moves to the front, where its TLS connection "
+                  "is colder; the 'warm connection completed before tap2' exit "
+                  "is therefore LESS likely, and it is now a `fail()` behind a "
+                  "`shellBusy` guard rather than a green skip."),
     # @VE ruling 2026-09-04 (TASK-584 sweep). TASK-596's author filed this
     # DISMISSED and asked for confirmation. The DIAGNOSIS is confirmed exactly,
     # mechanically: `edge_shape(T176)` reports one line and only one — the

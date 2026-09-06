@@ -19,8 +19,9 @@ the human for exactly that reason and approved as a set; these are the same kind
 have not been taken.
 
 > **This gate reading zero is an exit criterion of [TASK-617](../project/tasks-harness2.md).** It
-> reads **8 ids / 15 findings** today. The criterion is **NOT MET**, and no row in this file makes
-> it met: a row records the dependence, it does not remove it.
+> read **8 ids / 15 findings** when this file was opened. After the human's 2026-09-06 ruling
+> (below) it reads **2 ids / 3 findings**. The criterion is still **NOT MET**, and no row in this
+> file makes it met: a row records the dependence, it does not remove it.
 
 ## What the gate looks at
 
@@ -30,12 +31,12 @@ kinds. The closure walk is the point — every id below reaches its dependence t
 over the body sees none of them. That is how seven CORE ids became network-dependent with nobody
 writing it down.
 
-| kind | exemptable | count today |
-|---|---|---|
-| `network-key` | yes | 4 |
-| `network-helper` | yes | 4 |
-| `network-app` | yes | 7 |
-| `host-file-layout` | **no** | **0** |
+| kind | exemptable | at opening | today |
+|---|---|---|---|
+| `network-key` | yes | 4 | 1 |
+| `network-helper` | yes | 4 | 1 |
+| `network-app` | yes | 7 | 1 |
+| `host-file-layout` | **no** | **0** | **0** |
 
 `host-file-layout` is **not exemptable and is blocking at zero.** It was `B-2`'s shape — a CORE id
 that was a host-side `grep` of `lib/SpotifyArduino/`, so a checkout missing a directory would
@@ -57,29 +58,64 @@ TASK-591 named seven ids. The gate finds **eight**:
 The host-file-layout case named in the board row is confirmed gone: `T133`'s demotion removed it and
 the check reads zero.
 
-## What each id needs — and why none of it is landed
+## The ruling, 2026-09-06 (TASK-626, executed)
 
-Three of the eight carry a **declared** CORE class with a written reason (TASK-591) that already
-names R36 as owed; the other four are the ledgered undeclared ids in
-[gating_class_declarations.md](gating_class_declarations.md), owned by TASK-634's DUT session.
-**Every one of the eight needs the same decision from a human**: demote it out of CORE, or inject
-its precondition so the assertion survives an outage.
+The human took the eight decisions as a set. What landed, and what each cost:
 
-| id | class today | the dependence | the two options |
+| id | ruling | landed as | rows left |
 |---|---|---|---|
-| `T-BUSY-01` | CORE, **undeclared** | 45 s live Yahoo chart fetch, hard `fail()` on timeout | Demote (proposed in the R35 ledger; its `shellBusy` premise is already declared CORE on `T-BUSY-02`), or split the fetch half off |
-| `T-BUSY-01b` | CORE, **undeclared** | two live chart fetches | As above; its negative outcome is a `skip()`, so it is the weakest of the four |
-| `T-BUSY-05` | CORE, **undeclared** | `set triggerFetch 1` + Stock activation | Demote (R35 ledger proposes it), or inject |
-| `T-CDWN-03` | CORE, **undeclared** | `set triggerFetch 1` + Stock activation | Demote (R35 ledger proposes it), or inject |
-| `T-CDWN-02` | CORE, **declared** | a 60 s secondary assertion that is a live Yahoo fetch. The declaration says so and calls it owed to this task | Keep CORE and **make the secondary assertion non-gating**, or inject the fetch. The primary assertion — the `cmdTap` busy gate returning `skipped:true` — needs no network at all and is the half that earns the class |
-| `T-BUSY-03` | CORE, **declared** | activates Weather and Crypto, both of which fetch on activation | Keep CORE and drop the two fetching apps from its six (Clock/Matrix/Life/Aquarium are passive and carry the same claim), or inject |
-| `T_BI_03` | CORE, **declared** | `wait_for_queue(min_count=2)` — a live Spotify queue, which under TASK-243's permanent 403 it does not get | Inject the queue (`set queue N` already exists and is the documented injection for exactly this) or demote |
-| `T_X07_01` | CORE, seeded | rapid Weather↔Crypto switching; its premise is the activation fetches | **Undecided and unlisted before today.** Its claim (dataTask stability under app churn) may not be representable offline at all |
+| `T-BUSY-01` | **DEMOTE** | `@meta(cls="FEATURE", cls_reason=…)` on the body. Its `shellBusy` premise is already declared CORE on `T-BUSY-02`, which asserts both edges with a hard `fail()` on each and needs no network | 0 |
+| `T-BUSY-01b` | **DEMOTE** | as above; it was the weakest of the four — its negative outcome is a `skip()`, so a real regression and a fast fetch are indistinguishable | 0 |
+| `T-BUSY-05` | **DEMOTE** | as above. WP-C `C-1`'s inverted guard means it passes exactly when the regression is present; a test that cannot report its own failure cannot license stopping the run | 0 |
+| `T-CDWN-03` | **DEMOTE** | as above. Its bypass precondition is never established (BP-074), and its falsifiable half duplicates `T_BI_02`/`T147` | 0 |
+| `T-CDWN-02` | **SPLIT** | the 60 s live-Yahoo half is now **`T-CDWN-04`**, a FEATURE id. `T-CDWN-02` keeps the `cmdTap` gate assertion, the CORE class, and — new — a real `fail()`, guarded by the `shellBusy` reading skip-adjudication row 101 named as the precondition of converting it | **2 — see below** |
+| `T-BUSY-03` | **RE-POINT** | Weather and Crypto dropped; the list is Clock/Matrix/Life/Aquarium. Zero coverage lost, and that is a fact about `cmdTouch.cpp`, not a judgement — see the verification note below | 0 |
+| `T_BI_03` | **DEFER** to TASK-634 | unchanged. `set queue N` may already satisfy `wait_for_queue(min_count=2)`, which would clear the row with no class change; that needs a DUT to confirm | 1 |
+| `T_X07_01` | **DEMOTE** | `@meta(cls="FEATURE", …)`. Its activation fetches are its subject, so injecting the precondition would delete the claim; demoted rather than opening an exceptions precedent | 0 |
 
-`T_BI_03`'s option is the interesting one: `set queue N` seeds the Spotify queue snapshot and is
-already used to unblock PLEDIT-row tests without an account. If it satisfies `wait_for_queue`, that
-id leaves this ledger for free and without a class change — which would make it the only one of the
-eight that is not a human decision.
+**8 ids / 15 findings → 2 ids / 3 findings.**
+
+### Why `T-BUSY-03`'s re-point costs nothing — verified, not assumed
+
+The claim was that four of its six apps are passive and carry the same claim. Checked against
+firmware rather than against the earlier analysis, and it is **stronger** than claimed:
+`app/src/debug/serialConsole/cmdTouch.cpp` dispatches an injected canvas tap on `currentAppId`, and
+**Weather, Crypto, Matrix, Life and Aquarium all fall through the same terminal `else`**
+(`hit=CLOCK`, `app/src/debug/serialConsole/cmdTouch.cpp:141-144`) — no app handler, no
+`hasPendingAsync()` check, so no `setBusy` call is reachable on that branch at all. Clock is the one
+with a branch of its own (`CLOCKAPP`, `:133-140`), whose comment states the same thing: *"no async, so no setBusy
+propagation"*. So the two apps removed were driving a **duplicate of the Matrix/Life/Aquarium code
+path plus a network dependency**, and the four retained apps drive every path the six drove. The
+`cls_reason` names Clock, Matrix, Life and Aquarium as the families the claim protects; it now
+matches the body.
+
+### Why `T-CDWN-02` still has two rows, and why they were not made to go away
+
+The disposition expected this ledger to shrink to `T_BI_03` alone. It did not, and the two residual
+rows are reported rather than argued around.
+
+The primary assertion needs the busy gate to be **armed**, and the only way to arm it in StockApp is
+`set triggerFetch 1` (a local write that zeroes cache timestamps) followed by a drill tap (a local
+enqueue on the dataTask). **Neither waits on Yahoo** — `shellBusy` rises at enqueue, and the verdict
+resolves on the shell's own reply — but the checker cannot see that: `triggerFetch` is in
+`NETWORK_KEYS` because it *arms* a live fetch, and `Stock` is in `NETWORK_APPS`. The finding is a
+true statement about the static proxy and a false one about the run, and that is worth having
+written down exactly once rather than smoothed away.
+
+Two things were **not** done, deliberately:
+
+* **the id was not re-pointed at Spotify.** A `PLAY` tap raises `shellBusy` the same way
+  (`T-BUSY-02` does exactly this) and `Spotify` is not in `NETWORK_APPS` — so the gate would read
+  zero. But SpotifyApp's pending async *is* a Web API poll; the id would be no more offline-
+  satisfiable, only invisible to the checker. That is gaming the gate, not meeting R36.
+* **`triggerFetch` was not removed from `NETWORK_KEYS`.** It arms a live fetch for the several other
+  ids that then wait on the result, and weakening the key for all of them to clear one id is the
+  same trade in a different direction.
+
+What would actually clear these two rows is an **injection**: a debug write that puts
+`shell::state().busy` true without an app fetch — the observability-contract shape (ADR-063), not a
+suite change. Until then the rows stand, owned by TASK-617, which is where the "is this residual
+acceptable?" question belongs.
 
 ## Ledger
 
@@ -89,21 +125,9 @@ would decide it by attrition. `since` = the date the row was opened.
 
 | id | kind | why it is not resolved today | owner | since |
 |---|---|---|---|---|
-| `T-BUSY-01` | network-helper | Reaches `_poll_chart_len_positive()` — 45 s of live HTTPS to Yahoo, and a timeout is a hard `fail()`, not a skip. Demote-or-inject is a human ruling (R35 ledger proposes DEMOTE). | TASK-617 | 2026-09-05 |
-| `T-BUSY-01` | network-app | Activates Stock via `_switch_to_stock()`, whose `init()` issues the chart fetch. | TASK-617 | 2026-09-05 |
-| `T-BUSY-01b` | network-key | `set triggerFetch 1` enqueues a live fetch on the dataTask. | TASK-617 | 2026-09-05 |
-| `T-BUSY-01b` | network-helper | Reaches `_stock_ok_count()`/`_wait_chart_complete()` — two live chart fetches, and the negative outcome is a `skip()`, so a real regression and a fast fetch are indistinguishable. | TASK-617 | 2026-09-05 |
-| `T-BUSY-01b` | network-app | Activates Stock. | TASK-617 | 2026-09-05 |
-| `T-BUSY-03` | network-app | Activates Weather and Crypto, both of which fetch on first activation — the id's own body says so (`_FETCH_APPS`). The claim is about passive apps and four of its six are passive; dropping the two fetching apps is a coverage change, hence a ruling. | TASK-617 | 2026-09-05 |
-| `T-BUSY-05` | network-key | `set triggerFetch 1`. | TASK-617 | 2026-09-05 |
-| `T-BUSY-05` | network-app | Activates Stock. | TASK-617 | 2026-09-05 |
-| `T-CDWN-02` | network-key | `get fetchOkCount`/`get fetchErrCount` and `set triggerFetch 1` — the 60 s secondary assertion its own `cls_reason` flags as owed to R36. | TASK-617 | 2026-09-05 |
-| `T-CDWN-02` | network-helper | Reaches `_stock_ok_count()`. | TASK-617 | 2026-09-05 |
-| `T-CDWN-02` | network-app | Activates Stock. | TASK-617 | 2026-09-05 |
-| `T-CDWN-03` | network-key | `set triggerFetch 1`. | TASK-617 | 2026-09-05 |
-| `T-CDWN-03` | network-app | Activates Stock. | TASK-617 | 2026-09-05 |
-| `T_BI_03` | network-helper | `wait_for_queue(min_count=2)` needs a live Spotify queue, which TASK-243's permanent 403 prevents. The `set queue N` injection may remove this row without a class change — that is the one row here that might not need a ruling, and it needs a DUT to confirm. | TASK-617 | 2026-09-05 |
-| `T_X07_01` | network-app | Rapid Weather↔Crypto switching; the activation fetches ARE its subject. **Found by this gate, on no prior R36 list.** | TASK-617 | 2026-09-05 |
+| `T-CDWN-02` | network-key | `set triggerFetch 1` in `_cdwn_stale_chart_list()` arms the fetch whose enqueue raises `shellBusy`. The ARMING is local — the verdict resolves on the shell's reply, not on Yahoo's — but the key is in `NETWORK_KEYS` for the ids that do wait on the result, and weakening it there to clear this one id is the wrong trade. Clearing this row needs an injection that sets `shell::state().busy` with no app fetch (ADR-063 shape), not a suite change. | TASK-617 | 2026-09-05 |
+| `T-CDWN-02` | network-app | Activates Stock via `_switch_to_stock()`, whose `init()` issues the chart fetch. Same reasoning as the row above: the id needs Stock's enqueue, not Stock's response. Re-pointing the id at Spotify would read zero here and be less offline-satisfiable, not more. | TASK-617 | 2026-09-05 |
+| `T_BI_03` | network-helper | `wait_for_queue(min_count=2)` needs a live Spotify queue, which TASK-243's permanent 403 prevents. The `set queue N` injection may remove this row without a class change — that is the one row here that might not need a ruling, and it needs a DUT to confirm. **Deferred to TASK-634's session on 2026-09-06 with exactly that as its stated question.** | TASK-617 | 2026-09-05 |
 
 ## How a row leaves
 

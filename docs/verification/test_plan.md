@@ -320,6 +320,34 @@ is **advisory** while that count is non-zero — the negative suite that grades 
 T0 rows it passes outright (`get aquariumFish`, no HTTPS). The hole §2.1 found is real and is a
 functional-tier hole; it is not an every-row hole, and `A5`/`A6` should not be counted toward it.
 
+### T_APPKEY_01 — [app-interface-001] a per-app debug key answers only while its app is active
+
+- **Type**: integration (DUT), generated over `APP_ORDER` — one cell per app, the shape `A5`/`A6`
+  already use, not thirteen hand-written ids.
+- **Feature(s)**: app-interface-001
+- **Objective**: For every app in `APP_ORDER`, each key the app declares **answers** while that app
+  is the active app and is **refused with a named error** while it is not —
+  [ADR-063](../architecture/decisions/ADR-063.md) **D3**, *"identity is a shell fact, published
+  once, and enforced negatively"*, as one shared guard in the console's delegation path. Per D3 the
+  row covers all thirteen apps, including the four with no `dbgGet` today; per ADR-063's
+  *Consequences*, it must be generated over each app's **declared** keys, never over the presence of
+  an override, or a defaulting app reads as conformant.
+- **Preconditions**: TASK-637's shell-side guard exists in the debug build.
+- **Steps**: for each app A and each declared key k of A — switch to A, `get k` answers; switch to
+  another app, `get k` is refused with the named error.
+- **Expected result**: no per-app key answers from outside its owning app; the refusal is
+  distinguishable from "the key does not exist".
+- **Harness**: generated; body owed with TASK-637. Owner: VE.
+- **Status**: **blocked** on [TASK-637](../project/tasks-harness2.md) — the shell-side identity
+  guard does not exist yet, and ADR-063 D6 gates it behind a freshly derived `.dram0.bss` headroom.
+  **Replacement for `T_MA_02`, `T_GOL_02`, `T_WX_02`, `T_CX_02`**, deleted 2026-09-06 (TASK-598);
+  see [retired_test_ids.md](retired_test_ids.md).
+  **What is uncovered in the meantime, stated plainly: from 2026-09-06 no id asserts that a per-app
+  debug key is refused when its owning app is not active, and none asserts that a canvas tap is not
+  routed to the wrong app's handler.** The four deleted ids did not assert either — they asserted a
+  literal `cmdTap` prints on a branch chosen by the identity they had just verified — so this is a
+  gap that was already there, now recorded instead of shown as four green rows.
+
 ---
 
 ## Suite: refactor-verification-001 — `T_488_*` M-SRCLAYOUT move verification (TASK-488)
@@ -1115,7 +1143,7 @@ T_MA_04–T_MA_05 are manual visual / physical-touch checks.
   3. Switch back to Spotify.
 - **Expected result**: `{"hit":"CLOCK","action":"NONE"}` — BUG-1 guard fired; no Winamp region matched.
 - **Harness**: `run_serialdbg_tests.py --tests T_MA_02`. Owner: VE.
-- **Status**: written (2026-05-25).
+- **Status**: **retired 2026-09-06 (TASK-598)** — body deleted, id removed from the registry. The assertion was `hit == "CLOCK"`, a fixed literal in `cmdTap`'s terminal `else` selected by the app id the switch helper had just verified, so the claimed regression was unrepresentable. Replacement: `T_APPKEY_01`, `blocked` on TASK-637. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-25).
 
 ### T_MA_03 — [matrix-001] Matrix→Spotify canvas residue
 
@@ -1180,7 +1208,7 @@ T_MA_04–T_MA_05 are manual visual / physical-touch checks.
 - **Steps**: Switch to Life. `tap 137 120`. Assert `hit="CLOCK"`. Switch back.
 - **Expected result**: `{"hit":"CLOCK","action":"NONE"}`.
 - **Harness**: `run_serialdbg_tests.py --tests T_GOL_02`. Owner: VE.
-- **Status**: written (2026-05-25).
+- **Status**: **retired 2026-09-06 (TASK-598)** — body deleted, id removed from the registry. The assertion was `hit == "CLOCK"`, a fixed literal in `cmdTap`'s terminal `else` selected by the app id the switch helper had just verified, so the claimed regression was unrepresentable. Replacement: `T_APPKEY_01`, `blocked` on TASK-637. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-25).
 
 ### T_GOL_03 — [gol-001] GoL→Spotify canvas residue
 
@@ -1258,7 +1286,7 @@ T_WX_05 requires network access to `api.open-meteo.com` (or current `host_overri
 - **Objective**: Canvas tap while Weather active returns `hit="CLOCK"`.
 - **Steps**: Switch to Weather. `tap 137 120`. Assert `hit="CLOCK"`. Switch back.
 - **Harness**: `run_serialdbg_tests.py --tests T_WX_02`. Owner: VE.
-- **Status**: written (2026-05-25).
+- **Status**: **retired 2026-09-06 (TASK-598)** — body deleted, id removed from the registry. The assertion was `hit == "CLOCK"`, a fixed literal in `cmdTap`'s terminal `else` selected by the app id the switch helper had just verified, so the claimed regression was unrepresentable. Replacement: `T_APPKEY_01`, `blocked` on TASK-637. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-25).
 
 ### T_WX_03 — [weather-001] Weather→Spotify canvas residue
 
@@ -1347,7 +1375,7 @@ T_CX_05 requires network access to `api.coingecko.com` (or current `host_overrid
 - **Objective**: Canvas tap while Crypto active returns `hit="CLOCK"`.
 - **Steps**: Switch to Crypto. `tap 137 120`. Assert `hit="CLOCK"`. Switch back.
 - **Harness**: `run_serialdbg_tests.py --tests T_CX_02`. Owner: VE.
-- **Status**: written (2026-05-25).
+- **Status**: **retired 2026-09-06 (TASK-598)** — body deleted, id removed from the registry. The assertion was `hit == "CLOCK"`, a fixed literal in `cmdTap`'s terminal `else` selected by the app id the switch helper had just verified, so the claimed regression was unrepresentable. Replacement: `T_APPKEY_01`, `blocked` on TASK-637. See [retired_test_ids.md](retired_test_ids.md). *Superseded:* written (2026-05-25).
 
 ### T_CX_03 — [crypto-001] Crypto→Spotify canvas residue
 

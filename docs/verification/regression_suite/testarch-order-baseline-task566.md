@@ -18,13 +18,13 @@ cd app/tools && python3 -m lib.baseline <runner log> …
 Computed on the default selection (210 ids) with **zero DUT time**, which is the whole
 argument for landing the classification inert first (§6 R3).
 
-| | 2026-09-02 (CORE=43) | **2026-09-04 (CORE=23)** |
-|---|---|---|
-| ids in the default selection | 210 | **210** |
-| ids that change position | 210 — all of them | **202** |
-| ids whose position is preserved | 0 | **8** |
-| inverted pairs | 6505 | **3497** (−46 %) |
-| inverted pairs touching an edge candidate | 1350 | **1084** (−20 %) |
+| | 2026-09-02 (CORE=43) | 2026-09-04 (CORE=23) | **2026-09-06 (CORE=18)** |
+|---|---|---|---|
+| ids in the default selection | 210 | 210 | **193** |
+| ids that change position | 210 — all of them | 202 | **185** |
+| ids whose position is preserved | 0 | 8 | **8** |
+| inverted pairs | 6505 | 3497 (−46 %) | **2444** (−62 % from 2026-09-02) |
+| inverted pairs touching an edge candidate | 1350 | 1084 (−20 %) | **689** (−49 %) |
 
 **Why the second column exists.** TASK-591 declared the gating classes R35 requires and, on
 the human's ruling of 2026-09-04, demoted 20 CORE ids to FEATURE — every one of them a
@@ -32,8 +32,25 @@ the human's ruling of 2026-09-04, demoted 20 CORE ids to FEATURE — every one o
 so §1 was re-derived rather than left to describe a corpus that no longer exists.
 
 The shape is the same and it is milder. `shell.py`'s CORE ids still sit at the tail of the
-registry and class order still moves them to the head; there are now **23** of them, so
-every id ahead of them shifts by exactly **+23** instead of +43.
+registry and class order still moves them to the head; there were **23** of them after TASK-591,
+so every id ahead of them shifted by exactly **+23** instead of +43.
+
+**Re-derived again 2026-09-06 (TASK-626 + TASK-598).** TASK-626's rulings demoted five more
+(`T-BUSY-01`, `T-BUSY-01b`, `T-BUSY-05`, `T-CDWN-03`, `T_X07_01`) and split one (`T-CDWN-04`,
+FEATURE); TASK-598 deleted four (`T_MA_02`, `T_GOL_02`, `T_WX_02`, `T_CX_02`). **CORE is 18**, so
+the shift is **+18**; the registry is 196 ids and the default selection 193 (RIG stripped). The
+third column of the table above is the re-run of the same command, not a hand-edit. The direction
+has been one-way all programme: **43 → 23 → 18**, and inverted pairs 6505 → 3497 → 2444.
+
+§1's stop criterion — *"if demoting the network-dependent CORE ids leaves CORE with too few members
+to gate anything meaningful, cancel the class-order switch outright and close TASK-566 as
+WONTFIX"* — is now a live question rather than a hypothetical, and belongs to the human with
+TASK-617. The 18 that remain are not a residue: they include `T079` (tap injection), `T-BUSY-02`
+(the `shellBusy` primitive on both edges), `T-CDWN-02` (the `cmdTap` gate), `T147`/`T148` (app
+switch and tap dispatch) and `T_BI_02`/`T_BI_03` (boot-input) — the premises the rest of the corpus
+is written on top of. **@VE's reading is
+that the criterion is not triggered**, but it is stated here rather than assumed, because the
+count has fallen by 58 % since the criterion was written.
 
 What is new is the preserved set. **Eight ids no longer move at all** — `T-BGPOLL-02`,
 `T-BGPOLL-03` and `T-ERR-01/02/04/05/06/07`. They are demoted ids that already sat at the
@@ -50,9 +67,9 @@ Class census under the switch (ascending — this *is* the execution order):
 |---|---|---|
 | RIG | 0 (0) | no registry id is class RIG — the three RIG ids are stripped from the default selection (`app/tools/suite/serialdbg/runner.py:231`), so this line is structural, not an artefact (WP-C `C-3`) |
 | HEALTH | 0 (0) | `T_DH_01..03` live in a separate registry (§4.5) and run in the gate phase |
-| CORE | **23** (43) | 19 declared by TASK-591 + the 4 still on the [R35 ledger](../gating_class_declarations.md) awaiting the Phase 2 session |
+| CORE | **18** (43) | 23 after TASK-591 (19 declared + 4 ledgered); TASK-626 declared those 4 FEATURE and demoted `T_X07_01` on 2026-09-06, so all 18 are declared and the R35 ledger is deleted |
 | **APP** | **0** (0) | **no id is classified APP today** — see §4 |
-| FEATURE | **187** (167) | everything else, including the 20 demoted ids |
+| FEATURE | **175** (167) | everything else, including the 25 demoted ids and `T-CDWN-04`; 196 registry ids total on 2026-09-06 (18 CORE + 3 RIG + 175) |
 
 ## 2. The 0→1-edge enumeration — @VE §18.6(c), delivered as a precondition
 
