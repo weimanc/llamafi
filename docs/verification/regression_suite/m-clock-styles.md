@@ -2,9 +2,12 @@
 
 > Owner: Verification Engineer  
 > Milestone: M-CLOCK-STYLES (TASK-193)  
-> Status: **NOT COMPLETE** — 10 of 14 ids live (4 retired `UNOBSERVABLE`, TASK-603); **1 of 8 exit
-> criteria met** — C1 through C8 are **all** DEFERRED, and only C1 was ever recorded that way.
-> The original 2026-06-13 header read "PASS — 14/14"; it was wrong on both halves (H-2, TASK-587).  
+> Status: **0 of 8 exit criteria mechanically met** — C1 through C8 are **all** DEFERRED, and only C1
+> was ever recorded that way. 10 of 14 ids live (4 retired `UNOBSERVABLE`, TASK-603).
+> The original 2026-06-13 header read "PASS — 14/14"; it was wrong on both halves (H-2, TASK-587).
+> **The milestone is not blocked on them** and no further work is scheduled — human ruling
+> 2026-09-06, recorded in the last section of this file. That ruling did **not** satisfy the
+> criteria; it scheduled no further work on them.  
 > DUT: ESP32-2432S028R CYD2USB, firmware cyd2usb_winamp_debug  
 > Exit criteria: M-CLOCK-STYLES.md C1–C8
 
@@ -112,3 +115,32 @@ exist at all is **H-11**, a different question, not decided here.)
 milestone itself, however, is now visibly **not complete** — 0 of 8 criteria met — where it read
 14/14 for twelve weeks. That is a status change on M-CLOCK-STYLES (TASK-193) and belongs to @PM, not
 to this document.
+
+---
+
+## 2026-09-06 — human ruling: the milestone is not blocked; the criteria stay DEFERRED
+
+**Ruled by:** the human operator, 2026-09-06, on @PM's escalation of TASK-587's outcome.
+**Ruling, verbatim:** *"I've visually inspected them, it's ok to move on."*
+
+**What this changes.** M-CLOCK-STYLES (TASK-193) is **not blocked** on C1–C8, and **no further work
+is scheduled** to close them. The mechanism tasks named in the tables above (TASK-638 `get sig`,
+TASK-639, TASK-615) keep their own lives inside M-HARNESS2; nothing here schedules them for this
+milestone's sake.
+
+**What this does not change — read this before quoting the ruling.** All eight criteria remain
+**DEFERRED**. None of them was satisfied, and none may be re-recorded PASS on the strength of this
+ruling. The tables above are unchanged and stay the record of what each criterion is still owed.
+
+**The evidence, stated exactly.** A **human visual inspection of the clock faces on 2026-09-06**.
+It is:
+
+* **informal** — no procedure, no build hash, no recorded observation of any specific criterion;
+* **unrepeatable** — nothing about it can be re-run, by a person or by the harness;
+* **not mechanically verified** — no oracle read a pixel, a coordinate, a colour or an interval, and
+  the oracles that would (ADR-064's `get sig`, a firmware tick counter, `tap`) still do not exist;
+* **not a substitute for `get sig`** — if anyone later wants these criteria actually met, the work
+  is exactly what the tables above name, unchanged by this ruling.
+
+A future reader must not read this section as the criteria having been satisfied. It is a decision to
+stop spending on them, taken with the gap fully in view.

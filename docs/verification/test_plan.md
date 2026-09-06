@@ -4698,6 +4698,12 @@ tests. Visual (MANUAL) tests have no blockers.
 
 Detailed run + results: `docs/verification/regression_suite/m-planeradar-dut.md`.
 
+> **Milestone RE-OPENED 2026-09-06** (human ruling). `T_PR_02` and `T_PR_06` are named "render" tests
+> but their oracles read `prAircraftCount` — an app drawing nothing passes both; exit criteria 1 and 6
+> are therefore unmet as recorded and need ADR-064's `get sig` (TASK-649). `T_PR_05` SKIPped, so
+> criterion 3 is unobserved (TASK-650). The ids themselves are **not** re-scored here: each is honest
+> at its own scope; what was wrong was booking them against a render criterion.
+
 ### T_PR_01 — [planeradar-001] PlaneRadarApp switch round-trip
 
 - **Type**: integration

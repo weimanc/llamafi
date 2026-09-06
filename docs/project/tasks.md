@@ -26,6 +26,26 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > Human review flag: the ADR-028 rejection and ADR-032 supersession are the two judgement calls —
 > the seven accepts are mechanical.
 
+## Open — M-PLANERADAR, RE-OPENED (human ruling 2026-09-06)
+
+The milestone closed 2026-07-11 on four criteria that do not hold (TASK-587 sweep; H-2's shape for
+1 and 6). Criteria 2 and 5 stand. Nothing is re-scored PASS or FAIL — per-criterion detail, and what
+would settle each, is in
+[m-planeradar-dut.md](../verification/regression_suite/m-planeradar-dut.md).
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-649 | P2 | OPEN — @VE · BLOCKED on TASK-638 | criteria **1 + 6**: re-oracle the two render claims onto ADR-064 `get sig` over the radar canvas (`inkCount`/`distinctColors`, D3; region from the layout, D7; quiescent via `get idle`, D8) and file the new ids — `T_PR_02`/`T_PR_06` read `prAircraftCount`, which no render passes through |
+| TASK-650 | P2 | OPEN — @VE + @Developer | criterion **3**: `T_PR_05` SKIPped, so the error path is unobserved. Add a real fault-injection hook to PlaneRadar's `dbgSet` surface (Stock's `set fetchFailed` is the pattern) so the test stops depending on adsb.fi choosing to rate-limit us |
+| TASK-651 | P3 | OPEN — @VE · soak leg BLOCKED on TASK-243 | criterion **4**: re-run `run/pr-soak` against actual Spotify playback, not a 403-retrying session; and pin the "agreed budget" number into the design doc — it was never written down, VE picked 15,000 B per-run |
+| TASK-652 | P2 | OPEN — @PM · BLOCKED on TASK-649/650/651 | the re-close gate: M-PLANERADAR may be re-closed only when 1, 3, 4 and 6 each carry an observation of their own subject. Update roadmap, design doc and DUT report together — the 2026-07-11 close was overstated in the header while the body was candid |
+
+## Open — heatmap reliability review, exit claim downgraded (human ruling 2026-09-06)
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-653 | P3 | OPEN — @VE · **due 2026-09-20** | T217 (heatmap heap headroom) SKIPped on a harness bug and the re-run was never recorded — TASK-130's exit claim is now **PARTIALLY MET** ([review](../verification/regression_suite/heatmap-reliability-ve-review.md)). Run it to a verdict (32k→50k threshold included) or retire the id with a reason |
+
 ## Open — M-PR-MOTION (2026-07-18)
 
 Human request: PlaneRadar poll interval as a settings slider (1 s minimum), and interpolation
@@ -50,7 +70,7 @@ almost did.
 | [tasks-architecture.md](tasks-architecture.md) | M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE · M-TESTARCH | 16 | § ▶ EXECUTION SEQUENCE |
 | [tasks-winamp-player.md](tasks-winamp-player.md) | M-WINAMP-PLAYER (paused) | 12 | § Open — M-WINAMP-PLAYER |
 | [tasks-harness2.md](tasks-harness2.md) | M-HARNESS2 + WP-Z test-harness remediation, phases 0–5 | 61 | § Phase 1 (the committed phase) |
-| this file | everything else — M-PR-MOTION, M-WEBRADIO follow-ons, unowned failures | 13 | below |
+| this file | everything else — M-PLANERADAR (re-opened), M-PR-MOTION, M-WEBRADIO follow-ons, unowned failures | 18 | below |
 | [tasks-archive.md](tasks-archive.md) | closed work, all milestones | — | the audit trail |
 
 **The split file is the entry, always.** The two mirror tables that used to sit below this

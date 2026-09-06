@@ -309,6 +309,18 @@ remains open:
 
 ## Exit criteria (draft — VE to challenge)
 
+> **Milestone RE-OPENED 2026-09-06** (human ruling on @PM's escalation of the TASK-587 sweep).
+> The 2026-07-11 close does not hold for **criteria 1, 3, 4 and 6** — 1 and 6 were booked on
+> `prAircraftCount` (a count, not a render: an app drawing nothing passes both), 3 on a `T_PR_05`
+> **SKIP**, 4 on a soak the DUT report itself calls "not literally what the design doc's exit
+> criterion 4 says". Criteria 2 and 5 stand. Nothing is re-scored PASS or FAIL; the four are unmet as
+> recorded. Per-criterion detail and what would settle each:
+> [m-planeradar-dut.md](../../verification/regression_suite/m-planeradar-dut.md).
+> A *render* claim needs ADR-064's `get sig`, not a struct field.
+> **Criterion 4's "agreed budget" was never pinned to a number in this document** — VE picked
+> 15,000 B for the 2026-07-11 run. TASK-651 owns writing the number here.
+> Tracked as TASK-649 · TASK-650 · TASK-651 · TASK-652.
+
 1. Live aircraft render within one poll of app entry, DUT on bench WiFi.
 2. Range tap cycles 5→10→15→25 km, persists across reboot.
 3. Fetch error → side-strip error code, app stays responsive, recovers on next poll.

@@ -435,7 +435,16 @@ Work:
 9. **VE suite** — T_CLK_01–14 (style cycle, blink stability, flip animation,
    Nixie/VFD bounds, settings persistence, app-switch style preservation).
 
-**Status:** done (2026-06-13 — TASK-193 + T_CLK_01–14 14/14 PASS); visual DUT review deferred (C1/C4/C5/C6/C8)  
+**Status:** done (2026-06-13 — TASK-193; firmware shipped), **but the exit criteria were never
+mechanically met**. The "T_CLK_01–14 14/14 PASS" that stood here until 2026-09-06 was wrong on both
+halves: 4 ids are retired `UNOBSERVABLE` (TASK-603) and **0 of 8 exit criteria** are met — C1–C8 are
+all DEFERRED (H-2 / TASK-587; see
+[m-clock-styles.md](../verification/regression_suite/m-clock-styles.md)).
+**Human ruling 2026-09-06** — *"I've visually inspected them, it's ok to move on."* The milestone is
+**not blocked** on C1–C8 and no further work is scheduled. The evidence is an informal, unrepeatable
+human visual inspection on 2026-09-06 — **not** mechanical verification, and **not** the criteria
+being satisfied; they stay DEFERRED. Meeting them would still take ADR-064's `get sig` (TASK-638/639)
+and a firmware tick counter (TASK-615).  
 **Design:** [M-CLOCK-STYLES.md](../architecture/designs/M-CLOCK-STYLES.md)  
 **Deps:** M-SETTINGS-001 (done), M-APP-REGISTRY (done)
 
@@ -997,15 +1006,29 @@ UI PoC, and airport-DB trial bake settle the API risk and the parse-heap term
 of the heap risk off-DUT before firmware starts (TLS-coexistence soak stays
 DUT-side).
 
-**Status:** DONE 2026-07-11 — TASK-301..307 all closed (`./run/check` 6/6 PASS
+**Status: RE-OPENED 2026-09-06** (human ruling, on @PM's escalation of the TASK-587 sweep). The
+milestone closed 2026-07-11 on criteria that do not hold: **criteria 1 and 6** book *render* claims
+on `prAircraftCount` — an app drawing nothing passes both (H-2's shape); **criterion 3** was booked
+satisfied on a `T_PR_05` **SKIP**; **criterion 4** on a soak the DUT report's own notes call "not
+literally what the design doc's exit criterion 4 says". Criteria 2 and 5 stand. Nothing has been
+re-scored PASS or FAIL — the four are **unmet as recorded**. Render claims are settled by ADR-064's
+`get sig`, not by a count. Work: TASK-649 (criteria 1+6), TASK-650 (criterion 3 fault injection),
+TASK-651 (criterion 4 soak + the never-pinned "agreed budget"), TASK-652 (re-close gate) — see
+[tasks.md](tasks.md) and
+[m-planeradar-dut.md](../verification/regression_suite/m-planeradar-dut.md).
+The firmware itself is unaffected and ships; this is a verification re-open.
+
+**Prior close (2026-07-11, superseded above):** TASK-301..307 all closed (`./run/check` 6/6 PASS
 throughout): dataTask ADS-B fetcher (ADR-048), PlaneRadarApp render + taskbar
 registration, Settings integration (range/units/runway toggle/tag rule/stale
 style all persisted, no longer compile-time-only), the airport-DB bake
 (`run/bake-airports`, ADR-049 V-europe — baked 240 airports/355 runways,
 matching the phase-0 measurement exactly; runway overlay renders real data),
 and DUT validation (TASK-307): all 6 exit criteria run, 5 PASS + 1 SKIP
-(network-dependent, not a gap — see `docs/verification/regression_suite/
-m-planeradar-dut.md`). 30-min Spotify-coexistence soak: heap floor delta
+(recorded at the time as "network-dependent, not a gap" — **that reading was
+withdrawn on 2026-09-06**; see the re-open above and
+`docs/verification/regression_suite/m-planeradar-dut.md`). 30-min
+Spotify-coexistence soak: heap floor delta
 4,952 B, within budget and matching ADR-048's ~4 KB parse estimate almost
 exactly, zero reboots.
 **Deps:** M-MULTIAPP (done), M-APP-REGISTRY (done), dataTask (done), ADR-029,

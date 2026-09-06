@@ -2,7 +2,12 @@
 
 > Owner: Architect  
 > Status: done
-> As-built: 2026-06-13 — TASK-193; T_CLK_01–14 14/14 PASS
+> As-built: 2026-06-13 — TASK-193; **firmware shipped, exit criteria never mechanically met**. The "T_CLK_01–14 14/14 PASS" that stood here was wrong: 4 ids are
+> retired `UNOBSERVABLE` (TASK-603) and C1–C8 are all DEFERRED (H-2 / TASK-587). **Human ruling
+> 2026-09-06** — *"I've visually inspected them, it's ok to move on."* — the milestone is not blocked
+> on them and no further work is scheduled; the criteria stay DEFERRED, not PASS. Evidence is an
+> informal, unrepeatable human visual inspection, not mechanical verification. Record:
+> [m-clock-styles.md](../../verification/regression_suite/m-clock-styles.md)
 > Date: 2026-06-12  
 > Part of: [overview.md](M-MULTIAPP/overview.md)  
 > See also: [clock.md](M-MULTIAPP/clock.md), [settings.md](M-MULTIAPP/settings.md), [M-SETTINGS-APP-WIRE.md](M-SETTINGS-APP-WIRE.md)
@@ -608,6 +613,13 @@ None.
 ---
 
 ## Exit criteria
+
+> **Status of these eight, 2026-09-06: all DEFERRED, none met.** Per-criterion reasons and the
+> mechanism each still needs are in
+> [m-clock-styles.md § Exit criteria coverage](../../verification/regression_suite/m-clock-styles.md).
+> The human ruled on 2026-09-06 that the milestone is not blocked on them and no further work is
+> scheduled — on an informal visual inspection, which is not verification and does not make any
+> criterion PASS.
 
 | ID | Criterion |
 |----|-----------|

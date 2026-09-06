@@ -2,7 +2,11 @@
 
 > Owner: Verification Engineer
 > Milestone: M-PLANERADAR (TASK-307, parent design doc exit criteria 1-6)
-> Status: **closed 2026-07-11 — all 6 exit criteria satisfied** (T_PR_05 SKIP is network-dependent, not a gap; see notes)
+> Status: **RE-OPENED 2026-09-06** (human ruling — see the last section). The 2026-07-11 header read
+> "closed — all 6 exit criteria satisfied"; that claim does not hold. **Criteria 2 and 5 stand.
+> Criteria 1, 3, 4 and 6 are unmet-as-recorded** — 1 and 6 were booked on `prAircraftCount`, which no
+> render passes through; 3 was booked on a SKIP; 4 on a soak this document's own notes call "not
+> literally what the design doc's exit criterion 4 says". Nothing below is re-scored PASS or FAIL.
 > DUT: ESP32-2432S028R CYD2USB, firmware cyd2usb_winamp_debug
 > Exit criteria: `docs/architecture/designs/M-PLANERADAR-plane-radar-app.md` §Exit criteria
 
@@ -102,8 +106,14 @@
   pass/fail.
 - Home location (`g_settings.prLat/prLon`) is the D4 v1 compile-time default
   (SPIFFS-editable via `run/spiffs push`, TASK-305) — an empty airspace at
-  that location is graceful-empty (correct), not a failure; T_PR_02 only
-  requires `prLastHttp==200`, not `prAircraftCount>0`.
+  that location is graceful-empty (correct), not a failure.
+  **Corrected 2026-09-06 (@PM).** This line used to end "T_PR_02 only requires `prLastHttp==200`,
+  not `prAircraftCount>0`" — describing the version of the test that was *replaced*. The VE design
+  note above ("`prLastHttp` (errorCode) is ambiguous for 'success' — do not gate on it") says
+  `prLastHttp==200` can never pass and that T_PR_02 was moved onto `get activeError` for exactly that
+  reason. **T_PR_02 gates on `get activeError`'s `connecting`/`active`**; `prLastHttp` is diagnostic
+  detail only. Note also, per the re-open below, that neither field observes a *render*, which is
+  what exit criterion 1 asks for.
 
 ---
 
@@ -127,9 +137,37 @@ Criteria 1 and 6 are H-2's exact shape and are settled by the same mechanism: AD
 Criteria 3 and 4 are a different and milder defect — **the body is honest and the header is not**,
 which is a summary-line problem, not an oracle problem.
 
-**Also stale, unrelated to the sweep:** the note above says `T_PR_02` "only requires
+**Also stale, unrelated to the sweep:** the note above said `T_PR_02` "only requires
 `prLastHttp==200`", and the VE design note ~40 lines earlier says `prLastHttp` is ambiguous for
 success, must not be gated on, and that `T_PR_02` was moved onto `get activeError` for exactly that
-reason. The last line of this file describes the version of the test that was replaced.
+reason. **Fixed 2026-09-06 (@PM)** — see the correction in § Notes.
 
 **Owner: @VE.** Escalated rather than actioned.
+
+---
+
+## 2026-09-06 — human ruling: M-PLANERADAR is RE-OPENED
+
+**Ruled by:** the human operator, 2026-09-06, on @PM's escalation of the TASK-587 sweep's findings
+(the section above). **Decision: re-open the milestone.** The 2026-07-11 close rested on four cells
+that do not support the claim booked against them.
+
+**What is unmet, and why.** Nothing here is re-scored PASS or FAIL — the statement is that the
+evidence on file does not settle the criterion.
+
+| criterion | status 2026-09-06 | why, and what would settle it |
+|---|---|---|
+| 1 — live aircraft render within one poll of app entry | **UNMET as recorded** | `T_PR_02`'s oracle is `connecting==false` + `prAircraftCount==1` — a count in a result struct. An app that draws nothing passes it (H-2's exact shape). Settled by ADR-064's `get sig <x> <y> <w> <h>` over the radar canvas: `inkCount` above the empty-canvas floor and `distinctColors > 1` (ADR-064 D3), region from the generated layout (D7), quiescent via `get idle` (D8). No golden needed |
+| 2 — range tap cycles and persists across reboot | **stands** | `T_PR_03`/`T_PR_04` observe `prRange` directly, which *is* the criterion's subject |
+| 3 — fetch error surfaces, app stays responsive, recovers | **UNMET — unobserved** | `T_PR_05` **SKIPped**: no fetch error surfaced in 20 rapid-fire attempts. A criterion whose only observation did not happen is unobserved, not satisfied; the header's "network-dependent, not a gap" footnote does not close it. Settled by a real fault-injection hook on PlaneRadar's `dbgSet` surface (Stock's `set fetchFailed` is the pattern), so the error path stops depending on adsb.fi choosing to rate-limit us |
+| 4 — 30-min coexistence soak alongside Spotify playback | **UNMET as recorded** | `pr-soak` ran against a 403-retrying Spotify session, not playback — this document's own VE design note says it is "not literally what the design doc's exit criterion 4 says". Separately, the criterion's "agreed budget" was never pinned in the design doc; VE picked 15,000 B for that run. Settled by a soak against real playback (blocked on TASK-243) **and** the budget number written into the design doc rather than chosen per-run |
+| 5 — taskbar full-cycle scroll with the new slot | **stands** | T162–T166/T242 observe the slot count and the wrap directly |
+| 6 — synthetic-injection render test, no network | **UNMET as recorded** | `T_PR_06`'s oracle is `prAircraftCount==3` after `prInjectAircraft` — the injector's own write read back. The id's name says *render*; nothing reads the canvas. Same mechanism as criterion 1 |
+
+**Severity is not uniform.** 1 and 6 are oracle defects — the test cannot see its subject. 3 and 4
+are weaker: the bodies and notes are candid, and it is the summary header that overstated them. Both
+kinds block the close; only the first kind needs new firmware.
+
+**Filed as:** TASK-649 (criteria 1 + 6, render oracle), TASK-650 (criterion 3, fault injection),
+TASK-651 (criterion 4, soak + budget), TASK-652 (the re-close gate) — see
+[tasks.md § Open — M-PLANERADAR](../../project/tasks.md).

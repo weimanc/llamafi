@@ -4,6 +4,10 @@
 **Build:** `cyd2usb_winamp_debug` (Jun 3 2026-22:03)
 **DUT uptime at run start:** ~17 min post-reboot
 
+> **Status (2026-09-06):** the "Exit criterion met" line at the bottom of this document was
+> **downgraded to PARTIALLY MET** on a human ruling — T217 SKIPped on a harness bug and its re-run is
+> not recorded anywhere. Owner **@VE**, due **2026-09-20**, TASK-653. See § Exit Criterion Assessment.
+
 ---
 
 ## Test Results Summary
@@ -13,7 +17,7 @@
 | T214 | **PASS** | 5 rapid triggers, 4× -1, count=20 throughout |
 | T215 | **SKIP** | No 200 in 60s — FM-2 prevents all new fetches |
 | T216 | **PASS** | 10-min soak, 20 polls, 5× -1, count always 20, subView always heatmap |
-| T217 | **SKIP** | Test bug: `[I][hb]` log format not matched by `"hb:"` pattern (fixed in harness) |
+| T217 | **SKIP — still outstanding 2026-09-06** | Test bug: `[I][hb]` log format not matched by `"hb:"` pattern (fixed in harness). **The re-run has never been recorded.** Owner @VE, due 2026-09-20, TASK-653 |
 | T218 | **PASS** | -1 at t+118s; count=20 at t+30s after (guards prevent data loss, no actual drop) |
 
 ---
@@ -92,15 +96,38 @@ Per TASK-130 spec: *"T214–T218 all pass or each failing test has a filed bug t
 - T218 PASS ✓
 - FM-2 filed as TASK-131 (BUG-001) ✓
 
-**Exit criterion met.** One re-run of T217 required after pattern fix.
+~~**Exit criterion met.** One re-run of T217 required after pattern fix.~~
 
-> **2026-09-06 — TASK-587 sweep.** Read this "met" narrowly. The criterion is a disjunction ("all
-> pass **or** each failing test has a filed bug task"), and two of the five ids did not run: T215 is
-> SKIP behind FM-2 (filed, so the disjunction covers it) and **T217 is SKIP because the harness was
-> broken** — a test that could not run is neither a pass nor a filed failure, and the re-run it names
-> is not recorded anywhere as having happened. This is not H-2's defect (no oracle here is blind to
-> its subject); it is a criterion marked met while one of its observations is still outstanding.
-> Owner **@VE**: either evidence the T217 re-run or downgrade this line.
+**DOWNGRADED 2026-09-06 (human ruling, @PM recording).** The correct statement of what the evidence
+supports is:
+
+> **Exit criterion PARTIALLY MET — 3 of 5 ids ran and passed; one outstanding observation.**
+> T214/T216/T218 PASS. T215 SKIPped behind FM-2, which **is** filed (TASK-131), so the criterion's
+> second limb covers it. **T217 SKIPped because the harness was broken** — a pattern bug in
+> `test_heatmap_reliability.py`, not a property of the firmware. A test that could not run is neither
+> a pass nor a filed failure, so it satisfies **neither** limb of the disjunction.
+
+**The outstanding observation, named.** **T217 (heap headroom) has never been run to a verdict.** The
+harness pattern bug was fixed at the time; the re-run this document calls for on 2026-06-03 is not
+recorded as having happened anywhere in `regression_suite/`, `test_plan.md` or the task boards. Until
+it is, the heap-headroom claim rests on a manual monitor reading (`maxAlloc=39k`) taken by eye during
+this session — an informal observation, not a test result. The re-run must also settle the threshold
+question this document raises: 32k is too conservative for the Yahoo TLS minimum, and the review
+proposes 50k.
+
+**Owner: @VE. Due: 2026-09-20.** Tracked as **TASK-653** ([tasks.md](../../project/tasks.md)).
+Close this line by either recording the T217 re-run's verdict here, or retiring T217 through
+[test_id_retirement.md](../../process/test_id_retirement.md) with the reason written down — not by
+restoring the "met" wording.
+
+> **2026-09-06 — TASK-587 sweep** (the finding this downgrade acts on). Read the original "met"
+> narrowly. The criterion is a disjunction ("all pass **or** each failing test has a filed bug
+> task"), and two of the five ids did not run: T215 is SKIP behind FM-2 (filed, so the disjunction
+> covers it) and **T217 is SKIP because the harness was broken** — a test that could not run is
+> neither a pass nor a filed failure, and the re-run it names is not recorded anywhere as having
+> happened. This is not H-2's defect (no oracle here is blind to its subject); it is a criterion
+> marked met while one of its observations is still outstanding.
+> Owner **@VE**: either evidence the T217 re-run or downgrade this line. — **Downgraded, above.**
 
 ---
 
