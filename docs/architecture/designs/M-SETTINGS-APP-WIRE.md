@@ -501,3 +501,91 @@ Consequences: Settings changes take effect on next activation without restart.
   two new configure functions, both protected by the existing spinlock.
   AppSettings struct size increases by ~48 bytes (cryptoCoins field expansion).
 ```
+
+---
+
+## 2026-09-06 — E1–E13 re-cited against `check_settings_wiring.py`
+
+**Ruled by:** the human operator, 2026-09-06, on the oracle sweep's finding **A-1**
+([M-TESTQUAL-oracle-sweep-review.md](../../verification/reviews/M-TESTQUAL-oracle-sweep-review.md)):
+*"Re-cite each criterion against that gate where it genuinely covers the criterion, and downgrade to
+DEFERRED the ones it does not."* Vocabulary is LL-146's — **MET / CITED / ACCEPTED / DEFERRED**.
+Nothing below is re-scored PASS.
+
+### What was wrong with the old citation
+
+The close line read *"T-SET-01..08 PASS on DUT"*. Those eight ids are the **settings-navigation**
+suite of a *different* milestone (M-SETTINGS-STUB, `[settings-001, TASK-141]`,
+`test_plan.md:2573-2725`); their oracles are `get settingsSection`, `get settingsAppSubmenu`,
+`get appId` and `g_previousAppId`. **Not one reads `matrixColor`, `lifeTickMs`, `aquariumFish`, a
+ticker symbol or a currency.** This milestone's own suite, `app-settings-wire-001` (`T222`–`T248`),
+has **all 27 rows `planned`** and **no id in `build_all_tests()`**. That citation is withdrawn.
+
+### The new oracle, and exactly what it asserts
+
+`app/tools/gate/check_settings_wiring.py` (ADR-050 / M-SETTINGS-WIRE2 §6c) runs on **every
+`run/check`**. Measured at ruling time: **58 AppSettings fields, 2 allowlisted, 0 unwired — "OK,
+every field wired"**. Per field it statically asserts three things, and only these three:
+
+1. the field name appears in `SettingsStorage::load()`;
+2. the field name appears in `SettingsStorage::save()`;
+3. **≥ 1 `g_settings.<field>` reference in a file outside `app/src/settings/` and outside
+   `settingsStorage.*`** — i.e. a runtime owner that is not the Settings UI.
+
+It reads no pixel, no colour, no interval, no fish count, no fetched price and no currency, and it
+never reboots anything. It is a static grep over the source tree.
+
+**Per-field consumer resolution for this milestone's ten fields, read at ruling time** — every one
+resolves to the app that owns it, which is the part of the claim the gate does settle:
+
+| field | consumer the gate resolves | field | consumer the gate resolves |
+|---|---|---|---|
+| `matrixColor` | `apps/matrixApp.cpp` | `aquariumSpeed` | `aquarium/aquariumApp.cpp` |
+| `matrixSpeed` | `apps/matrixApp.cpp` | `stockTickers` | `stock/stockApp.cpp` |
+| `lifeSpeed` | `apps/lifeApp.cpp` | `stockMode` | `stock/stockApp.cpp` |
+| `lifeColors` | `apps/lifeApp.cpp` | `cryptoCoins` | `apps/cryptoApp.cpp` |
+| `aquariumFish` | `aquarium/aquariumApp.cpp` | `cryptoCcy` | `apps/cryptoApp.cpp` |
+
+### The re-citation, criterion by criterion
+
+**Result: 2 of 13 CITED, 11 DEFERRED.**
+
+| # | criterion, in its own words | disposition |
+|---|---|---|
+| E1 | Matrix color: three values **render correctly** | **DEFERRED** — subject is a rendered colour. The gate proves `matrixColor` is persisted and read by `matrixApp.cpp`; it cannot see the screen |
+| E2 | Matrix speed: **visually distinct** speeds | **DEFERRED** — subject is an animation rate. Needs a firmware tick/frame counter, exactly as M-CLOCK-STYLES C7 does; `get sig` alone cannot settle an interval |
+| E3 | Life speed: **visually distinct** generation rates | **DEFERRED** — same shape as E2 |
+| E4 | Life colors: mono single-colour cells; rainbow unchanged | **DEFERRED** — a two-colour claim; ADR-064 `get sig` `distinctColors` territory |
+| E5 | Aquarium 4 → **≈4 fish active**; takes effect on next activation | **DEFERRED** — a count of on-screen entities *and* a `resume()`-timing claim. The gate checks neither; it does not know `resume()` from `init()` |
+| E6 | Aquarium speed: **visually distinct** swim speeds | **DEFERRED** — same shape as E2 |
+| E7 | Ticker 1 → TSLA: StockApp **shows** TSLA and **fetches fresh price immediately** | **DEFERRED** — a render *and* a network behaviour. `stockTickers` reaching `stockApp.cpp` is not either of them |
+| E8 | **Restart** with `stockMode=chart` → opens in chart | **DEFERRED** — a reboot claim. Nothing in the gate reboots |
+| E9 | Coin 1 → dogecoin: CryptoApp shows DOGE with live price | **DEFERRED** — and see the scope note below |
+| E10 | Currency → EUR: prices **fetched and displayed** in EUR | **DEFERRED** — and see the scope note below |
+| E11 | All other settings (LED, display, time, WiFi) **unaffected** | **CITED**, scoped — the gate re-asserts load/save/consumer for all 58 fields on every `run/check`, so a wiring regression in the LED (`ledMode/ledHue/ledSat/ledVal`), display (`dispAuto/dispLevel/ldrLow/ldrHigh`) or time (`posixTz/city/lat/lon/fmt24h/dateFmt`) groups fails the build gate. **Two honest limits:** WiFi credentials are **not** AppSettings fields (NVS + SPIFFS `/wifi_creds.json`), so the WiFi leg is outside the gate's corpus entirely; and "unaffected" in the *behavioural* sense is not covered — only in the wiring sense |
+| E12 | Cancel/restore: change Matrix colour, tap Cancel → colour reverts | **DEFERRED** — the snapshot/restore path is not in the gate in any form. (M-SETTINGS-001 records *"Cancel button + snapshot-restore: 7/7 serial tests PASS"*; that is a different milestone's evidence about the generic path, not about `matrixColor`, and is **not** claimed here) |
+| E13 | Settings **survive restart**: all per-app settings loaded correctly from SPIFFS | **CITED**, scoped — assertions (1)+(2) are exactly *"no field is dropped from the SPIFFS round trip"*, checked mechanically over all 58 fields on every `run/check`. **The limit:** the gate does not reboot and does not compare a value, so "loaded **correctly**" — value fidelity across an actual power cycle — is not covered |
+
+### What this ruling changes, and what it does not
+
+It turns an **unverified** claim into a **verified** one for E11 and E13, at a stated and narrower
+scope than the criteria's own words, and it replaces a citation of another milestone's suite with a
+citation of a gate that runs continuously. It does **not** make any of the eleven DEFERRED criteria
+met, and none of the thirteen may be re-recorded PASS on the strength of it. Owner of the eleven:
+**TASK-656**.
+
+### Two things found while re-citing, which the sweep did not state
+
+1. **The sweep's sharpest sentence is now false.** It wrote: *"A build in which no per-app setting
+   is wired at all passes all eight [T-SET ids]."* True of the T-SET suite — but such a build has
+   **failed `run/check`** since `check_settings_wiring.py` was wired in: all ten fields would lose
+   their consumer and the gate would report them unwired. The wiring half of this milestone has in
+   fact been continuously guarded; it was the *observation* of behaviour that was never done. That
+   distinction is why eleven criteria are DEFERRED rather than the whole milestone re-opened.
+2. **E9/E10 are outside the milestone's own declared scope.** `roadmap.md`'s entry says *"Crypto
+   deferred (coin symbol→CoinGeckoId mapping + dynamic URL required; separate milestone
+   M-SETTINGS-CRYPTO)"* — yet E9 and E10 are stated criteria of this design and the milestone closed
+   over them. `cryptoCoins`/`cryptoCcy` do resolve to `apps/cryptoApp.cpp` today, so something was
+   wired; by whom and under which milestone is not recorded. `M-SETTINGS-CRYPTO` appears **nowhere**
+   in `roadmap.md` except in that parenthesis — it was never filed. Flagged to @PM; not resolved
+   here, because deciding which milestone owns E9/E10 is a scoping ruling, not a citation fix.

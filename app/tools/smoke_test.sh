@@ -128,6 +128,17 @@ if ! "$PYTHON" test_run_artifact.py; then
     exit 1
 fi
 
+# 4f1a. the M-DATATASK-PROGRESS oracle's negatives — TASK-657 / BP-068.
+# T_DTP_01/02 + T_WX_06/T_CX_06 are the first ids that ASSERT the four progress
+# atoms, and their adjudicator is a pure function, so it can be broken on the
+# host. Six deliberate mutations were run against it; the domain arm escaped the
+# first version of this suite (the fixture computed the answer it was checking),
+# which is why N2b drives the real observer. Host-only, no DUT, ~0.1 s.
+if ! "$PYTHON" test_progress_atoms.py; then
+    echo "FAIL: test_progress_atoms.py (TASK-657 progress-atom oracle) FAILED" >&2
+    exit 1
+fi
+
 # 4f2. the comparator's own negative tests — TASK-573, extended by TASK-624.
 # `run/player-gate --selftest` has existed since TASK-573 and was gated by
 # NOTHING, which is how a gate acquires an inversion nobody sees: the FLAKY-PASS

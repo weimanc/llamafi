@@ -358,6 +358,117 @@ def _reject_sentinel_baseline(value) -> None:
 _CHART_PHASE_NAMES = {0: "TLS/connect", 1: "GET/response", 2: "JSON-parse"}
 
 
+# ── M-DATATASK-PROGRESS atoms: the observer the milestone never had ───────────
+#
+# TASK-657 (oracle sweep A-6). M-DATATASK-PROGRESS exists to add four volatile
+# progress atoms; it closed citing T170/T_WX_05/T_CX_05, none of which asserts
+# one. T170 reads `stockQuoteProgress` every poll and only ever USES it on the
+# failure branches to enrich a message — so a T170 PASS is precisely the outcome
+# in which the atom's value was never checked. This helper is the missing
+# oracle, and it is deliberately cheap: no new firmware, no new `get` key.
+#
+# WHAT IT ASSERTS, and why that and not more. An atom's whole contract is:
+# it sits at the sentinel -1 when idle, takes a value inside a documented
+# domain while a fetch is in flight, and returns to -1. That is three
+# observations, all available over the existing console. It does NOT assert
+# that a particular phase is reached — phase 2 (parse) is sub-second on a small
+# body and a Core-1 poller can legitimately miss it, so requiring it would ship
+# a flake. "Left the sentinel at least once, never outside the domain, came
+# back" is the strongest claim that is also stable.
+#
+# SAMPLING. Polls as fast as the console answers, with no sleep: the TLS and
+# GET phases are seconds long, so a tight loop cannot plausibly miss BOTH. The
+# poll count is returned so a zero-observation result can be told apart from a
+# result that never got to look.
+
+#: atom -> (lo, hi) inclusive, from `app/src/dataTask.h:339-344` and the
+#: `httpFetchJsonBuffered` phase writes (`dataTaskStorage.cpp:313-336`).
+#: -1 is the sentinel in every case and is NOT part of the domain.
+_PROGRESS_ATOM_DOMAIN = {
+    "stockQuoteProgress": (0, 7),
+    "weatherFetchPhase":  (0, 2),
+    "cryptoFetchPhase":   (0, 2),
+    "stockChartProgress": (0, 2),
+}
+
+
+def _observe_progress_atom(dut: Dut, var: str, done, *, timeout_s: float,
+                           test_id: str = "") -> dict:
+    """Poll a dataTask progress atom across one fetch. Never a verdict itself.
+
+    `done()` is the caller's completion oracle (a counter advancing, a `*Ready`
+    flag) — the atom is what is under test, so it must never also be the thing
+    that says the fetch finished.
+
+    Returns a dict: `polls`, `seen` (sorted distinct values, sentinel included),
+    `nonsentinel` (sorted distinct values != -1), `bad` (values outside the
+    documented domain and not the sentinel), `completed`, `returned_idle`.
+    """
+    lo, hi = _PROGRESS_ATOM_DOMAIN[var]
+    prefix = f"[{test_id}] " if test_id else ""
+    seen: set = set()
+    polls = 0
+    completed = False
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            seen.add(dut.get_int(var, timeout=3.0))
+            polls += 1
+        except (TimeoutError, NoAnswer):
+            # An unanswered read inside a bounded loop is not a verdict; the
+            # deadline is. BadField is deliberately NOT caught — a renamed or
+            # wrong-typed atom is exactly the defect this id exists to catch.
+            time.sleep(0.2)
+            continue
+        if done():
+            completed = True
+            break
+    # The atom must come back to idle. Give it a bounded moment: `done()` can
+    # fire on the counter the parse callback bumps, a few instructions before
+    # `*phaseSlot = -1` on the same core.
+    returned_idle = False
+    idle_deadline = time.monotonic() + 5.0
+    while completed and time.monotonic() < idle_deadline:
+        try:
+            if dut.get_int(var, timeout=3.0) == -1:
+                returned_idle = True
+                break
+        except (TimeoutError, NoAnswer):
+            pass
+        time.sleep(0.3)
+    nonsentinel = sorted(v for v in seen if v != -1)
+    bad = sorted(v for v in nonsentinel if not (lo <= v <= hi))
+    print(f"  {prefix}{var}: {polls} polls, saw {sorted(seen)}, "
+          f"domain [{lo},{hi}], completed={completed}, idle_after={returned_idle}",
+          flush=True)
+    return {"polls": polls, "seen": sorted(seen), "nonsentinel": nonsentinel,
+            "bad": bad, "completed": completed, "returned_idle": returned_idle}
+
+
+def _progress_atom_verdict(var: str, obs: dict) -> tuple:
+    """-> (outcome, message) where outcome is 'pass' | 'fail' | 'unmet'.
+
+    Split out from the test bodies so all four ids adjudicate identically and
+    the rule is readable in one place rather than four."""
+    if not obs["completed"]:
+        return ("unmet", f"no fetch completed inside the window — {var} was polled "
+                         f"{obs['polls']}x and saw {obs['seen']}; the premise (a fetch "
+                         f"to observe) did not hold, so this id has no verdict")
+    if obs["bad"]:
+        return ("fail", f"{var} took {obs['bad']} — outside its documented domain "
+                        f"{_PROGRESS_ATOM_DOMAIN[var]} and not the -1 sentinel")
+    if not obs["nonsentinel"]:
+        return ("fail", f"{var} never left the -1 sentinel across a completed fetch "
+                        f"({obs['polls']} polls) — the atom M-DATATASK-PROGRESS "
+                        f"exists to provide is not being written")
+    if not obs["returned_idle"]:
+        return ("fail", f"{var} reached {obs['nonsentinel']} but did not return to -1 "
+                        f"within 5 s of completion — a stuck atom reports a fetch that "
+                        f"is not running")
+    return ("pass", f"{var} left the sentinel (saw {obs['nonsentinel']}), stayed inside "
+                    f"{_PROGRESS_ATOM_DOMAIN[var]}, and returned to -1")
+
+
 def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
                          test_id: str = "") -> bool:
     """Wait until fetchOkCount advances past `before` — proves a chart fetch completed

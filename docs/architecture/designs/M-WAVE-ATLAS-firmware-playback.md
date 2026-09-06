@@ -195,7 +195,11 @@ flags (to be added to `bake_wave.py`). Cross-fade is not implemented in firmware
 | TASK-053a | Firmware: `VIS_WAVE_ATLAS` enum + `waveAtlasFrameRef()` + `nextMode()` update | Developer |
 | TASK-053b | Firmware: `tickWaveAtlas()` in `vuMeter.h` + dispatch in `tick()` | Developer |
 | TASK-053c | Flash budget check: measure `.elf` after TASK-053b; confirm ≤ 40 KB remaining headroom | Developer |
-| TASK-053d | VE: visual regression — Atlas / VU / Blank modes pixel-identical to pre-053 baseline; WaveAtlas displays correctly on DUT | VE |
+| ~~TASK-053d~~ | VE: visual regression — Atlas / VU / Blank modes pixel-identical to pre-053 baseline; WaveAtlas displays correctly on DUT | VE |
+
+**`TASK-053d` never existed as this milestone's task (noted 2026-09-06).** The `TASK-053a`–`f` range
+was already M-CONN's when this table allocated it; the work was filed as `TASK-055a`–`d`, all four
+Developer, and **this VE row was never filed under any id**. See the last section.
 
 Recommended order: TASK-053a → TASK-053b (can be one commit) → TASK-053c → TASK-053d.
 
@@ -208,5 +212,50 @@ Recommended order: TASK-053a → TASK-053b (can be one commit) → TASK-053c →
 - WaveAtlas mode displays white waveform animating at 20 fps in the 76×16 vis area.
 - No left-edge spike artefact (prevY initialised from `row[0]`).
 - No right-edge artefact (propagate-left fallback already baked into atlas data).
-- Atlas, VU, Blank modes: pixel output unchanged from pre-053 baseline (VE TASK-053d).
+- Atlas, VU, Blank modes: pixel output unchanged from pre-053 baseline (~~VE TASK-053d~~ —
+  **citation withdrawn 2026-09-06**; `TASK-053d` is *"M-CONN: `spotifyTask::resetTls()`"*
+  (`tasks-archive.md:2645`), a different milestone. **No VE task for this milestone exists.**
+  See the ruling in the last section).
 - Synthetic `tickWave()` remains in codebase; removed from tap cycle.
+
+---
+
+## 2026-09-06 — human ruling: the visual criteria are ACCEPTED, and the citation is withdrawn
+
+**Ruled by:** the human operator, 2026-09-06, on the oracle sweep's finding **A-3**
+([M-TESTQUAL-oracle-sweep-review.md](../../verification/reviews/M-TESTQUAL-oracle-sweep-review.md)).
+Recorded in the shape the 2026-09-06 M-CLOCK-STYLES ruling established.
+
+**The citation was the defect — and it is an id collision, which the sweep did not see.**
+*"Atlas, VU, Blank modes: pixel output unchanged from pre-053 baseline (VE TASK-053d)"* read as
+though a VE task had observed it. In the **task board**, `TASK-053d` is **"M-CONN:
+`spotifyTask::resetTls()`"** (`tasks-archive.md:2645`) — a TLS-reset implementation task in a
+different milestone, with no vis, no atlas and no pixel content.
+
+The sweep concluded from this that "no VE task for this milestone exists". That is the right
+conclusion by the wrong route. **§6 of this very document allocates its own `TASK-053d`**
+(`:198`) — *"VE: visual regression — Atlas / VU / Blank modes pixel-identical to pre-053 baseline;
+WaveAtlas displays correctly on DUT"*, owner VE. The `TASK-053a`–`f` range was **already in use by
+M-CONN** when this design allocated `TASK-053a`–`d` for itself. When the work was actually filed it
+was filed as `TASK-055a`–`d` (`tasks-archive.md:2580-2617`) — **four Developer tasks and no VE
+task**: enum + `nextMode()`, `tickWaveAtlas()`, flash-budget verify, the frozen lead-in fix.
+
+So the VE leg was designed, lost its id to a collision, and was **never filed under any id**. The
+citation is struck above; a wrong citation that reads as evidence is worse than no citation, which
+is what the record actually holds. §6's `TASK-053d` row is a design-time allocation that never
+became a board row and must not be quoted as one.
+
+**The evidence, stated exactly.** For the pixel-unchanged criterion and its three visual neighbours
+(*"white waveform animating at 20 fps"*, *"no left-edge spike artefact"*, *"no right-edge
+artefact"*): **nothing.** No capture, no baseline, no recorded observation, no VE run. The
+roadmap's *"DUT-verified"* refers to the milestone being exercised on hardware, not to any of these
+four claims being measured.
+
+**Disposition: ACCEPTED.** The milestone is not re-opened and no work is scheduled. **This is an
+accepted risk, not a satisfied criterion.** None of the four may be re-recorded PASS on the strength
+of this ruling.
+
+**What would settle it, if anyone later wants it met.** ADR-064's `get sig` differential over the
+vis region in each of the three untouched modes — `sig(before) == sig(after)`, quiescent at both
+ends via `get idle`, region from the generated layout (D7), never typed. That is the exact shape
+M-PLANERADAR criterion 1 was re-opened onto.

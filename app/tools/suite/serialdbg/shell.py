@@ -37,7 +37,7 @@ import json
 import pathlib
 import time
 
-from lib.dut import Dut
+from lib.dut import Dut, NoAnswer
 from lib.results import pass_, fail, skip, unmet, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -51,6 +51,7 @@ from suite.serialdbg._helpers import (
     _bgpoll_suspended, _poll_shell_busy, _get_vis_mode,
     _switch_to_stock, _restore_from_stock, _stock_get, _stock_ok_count,
     _wait_chart_complete, _drain_data_pipeline, _CHART_PHASE_NAMES,
+    _observe_progress_atom, _progress_atom_verdict,
 )
 from suite.serialdbg.webradio import _switch_to_webradio_capture_heap
 
@@ -1653,6 +1654,48 @@ def t_wx_05(dut: Dut):
     pass_("T_WX_05", "weatherReady=true — WeatherApp received live data from dataTask")
 
 
+# ── T_WX_07 — weatherFetchPhase atom is actually written ─────────────────────
+#
+# TASK-657 (oracle sweep A-6). M-DATATASK-PROGRESS Phase 2 delivered
+# `weatherFetchPhase`; before this id the whole suite read it at exactly one
+# site — T_WX_05's FAILURE branch above, to enrich a message — so a green run
+# was precisely the run in which it was never checked. See
+# `_helpers._observe_progress_atom` for what this asserts and why not more.
+#
+# NEVER RUN ON HARDWARE (2026-09-06): written host-side with no DUT available;
+# owes its first hardware run, same shape as TASK-645's `get boardId`.
+
+def t_wx_07(dut: Dut):
+    """T_WX_07: weatherFetchPhase leaves its -1 sentinel across a weather fetch,
+    stays inside 0..2, and returns to -1."""
+    print("T_WX_07  weatherFetchPhase atom is written during a weather fetch")
+    if not _switch_to(dut, "Weather"):
+        unmet("T_WX_07", "could not switch to Weather — no fetch to observe")
+        _restore_spotify(dut)
+        return
+    obs = _observe_progress_atom(
+        dut, "weatherFetchPhase", lambda: _ready_flag(dut, "weatherReady"),
+        timeout_s=30.0, test_id="T_WX_07")
+    _restore_spotify(dut)
+    outcome, msg = _progress_atom_verdict("weatherFetchPhase", obs)
+    if outcome == "unmet":
+        unmet("T_WX_07", msg)
+    elif outcome == "fail":
+        fail("T_WX_07", msg)
+    else:
+        pass_("T_WX_07", msg)
+
+
+def _ready_flag(dut: Dut, var: str) -> bool:
+    """Completion oracle for T_WX_07/T_CX_07 — deliberately NOT the atom under
+    test. `weatherReady`/`cryptoReady` answer in a `ready` field, not `val`."""
+    try:
+        r = dut.cmd(f"get {var}", timeout=3.0)
+    except (TimeoutError, NoAnswer):
+        return False
+    return bool(r.get("ok")) and r.get("ready") is True
+
+
 # ── T_CX_01 — CryptoApp switch round-trip ────────────────────────────────────
 
 def t_cx_01(dut: Dut):
@@ -1784,6 +1827,36 @@ def t_cx_05(dut: Dut):
         return
     _restore_spotify(dut)
     pass_("T_CX_05", "cryptoReady=true — CryptoApp received live data from dataTask")
+
+
+# ── T_CX_07 — cryptoFetchPhase atom is actually written ──────────────────────
+#
+# TASK-657 (oracle sweep A-6). `cryptoFetchPhase` was read at ZERO sites in the
+# suite before this id — a grep of the whole tree found none. It is the atom
+# M-DATATASK-PROGRESS Phase 2 exists to add, and nothing ever looked at it.
+#
+# NEVER RUN ON HARDWARE (2026-09-06): written host-side with no DUT available;
+# owes its first hardware run, same shape as TASK-645's `get boardId`.
+
+def t_cx_07(dut: Dut):
+    """T_CX_07: cryptoFetchPhase leaves its -1 sentinel across a crypto fetch,
+    stays inside 0..2, and returns to -1."""
+    print("T_CX_07  cryptoFetchPhase atom is written during a crypto fetch")
+    if not _switch_to(dut, "Crypto"):
+        unmet("T_CX_07", "could not switch to Crypto — no fetch to observe")
+        _restore_spotify(dut)
+        return
+    obs = _observe_progress_atom(
+        dut, "cryptoFetchPhase", lambda: _ready_flag(dut, "cryptoReady"),
+        timeout_s=30.0, test_id="T_CX_07")
+    _restore_spotify(dut)
+    outcome, msg = _progress_atom_verdict("cryptoFetchPhase", obs)
+    if outcome == "unmet":
+        unmet("T_CX_07", msg)
+    elif outcome == "fail":
+        fail("T_CX_07", msg)
+    else:
+        pass_("T_CX_07", msg)
 
 
 # ── T_X07_01 — dataTask cross-feature: rapid Weather↔Crypto switching ────────
@@ -3854,12 +3927,14 @@ TESTS = {
     "T_WX_03": t_wx_03,
     "T_WX_04": t_wx_04,
     "T_WX_05": t_wx_05,
+    "T_WX_07": t_wx_07,
     # crypto-001
     "T_CX_01": t_cx_01,
     "T_CX_02": t_cx_02,
     "T_CX_03": t_cx_03,
     "T_CX_04": t_cx_04,
     "T_CX_05": t_cx_05,
+    "T_CX_07": t_cx_07,
     # cross-feature X007
     "T_X07_01": t_x07_01,
     # M-TOUCH-UX (TASK-118)

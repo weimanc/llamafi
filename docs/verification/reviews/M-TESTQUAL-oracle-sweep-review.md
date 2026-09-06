@@ -571,3 +571,53 @@ vocabulary, for the human to rule on as the last five were.
 outstanding observations named in A-2, A-5, B-2).
 
 **Owner of this document:** @VE. **Date:** 2026-09-06.
+
+---
+
+## 8. Rulings applied — 2026-09-06
+
+The human ruled on all ten. Applied the same day by @PM with @VE; **nothing committed by that
+session, nothing re-scored PASS**. Where each ruling landed:
+
+| finding | ruling | where it landed |
+|---|---|---|
+| A-1 | **re-cite** against `check_settings_wiring.py` | `M-SETTINGS-APP-WIRE.md` last section + `roadmap.md`. **2 of 13 CITED** (E11, E13, at a stated narrower scope), **11 DEFERRED** — TASK-656 |
+| A-2 | **ACCEPTED** | `M-TELETEXT.md` last section + `roadmap.md`; the *"VE suite T249 ready-to-run"* clause struck |
+| A-3 | **ACCEPTED**, citation corrected | `M-WAVE-ATLAS-firmware-playback.md` §6 + last section + `roadmap.md` |
+| A-4 | **ACCEPTED** per the M-CLOCK-THEMES precedent | `M-VIS-ATLAS-vis-atlas.md` last section + `roadmap.md` |
+| A-5 | bookkeeping | `roadmap.md` + `tasks-archive.md` TASK-104 — TASK-654 |
+| A-6 | **fix** — one assertion per atom | `T_DTP_01`/`T_DTP_02` (stock.py), `T_WX_07`/`T_CX_07` (shell.py), adjudicator + observer in `_helpers.py`, host negatives `test_progress_atoms.py` (`run/check` gate 3). **All four DUT-unverified** — TASK-657 |
+| A-7 | correct to 6/8 + defer | `roadmap.md` — TASK-658 |
+| B-1 | bookkeeping | `roadmap.md`: `13/13` -> `12/13 + 1 ACCEPTED` |
+| B-2 | owner + date | `roadmap.md`: TASK-655, @VE, due 2026-09-20 |
+| B-3 | bookkeeping | `roadmap.md`: header + the four bullets marked `(DEFERRED n)` |
+
+### Three places the record differed from this document, found while applying it
+
+Recorded here because a sweep is evidence, not scripture, and the next reader should not inherit
+these three.
+
+1. **A-5 is worse than stated, and the table's first row is wrong.** §2 A-5 records `T155` as
+   "PASS-bearing" and counts 5 of 7 unverdicted. Re-read at ruling time, `test_plan.md:1557`'s status
+   line is `written (2026-05-25)` like the other five. It is **7 of 7 with no verdict**, not 5.
+2. **A-3's "no VE task exists" is right by the wrong route — it is an id collision.**
+   `M-WAVE-ATLAS-firmware-playback.md:198` allocates its *own* `TASK-053d` ("VE: visual regression …
+   pixel-identical"). The `TASK-053a`–`f` range was already M-CONN's; the work landed as
+   `TASK-055a`–`d`, all Developer, and the VE row was never filed under any id. §4's third filter
+   ("the citation does not resolve to the right document at all") is real, but the mechanism is
+   **two milestones allocating the same id independently**, which is a different and more findable
+   defect than a typo.
+3. **A-1's sharpest sentence is now false.** *"A build in which no per-app setting is wired at all
+   passes all eight"* is true of the T-SET suite and false of the tree: such a build has failed
+   `run/check` since `check_settings_wiring.py` was wired in, because all ten fields would lose their
+   consumer. The wiring half of M-SETTINGS-APP-WIRE has been continuously guarded; it is the
+   *observation of behaviour* that was never done. That distinction is why eleven criteria are
+   DEFERRED rather than the milestone re-opened.
+
+**Two record defects found in passing**, neither a sweep finding, both filed as **TASK-659**:
+`stockQuoteProgress`'s documented `0..7` ticker-index domain (`dataTask.h:339`) is as-built
+unreachable — the eight per-ticker GETs were collapsed into one multi-symbol spark request, so the
+atom is written `0` once and `-1` once (`dataTaskStorage.cpp:471`, `:523`) and is a busy flag;
+`feature_inventory.yaml:704`'s *"quote for all 8 tickers sequentially"* carries the same stale claim.
+And `M-SETTINGS-CRYPTO`, the milestone A-1's E9/E10 were deferred to, appears nowhere in
+`roadmap.md` except the parenthesis deferring to it — it was never filed.

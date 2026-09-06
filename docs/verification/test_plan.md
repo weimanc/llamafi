@@ -1236,7 +1236,8 @@ T_MA_04–T_MA_05 are manual visual / physical-touch checks.
 
 ## Suite: weather-001 — WeatherApp (TASK-099)
 
-**DUT required** — T_WX_01–T_WX_05 automated. T_WX_06 manual visual.
+**DUT required** — T_WX_01–T_WX_05 and T_WX_07 automated. T_WX_06 manual visual.
+T_WX_07 is DUT-unverified (TASK-657, 2026-09-06) — written, never run.
 T_WX_05 requires network access to `api.open-meteo.com` (or current `host_overrides.json`).
 
 ### T_WX_01 — [weather-001] WeatherApp switch round-trip
@@ -1307,11 +1308,27 @@ T_WX_05 requires network access to `api.open-meteo.com` (or current `host_overri
 - **Expected result**: 4 panels across 2 rows, each filling its quadrant.
 - **Status**: planned (manual — pixel coverage not automatable via serialdbg).
 
+### T_WX_07 — [weather-001, dataTask] `weatherFetchPhase` leaves its sentinel across a fetch
+
+- **Type**: integration (DUT, network)
+- **Feature(s)**: weather-001, dataTask
+- **Objective**: The M-DATATASK-PROGRESS Phase 2 atom is actually written. Assert `weatherFetchPhase` leaves the `-1` sentinel at least once during a weather fetch, never takes a value outside its documented domain `0..2` (`dataTask.h:340`), and returns to `-1` after the fetch completes.
+- **Rationale**: Filed by the oracle sweep, finding A-6 (TASK-657). The milestone closed citing `T_WX_05`, whose assertion is *"`weatherReady` becomes true within 30 s"* — it does not read this atom at all except on its own failure branch, so a green run is precisely the run in which the atom was never checked.
+- **Preconditions**: Network access to `api.open-meteo.com`. Completion is decided by `get weatherReady`, deliberately **not** by the atom under test.
+- **Steps**:
+  1. `switchApp` to Weather.
+  2. Poll `get weatherFetchPhase` as fast as the console answers, until `get weatherReady` reports ready or 30 s elapse.
+  3. After completion, poll up to 5 s for the atom to read `-1`.
+- **Expected result**: at least one sampled value != `-1`; every sampled non-sentinel value in `0..2`; final value `-1`. A window in which no fetch completed is **UNMET**, not FAIL — the premise did not hold.
+- **Harness**: `run/test-targeted T_WX_07`. Body: `app/tools/suite/serialdbg/shell.py`; adjudicator `_helpers._progress_atom_verdict`; host negatives `app/tools/test_progress_atoms.py` (BP-068, in `run/check` gate 3). Owner: VE.
+- **Status**: **written (2026-09-06) — DUT-UNVERIFIED, owes its first hardware run.** Written host-side with no DUT available. It must not be cited as evidence of anything until that run happens. Same shape as TASK-645's `get boardId`. Owner: **TASK-657**.
+
 ---
 
 ## Suite: crypto-001 — CryptoApp (TASK-100)
 
-**DUT required** — T_CX_01–T_CX_05 automated. T_CX_06 manual visual.
+**DUT required** — T_CX_01–T_CX_05 and T_CX_07 automated. T_CX_06 manual visual.
+T_CX_07 is DUT-unverified (TASK-657, 2026-09-06) — written, never run.
 T_CX_05 requires network access to `api.coingecko.com` (or current `host_overrides.json`).
 
 ### T_CX_01 — [crypto-001] CryptoApp switch round-trip
@@ -1370,6 +1387,18 @@ T_CX_05 requires network access to `api.coingecko.com` (or current `host_overrid
   1. Switch to Crypto. Wait for data fetch.
   2. Verify header "CRYPTO TERMINAL" visible near top. Verify 6 coin rows with prices/changes visible, last row reaching near bottom of screen.
 - **Status**: planned (manual).
+
+### T_CX_07 — [crypto-001, dataTask] `cryptoFetchPhase` leaves its sentinel across a fetch
+
+- **Type**: integration (DUT, network)
+- **Feature(s)**: crypto-001, dataTask
+- **Objective**: As `T_WX_07`, for `cryptoFetchPhase` (domain `0..2`, `dataTask.h:340`).
+- **Rationale**: Oracle sweep A-6 (TASK-657). Before this id, `cryptoFetchPhase` was read at **zero** sites in the whole suite tree — it is the atom M-DATATASK-PROGRESS Phase 2 exists to add, and nothing ever looked at it.
+- **Preconditions**: Network access to `api.coingecko.com`. Completion decided by `get cryptoReady`, deliberately **not** by the atom under test.
+- **Steps**: Same pattern as `T_WX_07`, with `get cryptoFetchPhase` / `get cryptoReady` and the Crypto slot.
+- **Expected result**: as `T_WX_07`.
+- **Harness**: `run/test-targeted T_CX_07`. Body: `app/tools/suite/serialdbg/shell.py`. Owner: VE.
+- **Status**: **written (2026-09-06) — DUT-UNVERIFIED, owes its first hardware run.** Owner: **TASK-657**.
 
 ---
 
@@ -1815,6 +1844,29 @@ Common preconditions for all DUT tests below:
 - **Expected result**: `lastQuoteFetch > 0` immediately after `init()` (timestamp set before fetch returns).
 - **Harness**: `run_serialdbg_tests.py --tests T170`. SKIP if already fetched. Owner: VE.
 - **Status**: written (2026-05-29).
+
+### T_DTP_01 — [stock-001, dataTask] `stockQuoteProgress` leaves its sentinel across a quote fetch
+
+- **Type**: integration (DUT, network)
+- **Feature(s)**: stock-001, dataTask
+- **Objective**: The M-DATATASK-PROGRESS **Phase 1** atom is actually asserted. `stockQuoteProgress` leaves `-1` during a quote fetch, stays inside its documented domain `0..7` (`dataTask.h:339`), and returns to `-1`.
+- **Rationale**: Oracle sweep A-6 (TASK-657). `T170` reads this atom every poll iteration and only ever **uses** it on its failure branches to enrich a message; a `T170` PASS is reached purely via `quoteOkCount` advancing. That is the exact outcome in which the atom's value was never checked.
+- **Preconditions**: Network access to the Yahoo spark endpoint. Completion decided by `quoteOkCount` advancing, deliberately **not** by the atom under test.
+- **Expected result**: at least one sampled value != `-1`; every non-sentinel sample in `0..7`; final value `-1`. No fetch inside the window is **UNMET**.
+- **As-built note (2026-09-06, unruled)**: the firmware writes `s_stockQuoteProgress = 0` once at the top of the spark fetch and `-1` at the bottom (`dataTaskStorage.cpp:471`, `:523`). The per-ticker loop the documented `0..7` ticker-index domain describes **no longer exists** — the eight per-ticker GETs were collapsed into one multi-symbol request — so the atom is as-built a busy flag. `{0}` is inside `0..7`, so this id passes on a correct build; the divergence is a documentation defect filed for @Architect, not a reason to weaken the assertion.
+- **Harness**: `run/test-targeted T_DTP_01`. Body: `app/tools/suite/serialdbg/stock.py`. Owner: VE.
+- **Status**: **written (2026-09-06) — DUT-UNVERIFIED, owes its first hardware run.** Owner: **TASK-657**.
+
+### T_DTP_02 — [stock-002, dataTask] `stockChartProgress` leaves its sentinel across a chart fetch
+
+- **Type**: integration (DUT, network)
+- **Feature(s)**: stock-002, dataTask
+- **Objective**: As `T_DTP_01`, for `stockChartProgress` (domain `0..2`).
+- **Rationale**: Oracle sweep A-6 (TASK-657). The atom is read by `_wait_chart_complete` only to print a diagnostic on timeout — never asserted.
+- **Preconditions**: `set bgPoll 0` and a drained fetch pipeline first (same contention reasoning as `T176`), then drill into AAPL to drive a chart fetch. Completion decided by `fetchOkCount` advancing, deliberately **not** by the atom under test.
+- **Expected result**: as `T_DTP_01`, domain `0..2`.
+- **Harness**: `run/test-targeted T_DTP_02`. Body: `app/tools/suite/serialdbg/stock.py`. Owner: VE.
+- **Status**: **written (2026-09-06) — DUT-UNVERIFIED, owes its first hardware run.** Owner: **TASK-657**.
 
 ### T171 — [stock-001] Colour coding
 

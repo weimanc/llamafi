@@ -268,6 +268,22 @@ EDGE_ADJUDICATION = {
              "for this precondition and skips at 200 s rather than establishing "
              "it, which is a readiness-flag SKIP (WP-B `B-4`), not a dismissal. "
              "Still not a re-grading of T176's oracle. See the comment above."),
+    "T_DTP_02": ("ORDER-SENSITIVE",
+                 "Filed 2026-09-06 with the id (TASK-657, oracle sweep A-6). Same "
+                 "shape as T176 above and for the same single reason: it calls "
+                 "`_drain_data_pipeline`, whose quiet test is the absolute read "
+                 "`dut_int(q, \"yieldCount\") == 0`. That line is a PRECONDITION on "
+                 "shared pipeline state which the helper polls until true, not "
+                 "T_DTP_02's assertion — the assertion is that `stockChartProgress` "
+                 "leaves its -1 sentinel across a fetch whose completion is decided "
+                 "by a fetchOkCount DELTA. ORDER-SENSITIVE and not DISMISSED for "
+                 "T176's stated reason: the helper WAITS for the precondition and "
+                 "gives up at 200 s rather than establishing it, which is a "
+                 "readiness SKIP (WP-B `B-4`) — here routed to UNMET rather than "
+                 "SKIP, since a window with no fetch in it is a premise failure, "
+                 "not a configuration statement. Sibling T_DTP_01 is not a "
+                 "candidate: it drives the quote fetch the app's own switch-in "
+                 "enqueues and reads no shared-state precondition."),
     "T163": ("DISMISSED", "expected = (baseline + 1) % N against a baseline read "
                           "immediately before the drag."),
     "T164": ("DISMISSED", "Sets tbScrollOffset=1 itself before measuring."),

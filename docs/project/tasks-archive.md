@@ -146,7 +146,8 @@ VE suite T162–T166 passed (see TASK-106 in archive). Stale-chart bug fixed in 
 
 - `aaf8009` — velocity-scroll-001 suite T155–T161 written.
 - Covers: dead-zone tap, speed scaling, continuous scroll, no-tap on out-of-dead-zone release, seqno cancellation, cmdTick determinism, dbgGet observability.
-- All 7 tests passing.
+- ~~All 7 tests passing.~~ **Corrected 2026-09-06** (oracle sweep A-5, human ruling): the suite was *written*, not run to a verdict. `test_plan.md:1540-1676` records `T155`–`T160` as `written (2026-05-25)` and `T161` as `planned`; `T161` has no body in `build_all_tests()`. **0 of 7 at a verdict.** Owner **TASK-654**.
+- Sweep correction, for the next reader: the sweep's own table (`M-TESTQUAL-oracle-sweep-review.md:201`) called `T155` "PASS-bearing" and counted 5 of 7 unverdicted. Re-read at correction time: `T155` reads `written` like the other five, so it is **7 of 7**, not 5.
 
 ---
 

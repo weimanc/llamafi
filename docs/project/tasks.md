@@ -46,6 +46,22 @@ would settle each, is in
 |---|---|---|---|
 | TASK-653 | P3 | OPEN — @VE · **due 2026-09-20** | T217 (heatmap heap headroom) SKIPped on a harness bug and the re-run was never recorded — TASK-130's exit claim is now **PARTIALLY MET** ([review](../verification/regression_suite/heatmap-reliability-ve-review.md)). Run it to a verdict (32k→50k threshold included) or retire the id with a reason |
 
+## Open — oracle sweep rulings (human, 2026-09-06)
+
+Ten findings of [M-TESTQUAL-oracle-sweep-review.md](../verification/reviews/M-TESTQUAL-oracle-sweep-review.md)
+ruled and applied 2026-09-06. Four were bookkeeping (A-5, B-1, B-2, B-3), three were ACCEPTED in the
+M-CLOCK-STYLES shape (A-2, A-3, A-4), A-1 was re-cited against `check_settings_wiring.py`, A-6 got
+new assertions, A-7 a deferral. **Nothing was re-scored PASS.** These rows carry what is still owed.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-654 | P3 | OPEN — @VE · BLOCKED on TASK-243 | M-LIST-v4 (A-5): run `T155`-`T160` to a verdict — all seven read `written`/`planned`, none ever ran. `T161` needs a body first. The 8 px dead-zone criterion is unsatisfiable as written (as-built is 1 px): rewrite or drop it |
+| TASK-655 | P3 | OPEN — @VE · **due 2026-09-20** | M-TOUCH-CAPTURE (B-2): `T152` scrollbar-strip capture SKIPped 2026-06-05 on queue < 6, never re-run. Seed via `set queue 6` and run to a verdict, or record an explicit ACCEPTED with accepter and date |
+| TASK-656 | P3 | OPEN — @VE · BLOCKED on TASK-638 | M-SETTINGS-APP-WIRE (A-1): the 11 criteria the wiring gate does NOT cover — E1-E10 + E12, all render / animation-rate / entity-count / fetch / reboot subjects. Suite `app-settings-wire-001` (`T222`-`T248`) exists with all 27 rows `planned` |
+| TASK-657 | P2 | OPEN — @VE · needs a DUT window | M-DATATASK-PROGRESS (A-6): `T_DTP_01`/`T_DTP_02`/`T_WX_07`/`T_CX_07` written 2026-09-06 and **never run on hardware**. Run all four to a verdict. Host negatives green — `test_progress_atoms.py`, 6 mutations caught |
+| TASK-658 | P3 | OPEN — @VE · BLOCKED on TASK-638 | M-SETTINGS-STUB (A-7): C3/C4 (`T-SET-04`/`T-SET-05`) deferred to ADR-064 `get sig` — `inkCount == 0` outside the content-panel rect, and `sig(before) == sig(after)` across Spotify→Settings→Spotify. Neither needs a golden |
+| TASK-659 | P3 | OPEN — @Architect | two record defects found while applying the rulings: `stockQuoteProgress`'s documented `0..7` ticker-index domain is as-built unreachable (busy flag only, `dataTaskStorage.cpp:471`/`:523`); and `M-SETTINGS-CRYPTO`, which owns E9/E10, appears nowhere in `roadmap.md` except one parenthesis |
+
 ## Open — M-PR-MOTION (2026-07-18)
 
 Human request: PlaneRadar poll interval as a settings slider (1 s minimum), and interpolation

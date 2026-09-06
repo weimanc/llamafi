@@ -310,3 +310,38 @@ Recommended implementation order: TASK-052a → TASK-052b → TASK-052c (host-si
 - Flash delta for `vis_atlas.c` ≤ 12 KB; actual 3.4 KB ✓ (post trim+boost, confirmed from build).
 - VU / Wave / Blank modes: pixel-identical output to pre-ATLAS baseline on DUT (VE TASK-052f).
 - Spectrum removed from tap cycle (superseded); implementation retained in codebase.
+
+---
+
+## 2026-09-06 — human ruling: "pixel-identical" is ACCEPTED, not met
+
+**Ruled by:** the human operator, 2026-09-06, on the oracle sweep's finding **A-4**
+([M-TESTQUAL-oracle-sweep-review.md](../../verification/reviews/M-TESTQUAL-oracle-sweep-review.md)).
+Recorded **explicitly per the M-CLOCK-THEMES precedent** — the same shape, at a different milestone,
+six weeks earlier — and in the form the 2026-09-06 M-CLOCK-STYLES ruling established.
+
+**The criterion.** *"VU / Wave / Blank modes: **pixel-identical** output to pre-ATLAS baseline on
+DUT (VE TASK-052f)"* (§8 above).
+
+**The evidence, stated exactly.** `TASK-052f`'s recorded notes in full (`tasks-archive.md:2258-2270`):
+*"DUT visual sign-off by user"*, *"Tapped through Atlas → WaveAtlas → VU → Blank → Atlas on
+device"*, *"User: 'looks great'"*, *"VU bars intact; Blank clean skin bg"*. That is a **human
+looking at the screen on 2026-05-17 and being satisfied**. It is:
+
+* **informal** — no procedure and no recorded observation of the criterion's own subject;
+* **unrepeatable** — no capture was kept, and no baseline was ever recorded to compare against, so
+  the comparison the word *pixel-identical* names was **not performed and could not have been**;
+* **not mechanically verified** — no oracle read a pixel, and the oracle that would (ADR-064
+  `get sig`) did not exist in 2026-05 and does not exist on this milestone today.
+
+Unlike M-CLOCK-THEMES, which at least produced eight `screendump` captures for a person to look at,
+this one produced no artifact at all.
+
+**Disposition: ACCEPTED.** The milestone is not re-opened and no work is scheduled. **This is an
+accepted risk, not a satisfied criterion** — it may not be re-recorded PASS on the strength of this
+ruling, and a future reader must not read this section as the criterion having been satisfied.
+
+**What would settle it, if anyone later wants it met.** The same mechanism as A-3: an ADR-064
+`get sig` differential over the vis region in each untouched mode, `sig(before) == sig(after)`,
+quiescent at both ends. Note that `run/screendump` — the route M-CLOCK-THEMES used — has been
+hard-broken at import since TASK-555 (TASK-589), so even the informal route is unavailable today.

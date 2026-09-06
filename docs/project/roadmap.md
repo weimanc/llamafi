@@ -131,7 +131,13 @@ Wire artist name into marquee (`Artist - Title`); restore skin background in VU 
 ### M-VIS — Visualization area
 
 Tap-cycling visualizer replacing fixed VU: Atlas (baked from Winamp screengrab) → WaveAtlas → VU → Blank.
-**Status:** done (2026-05-16/17 — TASK-050a-c + M-VIS-ATLAS TASK-052a-f; tap cycle Atlas→WaveAtlas→VU→Blank; DUT sign-off "looks great"; 52.9% flash)
+**Status:** done (2026-05-16/17 — TASK-050a-c + M-VIS-ATLAS TASK-052a-f; tap cycle Atlas→WaveAtlas→VU→Blank; DUT sign-off "looks great"; 52.9% flash).
+**M-VIS-ATLAS "pixel-identical" criterion: ACCEPTED (human, 2026-09-06), not met** — oracle sweep
+A-4, **explicitly per the M-CLOCK-THEMES precedent**. The evidence was `TASK-052f`: a person looking
+at the screen on 2026-05-17 and saying *"looks great"*. No capture was kept and no baseline was ever
+recorded, so the comparison the word *pixel-identical* names was never performed. An **accepted
+risk, not a satisfied criterion**. Record:
+[M-VIS-ATLAS-vis-atlas.md](../architecture/designs/M-VIS-ATLAS-vis-atlas.md) (last section).
 **Deps:** M6, M-UI-POLISH (TASK-049)
 **Design:** [M-VIS-visualization.md](../architecture/designs/M-VIS-visualization.md) · [M-VIS-ATLAS-vis-atlas.md](../architecture/designs/M-VIS-ATLAS-vis-atlas.md)
 
@@ -141,7 +147,14 @@ Tap-cycling visualizer replacing fixed VU: Atlas (baked from Winamp screengrab) 
 
 Extract per-column waveform Y positions from a Winamp screengrab video into a baked C atlas (`gen/wave_atlas.c`); wire as `VIS_WAVE_ATLAS` in the firmware tap-cycle (Atlas → WaveAtlas → VU → Blank). Freeze-fix applied to lead-in frames.
 
-**Status:** done (2026-05-17 — TASK-053/055a–d; ccc1bde; DUT-verified)
+**Status:** done (2026-05-17 — TASK-053/055a–d; ccc1bde; DUT-verified — meaning the milestone was
+exercised on hardware, **not** that any of its four visual criteria was measured).
+**Visual criteria: ACCEPTED (human, 2026-09-06), not met** — oracle sweep A-3. The
+pixel-unchanged criterion cited *"VE TASK-053d"*, which on the board is M-CONN's `resetTls()` task;
+the design's own VE row lost its id to that collision and was never filed. Evidence for the four
+visual claims: **none**. An **accepted risk, not a satisfied criterion**; settled, if ever wanted,
+by ADR-064 `get sig`. Record:
+[M-WAVE-ATLAS-firmware-playback.md](../architecture/designs/M-WAVE-ATLAS-firmware-playback.md) (last section).
 **Deps:** M-VIS (tickWave firmware in tree), M-VIS-ATLAS (bake pipeline pattern)
 **Design:** [M-WAVE-ATLAS-wave-atlas.md](../architecture/designs/M-WAVE-ATLAS-wave-atlas.md) · [M-WAVE-ATLAS-firmware-playback.md](../architecture/designs/M-WAVE-ATLAS-firmware-playback.md)
 
@@ -399,7 +412,15 @@ symbol→CoinGeckoId mapping + dynamic URL required; separate milestone M-SETTIN
 Stock also requires a `configureStockTickers()` path to `dataTaskStorage.cpp` so the
 network layer fetches the user-configured symbols.
 
-**Status:** done (2026-06-12 — TASK-172; W1–W9 all shipped; T-SET-01..08 PASS on DUT)  
+**Status:** done (2026-06-12 — TASK-172; W1–W9 all shipped). **Exit criteria re-cited 2026-09-06**
+(oracle sweep A-1, human ruling): the `T-SET-01..08` citation is **withdrawn** — those are
+M-SETTINGS-STUB's settings-*navigation* ids and read no per-app setting. Re-cited against
+`check_settings_wiring.py`, which runs every `run/check` and reads *"58 fields, every field wired"*:
+**E11 and E13 CITED** (at a stated, narrower scope — the wiring and SPIFFS-round-trip senses);
+**E1–E10 and E12 DEFERRED** — every one has a render, an animation rate, an entity count, a fetch or
+a reboot as its subject, and the gate is a static grep. **2 of 13 CITED, 11 DEFERRED.** Owner of the
+eleven: **TASK-656**. Per-criterion table:
+[M-SETTINGS-APP-WIRE.md](../architecture/designs/M-SETTINGS-APP-WIRE.md) (last section).  
 **Design:** [M-SETTINGS-APP-WIRE.md](../architecture/designs/M-SETTINGS-APP-WIRE.md)  
 **ADR:** [ADR-043](../architecture/decisions/ADR-043.md) (accepted)  
 **Deps:** M-SETTINGS-001 (done)
@@ -469,7 +490,18 @@ Full per-section implementations (WiFi flow, display, LED, touch-cal, time, Appl
 sub-menus with SPIFFS persistence) are **not** in scope here — each will be a separate
 milestone once the stub is verified.
 
-**Status:** done (2026-06-05 — TASK-141/142; check_build.sh 4/4; T-SET-01..08 6/6 PASS; DUT-141d visual all pass)
+**Status:** done (2026-06-05 — TASK-141/142; check_build.sh 4/4; **`T-SET-01..08` 6/8 PASS, 2
+DEFERRED**). Corrected 2026-09-06 (oracle sweep A-7, human ruling): the header read *"6/6 PASS"*
+over a range of **eight** ids, and the two outside the six are exactly the two visual ones —
+`T-SET-04` (*"content panel renders within x:0..274, y:28..239 for all sections"*, criterion C3) and
+`T-SET-05` (*"Spotify→Settings→Spotify leaves **no settings pixels**"*, criterion C4). Both read
+`planned (manual visual — pending DUT-141d walkthrough)` (`test_plan.md:2643`, `:2661`) and neither
+is in `build_all_tests()` — so the *"DUT-141d visual all pass"* clause cited as complete the very
+observation those two ids say is still owed. That clause is struck. **C3 and C4 are DEFERRED to
+ADR-064 `get sig`** — `inkCount == 0` outside the content-panel rect for C3, and the
+`sig(Spotify, before) == sig(Spotify, after)` differential for C4, the identical shape
+M-CLOCK-STYLES C8 was re-recorded DEFERRED for. Both are structural: neither needs a golden. Owner
+**TASK-658**, @VE, blocked on TASK-638 (`get sig`).
 - TASK-141: SettingsApp class, constants, g_previousAppId tracking, SERIAL_DEBUG get settingsSection/settingsAppSubmenu
 - TASK-142: VE suite T-SET-01..08 written + executed; also fixed cmdTap bug (non-Spotify apps beyond Stock not dispatched to handleInput)
 **Design:** [M-MULTIAPP/settings.md](../architecture/designs/M-MULTIAPP/settings.md)
@@ -481,13 +513,17 @@ milestone once the stub is verified.
 
 All 6 live settings section implementations (WiFi, Time & Location, Touch Calibration, Display, LED, Applications) plus a second feature batch: cancel button with snapshot-restore, CalibrationFlow back-tap cancel and history display, KeyboardWidget cancel button, TouchDebugOverlay, DisplaySection Serial.printf guard.
 
-**Status:** done (2026-06-06/07 — fd93679, c07c903)
+**Status:** done (2026-06-06/07 — fd93679, c07c903); **4 observations DEFERRED** — header
+corrected 2026-09-06 (oracle sweep B-3, human ruling). The bullets below were always candid; the
+token was not. The four deferrals are the starred bullets; two of the open polish tasks
+(`TASK-152`/`TASK-154`) are themselves *"visual confirm"*. No new evidence was needed to make the
+record accurate — only to make the criteria met, which is a separate and lower-priority question.
 - WiFi, Time, Touch Cal, Display, LED, Apps sections: implemented; DUT-verified (2026-06-06)
 - Cancel button + snapshot-restore: 7/7 serial tests PASS (2026-06-07)
-- Cal back-tap cancel: T-CAL-BTAP-01/06 PASS; T-02..05 deferred (require physical corner taps)
-- Cal history display: implemented; visual DUT check deferred
-- KeyboardWidget ACT_CANCEL: implemented; BLOCKED-PHASE2 for full VE
-- TouchDebugOverlay: implemented; visual DUT check deferred
+- **(DEFERRED 1)** Cal back-tap cancel: T-CAL-BTAP-01/06 PASS; T-02..05 deferred (require physical corner taps)
+- **(DEFERRED 2)** Cal history display: implemented; visual DUT check deferred
+- **(DEFERRED 3)** KeyboardWidget ACT_CANCEL: implemented; BLOCKED-PHASE2 for full VE
+- **(DEFERRED 4)** TouchDebugOverlay: implemented; visual DUT check deferred
 - DisplaySection map() bug fixed: guard `ldrHigh > ldrLow` (c07c903)
 - Design-vs-impl audit: 6/6 features strong-match spec (2026-06-07)
 - Open polish: TASK-150 (backlight LEDC), TASK-152/154 (visual confirm), TASK-153 (scrollbar drag), TASK-155 (KB highlight)
@@ -518,6 +554,12 @@ PLEDIT content swipe). Mid-gesture drift outside a hitbox no longer drops events
 to another handler. POSBAR commits seek on Release from a cached position (not release coords).
 
 **Status:** done (2026-06-05 — TASK-101 `b253eb8`; VE T149/T150/T151/T153/T154 PASS; T152 SKIP [CONDITIONAL] queue < 6)
+— **the SKIP now has an owner and a date.** Assigned 2026-09-06 (oracle sweep B-2, human ruling):
+`T152` is the only id covering scrollbar-strip capture drifting into the content area, its own
+re-run condition (*"Re-run when Spotify queue has ≥ 6 tracks loaded"*, `test_plan.md:1480`) has
+stood unowned for fifteen weeks, and the condition is seedable without Premium via the `set queue N`
+debug injection. Owner **TASK-655**, @VE, **due 2026-09-20**. The criterion is **DEFERRED**, not
+accepted and not met, until that run produces a verdict.
 **Design:** [M-TOUCH-CAPTURE-slider-input-capture.md](../architecture/designs/M-TOUCH-CAPTURE-slider-input-capture.md)
 
 ---
@@ -529,7 +571,13 @@ offset from the press anchor maps to scroll speed (rows/s). Holding the finger s
 nonzero offset scrolls continuously. Dead-zone-only tap discrimination. Integer `scrollOffset`
 preserved. Architecture pre-wired for Phase 2 fling momentum.
 
-**Status:** done (2026-05-25 — TASK-103 `abf4722`; VE T155–T161 TASK-104 `aaf8009`)
+**Status:** done (2026-05-25 — TASK-103 `abf4722`; VE T155–T161 TASK-104 `aaf8009`) — **suite
+written, not run.** Corrected 2026-09-06 (oracle sweep A-5, human ruling): `TASK-104`'s close note
+read *"All 7 tests passing"*; `test_plan.md` records **none** of the seven at a verdict —
+`T155`–`T160` all read `written (2026-05-25)` and `T161` reads `planned`, with **no body in
+`build_all_tests()`**. Four exit criteria (`M-LIST-v4-velocity-scroll.md:382-387`) are therefore
+**DEFERRED**; one (`:388`, the 8 px dead-zone claim) is **unsatisfiable as written** — the as-built
+dead zone is 1 px and the `_dragStartMs` removal it presumes never happened. Owner **TASK-654**.
 **ADR:** ADR-030 (accepted 2026-05-25)
 **Design:** [M-LIST-v4-velocity-scroll.md](../architecture/designs/M-LIST-v4-velocity-scroll.md)
 **VE review:** [velocity-scroll-ve-review.md](../verification/regression_suite/velocity-scroll-ve-review.md)
@@ -829,7 +877,14 @@ was written — a deliberate practice from lessons learned.
    connection is not viable on this hardware's ~70 KB DMA budget (EXP-020).
    NOS remains the sole teletext source.
 
-**Status:** done (2026-06-13/14 — TASK-177–191; firmware implemented, icons baked, VE suite T249 ready-to-run, T272 PASS; ADR-044 accepted; 3 bugs fixed during T272: tlsYield gap, early-boot no-enqueue, null-byte parser)  
+**Status:** done (2026-06-13/14 — TASK-177–191; firmware implemented, icons baked, T272 PASS;
+ADR-044 accepted; 3 bugs fixed during T272: tlsYield gap, early-boot no-enqueue, null-byte parser).
+**Touch-zone + render criteria: ACCEPTED (human, 2026-09-06), not met** — oracle sweep A-2. The
+former *"VE suite T249 ready-to-run"* clause was struck: a suite that has not run is not evidence,
+and `T272` is a TLS-heap-contention test that touches no tap zone. 21 of the 24 ids this milestone
+registered are still absent from `build_all_tests()`. The app demonstrably works and nothing is
+scheduled — an **accepted risk, not a satisfied criterion**. Record:
+[M-TELETEXT.md](../architecture/designs/M-TELETEXT.md) (last section).  
 **Deps:** M-MULTIAPP (done), M-TASKBAR-ICONS (done)  
 **Design:** [M-TELETEXT.md](../architecture/designs/M-TELETEXT.md)  
 **ADR:** ADR-044 (accepted 2026-06-13)
@@ -928,7 +983,14 @@ tuning constants hoisted to a shared header — extraction rejected for two cons
 (promotion path documented at a third scrolling list).
 
 **Status:** **DONE 2026-07-07** — reroute (`c5fd6e5`) + feature landed; exit criteria
-13/13, T_WR 17/18 (sole fail external TASK-284), taskbar suite 5/5 through the reroute.
+**12/13 + 1 ACCEPTED** (human, 2026-07-07: the Spotify regression gate `T155-T160` is a
+**SKIP**, blocked-external on TASK-243 — `M-WR-PLEDIT-SCROLL.md:332`, ratified `:358-360`),
+T_WR 17/18 (sole fail external TASK-284), taskbar suite 5/5 through the reroute.
+Header corrected 2026-09-06 (oracle sweep B-1, human ruling): `13/13` was an ACCEPTED
+rendered as a count of passes; the design doc's own results row always said SKIP.
+**And the gate was never green to begin with** — per A-5, `T155`–`T160` have no verdict in
+their own milestone and `T161` has no body, so a TASK-243 re-run restores no baseline.
+Land A-5's `TASK-654` before treating this row as a regression gate.
 Campaign finds: TASK-293 (stop-then-replay tlsYield deadlock, P1, fixed), T_WR_ERR_x
 harness isolation defect (fixed). T155-T160 gate SKIPped blocked-external (TASK-243) —
 disposition pending human. Feel tuning (OQ1) deferred to a human DUT session

@@ -29,7 +29,7 @@ stock-002 (heatmap sub-view):
 import time
 
 from lib.dut import Dut, DeviceReadError, NoAnswer
-from lib.results import pass_, fail, skip, unmet
+from lib.results import pass_, fail, skip, unmet  # noqa: F401 — skip used below
 import coords as _c
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._helpers import (
@@ -37,6 +37,7 @@ from suite.serialdbg._helpers import (
     _diag_snapshot, _wait_shell_not_busy,
     _switch_to_stock, _restore_from_stock, _stock_get, _stock_ok_count,
     _wait_chart_complete, _drain_data_pipeline,
+    _observe_progress_atom, _progress_atom_verdict, _bgpoll_suspended,
 )
 
 
@@ -186,6 +187,111 @@ def t170(dut: Dut):
     pass_("T170", f"quoteOkCount advanced past {before} — quote fetch completed")
 
 
+
+# ── T_DTP_01 / T_DTP_02 — M-DATATASK-PROGRESS atoms are actually written ──────
+#
+# TASK-657 (oracle sweep A-6). See `_helpers._observe_progress_atom` for what
+# these assert and why that and not more. The two weather/crypto siblings are
+# T_WX_06 / T_CX_06 in shell.py, beside the fetches they observe.
+#
+# NEITHER ID HAS EVER RUN ON HARDWARE (2026-09-06). They were written host-side
+# with no DUT available and owe their first hardware run — recorded in the same
+# shape TASK-645 used for `get boardId`. Until that run they are written, not
+# passing, and must not be cited as evidence of anything.
+
+def t_dtp_01(dut: Dut):
+    """T_DTP_01: stockQuoteProgress leaves its -1 sentinel across a quote fetch,
+    stays inside its domain, and returns to -1. M-DATATASK-PROGRESS Phase 1."""
+    print("T_DTP_01  stockQuoteProgress atom is written during a quote fetch")
+    if not _switch_to_stock(dut):
+        unmet("T_DTP_01", "could not switch to Stock — no quote fetch to observe")
+        _restore_from_stock(dut)
+        return
+    try:
+        before = _stock_quote_ok_count(dut)
+    except DeviceReadError:
+        _restore_from_stock(dut)
+        raise
+    obs = _observe_progress_atom(
+        dut, "stockQuoteProgress",
+        lambda: _quote_count_advanced(dut, before),
+        timeout_s=65.0, test_id="T_DTP_01")
+    _restore_from_stock(dut)
+    outcome, msg = _progress_atom_verdict("stockQuoteProgress", obs)
+    if outcome == "unmet":
+        unmet("T_DTP_01", msg)
+    elif outcome == "fail":
+        # AS-BUILT NOTE, read 2026-09-06 and not yet ruled on: the firmware
+        # writes `s_stockQuoteProgress = 0` once at the top of the spark fetch
+        # and `-1` at the bottom (dataTaskStorage.cpp:471, :523) — there is no
+        # per-ticker loop any more, so the documented 0..7 ticker-index domain
+        # (dataTask.h:339) is as-built unreachable and the atom is a busy flag.
+        # That is a documentation/implementation divergence, NOT a reason to
+        # weaken this assertion: {0} is inside [0,7], so a correct build passes.
+        fail("T_DTP_01", msg)
+    else:
+        pass_("T_DTP_01", msg)
+
+
+def _quote_count_advanced(dut: Dut, before: int) -> bool:
+    """Completion oracle for T_DTP_01 — deliberately NOT the atom under test."""
+    try:
+        return _stock_quote_ok_count(dut) > before
+    except (TimeoutError, NoAnswer):
+        return False
+
+
+def t_dtp_02(dut: Dut):
+    """T_DTP_02: stockChartProgress leaves its -1 sentinel across a chart fetch,
+    stays inside 0..2, and returns to -1. M-DATATASK-PROGRESS Phase 2."""
+    print("T_DTP_02  stockChartProgress atom is written during a chart fetch")
+    if not _switch_to_stock(dut):
+        unmet("T_DTP_02", "could not switch to Stock — no chart fetch to observe")
+        _restore_from_stock(dut)
+        return
+    # Same contention reasoning as T176: a chart fetch that serializes behind an
+    # in-flight Spotify poll spends the whole window at -1 for reasons that have
+    # nothing to do with the atom. Quiet the pipeline so the observation is of
+    # the atom and not of the queue.
+    #
+    # R17/TASK-602: `_bgpoll_suspended` (which delegates to `Dut.saved`), NOT the
+    # `set bgPoll 0` / try-finally / `set bgPoll 1` pair T176 still uses. A
+    # try/finally is not a restore mechanism — it writes a literal `1` on the way
+    # out, which is a silent WRITE for any caller that did not find it at 1.
+    try:
+        with _bgpoll_suspended(dut):
+            if not _drain_data_pipeline(dut, tag="T_DTP_02"):
+                unmet("T_DTP_02", "fetch pipeline never drained within 200 s — no chart "
+                                  "fetch could be driven, so nothing was observed")
+                return
+            before = _stock_ok_count(dut)
+            dut.set_cooldown_zero()
+            dut.cmd("tap 137 36", timeout=3.0)   # drill into AAPL -> chart fetch
+            time.sleep(0.3)
+            if _stock_get(dut, "stockSubView").get("val") != "chart":
+                unmet("T_DTP_02", "could not enter chart view — no chart fetch to observe")
+                return
+            obs = _observe_progress_atom(
+                dut, "stockChartProgress",
+                lambda: _chart_count_advanced(dut, before),
+                timeout_s=45.0, test_id="T_DTP_02")
+    finally:
+        _restore_from_stock(dut)
+    outcome, msg = _progress_atom_verdict("stockChartProgress", obs)
+    if outcome == "unmet":
+        unmet("T_DTP_02", msg)
+    elif outcome == "fail":
+        fail("T_DTP_02", msg)
+    else:
+        pass_("T_DTP_02", msg)
+
+
+def _chart_count_advanced(dut: Dut, before: int) -> bool:
+    """Completion oracle for T_DTP_02 — deliberately NOT the atom under test."""
+    try:
+        return _stock_ok_count(dut) > before
+    except (TimeoutError, NoAnswer):
+        return False
 
 
 # ── T172 — App switch residue ─────────────────────────────────────────────────
@@ -1387,4 +1493,6 @@ TESTS = {
     "T203": t203,
     "T192": t192,
     "T193": t193,
+    "T_DTP_01": t_dtp_01,
+    "T_DTP_02": t_dtp_02,
 }

@@ -280,3 +280,37 @@ All resolved 2026-06-13.
 - All touch zones (fast-text bar, right strip, row links) pass DUT tap tests.
 - Settings rows appear in Settings → Applications → Teletext.
 - `run/check` (5-gate) passes clean.
+
+---
+
+## 2026-09-06 — human ruling: the tap-suite criterion is ACCEPTED, not met
+
+**Ruled by:** the human operator, 2026-09-06, on the oracle sweep's finding **A-2**
+([M-TESTQUAL-oracle-sweep-review.md](../../verification/reviews/M-TESTQUAL-oracle-sweep-review.md)).
+Recorded in the shape the 2026-09-06 M-CLOCK-STYLES ruling established.
+
+**What was claimed.** The roadmap closed this milestone (2026-06-13/14) citing *"VE suite T249
+ready-to-run, T272 PASS"*. The criterion above — *"All touch zones (fast-text bar, right strip, row
+links) pass DUT tap tests"* — was booked against that.
+
+**The evidence, stated exactly.** `T272` and **only** `T272`. Its objective is *"TLS heap
+contention — `fetchTeletext` concurrent with `spotifyTask`"* (`test_plan.md:4490`); it observes heap
+and TLS behaviour and **touches no tap zone, no grid cell and no mosaic glyph**. `T249`–`T251` read
+*ready to run* — a suite that has not run, quoted as evidence of a close. The touch-zone criterion's
+real ids, `T254`–`T260` and `T268`–`T271`, read `planned`, several `[Blocked: G2]`. Re-confirmed
+against the live registry at ruling time: of `T249`–`T272`, only `T270`, `T271`, `T272` exist in
+`build_all_tests()` — **twenty-one of the twenty-four ids this milestone registered are not in the
+harness**, fifteen weeks after the close.
+
+**Disposition: ACCEPTED.** The app demonstrably works and is in daily use; the milestone is not
+re-opened and no work is scheduled to close this criterion. **This is an accepted risk, not a
+satisfied criterion.** The touch-zone criterion, and the render criteria beside it, were **never
+observed** and may not be re-recorded PASS on the strength of this ruling.
+
+**What the header must stop saying.** *"VE suite T249 ready-to-run"* may not be cited as evidence
+of anything. The roadmap line has been corrected accordingly.
+
+**What would settle it, if anyone later wants it met.** Implement and run `T254`–`T260` (four
+fast-text buttons, two right-strip zones, the inactive-zone negative) and `T259`/`T260` for row
+links. The render criteria `T265`/`T266` are `[MANUAL]` and need ADR-064 `get sig` or their own
+explicit ACCEPTED — this ruling does not manufacture a pixel oracle that does not exist.
