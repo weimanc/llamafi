@@ -370,6 +370,23 @@ restart_monitor() {
   return 0
 }
 
+# Kill the serial monitor, if one is running. Returns 0 if it WAS up (so the
+# caller can put it back), 1 if it was not. Never fails the caller.
+#
+# TASK-661/D-1b. Every entry point had this inline as
+# `tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true`, which throws
+# away the one bit that matters — whether there was a monitor to restore.
+stop_monitor() {
+  if tmux has-session -t "$SESSION" 2>/dev/null; then
+    tmux kill-session -t "$SESSION" 2>/dev/null || true
+    # The pio monitor needs a moment to release the port after its session dies;
+    # opening into that window is the "multiple access on port" SerialException.
+    sleep 1
+    return 0
+  fi
+  return 1
+}
+
 # ── ADR-067: verify and refuse ───────────────────────────────────────────────
 #
 # TASK-633. A DUT entry point READS what is on the board and REFUSES if it is
@@ -464,6 +481,36 @@ require_build() {
   # its own driver's Dut guard, which is the same check one layer down.
   local port="${3:-}"
   [ -n "$port" ] || return 0
+
+  # TASK-661 / D-1b — THE VERIFY OWNS THE PORT FOR ITS DURATION.
+  #
+  # As landed by TASK-633 this ran before the caller's "step 1 — killing
+  # monitor", deliberately, so that a refusal left the rig untouched. But the
+  # steady state of this rig is *monitor running* (run/dut-health restarts it on
+  # exit; CLAUDE.md says every run/test* kills it automatically), and the
+  # monitor holds the port exclusively. So the first real hardware run of the
+  # whole conversion got
+  #     SerialException: device reports readiness to read but returned no data
+  #     (device disconnected or multiple access on port?)   -> exit 3
+  # on a healthy board running exactly the right build: a FALSE rig verdict, in
+  # the vocabulary ADR-067 D2 built specifically so that exit 3 would mean
+  # "wrong subject". The old flash step used to kill the monitor first; deleting
+  # the flash deleted the kill with it.
+  #
+  # The fix keeps BOTH properties instead of trading one for the other: stop the
+  # monitor here, and restart it on the refusal path, so a refused run still
+  # leaves the rig exactly as it found it. On success the monitor stays down —
+  # the caller is about to open the port anyway, its own kill step becomes a
+  # no-op, and its EXIT trap's restart_monitor puts the monitor back as before.
+  #
+  # Not chosen: (a) "tolerate a held port" — two openers on one CH340 do not
+  # degrade gracefully, they produce the exception above, so there is nothing to
+  # tolerate; (b) "verify from something other than a port open" — the board's
+  # elf is only readable over the port, and anything else means trusting a
+  # record of the last flash, which is the assume-don't-verify state this ADR
+  # exists to end.
+  local mon_was_up=0
+  stop_monitor && mon_was_up=1
   local rc=0
   # NO_WIFI: a build identity does not need the network, and making the
   # preflight wait for an AP would turn a WiFi outage into a wrong-build report.
@@ -473,7 +520,15 @@ require_build() {
   # "No module named lib.verify_build" (exit 1) before running a single test.
   ( cd "$PIO_DIR/tools" && NO_WIFI=1 "$VENV_PY" -m lib.verify_build \
       --port "$port" --env "$env" --who "$who" ) || rc=$?
-  [ "$rc" = "0" ] || return "$rc"
+  if [ "$rc" != "0" ]; then
+    # Refused. Put the rig back the way it was — the caller is about to exit
+    # without ever installing its EXIT trap, so nobody else will.
+    if [ "$mon_was_up" = "1" ]; then
+      echo "[$who] restarting the monitor the verify stopped (the run was refused)."
+      restart_monitor "$port"
+    fi
+    return "$rc"
+  fi
   # The verify open just reset the board (DTR). Stamp it where lib/dut.py's DRD
   # guard can see it, so the driver's own open waits out the remainder of the
   # window instead of landing inside it (BP-018 / TASK-559).

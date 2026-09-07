@@ -192,6 +192,79 @@ def test_gate() -> None:
     check("A10 real tree passes", gate.check(real) == [],
           "; ".join(gate.check(real))[:400])
 
+    test_mechanism_arms()
+
+
+# ── 1b. the arms that EXECUTE, mutation-tested ───────────────────────────────
+#
+# TASK-661. A1–A10 prove the gate's greps. They cannot prove C5/C6, because
+# C5/C6 exist precisely because greps proved nothing: the fourteen entry points
+# all contained the string `require_build` while none of them could run it.
+# These arms rebuild the two real defects — D-1a's wrong cwd and D-2's wrong
+# BUILD_ROOT — in a throwaway copy of the mechanism and require the gate to
+# name each one. The working tree is never mutated: an interrupted run must not
+# be able to leave a broken harness behind.
+
+def _mech_tree(lib_sh_sub=None, dut_sub=None) -> pathlib.Path:
+    """A minimal, faithful copy of the mechanism C5/C6 execute."""
+    real = HERE.parents[2]
+    root = pathlib.Path(tempfile.mkdtemp(prefix="adr067m-"))
+    (root / "run").mkdir()
+    text = (real / "run" / "lib.sh").read_text()
+    if lib_sh_sub:
+        old, new = lib_sh_sub
+        assert old in text, "fixture is stale: lib.sh no longer contains " + old
+        text = text.replace(old, new)
+    (root / "run" / "lib.sh").write_text(text)
+    libdir = root / "app" / "tools" / "lib"
+    libdir.mkdir(parents=True)
+    for name in ("__init__.py", "dut.py", "verify_build.py"):
+        body = (real / "app" / "tools" / "lib" / name).read_text()
+        if dut_sub and name == "dut.py":
+            old, new = dut_sub
+            assert old in body, "fixture is stale: dut.py no longer contains " + old
+            body = body.replace(old, new)
+        (libdir / name).write_text(body)
+    return root
+
+
+def test_mechanism_arms() -> None:
+    # A11 — a faithful copy is clean. Without this, A12/A13 could be passing on
+    # some artefact of the fixture rather than on the mutation.
+    root = _mech_tree()
+    try:
+        check("A11 faithful mechanism copy is clean",
+              gate._check_mechanism(root) == [], str(gate._check_mechanism(root)))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+    # A12 — D-1a rebuilt: require_build runs the module from `app/` instead of
+    # `app/tools/`. This is the defect that killed all fourteen entry points and
+    # that the old gate could not see.
+    root = _mech_tree(lib_sh_sub=('( cd "$PIO_DIR/tools" && NO_WIFI=1',
+                                  '( cd "$PIO_DIR" && NO_WIFI=1'))
+    try:
+        f = gate._check_mechanism(root)
+        check("A12 D-1a (wrong cwd) is caught", any(x.startswith("C5") for x in f), str(f))
+        check("A12 the finding names the import failure",
+              any("import lib.verify_build" in x for x in f), str(f))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+    # A13 — D-2 rebuilt: the ELF guard's comparand moved one directory up, the
+    # exact effect of TASK-478's byte-identical move. Three weeks of runs read
+    # `elf=? expected=?` and nothing said a word.
+    root = _mech_tree(dut_sub=('parents[2] / ".pio" / "build"',
+                               'parents[1] / ".pio" / "build"'))
+    try:
+        f = gate._check_mechanism(root)
+        check("A13 D-2 (wrong BUILD_ROOT) is caught",
+              any(x.startswith("C6") for x in f), str(f))
+        check("A13 both modules' disagreement is reported",
+              len([x for x in f if x.startswith("C6")]) >= 2, str(f))
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
 
 # ── 2. the refusal decision, with the device faked ───────────────────────────
 
@@ -211,6 +284,11 @@ def _install_fake_dut(behaviour):
     """
     mod = types.ModuleType("lib.dut")
     mod.SetupFailure = _FakeSetupFailure
+    # TASK-661/D-2: verify_build IMPORTS the artifact root from lib.dut rather
+    # than recomputing it, so the fake must carry one. Deliberately a path that
+    # cannot exist — every arm below passes an explicit build_root, and if one
+    # ever stopped doing so this value makes that loud instead of accidental.
+    mod.BUILD_ROOT = pathlib.Path("/nonexistent/adr067-fake/.pio/build")
 
     class _Dut:
         def __init__(self, port, log_file=None):
@@ -321,18 +399,91 @@ def test_verify() -> None:
             sys.modules["lib.dut"] = saved
 
 
+# ── 3. the ELF guard itself, executed ────────────────────────────────────────
+#
+# TASK-661/D-2. `Dut._verify_debug_firmware` is called on a stub `self`, so the
+# guard's own decisions run on a host with no board: the comparison BP-017
+# requires, and — the arm that did not exist and would have caught the
+# three-week outage — what it does when it cannot make that comparison.
+
+def test_elf_guard() -> None:
+    sys.path.insert(0, str(HERE.parent))
+    import importlib
+    dut = importlib.import_module("lib.dut")
+
+    class _Stub:
+        def __init__(self, info):
+            self._info = info
+            self.elf = self.elf_expected = None
+        def cmd(self, c, timeout=3.0):
+            return {"ok": True, "heap": 1} if c == "get heap" else self._info
+
+    saved_root, saved_env = dut.BUILD_ROOT, dut._DUT_ENV
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="adr067e-"))
+    try:
+        env = "cyd2usb_gate_fixture"
+        (tmp / env).mkdir(parents=True)
+        blob = bytearray(256)
+        blob[176:180] = bytes.fromhex("deadbeef")
+        (tmp / env / "firmware.bin").write_bytes(bytes(blob))
+        dut.BUILD_ROOT, dut._DUT_ENV = tmp, env
+
+        # C1 — no host artifact: REFUSE. This is the D-2 shape. The old code
+        # wrapped the whole comparison in `if _fw.exists():` and simply returned.
+        dut._DUT_ENV = "__adr067_no_such_env__"
+        try:
+            dut.Dut._verify_debug_firmware(_Stub({"ok": True, "elf": "deadbeef"}))
+            check("C1 missing artifact refuses", False, "returned instead of raising")
+        except dut.SetupFailure as e:
+            check("C1 missing artifact refuses", e.reason == "elf-unverifiable", e.reason)
+            check("C1 the refusal is RIG", e.cls == "RIG", e.cls)
+            check("C1 it says where it looked", "LOOKED IN" in str(e), str(e)[:200])
+        dut._DUT_ENV = env
+
+        # C2 — the board states no elf: also a refusal, not a pass. The same
+        # silence from the other side (`elf=?` in the session review's banner).
+        try:
+            dut.Dut._verify_debug_firmware(_Stub({"ok": True}))
+            check("C2 unreadable board id refuses", False, "returned instead of raising")
+        except dut.SetupFailure as e:
+            check("C2 unreadable board id refuses", e.reason == "elf-unverifiable", e.reason)
+
+        # C3 — the comparison itself, when it disagrees.
+        s = _Stub({"ok": True, "elf": "11112222"})
+        try:
+            dut.Dut._verify_debug_firmware(s)
+            check("C3 mismatch refuses", False, "returned instead of raising")
+        except dut.SetupFailure as e:
+            check("C3 mismatch refuses", e.reason == "elf-mismatch", e.reason)
+            check("C3 mismatch carries both values",
+                  getattr(e, "flashed_elf", None) == "11112222"
+                  and getattr(e, "expected_elf", None) == "deadbeef", str(e)[:200])
+
+        # C4 — and when it agrees, it proceeds AND records the premise.
+        s = _Stub({"ok": True, "elf": "deadbeef"})
+        dut.Dut._verify_debug_firmware(s)
+        check("C4 match proceeds", s.elf == "deadbeef" and s.elf_expected == "deadbeef",
+              f"{s.elf}/{s.elf_expected}")
+    finally:
+        dut.BUILD_ROOT, dut._DUT_ENV = saved_root, saved_env
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main() -> int:
     test_gate()
     test_verify()
+    test_elf_guard()
     print(f"check_entrypoint_lifecycle negative suite: {PASSES} passed, "
           f"{len(FAILURES)} failed")
     for f in FAILURES:
         print(f"  FAIL {f}")
     if FAILURES:
         return 1
-    print("NOTE (BP-074): every board-side arm above ran against a FAKED Dut. "
-          "That the real firmware answers `info` with an `elf` field is "
-          "DUT-owed and is not claimed here.")
+    print("NOTE (BP-074): the B-arms above ran against a FAKED Dut and the "
+          "C-arms against a stub `self`. That the real firmware answers `info` "
+          "with an `elf` field was DUT-owed and is now DISCHARGED: on 2026-09-07, "
+          "board d48afcc8eed0, run/test-targeted read elf=732c8567 and refused "
+          "a cyd2usb_player run against it at exit 3 (TASK-661).")
     return 0
 
 

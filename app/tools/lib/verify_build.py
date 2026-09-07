@@ -59,7 +59,12 @@ EXIT_HOST = 2
 
 #: SetupFailure reasons that mean "wrong build on the board", as opposed to
 #: "could not reach a board" or "the board is unwell". Both are already RIG.
-_WRONG_BUILD_REASONS = ("elf-mismatch", "prod-firmware-flashed")
+#: `elf-unverifiable` (TASK-661/D-2) joins them: "I could not compare" is a
+#: refusal with the same code, not a warning. It is the state that existed
+#: silently for three weeks and it must never again be indistinguishable from a
+#: pass.
+_WRONG_BUILD_REASONS = ("elf-mismatch", "prod-firmware-flashed",
+                        "elf-unverifiable")
 
 
 def _banner(lines: list[str]) -> str:
@@ -82,12 +87,17 @@ def verify(port: str, env: str, who: str, log_file: str | None = None,
     # Imported here, not at module scope: importing lib.dut must not be what
     # decides whether NO_WIFI was set, and check_import_safety.py holds this
     # module to no board access at import time.
-    from lib.dut import Dut, SetupFailure  # noqa: PLC0415
+    # BUILD_ROOT is IMPORTED, not recomputed. TASK-661/D-2: this module and
+    # lib/dut.py each computed the artifact path from their own `__file__`, and
+    # when one of them moved the two silently disagreed for three weeks. Two
+    # expressions that must agree are a defect waiting for a refactor; one
+    # definition with two importers cannot drift.
+    from lib.dut import BUILD_ROOT, Dut, SetupFailure  # noqa: PLC0415
 
     # `build_root` exists so the negative suite can point this at a fixture
     # tree and exercise every board-side arm on a host with no build artifacts
     # (and no board). It is not a runtime knob: nothing passes it in anger.
-    root = build_root or (pathlib.Path(__file__).resolve().parent.parent.parent / ".pio" / "build")
+    root = build_root or BUILD_ROOT
     expected = pathlib.Path(root) / env / "firmware.bin"
     if not expected.is_file():
         # The host cannot verify. That is a refusal, not a warning — a run that
@@ -152,6 +162,9 @@ def verify(port: str, env: str, who: str, log_file: str | None = None,
 
 
 def _describe(reason: str, e) -> str:
+    if reason == "elf-unverifiable":
+        return ("UNREAD — the build comparison could not be made at all "
+                "(see the harness's report below)")
     if reason == "prod-firmware-flashed":
         return ("PRODUCTION firmware — the debug console is compiled out, so "
                 "no test can run against it")

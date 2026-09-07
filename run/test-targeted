@@ -28,9 +28,10 @@ TESTS="${TESTS:-${1:-}}"
 _PORT_EXPLICIT="${PORT:-}"
 PORT=$(resolve_port)
 
-# ADR-067/TASK-633: declare the build, do not flash it. A refusal here happens
-# before the monitor is touched, so a wrong-build run leaves the rig exactly as
-# it found it.
+# ADR-067/TASK-633: declare the build, do not flash it. require_build stops the
+# monitor for the duration of its port open and restarts it if it refuses
+# (TASK-661/D-1b), so a wrong-build run still leaves the rig exactly as it found
+# it — and a right-build run finds the monitor already down at step 1.
 require_build "$ENV_DEBUG" test-targeted "$PORT" || exit $?
 
 _TEST_RC=0

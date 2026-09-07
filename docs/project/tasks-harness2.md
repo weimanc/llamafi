@@ -144,6 +144,7 @@ corpus retrofit is cut to delta-scoped rules only.
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-633 | P1 | **DONE 2026-09-06** — 14 entry points + `lib.sh`; gate blocking **at zero, no ledger**; 27-arm negative suite | DUT entry points verify-and-refuse, **exit 3** (`elf-mismatch`, RIG); restore DELETED from all 14. `require_build` + `lib/verify_build.py`; `SKIP_FLASH` gone. **`DUT_NO_RESTORE=1` retires — @PM** — [R51](../verification/M-HARNESS2-requirements.md) |
+| TASK-661 | P1 | **DONE 2026-09-07** — hardware-verified | ADR-067 as-built: wrong cwd, a port open fighting the monitor, and an ELF guard inert since 2026-08-17. Fixed; the gate now EXECUTES the mechanism — [ADR-067](../architecture/decisions/ADR-067.md), [D-1/D-2](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-634 | P1 | BLOCKED — TASK-633 | run the 80-minute session and file its dated records — [WP-Z §5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-579 | P1 | BLOCKED — TASK-634 | the WebRadio forced-connect-fail injector nothing clears — [F-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-580 | P1 | BLOCKED — TASK-634 | the heatmap injector wedges the sub-view and the block behind it — [G-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |

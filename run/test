@@ -17,7 +17,9 @@ PORT=$(resolve_port)
 
 # ADR-067/TASK-633: declare the build, do not flash it. FIRST, before the
 # settings snapshot below touches the board at all — a wrong-build run must
-# leave the rig exactly as it found it.
+# leave the rig exactly as it found it. require_build stops the monitor around
+# its own port open and restarts it if it refuses (TASK-661/D-1b); step 1 below
+# is therefore usually a no-op, and stays for the case where no port was passed.
 require_build "$ENV_DEBUG" test "$PORT" || exit $?
 
 # TASK-506: snapshot persisted settings before the suite runs so they can be

@@ -365,6 +365,30 @@ _SETUP_FAIL_CLS = {
 }
 
 
+#: WHERE THE COMPILED ARTIFACTS LIVE — `app/.pio/build`. Defined once, here,
+#: and imported by lib/verify_build.py rather than recomputed there.
+#:
+#: TASK-661 / D-2. This was an inline expression inside _verify_debug_firmware()
+#: reading `pathlib.Path(__file__).parent.parent`, which was correct while the
+#: code lived in `app/tools/run_serialdbg_tests.py` and became wrong the moment
+#: TASK-478 moved it to `app/tools/lib/dut.py` — `parent.parent` went from
+#: `app/` to `app/tools/`. The move's commit message says the code was "moved
+#: VERBATIM. Verified byte-identical", and it was: byte-identity is precisely
+#: the check that cannot see a `__file__`-relative path change homes. The guard
+#: BP-017 exists for ("never test yesterday's binary") was therefore off from
+#: 2026-08-17 to 2026-09-07, silently, because the dead path sat behind an
+#: `if _fw.exists():` that simply never ran. Two rules follow, and both are
+#: enforced below:
+#:   1. ONE definition, imported — not two expressions that must agree.
+#:   2. A guard that cannot find its comparand REFUSES. It does not pass.
+BUILD_ROOT = pathlib.Path(__file__).resolve().parents[2] / ".pio" / "build"
+
+
+def firmware_bin(env: str) -> pathlib.Path:
+    """The host-side artifact the board is compared against, for `env`."""
+    return BUILD_ROOT / env / "firmware.bin"
+
+
 def cls_for_reason(reason: str) -> str:
     """The precedence class of a setup-failure reason slug (EC-G1)."""
     return _SETUP_FAIL_CLS.get(reason, "RIG")
@@ -1216,47 +1240,89 @@ class Dut:
         # (test_fbrowser_player.py, test_playorder_player.py), duplicating
         # settle/port/reporting logic and sitting outside the suite's
         # failure-set comparisons entirely.
-        _fw = (pathlib.Path(__file__).parent.parent / ".pio" / "build"
-               / _DUT_ENV / "firmware.bin")
-        if _fw.exists():
-            _fw_bytes = _fw.read_bytes()
-            _expected_elf = _fw_bytes[176:180].hex()
-            _info = self.cmd("info", timeout=3.0)
-            # TASK-608 / R30 / ADR-067 D1: the build identity this guard already
-            # reads is the run's premise. Recorded here rather than re-read at
-            # summary time — a premise field that costs a second device read is
-            # a premise field that perturbs the run it describes.
-            self.elf = _info.get("elf")
-            self.elf_expected = _expected_elf
-            if _info.get("ok") and _info.get("elf") and _info["elf"] != _expected_elf:
-                # ADR-067: this refusal is now the ONLY thing standing between a
-                # run and the wrong subject — no entry point flashes the build
-                # first any more, so this message is read by a human who must
-                # act on it, not by one watching a reflash scroll past.
-                _f = SetupFailure(
-                    "elf-mismatch",
-                    f"\n"
-                    f"╔══════════════════════════════════════════════════════════╗\n"
-                    f"║  FIRMWARE ELF MISMATCH — wrong build on the board        ║\n"
-                    f"╚══════════════════════════════════════════════════════════╝\n"
-                    f"  ON THE BOARD: elf {_info['elf']}\n"
-                    f"  WANTED:       elf {_expected_elf}  (build {_DUT_ENV})\n"
-                    f"                set DUT_ENV to target another variant\n"
-                    f"\n"
-                    f"  NOTHING WAS FLASHED AND NOTHING WILL BE RESTORED (ADR-067).\n"
-                    f"  The board keeps the build it has. Put the one you want on\n"
-                    f"  it yourself, then re-run:\n"
-                    f"    ./run/flash-debug        # or run/flash-player, run/flash-webradio\n"
-                    f"  or, explicitly:\n"
-                    f"    cd app && ~/.platformio/penv/bin/pio run -e {_DUT_ENV} \\\n"
-                    f"        -t upload --upload-port <port>\n"
-                )
-                # Read by lib/verify_build.py to name what is on the board in
-                # its own refusal, without re-parsing this text.
-                _f.flashed_elf = _info["elf"]
-                _f.expected_elf = _expected_elf
-                _f.expected_env = _DUT_ENV
-                raise _f
+        #
+        # TASK-661 / D-2: the path comes from BUILD_ROOT (one definition), and a
+        # MISSING artifact is a refusal, not a skip. The previous shape —
+        # `if _fw.exists():` around the whole comparison — is what let a wrong
+        # path disable the guard for three weeks without a single word of
+        # output. A guard that cannot find its comparand must say so.
+        _fw = firmware_bin(_DUT_ENV)
+        if not _fw.is_file():
+            raise SetupFailure(
+                "elf-unverifiable",
+                "\n"
+                "╔══════════════════════════════════════════════════════════╗\n"
+                "║  ELF GUARD CANNOT RUN — no host artifact to compare to   ║\n"
+                "╚══════════════════════════════════════════════════════════╝\n"
+                f"  WANTED:   build {_DUT_ENV}\n"
+                f"  LOOKED IN: {_fw}\n"
+                "\n"
+                "  The board answered, but this run cannot tell WHICH build it is\n"
+                "  running, so it is not allowed to proceed (BP-017: never test\n"
+                "  yesterday's binary — and never test an unknown one).\n"
+                "\n"
+                "  NOTHING WAS FLASHED AND NOTHING WILL BE RESTORED (ADR-067).\n"
+                "  Build it, then flash it, then re-run:\n"
+                f"    cd app && ~/.platformio/penv/bin/pio run -e {_DUT_ENV}\n"
+                "    ./run/flash-debug        # or the run/flash* script for this env\n")
+        _fw_bytes = _fw.read_bytes()
+        _expected_elf = _fw_bytes[176:180].hex()
+        _info = self.cmd("info", timeout=3.0)
+        # TASK-608 / R30 / ADR-067 D1: the build identity this guard already
+        # reads is the run's premise. Recorded here rather than re-read at
+        # summary time — a premise field that costs a second device read is
+        # a premise field that perturbs the run it describes.
+        self.elf = _info.get("elf")
+        self.elf_expected = _expected_elf
+        # The other half of "cannot find its comparand": the HOST artifact is
+        # there, but the BOARD did not state an elf. Before TASK-661 this fell
+        # through to a pass, and the run reported `elf=?` — the same silence the
+        # dead path produced, from the opposite side. Refuse (BP-074: an
+        # assertion whose precondition never occurred is inconclusive, not a
+        # pass). Verified on hardware 2026-09-07: this firmware DOES answer
+        # `info` with `elf`, so this arm fires only when something is wrong.
+        if not (_info.get("ok") and _info.get("elf")):
+            raise SetupFailure(
+                "elf-unverifiable",
+                "\n"
+                "╔══════════════════════════════════════════════════════════╗\n"
+                "║  ELF GUARD CANNOT RUN — the board stated no build id     ║\n"
+                "╚══════════════════════════════════════════════════════════╝\n"
+                f"  WANTED:       elf {_expected_elf}  (build {_DUT_ENV})\n"
+                f"  ON THE BOARD: `info` answered {_info!r}\n"
+                "\n"
+                "  The comparison BP-017 requires did not happen, so this run is\n"
+                "  not allowed to proceed on the assumption that it would have\n"
+                "  passed. Nothing was flashed and nothing will be restored.\n")
+        if _info["elf"] != _expected_elf:
+            # ADR-067: this refusal is now the ONLY thing standing between a
+            # run and the wrong subject — no entry point flashes the build
+            # first any more, so this message is read by a human who must
+            # act on it, not by one watching a reflash scroll past.
+            _f = SetupFailure(
+                "elf-mismatch",
+                f"\n"
+                f"╔══════════════════════════════════════════════════════════╗\n"
+                f"║  FIRMWARE ELF MISMATCH — wrong build on the board        ║\n"
+                f"╚══════════════════════════════════════════════════════════╝\n"
+                f"  ON THE BOARD: elf {_info['elf']}\n"
+                f"  WANTED:       elf {_expected_elf}  (build {_DUT_ENV})\n"
+                f"                set DUT_ENV to target another variant\n"
+                f"\n"
+                f"  NOTHING WAS FLASHED AND NOTHING WILL BE RESTORED (ADR-067).\n"
+                f"  The board keeps the build it has. Put the one you want on\n"
+                f"  it yourself, then re-run:\n"
+                f"    ./run/flash-debug        # or run/flash-player, run/flash-webradio\n"
+                f"  or, explicitly:\n"
+                f"    cd app && ~/.platformio/penv/bin/pio run -e {_DUT_ENV} \\\n"
+                f"        -t upload --upload-port <port>\n"
+            )
+            # Read by lib/verify_build.py to name what is on the board in
+            # its own refusal, without re-parsing this text.
+            _f.flashed_elf = _info["elf"]
+            _f.expected_elf = _expected_elf
+            _f.expected_env = _DUT_ENV
+            raise _f
 
     def _assert_owner(self):
         if threading.current_thread() is not self._owner_thread:

@@ -62,7 +62,6 @@ Owner = the task that created the test and can write its plan row, not the sweep
 | `T_PLE_WR_158` | orphan | as `T_PLE_WR_155` | TASK-411 | 2026-08-18 |
 | `T_PLE_WR_159` | orphan | as `T_PLE_WR_155` | TASK-411 | 2026-08-18 |
 | `T_PLE_WR_160` | orphan | as `T_PLE_WR_155` | TASK-411 | 2026-08-18 |
-| `T_PRI_01` | orphan | dr-damped motion-smoothing continuity; graduated from EXP-014 straight into the runner, plan row skipped | TASK-357 | 2026-08-18 |
 | `T_PRM_01` | orphan | `prPollSec` round-trip; specified in M-PR-MOTION, plan row skipped | TASK-355 | 2026-08-18 |
 | `T_PRM_02` | orphan | as `T_PRM_01` | TASK-355 | 2026-08-18 |
 | `T_TBFB_01` | orphan | taskbar tap-feedback battery; specified in M-TASKBAR-FEEDBACK, plan row skipped | TASK-279 | 2026-08-18 |
