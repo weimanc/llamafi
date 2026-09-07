@@ -110,6 +110,18 @@ the board to re-derive what is already written down.
 | TASK-667 | P3 | OPEN — @VE | `T_WR_EJECT_01` FAILs `UNDECLARED flake — no entry in flaky.yaml`. The third `C-7` case, found on hardware after the other two. Fold into TASK-595's sweep or declare it — [§B.3](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-668 | P3 | OPEN — @VE | `T204`'s **120 s Ytd stall**, re-confirmed on a healthy network, and `G-10`/`G-17`: three failure messages that name a cause the raw log contradicts. `dataTask` knows it got `http=-1`/DNS and the message should say so — [§1.7, §B.2.1](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 
+## Open — board currency (filed by @Developer 2026-09-07, from the audit above)
+
+The audit that produced TASK-662..668 found the same failure it always finds: **the record lags the
+work by exactly one session.** None of what it caught was a judgement call, so it is gated rather
+than resolved to be more careful next time. The gate's own docstring is its specification,
+**including the four things it cannot see** — read that before quoting a green result. Rule,
+escapes and ledger: [board_currency_exceptions.md](board_currency_exceptions.md).
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-669 | P2 | OPEN — @Developer · **built, awaiting the commit that lands it** | board-currency gate `check_board_currency.py`: B1/B2/B3 over the 4 boards × commit **subjects**; blocking on a [dated ledger](board_currency_exceptions.md) (B1 **4**, B2 **68**, B3 **0** — 9 before `0dba35a`); 37-arm negative suite. Rule filed to @QM as a BP candidate |
+
 ## Open — M-PR-MOTION (2026-07-18)
 
 Human request: PlaneRadar poll interval as a settings slider (1 s minimum), and interpolation

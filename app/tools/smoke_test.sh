@@ -365,4 +365,23 @@ if ! "$PYTHON" suite/test_scaffold.py; then
     exit 1
 fi
 
+# ── TASK-669 — the record must not lag the work. Reads the four live boards
+# against TASK-NNN in COMMIT SUBJECTS, two inputs the row's author does not
+# control, and asserts three contradictions: a row reading OPEN/BLOCKED with
+# commit traffic (B1), a closed row citing no hash (B2), a row blocked on a task
+# that has closed (B3). B3 reads 0 today and 9 on the tree before the PM audit
+# `0dba35a`; B1 reads 4 and B2 68, all on the dated shrink-only ledger
+# docs/project/board_currency_exceptions.md. Negative suite first (BP-068),
+# including the mutation arms that reconstruct this week's real defects. Its
+# LIMITS are in the checker's docstring and matter: a PASS here is not a
+# guarantee that the board is true. No DUT, one `git log`, ~0.4 s.
+if ! "$PYTHON" gate/test_check_board_currency.py; then
+    echo "FAIL: test_check_board_currency.py (TASK-669 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_board_currency.py; then
+    echo "FAIL: check_board_currency.py (TASK-669 board currency) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"
