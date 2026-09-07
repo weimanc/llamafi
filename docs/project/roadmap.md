@@ -1577,6 +1577,67 @@ the thing under repair, so every intermediate result is provisional until TASK-5
 
 ---
 
+### M-TESTQUAL / M-HARNESS2 — audit the suite's claims, then rebuild the harness that hosts them
+
+**Added to the roadmap 2026-09-07 by @PM — four days late, and that is the same documentation-health
+failure M-TESTARCH's entry above records against me.** The programme ran for four days and ~30
+commits with no roadmap entry at all, while being the largest active body of work in the project.
+I am recording the recurrence rather than quietly fixing it: the pattern is that a milestone born on
+a task board never acquires a roadmap entry, because the board is sufficient for the people doing
+the work and nobody else is looking.
+
+**M-TESTQUAL** (the audit) reviewed all 216 test ids across nine work packages and found **117 of
+216 — 54 %** assert what they claim, over an elevenfold spread that tracks the observable each family
+was given rather than who wrote the tests (LocalPlayer 77 % … Clock 7 %). **M-HARNESS2** is the
+remediation programme that follows from it.
+
+**The finding that outranks the percentage:** a criterion had been being closed against whatever
+evidence was to hand rather than against the oracle it names. Fifteen criteria across five milestones
+were closed on evidence weaker than their headers claimed — a render booked on an aircraft count,
+thirteen behavioural criteria booked on another milestone's navigation suite. Root cause: `PASS` was
+one token doing the work of four (ran-and-passed, cited, partly assumed, human-eyeballed), so an
+accepted risk was typographically indistinguishable from a satisfied criterion. Fixed as **LL-146 →
+BP-075**: a criterion's disposition is now MET / CITED / ACCEPTED / DEFERRED-UNMET, and `PASS` stays
+a property of a test id against its own assertion.
+
+**Board:** [tasks-harness2.md](tasks-harness2.md) — 67 rows across phases 0–5, the single scheduling
+surface. **Reasoning:** [PM programme decision](M-HARNESS2-PM-review.md). Do not re-derive either here.
+
+**Status: IN PROGRESS — Phases 0 and 1 COMPLETE (32 rows), Phase 2's hardware session executed,
+28 rows live.**
+
+- **Phase 1 met every exit criterion**, all of them counts rather than judgements: ids with no
+  reachable `fail()` = 0, gating ids whose precondition needs the network = 0 (blocking, 3 ledgered
+  findings), summary-text parsers retired = 3 of 3, modules opening a port at import = 0. `run/check`
+  holds at **43.5 s warm** against a 90 s budget it now prints.
+- **Five milestones were found closed on bad evidence and ruled on by the human**, then an oracle
+  sweep found ten more. **M-PLANERADAR is RE-OPENED** (TASK-649…652); three milestones were
+  **ACCEPTED** with accepter and date, which is a legitimate disposition made visible rather than a
+  pass; the heatmap claim was downgraded to PARTIALLY MET.
+- **The test registry went 213 → 196 ids** under a written retirement procedure — the first time
+  ids have been deleted rather than left to rot as permanent SKIPs.
+- **The hardware session found the rig itself broken** (TASK-661): TASK-633's conversion had never
+  been executed against a board, and the ELF-mismatch guard had been inert since 2026-08-17 — in a
+  commit whose message certified the code "moved VERBATIM, verified byte-identical". Byte-identity
+  cannot catch a `__file__`-relative path changing homes, and the gate only grepped for the call.
+  **A gate that greps for a mechanism is not a gate that runs it** — the programme's sharpest lesson,
+  and it was found by using the thing, not by reading it.
+- **Two of the three armed-injector clusters were confirmed and fixed on hardware; one was refuted.**
+  The stop criterion (all three refuted → cancel Phase 3) did not fire.
+
+**Exit criteria:** every gating id declared and offline-satisfiable; no milestone exit criterion
+resting on an `UNOBSERVABLE` id while carrying a PASS; each ratchet count printed by something
+developers already run **and falling across two consecutive milestones** — a ratchet that reads the
+same number twice is cut, not carried.
+
+**Blocked on:** **TASK-557** (rig instability, unresolved and non-stationary) gates Phase 3 and,
+through it, Phase 5 — the same pin that holds M-TESTARCH's order switch. Phase 4's render half waits
+on `run/screendump` (TASK-589). **Deps:** M-TESTARCH · **Risk:** the same one M-TESTARCH carries and
+it is now demonstrated rather than theorised — the instrument under repair produced four days of
+green gates while two of its own headline mechanisms were dead.
+
+---
+
 ## Out of scope (recorded for non-action)
 
 - PC mirror / SDL host build target — superseded by ADR-006.

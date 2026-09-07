@@ -1,8 +1,12 @@
 # M-HARNESS2 + WP-Z — test-harness remediation programme
 
 > Owner: **Project Manager**
-> Status: **proposed** — Phase 0 discharged, Phase 1 committed, Phases 2–5 scheduled behind named
-> entry criteria. Only Phase 1 is *committed* by the programme decision.
+> Status **2026-09-07**: **Phases 0 and 1 COMPLETE** (32 rows, all closed); **Phase 2's session is
+> executed** and 5 rows remain; Phases 3–5 scheduled behind named entry criteria. Only Phase 1 was
+> ever *committed* by the programme decision — 2, 4 and 5 have been worked opportunistically where
+> a row was unblocked, which is why closed rows appear in phases that are not committed.
+> **Where to start cold: the Totals table at the foot of this file** — it names the live rows per
+> phase and which of them are blocked by what.
 > Board created: 2026-09-03 (board-reset Step 5).
 > **This board is the single scheduling surface for this programme.** The reasoning behind every
 > row — phases, cuts, deferrals, adjudications between the four reviews — is in
@@ -39,7 +43,10 @@ anything. 579–619 are WP-Z's own numbering, which that document declared provi
 renumberable — **kept rather than renumbered on purpose**, because the human ruled on TASK-616,
 617 and 618 *by those ids*, and six review documents cross-reference them. 621–643 were the PM
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
-WP-Z's reserved band). **Next free id: TASK-648.**
+WP-Z's reserved band). **TASK-648 was never allocated either** — the band closed at 647 and the
+next filing started at 649. Allocated since: **TASK-649…660** on [tasks.md](tasks.md) (the TASK-587
+escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-669**
+(662–668 filed 2026-09-07 on [tasks.md](tasks.md) from the Phase 2 hardware sessions).
 
 **3. TASK-575 is deliberately not a row here.** It lives on
 [tasks-architecture.md](tasks-architecture.md) (host-side FIXED, full `run/test` pass owed) and is
@@ -77,7 +84,11 @@ TASK-621 are closed. Every exit criterion is met.
 
 ---
 
-## Phase 1 — host-only foundation (~28.5 d) — **COMMITTED, buildable today**
+## Phase 1 — host-only foundation (~28.5 d) — **COMPLETE 2026-09-06, all 26 rows closed**
+
+**Every exit criterion below was met and is mechanically re-checkable.** The stop criterion did not
+fire: all three summary parsers were retired by TASK-608, and `run/check` holds at **43.5 s warm**
+(cold ~100 s, rebuild-dominated, and the script says so) against its 90 s budget.
 
 **Entry: none.** Every row is host-only: no board, no ADR, no graded finding, unaffected by the
 TASK-557 pin.
@@ -117,12 +128,27 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-632 | P2 | **DONE 2026-09-05** — C3 **deleted**, `T_DOC_08` retired | dispose of the advisory documentation check — [QM §3.1](../quality/M-HARNESS2-QM-review.md). All 58 findings measured as correct prose; disposition in [M-DOCLIFE §C3](../architecture/designs/M-DOCLIFE-check-docs-spec.md) |
 | TASK-647 | P2 | **DONE 2026-09-05** — blocking, opening [ledger](../verification/rowlen_exceptions.md) **18 rows, measured**; corpus 103 -> 168 rows across 4 boards | promote ROWLEN to blocking, and discover the board corpus instead of enumerating it — `tasks-harness2.md` was never scanned. [M-ROWGATE §8](../architecture/designs/M-ROWGATE-task-board-length-check.md) |
 | TASK-644 | P3 | **DONE 2026-09-06** | all five specification gaps ruled in the documents that own them — [ADR-066](../architecture/decisions/ADR-066.md) D2a/D4a, [IFC-008](../architecture/interfaces/IFC-008.md) I8/I9 + D-COMP/D-SNAP/D-VER, [R28/R21](../verification/M-HARNESS2-requirements.md) corrected. Four of five confirm as-built; **D2a narrows TASK-636** |
-| TASK-645 | P3 | **DONE 2026-09-06** — artifact schema **1.2**; T_ART_16/17 blocking | the premise now identifies what it ran against: harness = a content hash over `app/tools/**/*.py` + `run/*` (~19 ms, git is provenance only); board = the efuse MAC via a new `get boardId` key, port demoted to `transport`; `run/dut-health` emits one. **`get boardId` is DUT-unverified** |
+| TASK-645 | P3 | **DONE 2026-09-06** — artifact schema **1.2**; T_ART_16/17 blocking | the premise now identifies what it ran against: harness = a content hash over `app/tools/**/*.py` + `run/*` (git is provenance only); board = the efuse MAC via a new `get boardId` key, port demoted to `transport`. **`get boardId` DUT-VERIFIED 2026-09-07**, both arms (session review §0) |
 | TASK-646 | P2 | **DONE 2026-09-06** — on `lib/results` + the artifact; `check_private_results.py` blocking, [1-row ledger](../verification/private_results_exceptions.md) | `run/test-sync`'s 20 ids had no machine interface — [A-6](../verification/reviews/M-TESTQUAL-A-harness-review.md). They now get the flake retry, `NOT-RUN`/`UNMET` and the artifact. The private `Dut` stays: TASK-599 |
 
 ---
 
-## Phase 2 — the 80-minute session (board)
+## Phase 2 — the 80-minute session (board) — **SESSION EXECUTED 2026-09-07; 3 rows remain**
+
+**Status 2026-09-07.** The session ran twice — A (`d3a3600`) and B (`f66a4d2`) — and is recorded in
+[M-TESTQUAL-phase2-session-review.md](../verification/reviews/M-TESTQUAL-phase2-session-review.md).
+**Exit criteria: met.** All three clusters ruled (WebRadio and Stock CONFIRMED **and fixed**,
+PlaneRadar REFUTED); both isolated-vs-in-suite splits measured, plus two more (`E #2` refuted,
+`D #6` confirmed); the CORE skip census taken (**17 of 18** reach a verdict, against 18 not WP-Z's
+43). **36 of 58** NEEDS-DUT items settled. **The stop criterion did not fire** — it required all
+three refuted; two were confirmed. So group STA stays foundation, **Phase 3 is not cancelled** but
+shrinks by roughly a third, and the Phase 5 corpus retrofit is not cut.
+**What the session cost, and the lesson:** ~90 minutes of board time went into D-1/D-2 — TASK-633's
+conversion had never been executed against a board and both its headline mechanisms were dead, and
+the ELF guard had been inert since 2026-08-17 while every artefact said otherwise. A gate that greps
+for a call is not a gate that runs it (TASK-661).
+**Still open here: TASK-582, TASK-588, TASK-597, TASK-589, TASK-595** — none blocked by the session
+any more; 588/597 wait on nothing but hands, 589 is Phase 4's prerequisite.
 
 **Entry: TASK-618 — RULED 2026-09-03. SATISFIED 2026-09-06 by TASK-633.** The entry points now
 verify and refuse (ADR-067): they read the board's build identity and exit 3 (`elf-mismatch`, RIG) if
@@ -143,17 +169,17 @@ corpus retrofit is cut to delta-scoped rules only.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-633 | P1 | **DONE 2026-09-06** — 14 entry points + `lib.sh`; gate blocking **at zero, no ledger**; 27-arm negative suite | DUT entry points verify-and-refuse, **exit 3** (`elf-mismatch`, RIG); restore DELETED from all 14. `require_build` + `lib/verify_build.py`; `SKIP_FLASH` gone. **`DUT_NO_RESTORE=1` retires — @PM** — [R51](../verification/M-HARNESS2-requirements.md) |
+| TASK-633 | P1 | **DONE 2026-09-06** — 14 entry points + `lib.sh`; gate blocking at zero; 27-arm negative suite | verify-and-refuse, **exit 3** (`elf-mismatch`, RIG); restore DELETED from all 14 — [R51](../verification/M-HARNESS2-requirements.md). **`DUT_NO_RESTORE=1` RETIRED 2026-09-07 (@PM)**, never implemented in code. **As-built defects: TASK-661 (fixed), TASK-666 (open)** |
 | TASK-661 | P1 | **DONE 2026-09-07** — hardware-verified | ADR-067 as-built: wrong cwd, a port open fighting the monitor, and an ELF guard inert since 2026-08-17. Fixed; the gate now EXECUTES the mechanism — [ADR-067](../architecture/decisions/ADR-067.md), [D-1/D-2](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
-| TASK-634 | P1 | BLOCKED — TASK-633 | run the 80-minute session and file its dated records — [WP-Z §5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-579 | P1 | BLOCKED — TASK-634 | the WebRadio forced-connect-fail injector nothing clears — [F-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-580 | P1 | BLOCKED — TASK-634 | the heatmap injector wedges the sub-view and the block behind it — [G-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-581 | P1 | BLOCKED — TASK-634 | the aircraft injector freezes the radar for the rest of the boot — [H-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-582 | P1 | BLOCKED — TASK-634 | an inverted guard that passes exactly on the regression — [C-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-634 | P1 | **DONE 2026-09-07** — two sessions (`d3a3600`, `f66a4d2`); **36 of 58** NEEDS-DUT items settled | run the 80-minute session and file its dated records — [WP-Z §5](../verification/reviews/M-TESTQUAL-Z-findings-review.md). **Stop criterion NOT triggered** — 2 confirmed, 1 refuted; Phase 3 stands, shrunk |
+| TASK-579 | P1 | **DONE 2026-09-07** (`f66a4d2`) — forced connect-fail **45 → 1**, `wrState=5` → **0**, 4 downstream ids newly PASS | the WebRadio forced-connect-fail injector nothing clears — [F-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Fixed in the harness: `_wr_deadurls_custody` via `Dut.injected` (BP-073); session review §B.3 |
+| TASK-580 | P1 | **DONE 2026-09-07** (`f66a4d2`) — "could not normalize to list view" **6 SKIPs → 0**, `T203` control holds | the heatmap injector wedges the sub-view and the block behind it — [G-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). One-line firmware fix: `backToPrevView()` tested `== HeatmapDetail`, one of two detail views; `!= List` covers both (§B.2) |
+| TASK-581 | P1 | **CLOSED 2026-09-07 — REFUTED on hardware**, not fixed | the aircraft injector freezes the radar for the rest of the boot — [H-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). All eight ids PASS; `H-5`'s companion claim (`T_PR_05` a permanent SKIP) is **STALE** — it passes — [§1.3](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-582 | P1 | **OPEN — unblocked 2026-09-07** (TASK-634 done) | an inverted guard that passes exactly on the regression — [C-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Its id `T-BUSY-05` was demoted out of CORE by TASK-626, so it no longer gates the run — the inverted guard itself is still unfixed |
 | TASK-583 | P1 | **CLOSED 2026-09-05, subject deleted** — not fixed, GONE | the error-suite teardown writes the wrong state — [F-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). TASK-603 deleted `_wr_err_test` with the only four bodies that called it (`T_WR_ERR_01`-`04`) … [retired_test_ids.md](../verification/retired_test_ids.md) |
-| TASK-588 | P1 | BLOCKED — TASK-624 | a skipped health check announced as a health PASS — [C-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-597 | P2 | BLOCKED — TASK-624 | the player gate's health machinery cannot fire — [E-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-595 | P2 | BLOCKED — TASK-579 | sweep the flake registry against its call sites, both directions — [C-7](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-588 | P1 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | a skipped health check announced as a health PASS — [C-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md). `unmet()` is the verdict it needed and it now exists |
+| TASK-597 | P2 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | the player gate's health machinery cannot fire — [E-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-595 | P2 | **OPEN — unblocked 2026-09-07** (TASK-579 done); **scope grew** | sweep the flake registry against its call sites, both directions — [C-7](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Hardware confirmed `T092`/`T_PLR_07` and found a **third**: `T_WR_EJECT_01` FAILs `UNDECLARED flake`. Also owns the 4 `no_reachable_fail` rows (`T084`/`T087`/`T091`/`T092`) |
 | TASK-589 | P1 | OPEN | repair the `run/screendump` instrument, broken at import — [A-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Prerequisite of Phase 4 |
 
 ---
@@ -174,12 +200,12 @@ because it carries a gate's authority.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-635 | P2 | BLOCKED — TASK-608 | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
-| TASK-592 | P2 | BLOCKED — TASK-602 | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-636 | P2 | BLOCKED — TASK-624 | per-family shuffle capability and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Scope narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id, naming both orders. **MUST NOT** add an 8th `Verdict` member or an 8th `classify()` token |
+| TASK-635 | P2 | BLOCKED — **phase entry (TASK-557)**; its row predecessor TASK-608 is DONE | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
+| TASK-592 | P2 | BLOCKED — **phase entry (TASK-557)**; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-636 | P2 | BLOCKED — **phase entry (TASK-557)**; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
 | TASK-594 | P2 | BLOCKED — TASK-636 | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-604 | P2 | BLOCKED — phase entry | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-605 | P2 | BLOCKED — TASK-634 | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-605 | P2 | BLOCKED — **phase entry (TASK-557)**; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 
 ---
 
@@ -223,12 +249,12 @@ ratchet's clothes.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-607 | P3 | BLOCKED — TASK-608 | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
+| TASK-607 | P3 | BLOCKED — **phase entry (Phase 3, hence TASK-557)**; its row predecessor TASK-608 is DONE | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
 | TASK-640 | P3 | BLOCKED — TASK-607 | classify all synchronisation sleeps, publish the three counts, then set the floor — [R23](../verification/M-HARNESS2-requirements.md) |
 | TASK-606 | P3 | BLOCKED — phase entry | mirror-equality gate, pairs generated wherever the symbol is already generated — [R42](../verification/M-HARNESS2-requirements.md) |
 | TASK-613 | P3 | BLOCKED — TASK-606 | a numeric bound in an assertion **you touch** cites its origin — delta-scoped only — [R44](../verification/M-HARNESS2-requirements.md) |
-| TASK-599 | P2 | BLOCKED — TASK-609 | one session layer; migrate the four bypassing harnesses — [R47](../verification/M-HARNESS2-requirements.md) |
-| TASK-641 | P3 | BLOCKED — TASK-628 | generate the read-key set; the author declares a claim class from a closed enum — [R1](../verification/M-HARNESS2-requirements.md) |
+| TASK-599 | P2 | BLOCKED — **phase entry (Phase 3, hence TASK-557)**; its row predecessor TASK-609 is DONE | one session layer; migrate the four bypassing harnesses — [R47](../verification/M-HARNESS2-requirements.md) |
+| TASK-641 | P3 | BLOCKED — **phase entry (Phase 3, hence TASK-557)**; its row predecessor TASK-628 is DONE | generate the read-key set; the author declares a claim class from a closed enum — [R1](../verification/M-HARNESS2-requirements.md) |
 | TASK-642 | P3 | BLOCKED — TASK-641 | two-field falsifier: executable replay, and physical with an enforced expiry — [R9](../verification/M-HARNESS2-requirements.md) |
 | TASK-643 | P3 | BLOCKED — TASK-642 | mutation driver with the control arm; a transcript miss is inconclusive, never a confirmation — [R10](../verification/M-HARNESS2-requirements.md) |
 | TASK-601 | P2 | BLOCKED — TASK-599 | the TLS preflight runs from every entry point, not one — [A-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
@@ -241,15 +267,22 @@ ratchet's clothes.
 
 ## Totals
 
-| phase | rows | days | committed |
-|---|---|---|---|
-| 0 — decisions | 6 (all closed) | ~1 | yes — **discharged 2026-09-04** |
-| 1 — host-only foundation | 21 | ~28.5 | **yes** |
-| 2 — the 80-minute session | 11 | ~6 | no — scheduled |
-| 3 — order and state hygiene | 6 | ~7.5 | no — blocked on TASK-557 |
-| 4 — observability contract | 4 | ~10 | no — ADR-063/064 taken; TASK-637 open, TASK-638 gated on TASK-589 |
-| 5 — ratchets | 13 | ~28.5 | no — blocked on Phase 3 |
-| **total** | **61** | **~81** | **only Phase 1** |
+**Recounted mechanically 2026-09-07.** The previous table read 61 rows and predated TASK-644/645/
+646/647 and TASK-661; every count below is derived from the tables above, not carried forward.
+
+| phase | rows | closed | live | days | state |
+|---|---|---|---|---|---|
+| 0 — decisions | 6 | 6 | 0 | ~1 | **DISCHARGED 2026-09-04** |
+| 1 — host-only foundation | 26 | 26 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; `run/check` 43.5 s warm of 90, `run/check-docs` 1.1 s of 15 |
+| 2 — the 80-minute session | 12 | 7 | 5 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: 582, 588, 597, 595, 589 |
+| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **TASK-557**; shrunk by H-1's refutation |
+| 4 — observability contract | 4 | 0 | 4 | ~10 | ADR-063/064 taken; **TASK-637 is the only unblocked row**, 638 gated on 589 |
+| 5 — ratchets | 13 | 0 | 13 | ~28.5 | blocked on Phase 3. **610, 614, 615 are unblocked** — they do not inherit the phase entry |
+| **total** | **67** | **39** | **28** | **~81** | Phases 0–1 done; only Phase 1 was ever *committed* |
+
+**The three phases still ahead are not equally blocked.** Phase 2's five live rows and Phase 4's
+TASK-637 and Phase 5's TASK-610/614/615 need **nothing but hands**. Everything else waits on
+TASK-557 (Phase 3, and Phase 5 through it) or on TASK-589 (Phase 4's render half).
 
 **~60 engineer-days were cut outright and are not on this board** — R44's retrofit, R8, R26, R53's
 budget table, R11's quarterly campaign, the three-consecutive-shuffled-runs criterion, R1's prose

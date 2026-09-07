@@ -22,6 +22,12 @@ have not been taken.
 > read **8 ids / 15 findings** when this file was opened. After the human's 2026-09-06 ruling
 > (below) it reads **2 ids / 3 findings**. The criterion is still **NOT MET**, and no row in this
 > file makes it met: a row records the dependence, it does not remove it.
+>
+> **Update 2026-09-07 (@PM, TASK-634's session).** The count is unchanged, but one of the three is
+> no longer a decision: `T_BI_03`'s open question was answered YES on hardware, so it is now a small
+> suite change, not a ruling. The remaining **two** `T-CDWN-02` findings are the ones that genuinely
+> need TASK-617's demote-or-inject ruling. **`get sig`/`dbgSet`-shaped injection (ADR-063) is the
+> only thing that clears them**, which puts this criterion behind TASK-637, not behind more analysis.
 
 ## What the gate looks at
 
@@ -127,7 +133,7 @@ would decide it by attrition. `since` = the date the row was opened.
 |---|---|---|---|---|
 | `T-CDWN-02` | network-key | `set triggerFetch 1` in `_cdwn_stale_chart_list()` arms the fetch whose enqueue raises `shellBusy`. The ARMING is local — the verdict resolves on the shell's reply, not on Yahoo's — but the key is in `NETWORK_KEYS` for the ids that do wait on the result, and weakening it there to clear this one id is the wrong trade. Clearing this row needs an injection that sets `shell::state().busy` with no app fetch (ADR-063 shape), not a suite change. | TASK-617 | 2026-09-05 |
 | `T-CDWN-02` | network-app | Activates Stock via `_switch_to_stock()`, whose `init()` issues the chart fetch. Same reasoning as the row above: the id needs Stock's enqueue, not Stock's response. Re-pointing the id at Spotify would read zero here and be less offline-satisfiable, not more. | TASK-617 | 2026-09-05 |
-| `T_BI_03` | network-helper | `wait_for_queue(min_count=2)` needs a live Spotify queue, which TASK-243's permanent 403 prevents. The `set queue N` injection may remove this row without a class change — that is the one row here that might not need a ruling, and it needs a DUT to confirm. **Deferred to TASK-634's session on 2026-09-06 with exactly that as its stated question.** | TASK-617 | 2026-09-05 |
+| `T_BI_03` | network-helper | `wait_for_queue(min_count=2)` needs a live Spotify queue, which TASK-243's permanent 403 prevents. **Question ANSWERED on hardware 2026-09-07 (TASK-634 session A §1.5): `set queue N` DOES satisfy `wait_for_queue(min_count=2)` — YES, and with no class change.** So this row no longer needs a ruling; it needs the small suite change that points the helper at the injection, after which the row is deleted. It is the one row here that is a work item, not a decision. | TASK-617 | 2026-09-05 |
 
 ## How a row leaves
 

@@ -26,6 +26,34 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > Human review flag: the ADR-028 rejection and ADR-032 supersession are the two judgement calls —
 > the seven accepts are mechanical.
 
+---
+
+## ▶ STANDING CONDITIONS — read before touching the DUT or planning work (@PM, 2026-09-07)
+
+Four facts that gate most of the open work and are otherwise discoverable only by reading a phase's
+prose on another board. They are here because this file is the index and is read first.
+
+1. **The board is PINNED to the `cyd2usb_winamp_debug` (`-DBOD_WATCH`) build. Do not restore
+   production.** Reflashing the *same* debug env is permitted (human, 2026-09-03); restoring
+   `ENV_PROD` is not. The restore was deleted from all fourteen entry points by TASK-633, so no
+   `run/` script will do it behind you — but a manual `run/flash` will. Owner: **TASK-557**
+   ([tasks-architecture.md](tasks-architecture.md)).
+2. **TASK-557 is the project's master blocker and is UNRESOLVED.** Rig instability, measured across
+   four campaigns, non-stationary, no established cause. It gates M-HARNESS2 Phase 3 (and Phase 5
+   through it) and holds M-TESTARCH's class-order switch. **The decisive experiment is a human-run
+   cable/powered-hub null test** — it is not blocked on analysis, it is blocked on a person.
+3. **TASK-243 (Spotify Premium lapsed → permanent 403) blocks live-playback verdicts only.** UI,
+   nav and app-switch tests run fine. Do not re-auth chasing it; validate on the host first.
+4. **A criterion is closed against the oracle it names (BP-075).** A human judgement is **ACCEPTED**
+   with accepter and date — never PASS. If you are about to write PASS on a milestone criterion,
+   you are probably about to repeat the defect LL-146 was filed for.
+
+**Where the live work is:** M-HARNESS2 is the active programme —
+[tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-669.**
+
+---
+
 ## Open — M-PLANERADAR, RE-OPENED (human ruling 2026-09-06)
 
 The milestone closed 2026-07-11 on four criteria that do not hold (TASK-587 sweep; H-2's shape for
@@ -58,10 +86,29 @@ new assertions, A-7 a deferral. **Nothing was re-scored PASS.** These rows carry
 | TASK-654 | P3 | OPEN — @VE · BLOCKED on TASK-243 | M-LIST-v4 (A-5): run `T155`-`T160` to a verdict — all seven read `written`/`planned`, none ever ran. `T161` needs a body first. The 8 px dead-zone criterion is unsatisfiable as written (as-built is 1 px): rewrite or drop it |
 | TASK-655 | P3 | OPEN — @VE · **due 2026-09-20** | M-TOUCH-CAPTURE (B-2): `T152` scrollbar-strip capture SKIPped 2026-06-05 on queue < 6, never re-run. Seed via `set queue 6` and run to a verdict, or record an explicit ACCEPTED with accepter and date |
 | TASK-656 | P3 | OPEN — @VE · BLOCKED on TASK-638 | M-SETTINGS-APP-WIRE (A-1): the 11 criteria the wiring gate does NOT cover — E1-E10 + E12, all render / animation-rate / entity-count / fetch / reboot subjects. Suite `app-settings-wire-001` (`T222`-`T248`) exists with all 27 rows `planned` |
-| TASK-657 | P2 | OPEN — @VE · needs a DUT window | M-DATATASK-PROGRESS (A-6): `T_DTP_01`/`T_DTP_02`/`T_WX_07`/`T_CX_07` written 2026-09-06 and **never run on hardware**. Run all four to a verdict. Host negatives green — `test_progress_atoms.py`, 6 mutations caught |
+| TASK-657 | P2 | **DONE 2026-09-07** (`f66a4d2`) — all four **PASS** on hardware | M-DATATASK-PROGRESS (A-6): the four atom ids run to a verdict. Two FAILs were test defects, fixed (edge oracle off `get dataq`, UNMET entry guard, 80 s window); TASK-660's `(0,0)` narrowing exercised — [§B.1](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-658 | P3 | OPEN — @VE · BLOCKED on TASK-638 | M-SETTINGS-STUB (A-7): C3/C4 (`T-SET-04`/`T-SET-05`) deferred to ADR-064 `get sig` — `inkCount == 0` outside the content-panel rect, and `sig(before) == sig(after)` across Spotify→Settings→Spotify. Neither needs a golden |
 | TASK-659 | P3 | **DONE 2026-09-06** | two record defects corrected: `stockQuoteProgress` is a busy flag `{0,-1}`, not a `0..7` ticker index; `M-SETTINGS-CRYPTO` was never needed and is not filed — [roadmap.md](roadmap.md) (both entries), [IFC-001](../architecture/interfaces/IFC-001.md), [M-DATATASK-PROGRESS](../architecture/designs/M-DATATASK-PROGRESS.md). Fallout: TASK-660 |
 | TASK-660 | P3 | **DONE 2026-09-06** | TASK-659 fallout, host-only: `_PROGRESS_ATOM_DOMAIN["stockQuoteProgress"]` narrowed `(0,7)`→`(0,0)` so `T_DTP_01`'s domain clause can fail; negative arm `N2c` proves it bites; `T170`'s two "stuck on ticker N (SYM)" messages dropped — [test_plan.md](../verification/test_plan.md) `T_DTP_01`. DUT verdict still owed by TASK-657 |
+
+## Open — Phase 2 hardware-session fallout (filed by @PM 2026-09-07)
+
+Seven findings the two hardware sessions (`d3a3600`, `f66a4d2`) produced that belong to no existing
+row. Five are the review's own "**Not done here, for @PM/@Architect**" list
+([§B.10](../verification/reviews/M-TESTQUAL-phase2-session-review.md)); TASK-662 and TASK-666 are
+defects found in passing. **None is blocked by the TASK-557 pin** — all are host-side or reachable
+on the debug build already flashed. The session record is the evidence for every one; do not re-run
+the board to re-derive what is already written down.
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-662 | P1 | OPEN — @Developer · **firmware, DUT-owed** | a **zero-delta drag commits `ACT_VOLUME`** — `T078` caught it on its first hardware run after TASK-584 pointed it at the real marker. The touch deadband is not holding at `(140,63)`. A real input regression, not a test defect — [§1.9](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-663 | P1 | OPEN — @Developer + @Architect | `run/check-datatask-certs`' `ENDPOINTS` table has **drifted from `kRadioBrowserMirrors`** — it never tests the mirror the firmware uses, which fails mbedTLS on a new 3-cert LE cross-sign (`-120`). **Likely the real TASK-284**: the mirrors are not dead — [§B.4](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-664 | P2 | OPEN — @Developer | `T192`: the 5D chart returns two HTTP 200s and **`fetchOkCount` never moves** — either the range-identity discard eats them or the `BY_SYM` path does not bump it. First verdict this id has ever produced — [§B.2.2](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-665 | P2 | OPEN — @Developer | `run/lib.sh`'s exit-3 branch prints "rig condition … WiFi never came up" **last**, overwriting the runner's correct HEALTH sentence. Both classes exit 3 by design, so the sentence is the only discriminator — [§B.6](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-666 | P2 | OPEN — @Architect · **a design call, TASK-633's owner** | D-1b: `require_build` **opens the port before the monitor is stopped**, so `run/test` returns a false RIG exit 3 in the rig's normal state. Session A worked around it rather than fixing it, being a lifecycle-ordering decision — [§0 D-1b](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-667 | P3 | OPEN — @VE | `T_WR_EJECT_01` FAILs `UNDECLARED flake — no entry in flaky.yaml`. The third `C-7` case, found on hardware after the other two. Fold into TASK-595's sweep or declare it — [§B.3](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-668 | P3 | OPEN — @VE | `T204`'s **120 s Ytd stall**, re-confirmed on a healthy network, and `G-10`/`G-17`: three failure messages that name a cause the raw log contradicts. `dataTask` knows it got `http=-1`/DNS and the message should say so — [§1.7, §B.2.1](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 
 ## Open — M-PR-MOTION (2026-07-18)
 
@@ -86,8 +133,8 @@ almost did.
 |---|---|---|---|
 | [tasks-architecture.md](tasks-architecture.md) | M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE · M-TESTARCH | 16 | § ▶ EXECUTION SEQUENCE |
 | [tasks-winamp-player.md](tasks-winamp-player.md) | M-WINAMP-PLAYER (paused) | 12 | § Open — M-WINAMP-PLAYER |
-| [tasks-harness2.md](tasks-harness2.md) | M-HARNESS2 + WP-Z test-harness remediation, phases 0–5 | 61 | § Phase 1 (the committed phase) |
-| this file | everything else — M-PLANERADAR (re-opened), M-PR-MOTION, M-WEBRADIO follow-ons, unowned failures | 18 | below |
+| [tasks-harness2.md](tasks-harness2.md) | M-HARNESS2 + WP-Z test-harness remediation, phases 0–5 | **28 live of 67** | § Totals — it names the live rows per phase |
+| this file | everything else — M-PLANERADAR (re-opened), M-PR-MOTION, Phase 2 fallout, M-WEBRADIO follow-ons, unowned failures | 25 | below |
 | [tasks-archive.md](tasks-archive.md) | closed work, all milestones | — | the audit trail |
 
 **The split file is the entry, always.** The two mirror tables that used to sit below this
