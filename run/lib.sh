@@ -467,7 +467,11 @@ require_build() {
   local rc=0
   # NO_WIFI: a build identity does not need the network, and making the
   # preflight wait for an AP would turn a WiFi outage into a wrong-build report.
-  ( cd "$PIO_DIR" && NO_WIFI=1 "$VENV_PY" -m lib.verify_build \
+  # cwd MUST be app/tools: `lib` is a package under app/tools, not under app/.
+  # TASK-634 (2026-09-06): as landed by TASK-633 this line cd'd to $PIO_DIR and
+  # every one of the 14 converted entry points died with
+  # "No module named lib.verify_build" (exit 1) before running a single test.
+  ( cd "$PIO_DIR/tools" && NO_WIFI=1 "$VENV_PY" -m lib.verify_build \
       --port "$port" --env "$env" --who "$who" ) || rc=$?
   [ "$rc" = "0" ] || return "$rc"
   # The verify open just reset the board (DTR). Stamp it where lib/dut.py's DRD
