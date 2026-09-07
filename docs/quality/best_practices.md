@@ -858,6 +858,46 @@ sweep's starting point)
 
 ---
 
+### BP-076 — The commit that lands the work updates the board row in the same commit
+
+**Adopted from**: LL-147
+**Date adopted**: 2026-09-07
+**Rule**: Six clauses.
+1. **Same commit, not the next one.** A commit landing work under a task id also updates that task's
+   row — status, and the hash is the commit's own. There is no "documentation pass" for board rows.
+   This is **BP-069's sibling**: BP-069 says a row *is* a pointer; this says *when the pointer is
+   written*.
+2. **The subject names the id** (`feat(TASK-566): …`), and a commit landing several names them all.
+   The convention becomes load-bearing rather than habitual: it is the only mechanical trace of what
+   landed under which id.
+3. **A row reading OPEN or BLOCKED while a commit names its id is wrong** — either the status is
+   stale, or the work landed in part and the row says **PARTIAL**.
+4. **A row reading DONE / CLOSED / FIXED / LANDED cites where it landed** — a commit hash, or
+   `(docs)` when the closure lives in a document and there is no code to point at.
+5. **A row blocked on a task names the constraint that is actually live.** When the named predecessor
+   closes, the blocked row is corrected in the same commit that closes it — otherwise the row does
+   not merely go stale, it *actively misdirects*.
+6. **A review that produces findings files them as rows before the session ends.** An unfiled finding
+   has no row to be stale against, and no gate over the boards can see one.
+**Rationale**: The 2026-09-07 audit found, in one sitting, a row reading BLOCKED while the session it
+describes had landed twice, three rows silently unblocked for days, a row reading BLOCKED that was in
+fact REFUTED, and seven rows naming a predecessor that had since closed — so a cold session would
+have read "BLOCKED — TASK-608", seen that done, and started work that was still blocked. Tested
+rather than asserted, the handover claim was false that morning: from the boards alone a cold session
+would have re-run an 80-minute hardware session whose results were already written down. None of
+those is a judgement call; every one is a contradiction between two artifacts that both already
+existed, found four days late. BP-069 settled what a row *is* and left unsaid *when it is written*, so
+the board is stale by default rather than by accident — the only moment the author reliably knows the
+truth is the commit, and the rule did not ask them to write it there.
+Clauses 1–5 are enforced by `app/tools/gate/check_board_currency.py` (B1–B3, blocking, shrink-only
+ledger). **Clause 6 is not enforceable and is the honest gap**: seven findings sat unfiled in a
+review's "for @PM" list for four days, and no gate over the boards can see a row that does not exist.
+A green gate means the board does not contradict the commit log in three named ways — not that the
+board is true.
+**Applies to**: All. Whoever commits owns the row in that commit; VE and PM additionally own clause 6.
+
+---
+
 ## Entry Format
 
 ```
