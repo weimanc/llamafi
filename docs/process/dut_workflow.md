@@ -146,6 +146,21 @@ first:
 ./run/test
 ```
 
+> **A reflash costs a TASK-557 observation window.** TASK-557's measurement *is* the board's
+> uptime, so `run/flash-debug` — like any reset — ends whatever window is running. On 2026-09-07
+> a reconcile-and-reflash under TASK-589 spent **9 h 33 m**. Nothing warns you, and nothing in
+> `run/` can: the scripts cannot tell an intended reset from a costly one.
+>
+> The trigger is routine and **expected, not a defect**: the debug env injects the git hash into
+> the build id, so any HEAD move (a commit, a checkout) invalidates the artifact already on the
+> board and the next `run/test*` refuses with `elf-mismatch`. That refusal means "the board is
+> stale", not "the board is broken".
+>
+> Before reflashing: check whether a window is running (`./run/monitor-read` — uptime and how long
+> it has been climbing; never `run/dut-health`, whose own port open resets the board). If one is,
+> either wait, or reflash deliberately and **say so in the session record** — the window's length
+> at the moment you ended it is the datum TASK-557 loses.
+
 The script executes internally: verify build (refuse if wrong) → snapshot settings → kill monitor →
 run suite → restore **settings** → restart monitor. Never split these steps manually.
 

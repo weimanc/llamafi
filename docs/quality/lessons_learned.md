@@ -4,6 +4,78 @@
 
 Populated during retrospectives. Entries reviewed w/ human for promotion to `best_practices.md`. No promotion without explicit human sign-off.
 
+## Retrospective — 2026-09-07 — twenty-five interruptions later, the only variable that predicted how much survived was whether the agent had written anything to disk yet
+
+### LL-151 — 2026-09-07 — An agent that saves as it goes loses a tail; one that composes in memory loses the package, and the difference was measured twenty-five times
+
+> Promoted here from its draft in [M-HARNESS2-QM-review.md](M-HARNESS2-QM-review.md) §6.1, where it
+> was written against three deaths. The register is the canonical copy; the review's entry now
+> points here. (`LL-148`/`149`/`150`/`152` remain unlanded drafts in that file — this id is landed
+> ahead of them deliberately, because its evidence set grew.)
+
+**Context**: Across this programme **twenty-five agent runs were interrupted mid-flight** — usage
+limits in almost every case, one server error. The outcomes split cleanly on one variable: whether
+the agent had been writing its deliverable to disk as it went.
+* **Saving as it went — the loss was a tail.** WP-F kept 68 KB and lost only its findings section.
+  WP-Z kept its executive summary and its register. The QM audit kept its verdict and its
+  cross-reference. The Architect kept twelve files. Every one was finished by **resuming the same
+  agent**, which still held its transcript and did not re-derive what it had already concluded.
+* **Composing in memory — the loss was total.** WP-C's first attempt produced nothing and was
+  re-run from zero.
+* **The instructive case in the other direction**: the oracle sweep completed its entire analysis
+  and died at *"now writing the deliverable"* — everything on disk was lost, and it was recoverable
+  only because the analysis was still in that agent's context. Resuming it was the whole recovery.
+
+**Observation**: The variable is not agent quality, task size, or how the work was scoped — the
+packages that survived and the one that did not were dispatched by the same orchestrator against
+the same rubric. It is purely *when the first write happened*. The mitigation is also unusually
+cheap: it costs one extra file write per section and buys the difference between re-running a
+package and finishing one. Note also that resuming beat re-dispatching in **every** case where both
+were available: a fresh agent starts cold and re-derives conclusions the interrupted one had already
+reached and, in the oracle-sweep case, was the only thing standing between a completed analysis and
+a repeat of it.
+
+**Root cause**: A long deliverable is all-or-nothing by default. An agent's natural composition
+order is analyse → assemble → write once at the end, and nothing in a dispatch prompt contradicts
+that unless it is said. This project is agent-operated ([AGENTS.md](../agents/AGENTS.md)), so the
+default is not a personal working style anyone can be asked to change — it is the project's, and it
+has to be written into the briefs. The register already carried the *salvage* half as **BP-052**
+(on subagent death, check for salvageable work before relaunching); nothing carried the
+*prevention* half.
+
+**Suggested improvement — proposed as a BP candidate, not adopted** (QM's remit: candidates go to
+the human, never self-promoted). See the proposed rule below. Filed as **TASK-670**.
+
+**Status**: proposed for promotion — awaiting human sign-off.
+
+**BP candidate — "write long deliverables incrementally, and on an interruption resume the agent, don't re-dispatch it"**
+
+1. **Save after each section, never compose then write.** Any deliverable expected to run past a
+   page — a review, an audit, a findings register, a design doc — is written to its file as it is
+   produced: header and scope first, then section by section, saving after each. Holding the
+   document in memory to write at the end is the failure mode this rule exists for.
+2. **On an interruption, read the partial on disk before doing anything else.** It usually holds
+   most of the work, and it tells you exactly where to restart.
+3. **Resume the same agent; do not re-dispatch a fresh one.** The interrupted agent retains its
+   transcript and will not re-derive conclusions it already reached. A fresh agent starts cold, and
+   in the one case where the analysis existed only in context, resuming was the *only* recovery.
+   This is BP-052's salvage rule extended from "check for salvageable work" to "the agent itself is
+   salvageable".
+4. **Dispatch prompts say all of this explicitly.** The instruction has to reach the agent that
+   will be interrupted, not only the person dispatching it — an orchestrator that knows the rule
+   and does not write it into the brief has not applied it. One or two lines in the brief.
+
+**What it does not solve** — stated plainly, because the rule's value is in being bounded rather
+than oversold: an agent killed **before its first write** still loses everything. WP-C's first
+attempt died at its first tool call and no discipline would have saved it. This practice **bounds**
+the loss to the current section; it does not eliminate it. It also does nothing for the case where
+the *orchestrating* session dies with no partial to resume into.
+
+**Applies to**: every role that dispatches or runs a long-output agent — @QM and @VE on reviews and
+audits, @Architect on design docs and ADRs, @PM on reconciliations, @RnD on experiment reports.
+**Cost**: one file write per section, plus two lines in a dispatch prompt. The measured alternative
+is re-running a package from zero.
+
 ## Retrospective — 2026-09-07 — the record lags the work by exactly one session, every time, and the only thing that has ever stopped a rule rotting here is a gate that reads a fact the declarer does not control
 
 ### LL-147 — 2026-09-07 — Two hardware sessions wrote thorough reviews and updated no board, and the boards then misdirected a cold session for four days

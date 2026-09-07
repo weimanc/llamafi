@@ -45,9 +45,10 @@ renumberable — **kept rather than renumbered on purpose**, because the human r
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
 WP-Z's reserved band). **TASK-648 was never allocated either** — the band closed at 647 and the
 next filing started at 649. Allocated since: **TASK-649…660** on [tasks.md](tasks.md) (the TASK-587
-escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-670**
+escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-671**
 (662–668 filed 2026-09-07 on [tasks.md](tasks.md) from the Phase 2 hardware sessions; **TASK-669**
-the same day, the board-currency gate, also on [tasks.md](tasks.md)).
+the same day, the board-currency gate, and **TASK-670** the LL-151 BP candidate, both also on
+[tasks.md](tasks.md)).
 
 **3. TASK-575 is deliberately not a row here.** It lives on
 [tasks-architecture.md](tasks-architecture.md) (host-side FIXED, full `run/test` pass owed) and is
@@ -232,7 +233,7 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-637 | P2 | OPEN — ADR-063 taken | shell-side identity guard + tick/repaint counters — fixes the class for all thirteen apps — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
-| TASK-638 | P2 | BLOCKED — TASK-589 only until its landing commit (ADR-064 taken); the instrument works and the readback path is re-verified on hardware 2026-09-07 | render signature over panel readback, ink/entropy metrics, time freeze, readback liveness check — [R5](../verification/M-HARNESS2-requirements.md) |
+| TASK-638 | P2 | OPEN — unblocked 2026-09-07: TASK-589 landed (`69984ed`), which was this row's only stated constraint (ADR-064 taken); instrument and readback path both re-verified on hardware | render signature over panel readback, ink/entropy metrics, time freeze, readback liveness check — [R5](../verification/M-HARNESS2-requirements.md) |
 | TASK-593 | P2 | BLOCKED — TASK-637 | per-app result and entry-state observables, one app per commit, capped per app — [R3](../verification/M-HARNESS2-requirements.md) |
 | TASK-639 | P3 | BLOCKED — TASK-638 | the clock family is rewritten, not migrated — ledger five claims, re-file as new ids — [Dev §8.2](../architecture/designs/M-HARNESS2-DEV-review.md) |
 

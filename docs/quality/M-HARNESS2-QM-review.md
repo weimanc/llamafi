@@ -894,7 +894,9 @@ incremental-write instruction explicitly (header and scope first, then batches, 
 Pairs with BP-052: prevention first, salvage second. Where a package's output is load-bearing for
 other packages' conclusions, schedule a second independent grader for that package specifically —
 not because it died, but because everything downstream inherits its trust.
-**Status**: open
+**Status**: **landed in [lessons_learned.md](lessons_learned.md) 2026-09-07** as the canonical
+LL-151 — restated against the full programme evidence (25 interruptions, not 3) and carrying the
+BP candidate. Edit it there, not here; this draft is the historical record. Owned by **TASK-670**.
 
 #### LL-152 — 2026-09-03 — A single-grader subjective figure became the acceptance criterion for a seven-month programme
 

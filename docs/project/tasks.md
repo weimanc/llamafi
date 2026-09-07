@@ -37,7 +37,10 @@ prose on another board. They are here because this file is the index and is read
    production.** Reflashing the *same* debug env is permitted (human, 2026-09-03); restoring
    `ENV_PROD` is not. The restore was deleted from all fourteen entry points by TASK-633, so no
    `run/` script will do it behind you — but a manual `run/flash` will. Owner: **TASK-557**
-   ([tasks-architecture.md](tasks-architecture.md)).
+   ([tasks-architecture.md](tasks-architecture.md)). Permitted is not free: **a reflash resets the
+   board and spends the running TASK-557 observation window** (9 h 33 m on 2026-09-07) — check for
+   one first and record it if you end it, per
+   [dut_workflow.md §5a](../process/dut_workflow.md).
 2. **TASK-557 is the project's master blocker and is UNRESOLVED.** Rig instability, measured across
    four campaigns, non-stationary, no established cause. It gates M-HARNESS2 Phase 3 (and Phase 5
    through it) and holds M-TESTARCH's class-order switch. **The decisive experiment is a human-run
@@ -50,7 +53,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-669.**
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-671.**
 
 ---
 
@@ -120,6 +123,7 @@ escapes and ledger: [board_currency_exceptions.md](board_currency_exceptions.md)
 
 | task | pri | status | title |
 |---|---|---|---|
+| TASK-670 | P3 | OPEN — @QM · **awaiting human sign-off** | **LL-151** landed in [lessons_learned.md](../quality/lessons_learned.md): write long agent deliverables incrementally; on an interruption resume the same agent. BP candidate, not self-adopted — 25 measured interruptions |
 | TASK-669 | P2 | **DONE 2026-09-07** (`229702f`) | board-currency gate `check_board_currency.py`: B1/B2/B3 over the 4 boards × commit **subjects**; blocking on a [dated ledger](board_currency_exceptions.md) (B1 **4**, B2 **68**, B3 **0** — 9 before `0dba35a`); 37-arm negative suite. Rule filed to @QM as a BP candidate |
 
 ## Open — M-PR-MOTION (2026-07-18)

@@ -82,6 +82,13 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
   deleted the production restore from all fourteen DUT entry points, so `run/test` and the rest run
   fine on a pinned board. `DUT_NO_RESTORE=1` **has met its retirement condition and is gone**; it is
   not read by anything and setting it does nothing.
+- **A reflash costs a TASK-557 observation window — check before you flash.** TASK-557's
+  measurement is the board's *uptime*, so any reset ends the running window (one cost **9 h 33 m**,
+  2026-09-07, TASK-589). The usual trigger is benign and **expected, not a defect**: the debug env
+  bakes the git hash into the build id, so a HEAD move invalidates the flashed artifact and the
+  next run refuses with `elf-mismatch`. Check for a live window with `./run/monitor-read` (never
+  `run/dut-health` — its port open resets the board); if one is running, wait or flash deliberately
+  and record that you ended it. Full note: [dut_workflow.md §5a](docs/process/dut_workflow.md).
 - **DUT entry points verify and refuse — they never flash and never restore (ADR-067).** Every
   `run/test*`, soak and gate script *reads* the board's build identity and **refuses with exit 3**
   (`elf-mismatch`, a RIG condition) if it is not running the build the run declared. **You flash the
