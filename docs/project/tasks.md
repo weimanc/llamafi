@@ -123,7 +123,7 @@ escapes and ledger: [board_currency_exceptions.md](board_currency_exceptions.md)
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-670 | P3 | OPEN — @QM · **awaiting human sign-off** | **LL-151** landed in [lessons_learned.md](../quality/lessons_learned.md): write long agent deliverables incrementally; on an interruption resume the same agent. BP candidate, not self-adopted — 25 measured interruptions |
+| TASK-670 | P3 | **DONE 2026-09-07** (`7acc40b`) | **LL-151** landed in [lessons_learned.md](../quality/lessons_learned.md): write long agent deliverables incrementally; on an interruption resume the same agent. BP candidate, not self-adopted — 25 measured interruptions |
 | TASK-669 | P2 | **DONE 2026-09-07** (`229702f`) | board-currency gate `check_board_currency.py`: B1/B2/B3 over the 4 boards × commit **subjects**; blocking on a [dated ledger](board_currency_exceptions.md) (B1 **4**, B2 **68**, B3 **0** — 9 before `0dba35a`); 37-arm negative suite. Rule filed to @QM as a BP candidate |
 
 ## Open — M-PR-MOTION (2026-07-18)
