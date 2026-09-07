@@ -182,7 +182,7 @@ corpus retrofit is cut to delta-scoped rules only.
 | TASK-588 | P1 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | a skipped health check announced as a health PASS — [C-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md). `unmet()` is the verdict it needed and it now exists |
 | TASK-597 | P2 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | the player gate's health machinery cannot fire — [E-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-595 | P2 | **OPEN — unblocked 2026-09-07** (TASK-579 done); **scope grew** | sweep the flake registry against its call sites, both directions — [C-7](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Hardware confirmed `T092`/`T_PLR_07` and found a **third**: `T_WR_EJECT_01` FAILs `UNDECLARED flake`. Also owns the 4 `no_reachable_fail` rows (`T084`/`T087`/`T091`/`T092`) |
-| TASK-589 | P1 | **PARTIAL 2026-09-07 — repaired, hardware-verified, UNCOMMITTED** (told to commit nothing; only the landing commit remains) | repair `run/screendump`, broken at import — [A-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Portal branch DROPPED not restored; 3 dependants wrapped; `--colorprobe` 25/25 + 4/4 swatch on DUT; gated by `check_screendump_instrument.py` |
+| TASK-589 | P1 | **DONE 2026-09-07** (`69984ed`) | repair `run/screendump`, broken at import — [A-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Portal branch DROPPED not restored; 3 dependants wrapped; `--colorprobe` 25/25 + 4/4 swatch on DUT; gated by `check_screendump_instrument.py` |
 
 ---
 
