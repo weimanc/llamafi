@@ -80,27 +80,37 @@ def check_face(dut, name, style):
            ndiff == 0, f"{ndiff} px changed outside colon column")
 
 
-port = autodetect_port()
-print(f"== opening {port} (DTR reset) ==", flush=True)
-dut = DutLite(port)
+# TASK-589 (R48, following TASK-609): everything below runs ONLY under the
+# __main__ guard. These three modules were left out of TASK-609's sweep
+# because they could not be imported at all — `screendump` raised
+# ImportError first — so `check_import_safety` filed them as "skipped for
+# unrelated reasons" instead of as the port-opening imports they were.
+def main():
+    port = autodetect_port()
+    print(f"== opening {port} (DTR reset) ==", flush=True)
+    dut = DutLite(port)
 
-orig = dut.cmd("get clockStyle")
-print("orig:", orig, flush=True)
-dut.cmd("switchApp 1")
-time.sleep(1.0)
+    orig = dut.cmd("get clockStyle")
+    print("orig:", orig, flush=True)
+    dut.cmd("switchApp 1")
+    time.sleep(1.0)
 
-check_face(dut, "digital", 0)
-check_face(dut, "flip",    1)
-check_face(dut, "nixie",   2)
-check_face(dut, "vfd",     3)
+    check_face(dut, "digital", 0)
+    check_face(dut, "flip",    1)
+    check_face(dut, "nixie",   2)
+    check_face(dut, "vfd",     3)
 
-# restore pre-test state
-dut.cmd(f"set clockStyle {orig.get('val', 0)}")
-dut.cmd(f"set nixieTheme {orig.get('nixieTheme', 0)}")
-dut.cmd(f"set vfdTheme {orig.get('vfdTheme', 0)}")
-dut.cmd("switchApp 0")
+    # restore pre-test state
+    dut.cmd(f"set clockStyle {orig.get('val', 0)}")
+    dut.cmd(f"set nixieTheme {orig.get('nixieTheme', 0)}")
+    dut.cmd(f"set vfdTheme {orig.get('vfdTheme', 0)}")
+    dut.cmd("switchApp 0")
 
-npass = sum(1 for _, ok, _ in results if ok)
-nfail = len(results) - npass
-print(f"\n== TASK-354 DELTA SMOKE: {npass}/{len(results)} PASS ==", flush=True)
-sys.exit(1 if nfail else 0)
+    npass = sum(1 for _, ok, _ in results if ok)
+    nfail = len(results) - npass
+    print(f"\n== TASK-354 DELTA SMOKE: {npass}/{len(results)} PASS ==", flush=True)
+    sys.exit(1 if nfail else 0)
+
+
+if __name__ == "__main__":
+    main()

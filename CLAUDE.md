@@ -154,6 +154,10 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/pr-soak [min]           # PlaneRadar + Spotify coexistence soak (TASK-307; REQUIRES debug already flashed)
 ./run/audit-origin [--grep-only] # origin-relative render/hit-test audit (TASK-082/251)
 ./run/screendump               # pull an exact DUT screenshot via SERIAL_DEBUG (requires debug firmware)
+./run/screendump --colorprobe  # re-verify the GRAM readback path itself (TASK-340's 25/25 sweep,
+                               #   plus a firmware-known swatch read back through the band path);
+                               #   exit 1 on any mismatch. Gated host-side by TASK-589's
+                               #   gate/check_screendump_instrument.py
 ./run/check                   # 11-gate build check (check_build.sh)
 ./run/check-docs               # documentation staleness gate (TASK-475, M-DOCLIFE phase 1)
 ./run/check-datatask-certs     # dataTask TLS chain preflight, offline chain-build verify (ADR-029)

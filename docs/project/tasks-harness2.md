@@ -149,7 +149,8 @@ conversion had never been executed against a board and both its headline mechani
 the ELF guard had been inert since 2026-08-17 while every artefact said otherwise. A gate that greps
 for a call is not a gate that runs it (TASK-661).
 **Still open here: TASK-582, TASK-588, TASK-597, TASK-589, TASK-595** — none blocked by the session
-any more; 588/597 wait on nothing but hands, 589 is Phase 4's prerequisite.
+any more; 588/597 wait on nothing but hands. **589 landed 2026-09-07 (PARTIAL — uncommitted)**, so
+Phase 4's render half is no longer waiting on an instrument.
 
 **Entry: TASK-618 — RULED 2026-09-03. SATISFIED 2026-09-06 by TASK-633.** The entry points now
 verify and refuse (ADR-067): they read the board's build identity and exit 3 (`elf-mismatch`, RIG) if
@@ -181,7 +182,7 @@ corpus retrofit is cut to delta-scoped rules only.
 | TASK-588 | P1 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | a skipped health check announced as a health PASS — [C-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md). `unmet()` is the verdict it needed and it now exists |
 | TASK-597 | P2 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | the player gate's health machinery cannot fire — [E-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-595 | P2 | **OPEN — unblocked 2026-09-07** (TASK-579 done); **scope grew** | sweep the flake registry against its call sites, both directions — [C-7](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Hardware confirmed `T092`/`T_PLR_07` and found a **third**: `T_WR_EJECT_01` FAILs `UNDECLARED flake`. Also owns the 4 `no_reachable_fail` rows (`T084`/`T087`/`T091`/`T092`) |
-| TASK-589 | P1 | OPEN | repair the `run/screendump` instrument, broken at import — [A-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Prerequisite of Phase 4 |
+| TASK-589 | P1 | **PARTIAL 2026-09-07 — repaired, hardware-verified, UNCOMMITTED** (told to commit nothing; only the landing commit remains) | repair `run/screendump`, broken at import — [A-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Portal branch DROPPED not restored; 3 dependants wrapped; `--colorprobe` 25/25 + 4/4 swatch on DUT; gated by `check_screendump_instrument.py` |
 
 ---
 
@@ -215,7 +216,7 @@ because it carries a gate's authority.
 **Entry: MET for the ADRs, 2026-09-04.** ADR A is **ADR-063** (`App` gains `dbgGet`/`dbgSet`;
 identity and progress move to the shell) and ADR B is **ADR-064** (GRAM readback, **on demand only**;
 a periodic or render-path signature is a violation of the decision, not a future option). Still
-required: `run/screendump` repaired (TASK-589); `.dram0.bss` headroom
+required: `.dram0.bss` headroom
 **re-derived fresh** from `run/build-debug` and the `.map` immediately before each commit, never
 remembered. **Permitted while the board is pinned** — the human confirmed on 2026-09-03 that the
 TASK-557 pin forbids restoring *production*, not reflashing the same debug env, provided
@@ -231,7 +232,7 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-637 | P2 | OPEN — ADR-063 taken | shell-side identity guard + tick/repaint counters — fixes the class for all thirteen apps — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
-| TASK-638 | P2 | BLOCKED — TASK-589 (ADR-064 taken) | render signature over panel readback, ink/entropy metrics, time freeze, readback liveness check — [R5](../verification/M-HARNESS2-requirements.md) |
+| TASK-638 | P2 | BLOCKED — TASK-589 only until its landing commit (ADR-064 taken); the instrument works and the readback path is re-verified on hardware 2026-09-07 | render signature over panel readback, ink/entropy metrics, time freeze, readback liveness check — [R5](../verification/M-HARNESS2-requirements.md) |
 | TASK-593 | P2 | BLOCKED — TASK-637 | per-app result and entry-state observables, one app per commit, capped per app — [R3](../verification/M-HARNESS2-requirements.md) |
 | TASK-639 | P3 | BLOCKED — TASK-638 | the clock family is rewritten, not migrated — ledger five claims, re-file as new ids — [Dev §8.2](../architecture/designs/M-HARNESS2-DEV-review.md) |
 
@@ -283,7 +284,8 @@ ratchet's clothes.
 
 **The three phases still ahead are not equally blocked.** Phase 2's five live rows and Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615 need **nothing but hands**. Everything else waits on
-TASK-557 (Phase 3, and Phase 5 through it) or on TASK-589 (Phase 4's render half).
+TASK-557 (Phase 3, and Phase 5 through it). TASK-589 — Phase 4's render half — was repaired and
+hardware-verified on 2026-09-07 and no longer holds anything back.
 
 **~60 engineer-days were cut outright and are not on this board** — R44's retrofit, R8, R26, R53's
 budget table, R11's quarterly campaign, the three-consecutive-shuffled-runs criterion, R1's prose

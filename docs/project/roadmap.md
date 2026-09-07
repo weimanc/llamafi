@@ -498,8 +498,9 @@ shipped), **but its DUT-verification exit criterion was never mechanically met**
 for `screendump`-confirmed on-device colour; what closed it was a human eyeballing eight captures.
 **Human ruling 2026-09-06** — accept and move on: **not blocked**, no work scheduled. The criterion is
 **not** re-recorded as met. The evidence is informal, unrepeatable and not mechanically verified, and
-it **cannot be reproduced even in principle today** — `run/screendump` has been hard-broken at import
-since TASK-555 (TASK-589). Record:
+it **could not be reproduced even in principle** while `run/screendump` was hard-broken at import
+(TASK-555 -> TASK-589, repaired 2026-09-07 — the ruling above is unchanged; it is now merely
+re-runnable should anyone choose to). Record:
 [M-CLOCK-THEMES.md](../architecture/designs/M-CLOCK-THEMES.md) (last section).  
 **Design:** [M-CLOCK-STYLES.md](../architecture/designs/M-CLOCK-STYLES.md)  
 **Deps:** M-SETTINGS-001 (done), M-APP-REGISTRY (done)

@@ -168,6 +168,28 @@ if ! "$PYTHON" gate/check_import_safety.py; then
     exit 1
 fi
 
+# 4g-bis. the readback instrument still WORKS — TASK-589 / WP-A A-1.
+# `screendump.py` imported a constant TASK-555 had deleted, so `run/screendump`
+# and its three dependants raised ImportError before opening the port, for three
+# months, while CLAUDE.md documented the tool as working and ADR-064 made this
+# path the project's render-verification mechanism. The gate above ran over the
+# file the whole time and filed it as "could not be imported for unrelated
+# reasons (reported, not failed)" — correct for ITS subject, useless for this
+# one. So this check is blocking on the import AND executes the decode: a
+# firmware-accurate transcript through the real band parser, an interleaved
+# heartbeat, a corrupted band the retry must heal, the RGB565 conversion against
+# ground truth, and TASK-340's byte-swap transform pinned in both directions. The
+# negative suite runs first (BP-068) and its central arm is the A-1 defect
+# verbatim. No DUT, no port, ~3 s.
+if ! "$PYTHON" gate/test_check_screendump_instrument.py; then
+    echo "FAIL: test_check_screendump_instrument.py (TASK-589 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_screendump_instrument.py; then
+    echo "FAIL: check_screendump_instrument.py (TASK-589 A-1 readback instrument) FAILED" >&2
+    exit 1
+fi
+
 # 4h. the generated `get`-key list — TASK-600 / M-HARNESS2 R7.
 # gen_get_keys.py claimed two sources and delivered one: its glob was `*.h`
 # after every dbgGet() body had moved to a `.cpp`, and its definition regex did

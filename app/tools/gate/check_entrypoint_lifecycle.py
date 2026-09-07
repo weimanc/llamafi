@@ -92,7 +92,8 @@ MUST_DECLARE = {
 #:   is the correct code for its own subject.
 #: run/screendump  — an instrument, not a run. It reads one frame off whatever
 #:   is on the board; refusing on build identity would stop it being usable for
-#:   the diagnosis it exists for. (It is also broken at import — `A-1`/TASK-589.)
+#:   the diagnosis it exists for. (It WAS also broken at import — `A-1`; TASK-589
+#:   repaired it and put it under gate/check_screendump_instrument.py.)
 #: run/spiffs      — uploads a FILESYSTEM image, never firmware. Its trap
 #:   restarts the monitor. Out of scope by subject, not by exemption.
 EXCLUDED_WITH_REASON = {"dut-health", "screendump", "spiffs"}

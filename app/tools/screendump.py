@@ -27,7 +27,16 @@ import sys
 import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from lib.dut import Dut, _DUT_WIFI_WAIT_S, _PORTAL_INDICATORS  # TASK-479: reuse DRD-gap/boot handling, direct import
+# TASK-479: reuse lib/dut.py's boot handling rather than re-deriving it.
+# TASK-589: this line used to also import `_PORTAL_INDICATORS`, which TASK-555
+# deleted — it matched WiFiManager's force-portal banners, and WiFiManager left
+# this firmware in ddf6433 (2026-06-11). The import therefore raised
+# ImportError before the port was ever opened, taking this instrument and its
+# three dependants (clock_delta_smoke, pr_delta_smoke, slider_delta_smoke) down
+# with it. The branch is DROPPED, not restored: a constant brought back locally
+# to feed a branch that no firmware can fire is dead code that reads as live
+# safety machinery, which is exactly what TASK-555 removed.
+from lib.dut import Dut, _DUT_WIFI_WAIT_S, _is_ip_line
 
 import numpy as np
 from PIL import Image
@@ -39,7 +48,7 @@ class DutLite(Dut):
     Spotify state, and TASK-243's Premium lapse means that wait currently
     always times out (~120s of dead weight) for zero benefit here.
     """
-    def _wait_for_ready(self, _recovery_attempt: int = 0):
+    def _wait_for_ready(self):   # TASK-555 dropped Dut's _recovery_attempt arg
         orig_timeout = self.ser.timeout
         self.ser.timeout = 0.5
         boot_seen = False
@@ -58,7 +67,11 @@ class DutLite(Dut):
         deadline = time.monotonic() + _DUT_WIFI_WAIT_S
         while time.monotonic() < deadline:
             line = self.ser.readline().decode(errors="replace").strip()
-            if "IP address:" in line or any(ind in line for ind in _PORTAL_INDICATORS):
+            # TASK-589: `_is_ip_line` is lib/dut.py's own predicate, so this
+            # matches `STA_GOT_IP` too — the line the supervisor's reconnect
+            # path prints when it acquires an address without re-running
+            # setup()'s `IP address:` print (dut.py's 2026-08-14 note).
+            if _is_ip_line(line):
                 break
         # WiFi-up isn't "loop() is servicing Serial promptly" — setup() keeps
         # doing blocking work after WiFi connects (token refresh POST,
@@ -88,6 +101,70 @@ def rgb565_to_rgb888(u16: np.ndarray) -> np.ndarray:
     g = ((u16 >> 5) & 0x3F).astype(np.uint16) * 255 // 63
     b = (u16 & 0x1F).astype(np.uint16) * 255 // 31
     return np.stack([r, g, b], axis=-1).astype(np.uint8)
+
+
+# ── the readback path's own oracle (TASK-589, re-verifying TASK-340) ─────────
+# TASK-340 found two compounding faults in `tft.readRect()`: a deliberate
+# upstream byte swap ("swapped colour byte order for compatibility with
+# pushRect()") that `cmdScreenDump` now undoes firmware-side, and a genuinely
+# unreliable MISO read at SPI_READ_FREQUENCY=20 MHz, fixed by dropping to
+# 2.5 MHz. It closed on `colorprobe` reading 25/25 clean. That evidence was a
+# one-off in a task record; ADR-064 then made this exact path the project's
+# render-verification mechanism. So the oracle lives in the instrument now, and
+# `./run/screendump --colorprobe` re-runs it on demand.
+#
+# The transform is asserted, not assumed: `colorprobe` prints readRect's RAW
+# return, so a `fill` probe must come back byte-swapped and a `push` probe
+# (pushRect writes raw words with _swapBytes off) must round-trip identically.
+
+
+def _byteswap16(v: int) -> int:
+    return ((v << 8) | (v >> 8)) & 0xFFFF
+
+
+def colorprobe_verdict(probes):
+    """Pure: [(kind, expected, actual)] -> (n_ok, n_total, [failure strings]).
+
+    Separated from the serial read so the TASK-340 transform can be exercised
+    on the host, with no board, by gate/check_screendump_instrument.py.
+    """
+    fails = []
+    for kind, exp, act in probes:
+        want = _byteswap16(exp) if kind == "fill" else exp
+        if act != want:
+            fails.append(f"{kind} expected={exp:#06x} want_readback={want:#06x} "
+                         f"actual={act:#06x}")
+    return len(probes) - len(fails), len(probes), fails
+
+
+def run_colorprobe(dut, timeout=30.0):
+    """Drive `colorprobe` and adjudicate it. Returns (n_ok, n_total, failures)."""
+    dut.send("colorprobe")
+    deadline = time.monotonic() + timeout
+    probes = []
+    while time.monotonic() < deadline:
+        line = dut.ser.readline().decode(errors="replace").strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if "probe" not in rec:
+            continue
+        probes.append((rec["probe"], int(rec["expected"]), int(rec["actual"])))
+        if rec.get("last"):
+            break
+    return colorprobe_verdict(probes)
+
+
+#: Where `cmdColorProbe` leaves its last `pushRect` swatch, and the value it
+#: leaves there. Reading THAT back through the band/base64 path is the
+#: end-to-end ground truth: firmware-known pixels in, host PNG pixels out, with
+#: readRect, the firmware byte-swap correction, base64 and the host reassembly
+#: all in the loop. `colorprobe` alone only proves readRect.
+COLORPROBE_SWATCH = (40, 40, 2, 2)
+COLORPROBE_SWATCH_VALUE = 0xF0F0
 
 
 def autodetect_port() -> str:
@@ -180,17 +257,41 @@ def main():
     ap.add_argument("-w", type=int, default=320)
     ap.add_argument("-H", "--height", type=int, default=240, dest="h")
     ap.add_argument("-o", "--out", default="/tmp/screendump.png")
+    ap.add_argument("--colorprobe", action="store_true",
+                    help="re-verify the GRAM readback path (TASK-340's 25/25 "
+                         "sweep) and then read the swatch it leaves back "
+                         "through this tool's own band path; exits 1 on any "
+                         "mismatch. Overwrites an 8x8 area at (40,40).")
     args = ap.parse_args()
 
     port = args.port or autodetect_port()
     dut = DutLite(port)  # opens + boot-waits in __init__
+
+    if args.colorprobe:
+        n_ok, n_total, fails = run_colorprobe(dut)
+        print(f"[colorprobe] readRect transform: {n_ok}/{n_total} clean "
+              f"(TASK-340 recorded 25/25 at SPI_READ_FREQUENCY=2.5MHz)")
+        for f in fails:
+            print(f"  MISMATCH {f}")
+        sx, sy, sw, sh = COLORPROBE_SWATCH
+        swatch = dump_with_retry(dut, sx, sy, sw, sh)
+        want = COLORPROBE_SWATCH_VALUE
+        bad = int((swatch != want).sum())
+        print(f"[colorprobe] end-to-end swatch at ({sx},{sy}) {sw}x{sh}: "
+              f"{swatch.size - bad}/{swatch.size} px == {want:#06x} "
+              f"(values seen: {sorted(set(int(v) for v in swatch.flat))})")
+        ok = (not fails) and n_total > 0 and bad == 0
+        print("[colorprobe] " + ("PASS — readback path intact end to end"
+                                 if ok else "FAIL"))
+        return 0 if ok else 1
 
     canvas = dump_with_retry(dut, args.x, args.y, args.w, args.h)
 
     rgb = rgb565_to_rgb888(canvas)
     Image.fromarray(rgb, "RGB").save(args.out)
     print(f"wrote {args.out} ({canvas.shape[1]}x{canvas.shape[0]})")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

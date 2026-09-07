@@ -65,65 +65,75 @@ def section(dut):
     return r.get("section") if r.get("ok") else None
 
 
-port = autodetect_port()
-print(f"== opening {port} (DTR reset) ==", flush=True)
-dut = DutLite(port)
+# TASK-589 (R48, following TASK-609): everything below runs ONLY under the
+# __main__ guard. These three modules were left out of TASK-609's sweep
+# because they could not be imported at all — `screendump` raised
+# ImportError first — so `check_import_safety` filed them as "skipped for
+# unrelated reasons" instead of as the port-opening imports they were.
+def main():
+    port = autodetect_port()
+    print(f"== opening {port} (DTR reset) ==", flush=True)
+    dut = DutLite(port)
 
-boot = dut.cmd("get duty")
-report("A0 debug cmd loop ready", boot.get("ok", False), str(boot))
+    boot = dut.cmd("get duty")
+    report("A0 debug cmd loop ready", boot.get("ok", False), str(boot))
 
-dut.cmd(f"switchApp {SETTINGS_APP_ID}")
-time.sleep(0.3)
+    dut.cmd(f"switchApp {SETTINGS_APP_ID}")
+    time.sleep(0.3)
 
-tap(dut, *CATEGORY_ROW(DISPLAY_SECTION))
-report("A1 Display section entered", section(dut) == DISPLAY_SECTION, str(section(dut)))
+    tap(dut, *CATEGORY_ROW(DISPLAY_SECTION))
+    report("A1 Display section entered", section(dut) == DISPLAY_SECTION, str(section(dut)))
 
-# Slider only responds while dispAuto is off — force it off if needed,
-# restore it at the end (side effect, same convention as settings_kit_smoke.py).
-d0 = dut.cmd("get duty")
-orig_auto = bool(d0.get("auto"))
-if orig_auto:
-    tap(dut, *AUTO_ROW_MID)
-d1 = dut.cmd("get duty")
-report("B0 dispAuto off for the test", not d1.get("auto"), str(d1))
+    # Slider only responds while dispAuto is off — force it off if needed,
+    # restore it at the end (side effect, same convention as settings_kit_smoke.py).
+    d0 = dut.cmd("get duty")
+    orig_auto = bool(d0.get("auto"))
+    if orig_auto:
+        tap(dut, *AUTO_ROW_MID)
+    d1 = dut.cmd("get duty")
+    report("B0 dispAuto off for the test", not d1.get("auto"), str(d1))
 
-# Drive value to the MIN extreme first (single tap = Press+Release at the
-# same x — DisplaySection's handleInput forwards both phases on a plain tap),
-# so the drag below always climbs 1 -> 10 regardless of whatever value the
-# slider started at.
-tap(dut, KNOB_CX0, LEVEL_ROW_MID_Y)
+    # Drive value to the MIN extreme first (single tap = Press+Release at the
+    # same x — DisplaySection's handleInput forwards both phases on a plain tap),
+    # so the drag below always climbs 1 -> 10 regardless of whatever value the
+    # slider started at.
+    tap(dut, KNOB_CX0, LEVEL_ROW_MID_Y)
 
-# Drag the full track — every intermediate sample goes through onMove() ->
-# renderDynamic(), the exact path TASK-365 changed. 8 steps crosses the
-# 1-digit -> 2-digit value-label boundary ("1".."9" -> "10") on the way.
-dut.cmd(f"drag {KNOB_CX0} {LEVEL_ROW_MID_Y} {KNOB_CX1} {LEVEL_ROW_MID_Y} 8")
+    # Drag the full track — every intermediate sample goes through onMove() ->
+    # renderDynamic(), the exact path TASK-365 changed. 8 steps crosses the
+    # 1-digit -> 2-digit value-label boundary ("1".."9" -> "10") on the way.
+    dut.cmd(f"drag {KNOB_CX0} {LEVEL_ROW_MID_Y} {KNOB_CX1} {LEVEL_ROW_MID_Y} 8")
 
-incr_canvas = dump_with_retry(dut, 0, DUMP_Y, 275, DUMP_H)
-report("C0 post-drag dump captured", incr_canvas is not None, "")
+    incr_canvas = dump_with_retry(dut, 0, DUMP_Y, 275, DUMP_H)
+    report("C0 post-drag dump captured", incr_canvas is not None, "")
 
-# Ground truth: leave the section and come back. DisplaySection::enter() ->
-# repaint() -> SliderWidget::render() (the untouched full-draw path) at the
-# now-persisted dispLevel=10.
-tap(dut, *BACK)
-report("D0 back to category list", section(dut) == -1, str(section(dut)))
-tap(dut, *CATEGORY_ROW(DISPLAY_SECTION))
-report("D1 Display re-entered (fresh repaint)", section(dut) == DISPLAY_SECTION, str(section(dut)))
+    # Ground truth: leave the section and come back. DisplaySection::enter() ->
+    # repaint() -> SliderWidget::render() (the untouched full-draw path) at the
+    # now-persisted dispLevel=10.
+    tap(dut, *BACK)
+    report("D0 back to category list", section(dut) == -1, str(section(dut)))
+    tap(dut, *CATEGORY_ROW(DISPLAY_SECTION))
+    report("D1 Display re-entered (fresh repaint)", section(dut) == DISPLAY_SECTION, str(section(dut)))
 
-truth_canvas = dump_with_retry(dut, 0, DUMP_Y, 275, DUMP_H)
-report("D2 ground-truth dump captured", truth_canvas is not None, "")
+    truth_canvas = dump_with_retry(dut, 0, DUMP_Y, 275, DUMP_H)
+    report("D2 ground-truth dump captured", truth_canvas is not None, "")
 
-diff = incr_canvas != truth_canvas
-ndiff = int(diff.sum())
-report("T_SLIDER_DELTA incremental renderDynamic() path matches fresh render()",
-       ndiff == 0, f"{ndiff} px differ (Auto+Level rows, y{DUMP_Y}..{DUMP_Y+DUMP_H})")
+    diff = incr_canvas != truth_canvas
+    ndiff = int(diff.sum())
+    report("T_SLIDER_DELTA incremental renderDynamic() path matches fresh render()",
+           ndiff == 0, f"{ndiff} px differ (Auto+Level rows, y{DUMP_Y}..{DUMP_Y+DUMP_H})")
 
-# restore dispAuto
-if orig_auto and not dut.cmd("get duty").get("auto"):
-    tap(dut, *AUTO_ROW_MID)
-tap(dut, *BACK)
-dut.cmd(f"switchApp 0")
+    # restore dispAuto
+    if orig_auto and not dut.cmd("get duty").get("auto"):
+        tap(dut, *AUTO_ROW_MID)
+    tap(dut, *BACK)
+    dut.cmd(f"switchApp 0")
 
-npass = sum(1 for _, ok, _ in results if ok)
-nfail = len(results) - npass
-print(f"\n== TASK-365 SLIDER DELTA SMOKE: {npass}/{len(results)} PASS ==", flush=True)
-sys.exit(1 if nfail else 0)
+    npass = sum(1 for _, ok, _ in results if ok)
+    nfail = len(results) - npass
+    print(f"\n== TASK-365 SLIDER DELTA SMOKE: {npass}/{len(results)} PASS ==", flush=True)
+    sys.exit(1 if nfail else 0)
+
+
+if __name__ == "__main__":
+    main()
