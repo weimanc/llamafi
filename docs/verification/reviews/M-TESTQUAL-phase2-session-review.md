@@ -614,3 +614,440 @@ working around D-1, which was not in anyone's plan.
 * `T_DTP_01`'s TASK-660 domain narrowing — still unexercised; needs a run with working DNS.
 * The nine network-attributable failures (§1.6) — need a re-run on a good night before any of them
   can be read as evidence about the firmware.
+
+---
+
+# Session B — 2026-09-07: the items session A could not reach
+
+> Owner: **Verification Engineer**
+> Status: **done** — ~2 h of board time, 2026-09-07 08:00 → 10:1x
+> Artifacts, copied out of `/tmp` to survive a reboot: **`~/tq2b-session-20260907/`** —
+> `NOTES.md` (written incrementally during the session), and per run a `run-*.txt` stdout
+> capture plus its `serial-*.log` raw capture: `atoms`, `stock` (interrupted) / `stock2`,
+> `wr`, `plr18`, `plr1718`, `t150` (SETUP-FAIL) / `t150b`.
+> Board: `d48afcc8eed0`, `cyd2usb_winamp_debug` (`-DBOD_WATCH`), elf **`5c6d6eca`**
+> Executes: TASK-634 remainder · discharges TASK-657 and TASK-660 · lands TASK-579 and TASK-580
+> BP-068, BP-073, BP-074, BP-075 bind. Production was never flashed. The TASK-557 pin held.
+
+Session A's four named causes for reaching only 21 of 58 were: four ids retired before the run,
+the harness's own restore destroying the residue window, a flapping AP, and ~90 minutes lost to a
+broken rig. Only the third recurred here, and only once.
+
+**Every run in this session recorded a real ELF comparison** — `elf=5c6d6eca expected=5c6d6eca`
+on all seven. D-2's guard, dead for three weeks until `2ae9374`, is now doing its job on every
+entry.
+
+---
+
+## B.1 TASK-657 — the four progress atoms, at real verdicts
+
+Session A §1.10 recorded `T_WX_07`/`T_CX_07` as FAIL and diagnosed them as **test** defects. The
+diagnosis was right, and the fix confirms it.
+
+**What was wrong.** `_observe_progress_atom`'s docstring stated half its contract — `done()` must
+not also be the atom. The missing half is that **`done()` must be FALSE when the loop starts**.
+Both ids handed in `_ready_flag(dut, "weatherReady"/"cryptoReady")`, and those flags are
+*latched*: `WeatherApp::_dataReady` is set true on the first good parse and never cleared
+(`weatherApp.cpp:107`), likewise `CryptoApp`. After the app's first success they answer true
+forever, so the loop took exactly one sample of an atom that had long since returned to `-1`.
+
+**The fix, in three parts.**
+
+1. An **entry guard** in `_observe_progress_atom` (`_helpers.py`): if `done()` is already true at
+   entry, return `preheld` and take no sample. `_progress_atom_verdict` adjudicates that as
+   **UNMET**, not FAIL — a completion oracle that is already satisfied cannot bracket a fetch, so
+   there is no verdict to give. This alone would have turned session A's two red cells into two
+   honest UNMETs.
+2. A real per-fetch edge oracle, **`_dataq_fetch_edge(dut, fetch_type)`**, off `get dataq`'s
+   `pendingMask`/`inFlight`. Those are the queue's own bookkeeping — `pendingMask` is set in
+   `enqueue()`/`enqueueWeather()` and cleared by the dispatch loop after the fetch function
+   returns (`dataTaskStorage.cpp:1715`) — so the oracle is maintained *outside* the fetch body
+   that writes the progress atom, and stays independent of its subject.
+3. The window widened 30 s → 80 s, because `WEATHER_FETCH_MS` and `CRYPTO_FETCH_MS` are both
+   60 000 ms: a worst case is a full cadence wait plus the fetch. At 30 s these ids could only
+   ever have produced UNMETs on a healthy board.
+
+`_ready_flag` was **deleted** rather than left in place, with a comment saying why, so it cannot
+be reached for again.
+
+**The new mechanism ships with its own negative arm.** `D-2`'s lesson was that a guard nobody has
+watched fire is a guard that is not there, so `test_progress_atoms.py` gains **arm N7**: a
+`done()` that is already true at entry must produce `preheld`, **zero** samples, no reads at all,
+and an **UNMET** whose message names the real cause. Running the suite before the fix reproduces
+session A's exact red cell; after it, N7 passes and `run/check` gate 8 is green at 11/11. `N6`'s
+fixture needed one adjustment — the guard calls `done()` once before the window, so its oracle now
+completes on call 6 rather than 5 to keep five window polls. That coupling is itself worth noting:
+`N6` was asserting against a `done()` call count, which is why a change to the observer's
+call pattern broke it.
+
+**The verdicts** (`run-atoms.txt`, run token `50f0091f496941e6`, artifact
+`app/tools/.runs/run-20260907T081143-1407000-50f0091f.json`, exit 0):
+
+| Id | Verdict | Observation |
+|---|---|---|
+| `T_DTP_01` | **PASS** | 58 polls, saw `[-1, 0]`, domain `(0,0)`, completed, returned idle |
+| `T_DTP_02` | **PASS** | 65 polls, saw `[1, 2]` |
+| `T_WX_07` | **PASS** | 48 polls, saw `[1]` |
+| `T_CX_07` | **PASS** | 168 polls, saw `[-1, 1]` |
+
+**4 passed, 0 failed, 0 skipped.** The firmware writes all four atoms. **TASK-657 is discharged in
+full**, and **TASK-660's `(0, 0)` narrowing for `stockQuoteProgress` is exercised on hardware for
+the first time** — `T_DTP_01` saw exactly `{0}`, which is what session A left owed.
+
+One thing to keep in proportion: three of the four saw a *subset* of their domain (`[1]`, `[1,2]`,
+`{0}`). That is sampling, not a defect — the domain clause is an upper bound on what is legal, not
+a requirement to observe every value. No id saw anything outside its domain.
+
+## B.2 TASK-580 / `G-1` — the one-line firmware fix, and what it freed
+
+**The change** (`app/src/stock/stockApp.cpp`, `backToPrevView()`):
+
+```cpp
+-  if (_s.subView == StockSubView::HeatmapDetail) _s.prevSubView = StockSubView::List;
++  if (_s.subView != StockSubView::List)         _s.prevSubView = StockSubView::List;
+```
+
+Session A §3.2 recommended testing the *outgoing* view. At this line `subView` has just been
+assigned from `prevSubView`, so the two formulations coincide; the form above states the actual
+invariant — **List is the back target of any detail view you land on** — and subsumes the old
+HeatmapDetail case rather than sitting beside it. Built clean (RAM 35.6 %, Flash 74.2 %), flashed
+with `run/flash-debug` (permitted: `ENV_DEBUG` carries `-DBOD_WATCH`), elf `5c6d6eca`.
+
+**The verdicts** (`run-stock2.txt`, run token `c0e941afa58643dc`, artifact
+`run-20260907T082835-1417216-c0e941af.json`, exit 0, gen 30.1):
+
+| Id | Session A (full suite) | Session B |
+|---|---|---|
+| `T200` | SKIP — could not normalize to list view | **PASS** — HEAT tap in list → subView=heatmap |
+| `T201` | SKIP — same | **PASS** — HEAT tap in heatmap → subView=list (back) |
+| `T202` | SKIP — same | **PASS** — tile tap → ChartDetail; drilled symbol='NVDA' |
+| `T203` | SKIP — same | **PASS** — chart back → subView=heatmap (prevSubView preserved) |
+| `T192` | SKIP — same | **FAIL** — see B.2.2 |
+| `T193` | SKIP — same | **PASS** — drilled='NVDA'; auto-refresh same symbol; chartLen=79 |
+
+**`could not normalize to list view` occurs zero times in the run** (`grep -c` = 0). All six
+previously-permanent SKIPs reach a verdict; five pass. **The fixed point is gone.**
+
+`T203` is the positive control that the fix did not overreach: the legitimate two-level path
+List → Heatmap → Chart-by-symbol still backs out to Heatmap, exactly as the old line did. The
+run reproduced the poisoning conjunction on the way there — `T204` FAILed (leaving ChartDetail),
+`T196` then ran `set triggerHeatmap 1` and FAILed (leaving HeatmapDetail) — and `T200` normalized
+anyway. That is the same sequence that wedged the app in session A.
+
+### B.2.1 What the hardware said that contradicts the static audit — `T204`/`T196`
+
+**The network was healthy.** Twelve of the thirteen stock fetches in `serial-stock2.log` returned
+200 in 1.8–11.3 s. There is no DNS failure anywhere in the log. Exactly one request failed:
+
+```
+489: [D][dataTask.stock] chart GET sym=AAPL range=ytd -1 elapsed=120052ms
+493: [D][dataTask.stock] heatmap GET 200 elapsed=3482ms
+```
+
+A single `range=ytd` request hung for **120 seconds** and returned `-1`. That is `T204`'s entire
+failure — not heap pressure (the question its own message asks), and not DNS (session A's
+attribution). And it cascades: it holds the dataTask queue, so `T196`'s heatmap fetch could not be
+dispatched inside its 60 s window — the heatmap GET four lines later returned **200 in 3.5 s**.
+`T196` is a **queue-serialization casualty of `T204`'s stall**, not a heatmap defect, and its
+message ("screener fetch did not complete") is true only in the sense that it never started.
+
+Session A also failed `T204` on Ytd (cycle 1/6). Its raw log contains **no `range=ytd` line at
+all**. Two sessions, two different network conditions, the same range. `G-10`/`G-17` are
+re-confirmed here in a sharper form than session A could: the message asks "heap pressure
+failure?" while the answer is one line in the log the suite already captured.
+
+### B.2.2 `T192` — a verdict nobody has ever seen, and it is not the network either
+
+`T192` FAILs with "fetchOkCount did not advance after tab-switch — TASK-121 fix may be missing".
+The raw log shows the 5D fetch it is waiting on **succeeding, twice**:
+
+```
+675: [D][dataTask.stock] chart START sym=NVDA range=5d heap free=62k maxBlk=31k
+680: [D][dataTask.stock] chart GET sym=NVDA range=5d 200 elapsed=3981ms
+690: [D][dataTask.stock] chart GET sym=NVDA range=5d 200 elapsed=2284ms
+```
+
+and `get dataq` shows `inFlight=5` (`STOCK_CHART_BY_SYM`) returning to `-1` at `ms=365619`,
+roughly 30 s inside the 45 s window, with `stockChartProgress` back at `-1` (idle). Two HTTP
+200s, the fetch dispatched and completed — and `fetchOkCount` never moved. Line 674 shows the
+mechanism's neighbourhood: `[D][stock] chart drop stale result sym=NVDA range=0 (want NVDA/1)`,
+the range-identity discard. Either the 5D results are being discarded the same way, or
+`fetchOkCount` is not bumped on the BY_SYM path.
+
+**Not diagnosed here — filed as an observation.** It is the same shape as `G-10`: the message
+names TASK-121 while the log names something else. It is also the first time this id has produced
+any information at all, which is the point of the fix above.
+
+## B.3 TASK-579 / `F-4` — the WebRadio injector's custody, fixed and verified
+
+**The change** (`app/tools/suite/serialdbg/webradio.py`): a `_wr_deadurls_custody` decorator wraps
+all six `T_PLE_WR_155`…`160` bodies in `Dut.injected("wrDeadUrls", 15, clear_to=0)`. `injected` is
+the mechanism BP-073 provides for exactly this shape — a write-only injector with no read-back,
+whose disarming value (`0`, on which `webRadioApp.cpp:1032-1041` clears both the flag and the
+synthetic list) is a fact about the firmware the caller knows and `dut.py` does not. A decorator
+rather than a re-indent because the context must outlive every `return` in the body, and the
+precondition's own re-arm after the WebRadio switch-in is idempotent. **No firmware changed.**
+
+**The custody evidence** (`serial-wr.log`, run token `db4c0999586e4fe4`, artifact
+`run-20260907T083929-1423483-db4c0999.json`, exit 0, gen 32.1). Every arm now has its clear:
+
+| arm | arm | clear |
+|---|---|---|
+| 170 | 186 | **368** |
+| 377 | 381 | **577** |
+| 579 | 583 | **765** |
+| 767 | 771 | **953** |
+| 955 | 959 | **1143** |
+| 1145 | 1149 | **1326** |
+
+The last clear is at line **1326**, before any downstream id runs. Compare session A: six arms,
+first clear ~950 lines later inside `T237`.
+
+| Signal | Session A | Session B |
+|---|---|---|
+| `forced connect-fail (debug wrDeadUrls)` | **45**, spanning idx 0–9 | **1** — line 360, inside `T_PLE_WR_155`'s own window |
+| `wrState=5` | `T_WR_COEX_01` **FAIL** | **0 occurrences in the whole log** |
+
+**The eleven downstream ids no longer inherit a forced connect-fail.**
+
+| Id | Session A | Session B |
+|---|---|---|
+| `T_PLE_WR_155`…`160` | PASS ×6 | **PASS ×6** (unchanged — the fix costs them nothing) |
+| `T_WR_EJECT_01` | — | **FAIL** — undeclared flake, see below |
+| `T_WR_EJECT_02` | — | **PASS** — hit=EJECT; appId=WebRadio; wrEnqueues 2→3 |
+| `T_WR_COEX_01` | **FAIL — `wrState=5`** | **SKIP — station list unavailable** |
+| `T_WR_COEX_02` | SKIP — not in PLAYING | SKIP — not in PLAYING (now *behind* the SKIP above) |
+| `T_WR_COEX_04` | SKIP — not in PLAYING | SKIP — same |
+| `T_WR_HEAP_01` | — | **PASS** — free=67k min=43k |
+| `T_WR_HEAP_02` | — | **PASS** — free=104k min=42k |
+| `T_WR_HEAP_03` | SKIP — could not reach PLAYING | SKIP — no stations loaded |
+| `T_WR_HEAP_04` | SKIP — same | SKIP — same |
+| `T_WR_VOL_CLAMP` | — | **PASS** — soft-cap 12 enforced, 8/8 cases |
+
+The five SKIPs that remain are a **different failure with a different cause**, and it is a real
+one — §B.4. The distinction is exactly the one the flake register could not previously draw:
+`wrState=5` is the injector and can only be a suite-order defect; "station list unavailable" is
+the outside world.
+
+**A third `C-7` case.** `T_WR_EJECT_01` FAILs with "UNDECLARED flake — no entry for
+`T_WR_EJECT_01` in flaky.yaml"; its original claim was "hit=EJECT action=EJECT, appId stayed
+Spotify, but no TLS-reset log line within 8 s". Session A found the same shape at `T092` and
+`T_PLR_07`. Three ids now. TASK-626's gate is doing what `C-7` asked for; the bookkeeping is what
+is behind. Feeds TASK-595.
+
+## B.4 `F-0` CORRECTED — the station fetch fails on a **cert chain**, not on dead mirrors
+
+Session A read the two `run/check-datatask-certs` ERRORs (nl1/at1 NXDOMAIN) as the DUT's cause:
+"the mirrors are gone upstream, and the firmware's mirror list still names them." Hardware says
+otherwise, and the correction matters because it points at a different fix.
+
+**The firmware does not name nl1 or at1** (`dataTaskStorage.cpp:938-941`):
+
+```cpp
+static const char* kRadioBrowserMirrors[] = {
+    "all.api.radio-browser.info",
+    "de1.api.radio-browser.info",
+};
+```
+
+Both of those resolve today; nl1 and at1 are NXDOMAIN, and the firmware has not asked for them.
+
+**What the DUT actually gets** (`serial-wr.log` 421-462, and again at 1408-1413):
+
+```
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=295ms
+[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120
+[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=207ms
+[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120
+[W][webradio] station fetch failed ok=0 http=-120 jsonErr=
+```
+
+`-120` is **CERT_VERIFY_FAILED** (`app/src/logDecode.h:61`). ~200 ms is a handshake rejection, not
+a timeout. That boot holds **72** cert-failure lines and **zero** successful GETs of any kind; the
+same board did fifteen successful HTTPS 200s to Yahoo one boot earlier, so this is neither the
+clock nor board-wide TLS.
+
+**The host says both mirrors are fine.** Replicating the gate's own oracle — `openssl s_client`,
+single pinned root, offline, `-verify_return_error` — against `RADIO_BROWSER_ROOT_CA` parsed out
+of `dataTaskCerts.h` (ISRG Root X1, valid to 2035): `Verification: OK` for **both** `all.` and
+`de1.`.
+
+**The likely mechanism, and it is new.** radio-browser now presents a **three-cert** chain through
+Let's Encrypt's new hierarchy:
+
+```
+leaf CN=*.radio-browser.info  <-  CN=YR2  <-  CN=ISRG Root YR  <-  ISRG Root X1  (the pinned root)
+```
+
+All RSA/sha256, so there is no algorithm gap. `openssl` builds that path; the board's mbedTLS does
+not. This is a concrete, testable explanation for the WebRadio station-fetch symptom open since
+TASK-284 ("mirror truncation comes and goes, likely rate limiting") — and it is neither rate
+limiting nor mirror churn.
+
+**And the gate cannot see it.** `run/check-datatask-certs`'s `ENDPOINTS` table (lines 40-47) lists
+`de1`, `nl1`, `at1`. It therefore
+
+* **never tests `all.api.radio-browser.info`** — the firmware's *primary* mirror, and the one the
+  in-file comment at `dataTaskStorage.cpp:930-937` says was deliberately promoted to primary;
+* spends two of its nine rows on hosts the firmware does not contact and which no longer exist,
+  reporting them every run as "network unreachable from this host";
+* **PASSes `de1`, which the DUT rejects.**
+
+The endpoint table has drifted from the firmware's mirror array, and the guidance text ("may just
+mean this network can't reach the host — re-run from an unrestricted network") steers the reader
+away from both facts. This is WP-Z's theme **T2 — an oracle that cannot observe its subject** — in
+the preflight whose whole job is to observe it, and it is the third instance this programme has
+found in an instrument rather than a test (after `check_entrypoint_lifecycle` and the ELF guard).
+
+Recommended: derive `ENDPOINTS` from `kRadioBrowserMirrors` rather than restating it, add a DNS
+resolution check so a dead hostname is not reported as a sandboxed network, and reproduce the
+mbedTLS path build rather than openssl's.
+
+## B.5 The isolated-vs-in-suite arms session A did not reach
+
+### `E #2` — `T_PLR_18`'s suspected dependence on `T_PLR_17`: **REFUTED**
+
+| Arm | Result |
+|---|---|
+| `./run/test-targeted T_PLR_18` | **PASS** — caps=1 (CAP_TRANSPORT only) … (token `79dc7e465a5c44a9`, exit 0) |
+| `./run/test-targeted T_PLR_17,T_PLR_18` | `T_PLR_17` **FAIL** · `T_PLR_18` **PASS** (token `628dad50144847ed`) |
+
+The prediction was "isolated SKIP; PASS only in that order". `T_PLR_18` passes alone, and passes
+again behind a *failing* `T_PLR_17`. It has no dependence on its predecessor. (`T_PLR_17`'s own
+FAIL — "no `dequeued action=SHUFFLE` within 20 s" — is its standing `flaky.yaml` entry, TASK-520,
+on a rig under the TASK-243 Spotify 403.)
+
+### `D #6` — does `T150` pass on `T149`'s leftover? **CONFIRMED, and the proof is a number**
+
+| Arm | Result |
+|---|---|
+| in-suite (session A) | `[PASS] T149  posbarDragMs=**89032** ms; dragState=D_IDLE` |
+| in-suite (session A) | `[PASS] T150  posbarDragMs=**89032** ms despite y-drift above groove` |
+| isolated (this run) | `[FAIL] T150  posbarDragMs=**0** not in [50000, 120000] (~0 = capture broken; Move samples dropped after y left groove)` (token `8542d246285c4adb`) |
+
+The two ids report the **identical** value, 89032 ms, in the same run. `T150` is not measuring its
+own drag: it reads what `T149` left behind, and its green in every full-suite run is entirely its
+predecessor's residue. Run alone, its own capture yields 0 and it fails — and the failure string
+it prints has been describing the real defect all along. This is the review's central thesis with
+a byte-identical number as the evidence, and it is the cheapest reproduction in the programme.
+
+## B.6 Two rig-messaging findings, both observed rather than reasoned
+
+### A HEALTH-classed board fault is delivered to the operator as a RIG verdict
+
+The first `T150` attempt aborted on a genuine WiFi outage — an AP flap, `reason=201`
+(`NO_AP_FOUND`), the supervisor cycling `<home-ssid>` → `<home-ssid>` →
+`<home-ssid>` and recovering on kick 3 after ~120 s. The runner classed it correctly
+and said so at length:
+
+```
+[SETUP-FAIL] wifi-not-connected  cls=HEALTH
+This is a HEALTH condition, not a test result … It is NOT a rig condition — do not blame the
+cable, the port or the host until this is resolved. Diagnose the DEVICE …
+```
+
+Then `explain_exit_code` (`run/lib.sh:544-552`) printed, as the **last thing on screen**:
+
+```
+[SETUP-FAIL] rig condition — NO TESTS RAN. This is not a test failure.
+             Wrong build on the board, WiFi never came up, or the port was busy.
+```
+
+The exit code staying 3 for both classes is deliberate and documented — `runner.py::_setup_fail`:
+"The exit code stays 3 for both classes: exit 4 belongs to the suite's HEALTH gate (TASK-566) and
+may not ship before EC-G7's consumers understand it. **What changes here is the SENTENCE**, which
+is the half that misdirects a reader." The runner changed its sentence. The wrapper's exit-3
+branch did not, and it lists "WiFi never came up" as a *rig* cause. The corrected sentence is
+overwritten by the uncorrected one four lines later, and the wrapper's is the one the operator
+reads last.
+
+### A correction to this document's own session-A record
+
+Session A §1.6 wrote of an identical abort: "Correctly classed HEALTH, **correctly exit 4**, no
+tests ran — the machinery worked." The exit code was **3**, not 4, and by design; `_setup_fail`
+has only ever exited `SETUP_FAIL_EXIT = 3`. The *classification* worked. The exit code did not
+distinguish, and could not have.
+
+## B.7 Corrections landed in `flaky.yaml`
+
+* **`T_WR_COEX_01`** — the entry attributed `wrState=5` to radio-browser.info churn (TASK-540) for
+  about a year. `wrState=5` is the value `_debugForceConnFail` assigns; the connect never leaves
+  the board, so no station list and no mirror can be responsible. The entry is kept but **narrowed
+  to what remains genuinely environmental** (timeout at `wrState=1`/`0`, station list unavailable),
+  the `wrState=5` arm is removed with the hardware evidence and the arm/clear line numbers recorded
+  in a header comment, and the entry is marked **for deletion outright** if the next full-suite run
+  shows no `wrState=5`. Why TASK-540's five re-runs could not reproduce it is now on the record
+  too: every one of them was isolated, and the symptom is suite-order-only.
+* **`T_PR_05`** (candidates list) — annotated as `H-5`'s "no consumer anywhere, permanent SKIP
+  since 2026-07-11". It **PASSED** on hardware in session A. The note now records that, keeps the
+  id as a candidate on network grounds only, and says what would retire it.
+
+`T_WR_VOL_03`, the second entry session A's `flaky.yaml:72-108` reference covered, was already
+removed when TASK-603 retired the id; only its explanatory comment remains, and it is correct.
+
+## B.8 Ledger
+
+**Settled in session B: 15.** Running total **36 of 58**.
+
+| Settled this session | Result |
+|---|---|
+| `T_DTP_01` at a real verdict (TASK-657) | **PASS** §B.1 |
+| `T_DTP_02` re-confirmed after the observer change | **PASS** §B.1 |
+| `T_WX_07` at a real verdict (TASK-657) | **PASS** §B.1 |
+| `T_CX_07` at a real verdict (TASK-657) | **PASS** §B.1 |
+| `T_DTP_01`'s TASK-660 `(0,0)` narrowing, unexercised after session A | **exercised — saw exactly {0}** §B.1 |
+| `G-1` — does the one-line firmware fix free the block? | **YES — 6/6 ids reach a verdict, 0 SKIPs** §B.2 |
+| `G-1` — does the fix break the legitimate two-level path? | **NO — `T203` PASS** §B.2 |
+| `F-4` — does `Dut.injected` custody clear the injector? | **YES — 45 forced-fails → 1; `wrState=5` → 0** §B.3 |
+| `F-4` — do the eleven downstream ids stop inheriting it? | **YES — 4 new PASSes; remaining SKIPs have a different cause** §B.3 |
+| `F-0` — is the station fetch failing on dead mirrors? | **NO — CERT_VERIFY_FAILED on two live mirrors** §B.4 |
+| `E #2` — `T_PLR_18` depends on `T_PLR_17` | **REFUTED** §B.5 |
+| `D #6` — `T150` passes on `T149`'s leftover | **CONFIRMED — identical 89032 ms** §B.5 |
+| `G-10`/`G-17` on a healthy network (`T204`) | **re-confirmed, sharper: one 120 s Ytd stall** §B.2.1 |
+| `T192` — first verdict in its life | **FAIL, and not for the reason it names** §B.2.2 |
+| `C-7` — a third undeclared-flake id | **`T_WR_EJECT_01`** §B.3 |
+
+**Still open, with the reason** (unchanged from session A unless noted):
+
+* `H-10` — still measurable only in part; `run/test` restores and reboots before it can be read.
+  Not re-attempted here: this session ran only `run/test-targeted`, which has no settings snapshot
+  at all.
+* The console-probe items (`G-9` `get stockTicker0…7`, `H-10`'s in-RAM reads) — **not taken**.
+  They require typing into the tmux monitor pane, which session A did and this session's operating
+  rules explicitly forbade (`run/` scripts only). They need either a sanctioned console entry
+  point or an explicit exception; they are not blocked by the board.
+* `T194`, `T_WR_ERR_04`, `T_WR_VOL_03`, `T_PLR_25` — **moot**, the ids are retired.
+* WP-Z §5.5's three walls — other firmware on the board (blocked by TASK-557), a code change
+  first, or `run/screendump` (TASK-589). Nothing here moved them.
+* The nine network-attributable session-A failures — **two are now settled and were never
+  network**: `T204`/`T196` (§B.2.1) and, by implication, the WebRadio pair (§B.4). The rest still
+  need a clean re-run.
+* `T_WR_COEX_01`'s PLAYING-state arm — cannot be reached until §B.4's cert-chain failure is fixed.
+  This is now a *named* blocker rather than an intermittent one.
+
+## B.9 Board state at hand-over
+
+| | |
+|---|---|
+| board | `d48afcc8eed0` (efuse-mac), verified on all seven runs |
+| firmware | `cyd2usb_winamp_debug` (`-DBOD_WATCH`), elf **`5c6d6eca`**, `build=Sep 7 2026-09:08:35`. **Production was never flashed and never restored — the TASK-557 pin held for the whole session.** |
+| monitor | running, restarted by `run/test-targeted`'s own step 3/3 |
+| WiFi | recovered from the mid-session flap on the supervisor's third kick; `rssi(-59)` |
+| settings | **not touched** — `run/test-targeted` has no settings snapshot and writes none; no `spiffs push` was issued |
+| working tree | five files changed, **nothing committed** (§B.10) |
+
+## B.10 What is in the working tree, uncommitted
+
+| File | Change |
+|---|---|
+| `app/src/stock/stockApp.cpp` | TASK-580's one-line `backToPrevView()` guard + its rationale |
+| `app/tools/suite/serialdbg/_helpers.py` | `_observe_progress_atom` entry guard; `_progress_atom_verdict` preheld→UNMET arm; `_dataq_fetch_edge` + `_FETCH_TYPE` |
+| `app/tools/suite/serialdbg/shell.py` | `T_WX_07`/`T_CX_07` oracle + window; `_ready_flag` deleted with a note |
+| `app/tools/test_progress_atoms.py` | **new arm N7** for the entry guard (see below), and `N6`'s fixture adjusted for the guard's one extra `done()` call |
+| `app/tools/suite/serialdbg/webradio.py` | `_wr_deadurls_custody`, applied to the six `T_PLE_WR_*` bodies |
+| `docs/verification/flaky.yaml` | the two attribution corrections (§B.7) |
+
+**Not done here, for @PM/@Architect:** `T204`'s 120 s Ytd stall, `T192`'s completed-but-uncounted
+fetch, the `run/check-datatask-certs` endpoint drift + the mbedTLS chain failure, `T_WR_EJECT_01`'s
+missing flake declaration, and `run/lib.sh`'s exit-3 sentence each want a task. TASK-579 and
+TASK-580 have their fixes in the tree and their hardware verification above.

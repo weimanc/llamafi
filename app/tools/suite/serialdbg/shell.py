@@ -52,6 +52,7 @@ from suite.serialdbg._helpers import (
     _switch_to_stock, _restore_from_stock, _stock_get, _stock_ok_count,
     _wait_chart_complete, _drain_data_pipeline, _CHART_PHASE_NAMES,
     _observe_progress_atom, _progress_atom_verdict,
+    _dataq_fetch_edge, _FETCH_TYPE,
 )
 from suite.serialdbg.webradio import _switch_to_webradio_capture_heap
 
@@ -1621,9 +1622,21 @@ def t_wx_07(dut: Dut):
         unmet("T_WX_07", "could not switch to Weather — no fetch to observe")
         _restore_spotify(dut)
         return
+    # ORACLE (phase-2 hardware session, 2026-09-07). This was
+    # `lambda: _ready_flag(dut, "weatherReady")` and it produced a FAIL naming a
+    # firmware gap that does not exist: `weatherReady` is LATCHED, so on any run
+    # where Weather had already fetched once it was true at entry and the poll
+    # loop took a single sample. `_dataq_fetch_edge` watches the dataTask queue's
+    # own pendingMask/inFlight bit for DATA_FETCH_WEATHER instead — a real
+    # per-fetch edge, and still not the atom under test.
+    #
+    # WINDOW. WeatherApp re-enqueues on its own cadence, WEATHER_FETCH_MS =
+    # 60 000 ms (`app/src/apps/weatherApp.h:16`), so a worst case is a full
+    # 60 s wait for the tick plus the fetch itself. 80 s is that bound with
+    # room; anything shorter can only produce UNMETs on a healthy board.
     obs = _observe_progress_atom(
-        dut, "weatherFetchPhase", lambda: _ready_flag(dut, "weatherReady"),
-        timeout_s=30.0, test_id="T_WX_07")
+        dut, "weatherFetchPhase", _dataq_fetch_edge(dut, _FETCH_TYPE["weather"]),
+        timeout_s=80.0, test_id="T_WX_07")
     _restore_spotify(dut)
     outcome, msg = _progress_atom_verdict("weatherFetchPhase", obs)
     if outcome == "unmet":
@@ -1634,14 +1647,12 @@ def t_wx_07(dut: Dut):
         pass_("T_WX_07", msg)
 
 
-def _ready_flag(dut: Dut, var: str) -> bool:
-    """Completion oracle for T_WX_07/T_CX_07 — deliberately NOT the atom under
-    test. `weatherReady`/`cryptoReady` answer in a `ready` field, not `val`."""
-    try:
-        r = dut.cmd(f"get {var}", timeout=3.0)
-    except (TimeoutError, NoAnswer):
-        return False
-    return bool(r.get("ok")) and r.get("ready") is True
+# `_ready_flag` lived here — a `get weatherReady`/`get cryptoReady` wrapper used
+# as T_WX_07/T_CX_07's completion oracle. Deleted 2026-09-07 (phase-2 hardware
+# session) rather than left dead: both `*Ready` flags are LATCHED, so as a
+# completion oracle it was always-true after the app's first successful fetch,
+# which is what made both ids sample the atom once and FAIL. Do not reintroduce
+# it for that purpose; `_helpers._dataq_fetch_edge` is the per-fetch edge.
 
 
 # ── T_CX_01 — CryptoApp switch round-trip ────────────────────────────────────
@@ -1775,9 +1786,12 @@ def t_cx_07(dut: Dut):
         unmet("T_CX_07", "could not switch to Crypto — no fetch to observe")
         _restore_spotify(dut)
         return
+    # ORACLE / WINDOW: see the note in t_wx_07 above — `cryptoReady` is latched
+    # the same way (`CryptoApp::_dataReady`), and CRYPTO_FETCH_MS is likewise
+    # 60 000 ms (`app/src/apps/cryptoApp.h:13`).
     obs = _observe_progress_atom(
-        dut, "cryptoFetchPhase", lambda: _ready_flag(dut, "cryptoReady"),
-        timeout_s=30.0, test_id="T_CX_07")
+        dut, "cryptoFetchPhase", _dataq_fetch_edge(dut, _FETCH_TYPE["crypto"]),
+        timeout_s=80.0, test_id="T_CX_07")
     _restore_spotify(dut)
     outcome, msg = _progress_atom_verdict("cryptoFetchPhase", obs)
     if outcome == "unmet":

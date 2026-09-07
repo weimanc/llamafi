@@ -29,6 +29,8 @@ no network. ~0.1 s.
     | N5  | the observer's completion oracle is the  | the observer must|
     |     | atom itself (the T170 shape)             | not use the atom |
     | N6  | the observer reports polls it never made | polls == reality |
+    | N7  | done() is ALREADY TRUE when the window   | unmet, not fail, |
+    |     | opens (the latched-`*Ready` shape)       | and 0 samples    |
 
 N4 is not decoration. A window in which no fetch ran proves nothing about the
 atom, and scoring it `fail` would make the id flaky on a slow network — which is
@@ -260,7 +262,11 @@ def arm_n6():
 
     def done():
         calls["n"] += 1
-        return calls["n"] >= 5
+        # >= 6, not >= 5: the entry guard (arm N7) calls done() ONCE before the
+        # window opens, so call 1 is the guard and calls 2..6 are the window's
+        # five iterations. The arm is about polls matching reality, and reality
+        # now includes that first call.
+        return calls["n"] >= 6
 
     o = _observe_progress_atom(dut, "cryptoFetchPhase", done,
                                timeout_s=5.0, test_id="N6")
@@ -273,10 +279,33 @@ def arm_n6():
     check("N6", o["seen"] == [-1, 0], f"seen={o['seen']} is the distinct set read")
 
 
+def arm_n7():
+    """The entry guard. A completion oracle that is ALREADY TRUE when the
+    observation begins cannot bracket a fetch: the loop exits on its first
+    iteration, having sampled an atom that has already returned to its
+    sentinel, and N1's message then reports 'never left the -1 sentinel' — a
+    red cell naming a firmware gap that is not there.
+
+    That is not hypothetical. It is what T_WX_07 and T_CX_07 both returned on
+    their first hardware run (2026-09-06): `(1 polls)`, against latched
+    `weatherReady`/`cryptoReady` flags that had been true since the app's first
+    successful fetch. The honest verdict is UNMET — the premise (an unstarted
+    fetch to watch) did not hold — and no sample should be taken at all."""
+    dut = FakeDut("weatherFetchPhase", [-1, -1, -1])
+    o = _observe_progress_atom(dut, "weatherFetchPhase", lambda: True,
+                               timeout_s=5.0, test_id="N7")
+    check("N7", o["preheld"] is True, "done() true at entry -> preheld")
+    check("N7", o["polls"] == 0, f"polls={o['polls']} — the atom was not sampled")
+    check("N7", dut.asked == [], "the observer read nothing at all")
+    outcome, msg = _progress_atom_verdict("weatherFetchPhase", o)
+    check("N7", outcome == "unmet", f"preheld oracle -> {outcome} (not fail)")
+    check("N7", "already TRUE" in msg, "the message names the real cause")
+
+
 def main():
     print("=== test_progress_atoms.py — M-DATATASK-PROGRESS oracle negatives ===")
     for fn in (arm_n1, arm_n2, arm_n2b, arm_n2c, arm_n3, arm_n4, arm_p1,
-               arm_n5, arm_n6):
+               arm_n5, arm_n6, arm_n7):
         fn()
     if FAILURES:
         print(f"\nFAILED arms: {sorted(set(FAILURES))}")

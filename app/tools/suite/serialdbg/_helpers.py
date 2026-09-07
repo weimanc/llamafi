@@ -416,6 +416,26 @@ def _observe_progress_atom(dut: Dut, var: str, done, *, timeout_s: float,
     seen: set = set()
     polls = 0
     completed = False
+    # ENTRY GUARD (TASK-657; added in the M-TESTQUAL phase-2 hardware session,
+    # 2026-09-07, after T_WX_07/T_CX_07 both returned a FAIL that named a
+    # firmware gap that is not there). The docstring above states half the
+    # contract — done() must not also be the atom. The missing half is that
+    # **done() must be FALSE when the loop starts**. Both weather ids handed in
+    # a LATCHED `*Ready` flag ("data has arrived at least once", never reset),
+    # already true at entry, so the loop below took exactly ONE sample, of an
+    # atom that had long since returned to its sentinel, and the adjudicator
+    # read that as "the atom is never written". A completion oracle that is
+    # already satisfied cannot bracket a fetch; there is no observation to make
+    # and the honest verdict is UNMET, not FAIL.
+    try:
+        preheld = bool(done())
+    except (TimeoutError, NoAnswer):
+        preheld = False
+    if preheld:
+        print(f"  {prefix}{var}: completion oracle already TRUE at entry — "
+              f"no fetch edge to bracket; not observed", flush=True)
+        return {"polls": 0, "seen": [], "nonsentinel": [], "bad": [],
+                "completed": False, "returned_idle": False, "preheld": True}
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
@@ -449,7 +469,58 @@ def _observe_progress_atom(dut: Dut, var: str, done, *, timeout_s: float,
           f"domain [{lo},{hi}], completed={completed}, idle_after={returned_idle}",
           flush=True)
     return {"polls": polls, "seen": sorted(seen), "nonsentinel": nonsentinel,
-            "bad": bad, "completed": completed, "returned_idle": returned_idle}
+            "bad": bad, "completed": completed, "returned_idle": returned_idle,
+            "preheld": False}
+
+
+#: dataTask FetchType bit positions, from `app/src/dataTask.h:11-22`.
+_FETCH_TYPE = {"weather": 0, "crypto": 1, "stockquote": 2, "stockchart": 3}
+
+
+def _dataq_fetch_edge(dut: Dut, fetch_type: int):
+    """Build a done()-shaped closure that is FALSE until a dataTask fetch of
+    `fetch_type` has been seen ACTIVE and then seen FINISHED — a real per-fetch
+    edge.
+
+    Why this and not `weatherReady`/`cryptoReady`: those are latched flags
+    (`WeatherApp::_dataReady` is set true on the first good parse and never
+    cleared), so after an app's first success they answer true forever. Handing
+    one to `_observe_progress_atom` as the completion oracle makes the loop exit
+    on its first iteration — the defect the phase-2 hardware session diagnosed
+    behind T_WX_07/T_CX_07's FAILs.
+
+    `get dataq` is the queue's own bookkeeping: `pendingMask` is set in
+    `enqueue()`/`enqueueWeather()` and cleared by the dispatch loop after the
+    fetch function returns (`dataTaskStorage.cpp:1715`), and `inFlight` is the
+    dispatch loop's own marker. Neither is written by the fetch body that writes
+    the progress atom, so the oracle stays independent of its subject.
+    """
+    state = {"seen_active": False}
+
+    def done() -> bool:
+        try:
+            q = dut.cmd("get dataq", timeout=3.0)
+        except (TimeoutError, NoAnswer):
+            return False
+        if not q.get("ok"):
+            return False
+        # No `.get(key, <literal>)` here on purpose (R18 / check_defaulted_reads):
+        # a defaulted read would hand a FAILED read the same type as a real one,
+        # and a silent `inFlight = -1` would read as "the fetch finished".
+        pm, inf = q.get("pendingMask"), q.get("inFlight")
+        if pm is None or inf is None:
+            return False
+        try:
+            pending = int(pm) & (1 << fetch_type)
+            in_flight = int(inf)
+        except (TypeError, ValueError):
+            return False
+        if pending or in_flight == fetch_type:
+            state["seen_active"] = True
+            return False
+        return state["seen_active"]
+
+    return done
 
 
 def _progress_atom_verdict(var: str, obs: dict) -> tuple:
@@ -457,6 +528,11 @@ def _progress_atom_verdict(var: str, obs: dict) -> tuple:
 
     Split out from the test bodies so all four ids adjudicate identically and
     the rule is readable in one place rather than four."""
+    if obs.get("preheld"):
+        return ("unmet", f"the completion oracle for {var} was already TRUE when the "
+                         f"observation began, so no fetch could be bracketed and the "
+                         f"atom was never sampled; the premise (an unstarted fetch to "
+                         f"watch) did not hold, so this id has no verdict")
     if not obs["completed"]:
         return ("unmet", f"no fetch completed inside the window — {var} was polled "
                          f"{obs['polls']}x and saw {obs['seen']}; the premise (a fetch "

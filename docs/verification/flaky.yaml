@@ -69,25 +69,54 @@ flaky:
     task: TASK-545
     review_by: 2026-09-26
 
+  # ATTRIBUTION CORRECTED 2026-09-07 (M-TESTQUAL phase-2 hardware session,
+  # WP-F F-4). This entry blamed radio-browser.info churn for the wrState=5
+  # symptom for about a year. It is not a network symptom at all: wrState=5 is
+  # the value `WebRadioApp::_debugForceConnFail` produces, and that flag is set
+  # by `set wrDeadUrls N` (`webRadioApp.cpp:1031-1058`). The connect never
+  # leaves the board, so no station list and no mirror can be responsible.
+  #
+  # The hardware evidence, from the 2026-09-06 full-suite raw log
+  # (~/tq2-session-20260906/serial-phase1.log):
+  #   * `set wrDeadUrls 15` armed SIX times, at lines 12346, 12530, 12711,
+  #     12895, 13079, 13265 — the six T_PLE_WR_155..160 bodies, none of which
+  #     cleared it;
+  #   * first `set wrDeadUrls 0` at line 14219, ~950 lines later, inside T237;
+  #   * 45 `[W][webradio] play idx=N — forced connect-fail (debug wrDeadUrls)`
+  #     lines in the gap, spanning idx 0-9;
+  #   * this id FAILs inside that gap with exactly wrState=5, and
+  #     T_WR_COEX_02/04 + T_WR_HEAP_03/04 SKIP behind it.
+  # TASK-540's five re-runs could not reproduce it because a re-run of this id
+  # alone never arms the flag — the isolated arm on 2026-09-06 SKIPped on a
+  # genuinely unavailable station list (a different, real, environmental
+  # failure: two of the three radio-browser mirrors no longer resolve in DNS).
+  #
+  # The custody defect is fixed: `_wr_deadurls_custody` in
+  # suite/serialdbg/webradio.py wraps all six T_PLE_WR_* bodies in
+  # `Dut.injected("wrDeadUrls", 15, clear_to=0)` (BP-073). This declaration is
+  # kept, narrowed to what remains genuinely environmental, and should be
+  # DELETED outright if the next full-suite run shows no wrState=5.
   - id: T_WR_COEX_01
     suite: suite/serialdbg/webradio
     since: 2026-08-26
-    evidence: "TASK-540 investigated this exact symptom on 5 fresh DUT runs and
-      closed 2026-08-26 as 'could not reproduce as a firmware defect' — 4
-      different outcomes across 5 runs (PASS; timeout at wrState=1 CONNECTING;
-      timeout at wrState=0 STOPPED; station-list fetch itself unavailable/SKIP),
-      attributed to real radio-browser.info station churn within the harness's
-      30s window, not a state-machine defect. Recurred with the identical
-      wrState=5-stuck symptom in TASK-480's full-suite parity run the same day
-      (bfe36b0) — consistent with TASK-540's own closing note ('re-open if a
-      future run shows the same wrState stuck on a clean network'), not yet
-      confirmed clean-network so not reopening on this alone."
-    symptom: "timeout — wrState=5 (expected 2/PLAYING after set wrPlay 0)"
-    dependency: "[NETWORK] — radio-browser.info station availability/churn,
-      external to this codebase"
-    suspected: "external station-fetch flakiness per TASK-540's closing
-      disposition, not a firmware defect. If review_by finds another clean-
-      network recurrence, reopen TASK-540 rather than re-investigating fresh."
+    evidence: "TASK-540 investigated this symptom on 5 fresh DUT runs and closed
+      2026-08-26 as 'could not reproduce as a firmware defect' — but every one
+      of those runs was ISOLATED, and the symptom is suite-order-only. The
+      2026-09-06 hardware session identified the mechanism (see the note above):
+      six upstream T_PLE_WR_* ids leave `set wrDeadUrls` armed, and wrState=5 is
+      the value that flag assigns. TASK-540's other observed outcomes (timeout at
+      wrState=1 CONNECTING, timeout at wrState=0 STOPPED, station list
+      unavailable/SKIP) remain plausibly environmental and are what this
+      declaration now covers."
+    symptom: "timeout at wrState=1/0, or SKIP on an unavailable station list.
+      NOT wrState=5 — that value is the debug flag, never the network, and after
+      the 2026-09-07 custody fix it should not recur; if it does, the fix
+      regressed and this is a suite-order defect to be fixed, not a flake."
+    dependency: "[NETWORK] — radio-browser.info station availability, and (F-0,
+      2026-09-06) nl1/at1.api.radio-browser.info no longer resolving in DNS at
+      all while the firmware mirror list still names them"
+    suspected: "residual station-fetch unavailability. The wrState=5 arm of this
+      entry was a MISATTRIBUTION and has been removed — do not re-derive it."
     owner: "@VE"
     task: TASK-540
     review_by: 2026-09-26
@@ -142,6 +171,13 @@ candidates:
   - id: T169
     note: "yahoo/network flakiness, long-standing; no run count recorded"
   - id: T_PR_05
-    note: "annotated [NETWORK]-flaky in the suite itself"
+    note: "annotated [NETWORK]-flaky in the suite itself. STALE as written
+      (corrected 2026-09-07): WP-H's H-5 held that `set prForceParseFail` had no
+      consumer anywhere and that this id had been a permanent SKIP since
+      2026-07-11. On hardware 2026-09-06 it PASSED — 'error code=-92 ->
+      activeError.active=true, responsive, recovered -> activeError.active=false'
+      — so the hook has a consumer and the id reaches a verdict. Keep as a
+      candidate on network grounds only; delete if a run count is ever recorded
+      and it holds."
   - id: T_WR_TLS_01
     note: "residual flake after TASK-299; mirror truncation (TASK-284) suspected"

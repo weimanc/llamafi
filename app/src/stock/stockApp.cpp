@@ -312,7 +312,22 @@ void StockApp::repaintList() {
 void StockApp::backToPrevView() {
   _s.subView = _s.prevSubView;
   if (_s.subView == StockSubView::List)        _s.chartSymbol[0] = '\0';
-  if (_s.subView == StockSubView::HeatmapDetail) _s.prevSubView = StockSubView::List;
+  // TASK-580 (G-1). This guard read `== HeatmapDetail`, which covers only ONE
+  // of the two detail views you can back INTO. The other one is a fixed point:
+  // with prevSubView == ChartDetail (which `set triggerHeatmap` produces
+  // whenever it is issued from a chart — line 248 captures whatever subView is
+  // current), the line above makes subView := ChartDetail, this guard does not
+  // fire, and every subsequent back tap is the identity. Reproduced
+  // deterministically on hardware 2026-09-06 (`T204,T196,T200`): three
+  // consecutive back taps, all CONSUMED, stockSubView "chart" after each — and
+  // it costs six Stock ids a verdict in every full suite run, since they can no
+  // longer normalize to list view.
+  //
+  // The invariant is simply that List is the back target of any detail view we
+  // land on. The legitimate two-level path (List -> Heatmap -> Chart-by-symbol)
+  // is unaffected: backing out of that chart lands on HeatmapDetail, which this
+  // sets to List exactly as the old line did.
+  if (_s.subView != StockSubView::List) _s.prevSubView = StockSubView::List;
   switch (_s.subView) {
     case StockSubView::List:          repaintList();       break;
     case StockSubView::HeatmapDetail: _heatmap.repaint();  break;

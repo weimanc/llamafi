@@ -7,6 +7,7 @@ spectrum (M-WEBRADIO-REAL-VIS / TASK-387), and the WebRadio variant of the
 velocity-scroll-001 PLEDIT suite (TASK-412 / T_PLE_08).
 """
 
+import functools
 import re
 import time
 from typing import Optional
@@ -31,6 +32,35 @@ from suite.serialdbg._helpers import (
 # NOT _switch_to("WebRadio"), which taps a taskbar slot
 # WebRadio doesn't have (eject-only app, see _switch_to_webradio_capture_heap
 # docstring).
+
+def _wr_deadurls_custody(fn):
+    """Give a T_PLE_WR_* body custody of the `wrDeadUrls` injector it arms.
+
+    `_vs_precondition_webradio` below issues `set wrDeadUrls 15`, which sets
+    `WebRadioApp::_debugForceConnFail` — every subsequent `_play()` fails its
+    connect deterministically, without touching the network. None of the six
+    bodies cleared it. Confirmed on hardware in the M-TESTQUAL phase-2 session
+    (2026-09-06): the flag was armed six times at raw-log lines 12346-13265 and
+    first cleared at line 14219, ~950 lines later, inside T237 — and in that gap
+    `T_WR_COEX_01` FAILed with `wrState=5` (the value the flag produces) while
+    `T_WR_COEX_02/04` and `T_WR_HEAP_03/04` SKIPped on "not in PLAYING state".
+    Five verdicts, produced by suite order, filed as radio-browser.info network
+    flake in `flaky.yaml` for about a year.
+
+    `Dut.injected` is the mechanism BP-073 provides for exactly this shape — a
+    write-only injector with no read-back, whose disarming value (`0`, which
+    `webRadioApp.cpp:1032-1041` clears the flag and the synthetic list on) is a
+    fact about the firmware the caller knows and `dut.py` does not. Arming here
+    rather than only in the precondition is deliberate: the context has to
+    outlive every `return` in the body, and the precondition's own re-arm after
+    the WebRadio switch-in is idempotent.
+    """
+    @functools.wraps(fn)
+    def wrapper(dut: Dut):
+        with dut.injected("wrDeadUrls", 15, clear_to=0):
+            return fn(dut)
+    return wrapper
+
 
 def _vs_precondition_webradio(dut: Dut, tid: str) -> bool:
     """Shared precondition for the WebRadio-side battery: WebRadio active, 15
@@ -64,6 +94,7 @@ def _vs_precondition_webradio(dut: Dut, tid: str) -> bool:
     return True
 
 
+@_wr_deadurls_custody
 def t_ple_wr_155(dut: Dut):
     """T_PLE_WR_155 (T_PLE_08): WebRadio — 0-dy tap in dead zone fires PLEDIT hit."""
     print("T_PLE_WR_155  WebRadio: tap within dead zone fires PLEDIT hit (0-dy)")
@@ -89,6 +120,7 @@ def t_ple_wr_155(dut: Dut):
           f"hit=PLEDIT scrollOffset={post} (unchanged) dragState=D_IDLE — tap path confirmed")
 
 
+@_wr_deadurls_custody
 def t_ple_wr_156(dut: Dut):
     """T_PLE_WR_156 (T_PLE_08): WebRadio — dy=13 px drag outside dead zone → scroll-end."""
     print("T_PLE_WR_156  WebRadio: release outside dead zone suppresses tap (dy=13 px)")
@@ -115,6 +147,7 @@ def t_ple_wr_156(dut: Dut):
           f"dragState=D_IDLE cooldown={cooldown_ms} ms ≤ 220 — scroll-end confirmed, tap suppressed")
 
 
+@_wr_deadurls_custody
 def t_ple_wr_157(dut: Dut):
     """T_PLE_WR_157 (T_PLE_08): WebRadio — velocity ≈ 2.0 rows/s at dy=-13 px.
     Uses `drag ... hold` (synchronous ack, no interleaved sends) + `get
@@ -151,6 +184,7 @@ def t_ple_wr_157(dut: Dut):
     pass_("T_PLE_WR_157", f"D_PLEDIT_SCROLL confirmed; wrScroll.offset={so} ∈ [1,3] → velocity≈2.0 rows/s")
 
 
+@_wr_deadurls_custody
 def t_ple_wr_158(dut: Dut):
     """T_PLE_WR_158 (T_PLE_08): WebRadio — tick 50×20ms at dy=-13 advances wrScroll.offset ≥ 1.
     See T_PLE_WR_157 docstring for why `hold`/`get wrScroll` replace the
@@ -182,6 +216,7 @@ def t_ple_wr_158(dut: Dut):
     pass_("T_PLE_WR_158", f"wrScroll.offset={so} ≥ 1 after tick 50×20ms at dy=-13 — integration confirmed")
 
 
+@_wr_deadurls_custody
 def t_ple_wr_159(dut: Dut):
     """T_PLE_WR_159 (T_PLE_08): WebRadio — scrollAccum non-zero during drag, 0.0000 on Release.
     See T_PLE_WR_157 docstring for why `hold`/`get wrScroll` replace the
@@ -224,6 +259,7 @@ def t_ple_wr_159(dut: Dut):
           f"scrollAccum={accum_pre:.4f} mid-drag (non-zero) → 0.0000 after Release; dragState=D_IDLE")
 
 
+@_wr_deadurls_custody
 def t_ple_wr_160(dut: Dut):
     """T_PLE_WR_160 (T_PLE_08): WebRadio — tickScroll is a no-op when dragState is D_IDLE."""
     print("T_PLE_WR_160  WebRadio: tickScroll no-op when D_IDLE")
