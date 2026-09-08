@@ -80,5 +80,10 @@ _WIFI_ARGS=()
 _SEL_ARGS=()
 [ -n "$TESTS" ] && _SEL_ARGS+=(--tests "$TESTS")
 [ -n "$SCOPE" ] && _SEL_ARGS+=(--scope "$SCOPE")
-(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_SEL_ARGS[@]}" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}") \
+# TASK-671: per-test transcripts for the replay-driven can-go-red gate.
+_RECORD_ARGS=()
+if [ -n "${RECORD_DIR:-}" ]; then
+  _RECORD_ARGS=(--record "$RECORD_DIR")
+fi
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_SEL_ARGS[@]}" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}" "${_RECORD_ARGS[@]}") \
   || _TEST_RC=$?

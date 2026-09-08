@@ -110,7 +110,12 @@ if [ -n "${LOG_FILE:-}" ]; then
   echo "[test] raw serial log: $LOG_FILE"
   _LOG_ARGS=(--log-file "$LOG_FILE")
 fi
-(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_LOG_ARGS[@]}") \
+# TASK-671: per-test transcripts for the replay-driven can-go-red gate.
+_RECORD_ARGS=()
+if [ -n "${RECORD_DIR:-}" ]; then
+  _RECORD_ARGS=(--record "$RECORD_DIR")
+fi
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_LOG_ARGS[@]}" "${_RECORD_ARGS[@]}") \
   || _TEST_RC=$?
 
 # EXIT trap fires here: steps 5 and 6 run unconditionally

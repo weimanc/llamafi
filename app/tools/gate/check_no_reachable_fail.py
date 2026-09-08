@@ -71,6 +71,19 @@ THE FOUR SHAPES, and why the fourth is the reason to build this at all.
     bool-returning helper that returns a call to a swallowing helper swallows
     too (`_switch_to` -> `_appid_is`).
 
+WHAT IT PROVES, AND WHAT IT CANNOT (TASK-671). Everything above is a NECESSARY
+condition: a body with no reachable `fail()` cannot go red. It is not
+sufficient. "The guard can be true at runtime" is a program-analysis question
+this gate deliberately does not attempt (see SHAPE 3), and an inverted guard
+(`C-1`), a body that skips on every deviation before its `fail()` is consulted
+(`D-2`), or a `fail()` in a helper no path calls all pass here and can never be
+red. The sufficient half is answered by EXECUTION, not analysis:
+`gate/check_can_go_red.py` (`lib/canfail.py`) runs each recorded body against
+its poisoned transcript and reports whether an assertion FAIL was ever
+observed. Where both gates speak, the gate compares them. Do not widen the
+static analysis here to close that gap — widening it is how a gate starts
+lying in the direction that matters.
+
 WHAT IT DOES NOT DO. It does not grade assertions. An id with a reachable
 `fail()` on a value it wrote itself is a hollow test and this gate passes it —
 that is R2's subject, not R34's. This gate answers exactly one question: **can

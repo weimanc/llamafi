@@ -336,6 +336,20 @@ if ! "$PYTHON" gate/check_no_reachable_fail.py; then
     exit 1
 fi
 
+# TASK-671: R34 at RUNTIME. The static gate above proves a fail() is reachable
+# in the source; this one runs each recorded body against its poisoned
+# transcript and asks whether it ever records an assertion FAIL. Its negative
+# suite records synthetic bodies through the real recorder and includes the
+# mutation arm (poisons disabled -> RED must disappear).
+if ! "$PYTHON" gate/test_check_can_go_red.py; then
+    echo "FAIL: test_check_can_go_red.py (TASK-671 runtime R34 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_can_go_red.py; then
+    echo "FAIL: check_can_go_red.py (TASK-671 R34 can-go-red gate) FAILED" >&2
+    exit 1
+fi
+
 # 5. app conformance matrix, rows A5/A6 — M-TESTARCH §2.3 (TASK-483).
 # The CHECKER's own negative suite (BP-068) is blocking: a conformance gate that
 # cannot be shown to fail is not a gate. The MATRIX is blocking too since

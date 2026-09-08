@@ -63,11 +63,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
 from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa: E402
                      set_no_wifi)
-import lib.dut as _dut_mod                                               # noqa: E402
-from lib.results import (fail, print_results, unmet,                     # noqa: E402
+from lib.results import (print_results,                                  # noqa: E402
                          run_with_flake_retry, set_exchange_provider,
                          set_meta_provider, set_premise_provider)
 import lib.replay as _replay                                             # noqa: E402
+import lib.dispatch as _dispatch_mod                                     # noqa: E402
 
 try:
     import serial
@@ -270,6 +270,16 @@ def main():
                    help="append every raw serial line (JSON responses AND bare "
                         "LOG_D/LOG_W lines) to this file — for diagnosing "
                         "failures whose cause isn't visible in dbg command output")
+    p.add_argument("--record", default=os.environ.get("SERIALDBG_RECORD_DIR") or None,
+                   metavar="DIR",
+                   help="TASK-671: opt-in per-test transcript recording, via "
+                        "lib/replay.py's `recording()`/`Transcript.save()`. Each "
+                        "test id's session (not the `get __TEST_<id>__` marker) "
+                        "is recorded and saved to DIR/<id>.json. Off by default; "
+                        "env SERIALDBG_RECORD_DIR is the default when the flag "
+                        "is omitted. Health ids are never recorded. Never "
+                        "affects a verdict: a save failure is printed and "
+                        "swallowed.")
     args = p.parse_args()
 
     health_mode = os.environ.get("DUT_HEALTH", "gate").strip().lower() or "gate"
@@ -479,6 +489,10 @@ def main():
               flush=True)
         sys.exit(0)
 
+    if args.record:
+        print(f"[record] transcripts -> {args.record}")
+    _record_count = [0]
+
     print(f"Connected. Running: {selected}\n")
     print("NOTE: T089 (production ELF check) is a host build test — not here.")
     skip_notice = [t for t in selected if t in _interactive_tests and not args.interactive]
@@ -494,36 +508,37 @@ def main():
         except TimeoutError:
             pass
 
+        def _once_body(tid=tid):
+            # TASK-671: the exception-to-verdict arms live in lib/dispatch.py so
+            # the replay-driven gates run the SAME mapping this loop does.
+            if tid == "T093":
+                body = lambda d: t093(d, args.interactive)          # noqa: E731
+            elif tid == "T094":
+                body = lambda d: t094(d, args.interactive)          # noqa: E731
+            elif tid == "T095":
+                body = lambda d: t095(d, args.interactive)          # noqa: E731
+            else:
+                body = all_tests[tid]
+            _dispatch_mod.run_body(tid, body, dut)
+
         def _once(tid=tid):
-            try:
-                if tid == "T093":
-                    t093(dut, args.interactive)
-                elif tid == "T094":
-                    t094(dut, args.interactive)
-                elif tid == "T095":
-                    t095(dut, args.interactive)
-                else:
-                    all_tests[tid](dut)
-            # TASK-596 / R18. These two arms must precede the generic ones:
-            # both are RuntimeErrors and would otherwise land in `except
-            # Exception` as an undifferentiated FAIL, which is the reporting
-            # half of the defect the typed read exists to remove.
-            except _dut_mod.NoAnswer as e:
-                # The device never answered THIS question, so the body asserted
-                # nothing. Its premise did not hold — that is an UNMET, which
-                # still blocks and still exits 1 (ADR-066 D4), so nothing is
-                # weakened; what changes is that triage is not told the firmware
-                # regressed when the serial line was busy.
-                unmet(tid, str(e))
-            except _dut_mod.BadField as e:
-                # It answered, and the answer breaks the contract: a renamed key,
-                # a changed reply shape, a wrong-typed value. Reproducible, and
-                # somebody's code is wrong.
-                fail(tid, f"contract: {e}")
-            except TimeoutError as e:
-                fail(tid, f"TimeoutError: {e}")
-            except Exception as e:
-                fail(tid, f"Exception: {e}")
+            # TASK-671. Recording wraps only the body — the `get __TEST_<tid>__`
+            # marker above is deliberately outside the `with`. If flake retry
+            # re-runs the body, each run opens a fresh recording and its save
+            # OVERWRITES DIR/<tid>.json: the retry is the run's final word on
+            # that id, so the transcript on disk matches the verdict that
+            # actually shipped, not a discarded first attempt.
+            if args.record:
+                with _replay.recording(dut, tid) as rec:
+                    _once_body(tid)
+                try:
+                    path = pathlib.Path(args.record) / f"{tid}.json"
+                    rec.transcript.save(path)
+                    _record_count[0] += 1
+                except Exception as e:
+                    print(f"[record] {tid}: save failed: {e}")
+            else:
+                _once_body(tid)
         run_with_flake_retry(tid, _once)
         time.sleep(0.5)
 
@@ -553,6 +568,9 @@ def main():
         before_summary=_exit_snapshot,
         exit_on_finish=False,
         emit=lambda *a: print(*a, flush=True))
+
+    if args.record:
+        print(f"[record] {_record_count[0]} transcript(s) written")
 
     dut.close()
     sys.exit(rc)
