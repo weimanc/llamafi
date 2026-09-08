@@ -66,3 +66,29 @@ Pre-existing patch, marked inline. Without it an internal library retry calls
 `start_ssl_client()` again and `lwip_socket()` overwrites `sslclient->socket`
 without closing the old fd. After ~8 leaked fds the 16-slot lwIP socket table is
 exhausted and every subsequent `lwip_socket()` fails with `EAGAIN`/`errno=11`.
+
+
+---
+
+## PATCH-TLS-2 — log the X.509 verify flags when the handshake fails `-0x2700` (TASK-663)
+
+**File**: `src/ssl_client.cpp`, `start_ssl_client()`, the `mbedtls_ssl_handshake` loop.
+
+**Gap**: with `MBEDTLS_SSL_VERIFY_REQUIRED` the handshake itself returns
+`MBEDTLS_ERR_X509_CERT_VERIFY_FAILED` (-9984 / -0x2700) and the function returns
+from inside the loop. The upstream code that prints `mbedtls_x509_crt_verify_info`
+sits *after* the loop and never runs on this path, so the serial log carries only
+"Certificate verification failed, e.g. CRL, CA or signature check failed" — the
+same line for a missing intermediate, a hostname mismatch, a bad signature or an
+unsupported key. TASK-663 spent a session's board time on a theory that one
+flag word would have settled.
+
+**Patch**: on that specific error, read `mbedtls_ssl_get_verify_result()` (mbedTLS
+2.28 returns the negotiated session's flags after an aborted handshake) and log
+`[tls-verify] flags=0x… <verify_info text>` at `[E]` level before `handle_error`.
+No behaviour change; one extra log line on a path that is already failing.
+
+**Reading it**: `0x00000008` = `BADCERT_NOT_TRUSTED` (no path to the pinned root
+— a real chain/pin problem); `0x00000004` = `CN_MISMATCH`; `0x00010000` =
+`BADCERT_BAD_KEY`; `0x00080000`/`0x00100000` = bad signature md/pk. The full
+table is `mbedtls/x509.h`.

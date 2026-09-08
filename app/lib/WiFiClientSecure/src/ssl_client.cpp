@@ -278,6 +278,19 @@ int start_ssl_client(sslclient_context *ssl_client, const IPAddress& ip, uint32_
     unsigned long handshake_start_time=millis();
     while ((ret = mbedtls_ssl_handshake(&ssl_client->ssl_ctx)) != 0) {
         if (ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE) {
+            // PATCH-TLS-2 (TASK-663): -0x2700 says only "verification failed".
+            // The flags say WHY (NOT_TRUSTED, BAD_KEY, CN_MISMATCH, ...), and
+            // mbedTLS keeps them on the negotiated session after the abort, so
+            // read them here — the post-handshake block below never runs on
+            // this path. One line per failure, [E] level, so the serial log
+            // names the reason without a rebuild. See LOCAL_PATCHES.md.
+            if (ret == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED) {
+                uint32_t flags = mbedtls_ssl_get_verify_result(&ssl_client->ssl_ctx);
+                char vbuf[256];
+                mbedtls_x509_crt_verify_info(vbuf, sizeof(vbuf), "", flags);
+                for (char *c = vbuf; *c; ++c) if (*c == '\n') *c = ' ';
+                log_e("[tls-verify] flags=0x%08x %s", (unsigned)flags, vbuf);
+            }
             return handle_error(ret);
         }
         if((millis()-handshake_start_time)>ssl_client->handshake_timeout)

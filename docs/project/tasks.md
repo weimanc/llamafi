@@ -53,7 +53,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-671.**
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-676.**
 
 ---
 
@@ -106,7 +106,8 @@ the board to re-derive what is already written down.
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-662 | P1 | OPEN — @Developer · **firmware, DUT-owed** | a **zero-delta drag commits `ACT_VOLUME`** — `T078` caught it on its first hardware run after TASK-584 pointed it at the real marker. The touch deadband is not holding at `(140,63)`. A real input regression, not a test defect — [§1.9](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
-| TASK-663 | P1 | OPEN — @Developer + @Architect | `run/check-datatask-certs`' `ENDPOINTS` table has **drifted from `kRadioBrowserMirrors`** — it never tests the mirror the firmware uses, which fails mbedTLS on a new 3-cert LE cross-sign (`-120`). **Likely the real TASK-284**: the mirrors are not dead — [§B.4](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
+| TASK-663 | P1 | **PARTIAL 2026-09-08** — host half landed (preflight derives mirrors, covers Spotify pins, `-verify_hostname`; PATCH-TLS-2 compiled, **not flashed**); device half needs one flash | §B.4's cross-sign theory **REFUTED**: mbedTLS 2.28.7 itself verifies the chain; the board's `-0x2700` is device-side and unexplained until PATCH-TLS-2's flags line lands — [findings](../verification/TASK-663-tls-verify-findings.md) |
+| TASK-675 | P1 | OPEN — @Developer · **firmware pin rot** | `accounts.spotify.com` and `i.scdn.co` now chain to Certainly ← Starfield Root G2; `SpotifyArduinoCert.h` pins DigiCert G2 → every token refresh fails `-9984` in every boot on record. `run/check-datatask-certs` now reads FAIL on both — [findings §3.2](../verification/TASK-663-tls-verify-findings.md) |
 | TASK-664 | P2 | OPEN — @Developer | `T192`: the 5D chart returns two HTTP 200s and **`fetchOkCount` never moves** — either the range-identity discard eats them or the `BY_SYM` path does not bump it. First verdict this id has ever produced — [§B.2.2](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-665 | P2 | OPEN — @Developer | `run/lib.sh`'s exit-3 branch prints "rig condition … WiFi never came up" **last**, overwriting the runner's correct HEALTH sentence. Both classes exit 3 by design, so the sentence is the only discriminator — [§B.6](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-666 | P2 | OPEN — @Architect · **a design call, TASK-633's owner** | D-1b: `require_build` **opens the port before the monitor is stopped**, so `run/test` returns a false RIG exit 3 in the rig's normal state. Session A worked around it rather than fixing it, being a lifecycle-ordering decision — [§0 D-1b](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |

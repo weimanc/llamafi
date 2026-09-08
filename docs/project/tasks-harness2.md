@@ -45,7 +45,7 @@ renumberable — **kept rather than renumbered on purpose**, because the human r
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
 WP-Z's reserved band). **TASK-648 was never allocated either** — the band closed at 647 and the
 next filing started at 649. Allocated since: **TASK-649…660** on [tasks.md](tasks.md) (the TASK-587
-escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-675** (671–674 filed 2026-09-08, Phase 5, the runtime gates)
+escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-676** (671–674 filed 2026-09-08 here; 675 on tasks.md)
 (662–668 filed 2026-09-07 on [tasks.md](tasks.md) from the Phase 2 hardware sessions; **TASK-669**
 the same day, the board-currency gate, and **TASK-670** the LL-151 BP candidate, both also on
 [tasks.md](tasks.md)).

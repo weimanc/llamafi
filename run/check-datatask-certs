@@ -1,19 +1,33 @@
 #!/usr/bin/env python3
-# run/check-datatask-certs — dataTask TLS chain preflight
+# run/check-datatask-certs — pinned-root TLS chain preflight
 #
 # ADR-029's quarterly check (BP-030) only greps the cert *issuer* string, which
-# doesn't tell you whether the server actually sends a chain mbedTLS can build
-# offline (no AIA fetching, single pinned root). That gap let TASK-214's
-# "radio-browser.info omits the R13 intermediate" diagnosis go unverified on
-# host before landing setInsecure() as a permanent fix.
+# doesn't tell you whether the server actually sends a chain a single pinned
+# root can verify offline (no AIA fetching). This script applies that rule to
+# every (endpoint, root CA) pair the firmware pins, via
+#   openssl s_client -CAfile <root-only> -verify_return_error -verify_hostname
 #
-# This script replicates the exact verification ESP32 WiFiClientSecure::
-# setCACert() performs: strict, offline, single-root chain build against
-# whatever cert(s) the server actually presents in the handshake — via
-#   openssl s_client -CAfile <root-only> -verify_return_error
-# for every (endpoint, root CA) pair this firmware pins. Root CA PEMs are
-# parsed directly out of app/src/dataTaskCerts.h so this can never drift from
-# what firmware actually ships.
+# WHAT THIS CAN AND CANNOT SEE (TASK-663, 2026-09-08). openssl's single-root
+# offline chain build was checked against mbedTLS 2.28.7 itself — the exact
+# version Arduino-ESP32 2.0.17 ships — on the radio-browser chain
+# (leaf <- YR2 <- ISRG Root YR cross-signed by ISRG Root X1): both accept it,
+# offline and live. So a PASS here means the CHAIN and the PIN are compatible.
+# It does NOT mean the board will verify it: the board's mbedTLS runs hardware
+# SHA/RSA paths (MBEDTLS_SHA256_ALT / MPI_EXP_MOD_ALT) and its own heap, and
+# the 2026-09-07 session saw the board reject that same chain -0x2700 while
+# this script and host mbedTLS both passed it. A host gate cannot observe a
+# device-side verifier; PATCH-TLS-2 makes the board name its own reason.
+#
+# ENDPOINTS are DERIVED from the firmware where the firmware has the list —
+# the radio-browser mirrors come from `kRadioBrowserMirrors[]` in
+# dataTaskStorage.cpp, so this table can no longer test mirrors the firmware
+# does not use while skipping the one it does (that drift hid a real failure
+# for months, session review §B.4). Spotify's pins in SpotifyArduinoCert.h are
+# covered too: they rotted silently (Spotify moved to its own "Certainly" CA
+# under Starfield Root G2) because nothing checked them.
+#
+# Root CA PEMs are parsed directly out of the headers so this can never drift
+# from what firmware actually ships.
 #
 # Usage:
 #   ./run/check-datatask-certs
@@ -26,25 +40,27 @@
 
 import argparse
 import re
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 PROJ_ROOT = Path(__file__).resolve().parent.parent
 CERTS_H = PROJ_ROOT / "app" / "src" / "dataTaskCerts.h"
+STORAGE_CPP = PROJ_ROOT / "app" / "src" / "dataTaskStorage.cpp"
+SPOTIFY_CERTS_H = PROJ_ROOT / "app" / "lib" / "SpotifyArduino" / "src" / "SpotifyArduinoCert.h"
 TIMEOUT_S = 10
 
-# (display host, root CA constant name as used in dataTaskStorage.cpp)
-ENDPOINTS = [
+# (display host, root CA constant name as used in dataTaskStorage.cpp).
+# The radio-browser mirrors are NOT listed here — see radio_browser_endpoints().
+STATIC_ENDPOINTS = [
     ("api.open-meteo.com", "OPEN_METEO_ROOT_CA"),
     ("query1.finance.yahoo.com", "YAHOO_FINANCE_ROOT_CA"),
     ("api.coingecko.com", "COINGECKO_ROOT_CA"),
     ("teletekst-data.nos.nl", "TELETEXT_NOS_ROOT_CA"),
-    ("de1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
-    ("nl1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
-    ("at1.api.radio-browser.info", "RADIO_BROWSER_ROOT_CA"),
     ("opendata.adsb.fi", "PLANERADAR_ROOT_CA"),
     # nominatim.openstreetmap.org (M-PR-LOCATIONS geocode lookup): chain
     # verified against OPEN_METEO_ROOT_CA by TASK-315's phase-0 probe
@@ -55,6 +71,37 @@ ENDPOINTS = [
     # cross-sign; remediation is a two-root bundle (see dataTaskCerts.h).
     ("nominatim.openstreetmap.org", "NOMINATIM_ROOT_CA"),
 ]
+
+# Spotify's pins live in a different header (app/lib/SpotifyArduino/src/
+# SpotifyArduinoCert.h, string-literal PEMs) and cover these hosts.
+SPOTIFY_ENDPOINTS = [
+    ("accounts.spotify.com", "spotify_server_cert"),
+    ("api.spotify.com", "spotify_server_cert"),
+    ("i.scdn.co", "spotify_image_server_cert"),
+]
+
+MIRRORS_RE = re.compile(
+    r"kRadioBrowserMirrors\[\]\s*=\s*\{(.*?)\};", re.DOTALL)
+
+
+def radio_browser_endpoints(storage_cpp: Path = STORAGE_CPP) -> list:
+    """(host, 'RADIO_BROWSER_ROOT_CA') for every mirror the FIRMWARE names.
+    Derived, never restated: the 2026-09-07 session found this table testing
+    nl1/at1 (NXDOMAIN, not in the firmware) and skipping all./de1 (the two
+    the firmware uses, both rejected by the board)."""
+    text = storage_cpp.read_text()
+    m = MIRRORS_RE.search(text)
+    if not m:
+        raise RuntimeError(f"kRadioBrowserMirrors[] not found in {storage_cpp.name}")
+    hosts = re.findall(r'"([^"]+)"', m.group(1))
+    if not hosts:
+        raise RuntimeError("kRadioBrowserMirrors[] is empty")
+    return [(h, "RADIO_BROWSER_ROOT_CA") for h in hosts]
+
+
+def endpoints() -> list:
+    return STATIC_ENDPOINTS + radio_browser_endpoints() + SPOTIFY_ENDPOINTS
+
 
 # Cert constants referenced above that are expected to be missing until a
 # specific future task lands them (see comment at the ENDPOINTS entry). A
@@ -70,6 +117,25 @@ BLOCK_RE = re.compile(
 ALIAS_RE = re.compile(r"^#define\s+(\w+_ROOT_CA)\s+(\w+)\s*$", re.MULTILINE)
 
 
+SPOTIFY_BLOCK_RE = re.compile(
+    r'static const char \*(\w+)\s*=\s*((?:\s*"[^"]*"\s*)+);', re.DOTALL)
+
+
+def load_spotify_certs(certs_h: Path = SPOTIFY_CERTS_H) -> dict:
+    """{name: pem} from SpotifyArduinoCert.h's adjacent-string-literal PEMs.
+    Missing header -> {} (a tree without the Spotify lib still gates)."""
+    if not certs_h.exists():
+        return {}
+    text = certs_h.read_text()
+    out = {}
+    for name, body in SPOTIFY_BLOCK_RE.findall(text):
+        pieces = re.findall(r'"([^"]*)"', body)
+        pem = "".join(pieces).replace("\\n", "\n")
+        if "BEGIN CERTIFICATE" in pem:
+            out[name] = pem.strip() + "\n"
+    return out
+
+
 def load_certs(certs_h: Path = CERTS_H):
     text = certs_h.read_text()
     certs = {name: pem.strip() + "\n" for name, pem in BLOCK_RE.findall(text)}
@@ -77,6 +143,14 @@ def load_certs(certs_h: Path = CERTS_H):
         if target in certs:
             certs[alias] = certs[target]
     return certs
+
+
+def resolves(host: str) -> bool:
+    try:
+        socket.getaddrinfo(host, 443)
+        return True
+    except socket.gaierror:
+        return False
 
 
 # TASK-342: fully offline expiry check — no network, deterministic, cheap
@@ -118,7 +192,15 @@ def check_expiry(certs: dict, warn_days: int = 180) -> list[tuple[str, int]]:
 
 
 def strict_verify(host: str, pem: str) -> tuple[str, str]:
-    """Returns (status, detail). status in {PASS, FAIL, ERROR}."""
+    """Returns (status, detail). status in {PASS, FAIL, ERROR}.
+
+    Hostname is verified too (`-verify_hostname`): mbedTLS on the board checks
+    the SAN against the connected host, and a wildcard covers one label only —
+    a chain that verifies but does not name the host is a board -0x2700 exactly
+    like a missing intermediate."""
+    if not resolves(host):
+        return "ERROR", ("does not resolve (NXDOMAIN) — the hostname is gone or wrong; "
+                         "not a sandboxed network")
     with tempfile.NamedTemporaryFile("w", suffix=".pem", delete=False) as f:
         f.write(pem)
         ca_path = f.name
@@ -130,6 +212,7 @@ def strict_verify(host: str, pem: str) -> tuple[str, str]:
                 "-servername", host,
                 "-CAfile", ca_path,
                 "-verify_return_error",
+                "-verify_hostname", host,
             ],
             input="",
             capture_output=True,
@@ -145,9 +228,15 @@ def strict_verify(host: str, pem: str) -> tuple[str, str]:
 
     out = proc.stdout + proc.stderr
     if "Name or service not known" in out or "Connection refused" in out:
-        return "ERROR", "network unreachable from this host"
+        return "ERROR", "connection refused / unresolvable from this host"
+    # A verify verdict, when present, wins: with -verify_return_error openssl
+    # aborts the handshake on a bad chain and the transcript ALSO says "no peer
+    # certificate available", so that string alone must not be read as a reset.
     m = re.search(r"Verify return code: (\d+) \(([^)]+)\)", out)
-    if not m:
+    if not m or (m.group(1) == "0" and "no peer certificate available" in out):
+        if "no peer certificate available" in out or "Connection reset" in out or "errno=104" in out:
+            return "ERROR", ("server reset the handshake before sending a certificate — "
+                             "rate limiting or a hello-shape rule, not a chain result; retry")
         return "ERROR", "no verify result in openssl output"
     code, msg = m.group(1), m.group(2)
     if code == "0":
@@ -308,13 +397,14 @@ def main() -> int:
         return 1
 
     certs = load_certs(certs_h)
+    certs.update(load_spotify_certs())
 
     if args.expiry_only:
         check_expiry(certs, args.expiry_warn_days)
         return 0
 
     results = []
-    for host, cert_name in ENDPOINTS:
+    for host, cert_name in endpoints():
         pem = certs.get(cert_name)
         if not pem:
             pending_task = PENDING_CERTS.get(cert_name)
@@ -326,6 +416,13 @@ def main() -> int:
             print(f"{status:5s} {host:32s} ({cert_name}) — {detail}")
             continue
         status, detail = strict_verify(host, pem)
+        if status == "ERROR" and "reset the handshake" in detail:
+            # The radio-browser mirrors reset a burst of handshakes from one
+            # source (measured 2026-09-08: 2 of 3 openssl connects reset, the
+            # third served a full chain). One paced retry separates a busy
+            # server from a broken one without turning the gate into a loop.
+            time.sleep(4)
+            status, detail = strict_verify(host, pem)
         results.append((host, cert_name, status, detail))
         print(f"{status:5s} {host:32s} ({cert_name}) — {detail}")
         if status == "FAIL" and args.propose_fix:
