@@ -45,7 +45,7 @@ renumberable — **kept rather than renumbered on purpose**, because the human r
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
 WP-Z's reserved band). **TASK-648 was never allocated either** — the band closed at 647 and the
 next filing started at 649. Allocated since: **TASK-649…660** on [tasks.md](tasks.md) (the TASK-587
-escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-671**
+escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-675** (671–674 filed 2026-09-08, Phase 5, the runtime gates)
 (662–668 filed 2026-09-07 on [tasks.md](tasks.md) from the Phase 2 hardware sessions; **TASK-669**
 the same day, the board-currency gate, and **TASK-670** the LL-151 BP candidate, both also on
 [tasks.md](tasks.md)).
@@ -265,12 +265,16 @@ ratchet's clothes.
 | TASK-612 | P3 | BLOCKED — phase entry | scope resolution for the 55 % of the tree it cannot reach — [B-9](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-614 | P3 | OPEN — unblocked; **scope grew** | registry and tooling honesty — [B-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) … |
 | TASK-615 | P3 | OPEN — unblocked; **scope grew** | small correctness debts with named fixes — [H-17](../verification/reviews/M-TESTQUAL-Z-findings-review.md) … |
+| TASK-671 | P2 | **LANDED 2026-09-08** (`c444071`) — mechanism DONE, gate blocking on a 0-row ledger; **first recording owed** (ends a TASK-557 window; do it on purpose) | R34 at runtime: `check_can_go_red.py` executes each recorded body against its poisoned transcript; reds graded assertion/contract/accident/policy — [design](../architecture/designs/M-HARNESS2-runtime-gates.md) |
+| TASK-672 | P3 | OPEN — needs TASK-671's first recording; shares TASK-641's read-key instrument | R18 runtime arm: PASS under `DROP@k` on a field the body read = an oracle satisfied by a default — [design §4](../architecture/designs/M-HARNESS2-runtime-gates.md) |
+| TASK-673 | P3 | OPEN — needs TASK-671's first recording | R17 runtime arm: on every poisoned FAIL/UNMET path, an unacked or missing set-back is a leak on that path (`C-15`'s shape, host-side) — [design §4](../architecture/designs/M-HARNESS2-runtime-gates.md) |
+| TASK-674 | P3 | OPEN — needs TASK-671's first recording | R36 runtime arm: the healthy transcript's command set is the exact gating key set; check it, not a closure guess — [design §4](../architecture/designs/M-HARNESS2-runtime-gates.md) |
 
 ---
 
 ## Totals
 
-**Recounted mechanically 2026-09-07.** The previous table read 61 rows and predated TASK-644/645/
+**Recounted mechanically 2026-09-08.** The previous table read 61 rows and predated TASK-644/645/
 646/647 and TASK-661; every count below is derived from the tables above, not carried forward.
 
 | phase | rows | closed | live | days | state |
@@ -280,8 +284,8 @@ ratchet's clothes.
 | 2 — the 80-minute session | 12 | 7 | 5 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: 582, 588, 597, 595, 589 |
 | 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **TASK-557**; shrunk by H-1's refutation |
 | 4 — observability contract | 4 | 0 | 4 | ~10 | ADR-063/064 taken; **TASK-637 is the only unblocked row**, 638 gated on 589 |
-| 5 — ratchets | 13 | 0 | 13 | ~28.5 | blocked on Phase 3. **610, 614, 615 are unblocked** — they do not inherit the phase entry |
-| **total** | **67** | **39** | **28** | **~81** | Phases 0–1 done; only Phase 1 was ever *committed* |
+| 5 — ratchets | 17 | 1 | 16 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
+| **total** | **71** | **40** | **31** | **~83** | Phases 0–1 done; only Phase 1 was ever *committed* |
 
 **The three phases still ahead are not equally blocked.** Phase 2's five live rows and Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615 need **nothing but hands**. Everything else waits on

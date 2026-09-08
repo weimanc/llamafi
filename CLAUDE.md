@@ -143,6 +143,7 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
                                #   reset destroys the wedge you were diagnosing (TASK-426) —
                                #   read run/monitor-read FIRST. (TASK-565, M-TESTARCH §5 E4)
 ./run/test                    # full DUT validation loop (BP-020; verifies the build, refuses exit 3)
+                              #   RECORD_DIR=<dir> writes one replay transcript per id (TASK-671)
 ./run/test-targeted T1,T2     # targeted loop for a specific feature
 ./run/test-targeted --scope X # targeted loop by SCOPE — an app name, one of
                               # shell|boot|taskbar|spotify-chrome|rig, or the PATH of
@@ -212,9 +213,13 @@ Other envs (don't use on this board): `cyd` (single-USB CYD, inversion off), `tr
 ```
 
 The **counted gate total is 11 and does not move when a host check is added** — every host-side
-gate on this project lives inside gate 8, `app/tools/smoke_test.sh`, which now runs **17 host
-scripts** — 7 checkers and 10 negative suites, five of the checkers paired with their own suite
-(BP-068). The three added by M-HARNESS2 Phase 1, each with its negative suite:
+gate on this project lives inside gate 8, `app/tools/smoke_test.sh`, which now runs **19 host
+scripts** — 8 checkers and 11 negative suites, six of the checkers paired with their own suite
+(BP-068). `check_can_go_red.py` (TASK-671) is the runtime half of R34: it executes recorded bodies
+against poisoned transcripts instead of reading their text — see
+`docs/architecture/designs/M-HARNESS2-runtime-gates.md` for why the four static gates are not widened.
+
+The three added by M-HARNESS2 Phase 1, each with its negative suite:
 
 | check | asserts | landed |
 |---|---|---|
