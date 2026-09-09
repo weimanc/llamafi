@@ -1,0 +1,890 @@
+{
+ "schema": 1,
+ "id": "T_PRM_02",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:35:09Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 380",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=107572 maxAlloc=42996 minFree=45308",
+    "[shell] entered 9  heap=107572 maxAlloc=42996 minFree=45308",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[shell] switch 0->9 suspend=1ms wipe=26ms init=76ms taskbar=13ms total=116ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[D][dataTask.planeradar] heap free=62k maxBlk=39k",
+    "[W][perf] iter=136ms (worst path so far: shell.switch:116ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prPollSec 1",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prPollSec\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=90ms (worst path so far: shell.switch:116ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 4,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=3764ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 0: IncompleteInput",
+    "[D][dataTask.planeradar] parse rc=-92 scanned=0 -> retry",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 8,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=4555ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 0: IncompleteInput",
+    "[D][dataTask.planeradar] retry ok=0 rc=-92 scanned=0",
+    "[D][dataTask.planeradar] retry also failed rc=-92 -> radius-capped retry2 distNm=9.9",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 14,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=4862ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 1: IncompleteInput",
+    "[D][dataTask.planeradar] retry2 ok=0 rc=-92 scanned=1",
+    "[D][dataTask.planeradar] ok=0 errorCode=-92 count=0 scanned=1 epoch=0",
+    "[D][dataTask.planeradar] heap free=62k maxBlk=33k",
+    "[D][planeradar] fetch rtt=13862ms ok=0 errorCode=-92",
+    "[D][dataTask.planeradar] heap free=62k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 18,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=4975ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 0: IncompleteInput",
+    "[D][dataTask.planeradar] parse rc=-92 scanned=0 -> retry",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 23,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=4274ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 0: IncompleteInput",
+    "[D][dataTask.planeradar] retry ok=0 rc=-92 scanned=0",
+    "[D][dataTask.planeradar] retry also failed rc=-92 -> radius-capped retry2 distNm=9.9",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 27,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=61k maxAlloc=41k stack_hwm=12668b uptime=00:02:32 poll=0/4 last=-1 block_max=0ms loop_max=136ms slow=shell.switch:116ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=68661 build=Sep  9 2026-11:19",
+    "[D][dataTask.planeradar] GET 200 elapsed=4278ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 1: IncompleteInput",
+    "[D][dataTask.planeradar] retry2 ok=0 rc=-92 scanned=1",
+    "[D][dataTask.planeradar] ok=0 errorCode=-92 count=0 scanned=1 epoch=0",
+    "[D][dataTask.planeradar] heap free=57k maxBlk=39k",
+    "[D][planeradar] fetch rtt=14195ms ok=0 errorCode=-92",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 28,
+   "lines": [
+    "[153118][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[153131][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[153145][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 46,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 47,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 48,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 49,
+   "lines": [
+    "[174542][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=4 next=60000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 50,
+   "lines": [
+    "[175060][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[175073][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[175087][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 51,
+   "lines": [
+    "[176628][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 53,
+   "lines": [
+    "[178157][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=3602ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.planeradar] heap free=62k maxBlk=41k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 55,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 56,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=3721ms size=-1",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 57,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=54k maxAlloc=41k stack_hwm=12668b uptime=00:03:02 poll=0/5 last=-1 block_max=22203ms loop_max=24ms slow=app.tick:4ms last_poll_age_ms=0 next_poll_in_ms=52543 last_render_age_ms=98662 build=Sep  9 2026-11:1",
+    "[D][dataTask.planeradar] ok=1 errorCode=0 count=10 scanned=49 epoch=0",
+    "[D][dataTask.planeradar] roster DAL71,12.7,306;KLM32P,17.7,203;DAL163,6.9,284;KLM36G,12.3,211;BOH112,8.6,225;KLM86F,5.0,231;KLC1711,9.0,198;TRA9L,3.2,152;ZXP01,9.0,114;KLC70R,14.4,143;",
+    "[D][dataTask.planeradar] heap free=62k maxBlk=41k",
+    "[D][planeradar] fetch rtt=29753ms ok=1 errorCode=0",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=63ms (worst path so far: app.tick:42ms)",
+    "[182617][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[182630][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[182645][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":183234,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":182322,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":183763,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":182322,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 2,
+   "lines": [
+    "[184201][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":184292,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":182322,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":184821,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":182322,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":185349,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":182322,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 5,
+   "lines": [
+    "[185759][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":185876,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":182322,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 6,
+   "lines": [
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=5 next=60000ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.planeradar] heap free=62k maxBlk=41k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":186403,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":186932,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":187460,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":187988,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":188516,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":189044,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":189573,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 13,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=3789ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 12: IncompleteInput",
+    "[D][dataTask.planeradar] parse rc=-92 scanned=12 -> retry",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":190101,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":190627,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":191156,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":191687,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":192215,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":192744,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":193272,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":193800,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":194328,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":194856,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 23,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=5017ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 0: IncompleteInput",
+    "[D][dataTask.planeradar] retry ok=0 rc=-92 scanned=0",
+    "[D][dataTask.planeradar] retry also failed rc=-92 -> radius-capped retry2 distNm=9.9",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":195383,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":195910,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":196437,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":196964,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":197492,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":198020,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":198549,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":199078,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":199607,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":200135,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":200664,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":201192,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":182361,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":185982,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 35,
+   "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=5793ms size=-1",
+    "[W][dataTask.planeradar] parse error at object 7: IncompleteInput",
+    "[D][dataTask.planeradar] retry2 ok=0 rc=-92 scanned=7",
+    "[D][dataTask.planeradar] ok=0 errorCode=-92 count=0 scanned=7 epoch=0",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=35k",
+    "[D][planeradar] fetch rtt=18949ms ok=0 errorCode=-92",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":201719,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":202246,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":202773,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":203301,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":203828,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":204356,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":204882,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":205409,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":205937,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":8,\"inFlightMs\":201324,\"wrPhase\":-1,[205942][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":201323,\"last\":true}",
+    "[205972][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[205987][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length"
+   ]
+  }
+ ]
+}

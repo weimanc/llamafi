@@ -1,0 +1,102 @@
+{
+ "schema": 1,
+ "id": "T_CLK_06",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:25:28Z",
+ "generation": "48.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "switchApp 1",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=59048 maxAlloc=42996 minFree=43268",
+    "[shell] entered 1  heap=59048 maxAlloc=42996 minFree=43268",
+    "[shell] switch 0->1 suspend=2ms wipe=54ms init=77ms taskbar=25ms total=158ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=164ms (worst path so far: shell.switch:163ms)",
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1460 freeInt=52752). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "get clockStyle",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=55ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"nixieTheme\":0,\"vfdTheme\":2,\"dirty\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "get clockStyle",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=68ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"nixieTheme\":0,\"vfdTheme\":2,\"dirty\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 2",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "get clockStyle",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=62ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"nixieTheme\":0,\"vfdTheme\":2,\"dirty\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 3",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "get clockStyle",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=51ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"nixieTheme\":0,\"vfdTheme\":2,\"dirty\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=52752 maxAlloc=42996 minFree=43268",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=52752 maxAlloc=42996 minFree=43268",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=38ms taskbar=12ms total=78ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  }
+ ]
+}

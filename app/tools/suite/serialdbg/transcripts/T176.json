@@ -1,0 +1,779 @@
+{
+ "schema": 1,
+ "id": "T176",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:39:57Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set stockMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=47212 maxAlloc=42996 minFree=44012",
+    "[shell] entered 6  heap=47212 maxAlloc=42996 minFree=44012",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=44ms taskbar=13ms total=85ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=88ms (worst path so far: shell.switch:85ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":295637,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":297664,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":299690,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":301717,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 4,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:05:02 poll=0/7 last=-1 block_max=0ms loop_max=110ms slow=shell.switch:85ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=7869 build=Sep  9 2026-11:19:0",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":303744,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":305771,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":307798,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":309825,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":311852,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":313878,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":315904,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":317930,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":319957,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":321984,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":324011,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":326037,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":328064,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":330091,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":332118,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 19,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:05:32 poll=0/7 last=-1 block_max=0ms loop_max=24ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=37869 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":334145,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":336172,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":338199,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":340226,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":342254,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":344282,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":346309,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":348335,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":350362,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":352388,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":354414,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":356440,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":358466,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":360492,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 33,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:06:02 poll=0/7 last=-1 block_max=0ms loop_max=23ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=67869 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":362519,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":364545,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":366572,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":368599,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":370625,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":372652,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":374678,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":376705,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":378732,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":380758,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":260782,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 43,
+   "lines": [
+    "[381782][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
+    "[D][dataTask.stock] spark GET -1 elapsed=121007ms",
+    "[D][dataTask.stock] heap free=57k maxBlk=33k",
+    "[D][dataTask.stock] chart START sym=NVDA range=1d heap free=57k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":382785,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":384813,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":386840,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 46,
+   "lines": [
+    "[D][dataTask.stock] chart GET sym=NVDA range=1d 200 elapsed=6125ms",
+    "[D][dataTask.stock] chart pre-json heap free=16k maxBlk=4k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":388866,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 47,
+   "lines": [
+    "[D][dataTask.stock] chart post-json heap free=57k maxBlk=41k err=IncompleteInput",
+    "[W][dataTask.stock] chart JSON err sym=NVDA: IncompleteInput",
+    "[D][dataTask.stock] chart parse failed rc=-92 sym=NVDA -> retry",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":390893,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 48,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=44k maxAlloc=41k stack_hwm=11936b uptime=00:06:32 poll=0/7 last=-1 block_max=0ms loop_max=37ms slow=app.tick:35ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=97869 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":392921,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 49,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":394948,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 50,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":396974,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 51,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":399001,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":401028,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 53,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":403054,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":405081,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 55,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":407108,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 56,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":409134,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 57,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":411161,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 58,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":413188,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 59,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":415215,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 60,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":417242,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 61,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":419270,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 62,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":421296,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 63,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:07:02 poll=0/7 last=-1 block_max=0ms loop_max=24ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=127869 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":423323,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 64,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":425350,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 65,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":427376,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 66,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":429402,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 67,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":431429,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 68,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":433456,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 69,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":435483,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 70,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":437511,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 71,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":439539,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 72,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":441567,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 73,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":443595,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 74,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":445623,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 75,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":447650,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 76,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":449677,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 77,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":451704,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 78,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-67) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:07:32 poll=0/7 last=-1 block_max=0ms loop_max=24ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=157869 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":453731,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 79,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":455757,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 80,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":457784,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 81,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":459811,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 82,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":461838,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 83,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":463864,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 84,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":465890,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 85,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":467916,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 86,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":469943,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 87,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":471969,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 88,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":473996,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 89,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":476022,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 90,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":478049,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 91,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":480077,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 92,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":482104,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 93,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:08:02 poll=0/7 last=-1 block_max=0ms loop_max=24ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=187869 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":484131,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 94,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":486158,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 95,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":488185,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 96,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":490211,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 97,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":492238,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 98,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":494264,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":381796,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 6  heap=47868 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=1ms wipe=27ms init=40ms taskbar=13ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:81ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

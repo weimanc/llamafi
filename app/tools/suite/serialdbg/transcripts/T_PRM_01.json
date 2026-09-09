@@ -1,0 +1,255 @@
+{
+ "schema": 1,
+ "id": "T_PRM_01",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:33:44Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set prPollSec 1",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prPollSec\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get prPollSec",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=116ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prPollSec\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prPollSec 10",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prPollSec\",\"val\":\"10\"}"
+   ]
+  },
+  {
+   "cmd": "get prPollSec",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prPollSec\",\"val\":10,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prPollSec 30",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prPollSec\",\"val\":\"30\"}"
+   ]
+  },
+  {
+   "cmd": "get prPollSec",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=108ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prPollSec\",\"val\":30,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prPollSec 99",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prPollSec\",\"val\":\"99\"}"
+   ]
+  },
+  {
+   "cmd": "get prPollSec",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=57ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prPollSec\",\"val\":30,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "reboot",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"reboot\"}",
+    "[D][dataTask.planeradar] GET 200 elapsed=4359ms size=-1",
+    "[wifi-ev] t=239613 ev=5 STA_DISCONNECTED reason=8",
+    "[wifi-ev] t=239617 ev=3 STA_STOP",
+    "[239633][E][ssl_client.cpp:37] _handle_error(): [data_to_read():382]: (-76) UNKNOWN ERROR CODE (004C)",
+    "ets Jul 29 2019 12:21:46",
+    "rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)",
+    "configsip: 0, SPIWP:0xee",
+    "clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00",
+    "mode:DIO, clock div:2",
+    "load:0x3fff0030,len:1184",
+    "load:0x40078000,len:13232",
+    "load:0x40080400,len:3028",
+    "entry 0x400805e4",
+    "[bootphase] 0 reset",
+    "[bootreason] 3 SW",
+    "[bod] armed thres=7 regBefore=0x43ffc000 regAfter=0x7bffc000 ena=1 rstEna=0 intEnaBefore=1 intEna=0",
+    "{\"probe\":\"sdmount\",\"tag\":\"boot\",\"maxFiles\":3,\"mounted\":true,\"elapsedMs\":7,\"heapDeltaB\":19436,\"freeIntBefore\":211716,\"freeIntAfter\":192280,\"lfbIntBefore\":110580,\"lfbIntAfter\":110580,\"lfb8Before\":110580,\"lfb8After\":110580}",
+    "[membudget] boot-baseline freeInt=192280 lfbInt=110580 freeDma=149204 lfbDma=110580",
+    "[boot] git=5f5fa62+ elf=66d214c7 build=Sep  9 2026 11:19:00",
+    "winamp display setup",
+    "Initialisation done.",
+    "SettingsStorage: loaded",
+    "TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890",
+    "[bootphase] 1 fs",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[bootphase] 2 display",
+    "reading config file",
+    "opened config file",
+    "parsed json",
+    "config loaded: clientId=db\u2026e0 (len=32) clientSecret=b9\u202663 (len=32) refreshToken=AQ\u2026ng (len=131)",
+    "[bootphase] 3 wifi",
+    "[bodmit] mask=0 bl=0 tx=0 duty=256",
+    "[wifi-ev] t=718 ev=0 EV",
+    "[wifi-ev] t=803 ev=2 STA_START",
+    "[wifi-ev] t=949 ev=4 STA_CONNECTED",
+    "[wifi-ev] t=1507 ev=7 STA_GOT_IP ip=192.168.1.181",
+    "IP address: 192.168.1.181",
+    "[bodmit] inwindow mask=0 t=1518ms duty=256 txdbm=78",
+    "[bod] TRIP tag=wifi-end t=1518ms thres=7 trips=1 det=0",
+    "[membudget] post-wifi freeInt=136476 lfbInt=90100 freeDma=93400 lfbDma=90100",
+    "[bootphase] 4 time",
+    "[time] synced epoch=1788953502 in 0ms",
+    "Refreshing Access Tokens",
+    "[  1862][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[  1875][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[  1889][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "Failed to get access tokens",
+    "[I][spotify.task] begin ok \u2014 handle=0x3fff7a80 startIdle=0",
+    "[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms",
+    "[  2114][E][WiFiClient.cpp:320] setSocketOption(): fail on 0, errno: 9, \"Bad file number\"",
+    "[membudget] post-spotifyTask freeInt=123388 lfbInt=45044 freeDma=80312 lfbDma=45044",
+    "[bootphase] 5 services",
+    "[membudget] post-dataTask freeInt=108532 lfbInt=45044 freeDma=65456 lfbDma=45044",
+    "[I][dataTask] task started stack=14336B",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[membudget] post-init-idle freeInt=108532 lfbInt=45044 freeDma=65456 lfbDma=45044",
+    "[bootphase] 6 ready"
+   ]
+  },
+  {
+   "cmd": "get variant",
+   "nth": 0,
+   "lines": [
+    "i=rssi(-66) disc=0 heap=105k maxAlloc=43k stack_hwm=15692b uptime=00:00:02 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=(none):0ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=15 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"on\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get playerMode",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\",\"last\":true}",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[  7509][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[  7522][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[  7536][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[ 10281][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[ 27403][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 27416][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 27430][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[I][hb] display=winamp wifi=rssi(-63) disc=0 heap=49k maxAlloc=41k stack_hwm=12668b uptime=00:00:32 poll=0/1 last=-1 block_max=19727ms loop_max=49ms slow=app.tick:24ms last_poll_age_ms=0 next_poll_in_ms=4664 last_render_age_ms=30015 build=Sep  9 2026-11:1",
+    "[lib] GET write fail, retrying",
+    "[ 50900][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=24228ms",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[ 61419][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 61432][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 61447][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=60k maxAlloc=41k stack_hwm=12668b uptime=00:01:02 poll=0/1 last=-1 block_max=0ms loop_max=26ms slow=app.tick:5ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=60015 build=Sep  9 2026-11:19:02",
+    "[ 63076][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)"
+   ]
+  },
+  {
+   "cmd": "reconnect",
+   "nth": 0,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"reconnect\"}",
+    "[ 64705][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[D][spotify.task] dequeued action=FORCE_POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[ 65246][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 65260][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 65274][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[ 66912][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=105k maxAlloc=41k stack_hwm=12668b uptime=00:01:32 poll=0/3 last=-1 block_max=18581ms loop_max=44ms slow=app.tick:41ms last_poll_age_ms=0 next_poll_in_ms=11314 last_render_age_ms=8661 build=Sep  9 2026-11:",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[103846][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[103859][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[103873][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[109010][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[110637][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=3 next=40000ms",
+    "[I][hb] display=winamp wifi=rssi(-63) disc=0 heap=105k maxAlloc=41k stack_hwm=12668b uptime=00:02:02 poll=0/4 last=-1 block_max=7313ms loop_max=24ms slow=app.tick:4ms last_poll_age_ms=0 next_poll_in_ms=28640 last_render_age_ms=38661 build=Sep  9 2026-11:1"
+   ]
+  },
+  {
+   "cmd": "get prPollSec",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prPollSec\",\"val\":30,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prPollSec 10",
+   "nth": 1,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prPollSec\",\"val\":\"10\"}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,67 @@
+{
+ "schema": 1,
+ "id": "T_WR_COEX_02",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:53:57Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get wrState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get heap",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":48452,\"lfbInt\":42996,\"freeDma\":5376,\"lfbDma\":1396,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":0,\"nextPollMs\":5000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1336313,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1323069,\"wrPhase\":2,\"wrPhaseMs\":1323684,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1323690,\"last\":true}"
+   ]
+  }
+ ]
+}

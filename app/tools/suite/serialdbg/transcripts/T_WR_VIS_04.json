@@ -1,0 +1,111 @@
+{
+ "schema": 1,
+ "id": "T_WR_VIS_04",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:56:31Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 0  heap=105888 maxAlloc=42996 minFree=43184",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
+    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[shell] entered 11  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=48ms total=76ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=209ms (worst path so far: shell.switch:85ms)",
+    "[1488787][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1488800][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1488814][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=198ms",
+    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
+    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[1489067][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 0,
+   "lines": [
+    "[1489087][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 1,
+   "lines": [
+    "[1489107][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=270ms",
+    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
+    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
+    "[I][webradio] HEAP post-fetch free=105888 min=43184",
+    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=65ms (worst path so far: shell.switch:85ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

@@ -40,13 +40,28 @@ is stale or unhealthy for it — and are printed with a re-record instruction, n
 
 | id | outcome | why it is not fixed today | owner | since |
 |---|---|---|---|---|
+| `T-BUSY-01b` | RED-WITHOUT-ASSERTION | every non-pass exit is `skip()`; red only via contract/accident. Since TASK-624 the right verdict is `unmet()` — same row as the static ledger | TASK-615 | 2026-09-09 |
+| `T084` | RED-WITHOUT-ASSERTION | red only via `flake()` failing closed (policy 20) and crash arms; the body's own exits are `flake()`/`pass_()` — the runtime confirmation of the static shape-1 row | TASK-595 | 2026-09-09 |
+| `T091` | RED-WITHOUT-ASSERTION | as `T084`, red only via contract/accident | TASK-595 | 2026-09-09 |
+| `T077` | RED-WITHOUT-ASSERTION | red only through a crash arm (accident 7): raw `cmd()` reads, no `fail()` reached under any poison | TASK-676 | 2026-09-09 |
+| `T_CX_05` | RED-WITHOUT-ASSERTION | accident-only (40): the body breaks on a bad reply, never asserts on it | TASK-676 | 2026-09-09 |
+| `T_CX_07` | RED-WITHOUT-ASSERTION | contract 1182 / accident 411 over 3201 replays, zero assertions | TASK-676 | 2026-09-09 |
+| `T_WR_HEAP_01` | RED-WITHOUT-ASSERTION | accident-only (52) | TASK-676 | 2026-09-09 |
+| `T_WR_HEAP_02` | RED-WITHOUT-ASSERTION | accident-only (49) | TASK-676 | 2026-09-09 |
+| `T_WX_05` | RED-WITHOUT-ASSERTION | accident-only (60) | TASK-676 | 2026-09-09 |
 
-**0 rows.** The transcript directory was empty when this gate landed — a TASK-557 observation
+**9 rows** (first recording, 2026-09-09).
+
+**Opening state, 2026-09-08 (0 rows):** The transcript directory was empty when this gate landed — a TASK-557 observation
 window (uptime ~24 h) was live and recording costs a reset — so the gate reads zero **by absence**,
 and prints exactly that. The mechanism is proven by `gate/test_check_can_go_red.py`, which records
 synthetic bodies through the real recorder and sweeps them, including a mutation arm.
 
-## What the first recording is expected to put here
+## The first recording, measured 2026-09-09 — against the prediction below
+
+193 transcripts, sweep 22 s warm. **RED 110 · RED-WITHOUT-ASSERTION 9 · NEVER-RED 0 · BASELINE-NOT-PASS 63 · INCONCLUSIVE 11 · UNRECORDED 3.** Predicted right: `T084`/`T091` (policy/contract only), `T093`–`T095` unrecorded. Predicted wrong: **`T-BUSY-05` is RED** — `perturb get shellBusy` reaches its own `fail()` ("shellBusy not false after switchApp"), so the C-1 inverted guard *can* go red; whatever C-1 found is not "cannot fail". `T087`/`T092` were recorded as FLAKE/FAIL runs, so they are BASELINE-NOT-PASS until re-recorded healthy. New and unpredicted: six **accident-only** bodies (TASK-676). The 63 BASELINE-NOT-PASS are the run's own 24 FAILs + 39 SKIPs (Spotify-dependent ids under TASK-243, Stock fetches, WebRadio TLS); the 11 INCONCLUSIVE are polled oracles whose recording ended by deadline, not by event — re-record when healthy. One witness defect was found and fixed by this recording: the first pass graded 0 assertions because suite modules import `fail` by name (fixture `byname` in the negative suite now).
+
+## What the first recording was expected to put here (written 2026-09-08, before the run)
 
 The static ledger's eight rows will not all reappear: `T093`/`T094`/`T095` are registry `None`s
 the sweep cannot see either (they stay `UNRECORDED`), and `T084`/`T087`/`T091`/`T092` are predicted

@@ -1,0 +1,155 @@
+{
+ "schema": 1,
+ "id": "T_PLR_05",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:56:39Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get playerMode",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] entered 1  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] switch 0->1 suspend=1ms wipe=26ms init=46ms taskbar=12ms total=85ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=99ms (worst path so far: shell.switch:90ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=105888 maxAlloc=42996 minFree=43184",
+    "[I][m3u] loaded /playlists/short5.m3u: 5 entries in 12ms (total 15s)",
+    "[shell] entered 12  heap=97832 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->12 suspend=1ms wipe=26ms init=14ms taskbar=12ms total=53ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=136ms (worst path so far: shell.switch:90ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 1,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 12  heap=97388 maxAlloc=42996 minFree=43184",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=105444 maxAlloc=42996 minFree=43184",
+    "[shell] switch 12->0 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=151ms (worst path so far: shell.switch:90ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

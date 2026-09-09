@@ -1,0 +1,49 @@
+{
+ "schema": 1,
+ "id": "T091",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:01:51Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 3",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"3\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":3,\"nextPollMs\":40000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "reconnect",
+   "nth": 0,
+   "lines": [
+    "[W][spotify.task] queue full \u2014 dropped action=FORCE_POLL param=0",
+    "{\"ok\":true,\"cmd\":\"reconnect\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":0,\"nextPollMs\":5000,\"last\":true}"
+   ]
+  }
+ ]
+}

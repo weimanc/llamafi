@@ -1,0 +1,63 @@
+{
+ "schema": 1,
+ "id": "T151",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:05:07Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get dragState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "drag 110 63 167 80 10",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=110 sy=63",
+    "[D][chrome] drawVolume pct=4 keyframe=0",
+    "[D][touch] enqueued ACT_VOLUME pct=4",
+    "[D][serial] inject sample 2/11 sx=115 sy=64",
+    "[D][chrome] drawVolume pct=11 keyframe=0",
+    "[D][serial] inject sample 3/11 sx=121 sy=66",
+    "[D][chrome] drawVolume pct=20 keyframe=1",
+    "[D][serial] inject sample 4/11 sx=127 sy=68",
+    "[D][chrome] drawVolume pct=29 keyframe=1",
+    "[D][serial] inject sample 5/11 sx=132 sy=69",
+    "[D][chrome] drawVolume pct=37 keyframe=1",
+    "[D][serial] inject sample 6/11 sx=138 sy=71",
+    "[D][chrome] drawVolume pct=46 keyframe=2",
+    "[D][serial] inject sample 7/11 sx=144 sy=73",
+    "[D][chrome] drawVolume pct=55 keyframe=2",
+    "[D][serial] inject sample 8/11 sx=149 sy=74",
+    "[D][chrome] drawVolume pct=62 keyframe=3",
+    "[D][serial] inject sample 9/11 sx=155 sy=76",
+    "[D][chrome] drawVolume pct=71 keyframe=3",
+    "[D][serial] inject sample 10/11 sx=161 sy=78",
+    "[D][chrome] drawVolume pct=80 keyframe=4",
+    "[D][serial] inject sample 11/11 sx=167 sy=80",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[D][chrome] drag-end commit pct=89",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":110,\"y1\":63,\"x2\":167,\"y2\":80,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,77 @@
+{
+ "schema": 1,
+ "id": "T_PLR_04",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:56:37Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get playerMode",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get playerMode",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode 1",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":1,\"name\":\"WebRadio\"}"
+   ]
+  },
+  {
+   "cmd": "get playerMode",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\",\"val\":1,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get playerMode",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode 3",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad val \u2014 use 0-2 or spotify/webradio/player\"}"
+   ]
+  },
+  {
+   "cmd": "set playerMode 0",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  }
+ ]
+}

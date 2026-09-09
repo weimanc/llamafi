@@ -1,0 +1,148 @@
+{
+ "schema": 1,
+ "id": "T_PR_06",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:31:38Z",
+ "generation": "48.2",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 380",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=56592 maxAlloc=42996 minFree=43996",
+    "[shell] entered 9  heap=56396 maxAlloc=42996 minFree=43996",
+    "[shell] switch 0->9 suspend=2ms wipe=54ms init=153ms taskbar=25ms total=234ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=256ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prInjectAircraft TEST01,A320,52.31,4.76,12.5,90,90,250,15000;TEST02,B738,52.28,4.80,8.0,270,270,180,8000;TEST03,C172,52.30,4.75,3.0,0,0,90,2000",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prInjectAircraft\",\"val\":\"TEST01,A320,52.31,4.76,12.5,90,90,250,15000;TEST02,B738,52.28,4.80,8.0,270,270,180,8000;TEST03,C172,52.30,4.75,3.0,0,0,90,2000\"}"
+   ]
+  },
+  {
+   "cmd": "get prAircraftCount",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=100ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prAircraftCount\",\"val\":3,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prClearInject 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prClearInject\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get prAircraftCount",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prAircraftCount\",\"val\":3,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 9  heap=57532 maxAlloc=42996 minFree=43996",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=57236 maxAlloc=42996 minFree=43996",
+    "[shell] switch 9->0 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=224ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

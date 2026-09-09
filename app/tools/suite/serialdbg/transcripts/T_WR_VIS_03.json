@@ -1,0 +1,120 @@
+{
+ "schema": 1,
+ "id": "T_WR_VIS_03",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:56:28Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 11  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] entered 1  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] switch 11->1 suspend=1ms wipe=26ms init=46ms taskbar=12ms total=85ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=99ms (worst path so far: shell.switch:85ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=105888 maxAlloc=42996 minFree=43184",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->0 suspend=0ms wipe=27ms init=40ms taskbar=12ms total=79ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=117ms (worst path so far: shell.switch:85ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "info",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"5f5fa62+\",\"elf\":\"66d214c7\",\"build\":\"Sep  9 2026 11:19:00\",\"heap\":105888,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":7}"
+   ]
+  }
+ ]
+}

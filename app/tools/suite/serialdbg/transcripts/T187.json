@@ -1,0 +1,599 @@
+{
+ "schema": 1,
+ "id": "T187",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:41:49Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set stockMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=47704 maxAlloc=42996 minFree=43792",
+    "[shell] entered 6  heap=47704 maxAlloc=42996 minFree=43792",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=31ms taskbar=13ms total=72ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=76ms (worst path so far: shell.switch:80ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 10 7",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "set fetchFailed 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fetchFailed\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set fetchErrorCode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fetchErrorCode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 137 218",
+   "nth": 0,
+   "lines": [
+    "[W][dataTask] queue full \u2014 dropped stock chart idx=7 rng=0",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":218,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartTicker",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartTicker\",\"val\":\"NVDA\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set triggerFetch 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"triggerFetch\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 1,
+   "lines": [
+    "[W][dataTask] queue full \u2014 dropped stock chart idx=7 rng=0",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":564483,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":567547,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":570613,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 11,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:09:32 poll=0/7 last=-1 block_max=0ms loop_max=107ms slow=shell.switch:80ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=12055 build=Sep  9 2026-11:19:",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":573677,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":576742,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":579805,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":582868,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":585931,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":588993,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":592056,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":595118,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":598182,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":601248,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 40,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:10:02 poll=0/7 last=-1 block_max=0ms loop_max=24ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=42055 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":604312,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":607375,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":-1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get heap",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":47704,\"lfbInt\":42996,\"freeDma\":4628,\"lfbDma\":1844,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":608443,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 6  heap=47704 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=47704 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:81ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

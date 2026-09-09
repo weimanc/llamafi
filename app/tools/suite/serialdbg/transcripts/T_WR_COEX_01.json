@@ -1,0 +1,83 @@
+{
+ "schema": 1,
+ "id": "T_WR_COEX_01",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:53:46Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 0  heap=59508 maxAlloc=42996 minFree=43472",
+    "[shell] entered 11  heap=59512 maxAlloc=42996 minFree=43472",
+    "[shell] switch 0->11 suspend=2ms wipe=54ms init=0ms taskbar=34ms total=90ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[I][webradio] HEAP post-fetch free=59960 min=43472",
+    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=319ms (worst path so far: shell.switch:126ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,123 @@
+{
+ "schema": 1,
+ "id": "T079",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:00:32Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 1,
+   "lines": [
+    "[ 35882][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 35895][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 35910][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 500",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"500\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 50 97",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":50,\"y\":97,\"hit\":\"NONE\",\"action\":\"NONE\",\"skipped\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 4,
+   "lines": [
+    "[ 37602][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 5,
+   "lines": [
+    "[ 39247][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[I][hb] display=winamp wifi=rssi(-67) disc=3 heap=104k maxAlloc=41k stack_hwm=12684b uptime=00:00:39 poll=0/0 last=0 block_max=0ms loop_max=189ms slow=shell.switch:110ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=9399 build=Sep  9 2026-11:",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 6,
+   "lines": [
+    "[ 39778][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 39791][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 39806][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 50 97",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":50,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":1,\"action\":\"PLAY\",\"skipped\":false}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1510 @@
+{
+ "schema": 1,
+ "id": "T242",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:15:24Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":1}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":1}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":18,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 1,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":2}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":2}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":126,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":12,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 2,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":3}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":3}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":18,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 3,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":4}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":4}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":130,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":13,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 4,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":5}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":5}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":134,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":20,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 5,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":6}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":128,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":14,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 6,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":7}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":7}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":129,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":15,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 7,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":8}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":8}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":130,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":17,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 8,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":9}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":9}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":20,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 9,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":10}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":127,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":14,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 10,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":134,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":21,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 11,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":167,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":54,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 12,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":163,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":49,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 13,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 15,
+   "lines": [
+    "[928440][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
+    "[lib] PUT  connect api.spotify.com:443 failed errno=11 (No more processes)",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":50,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 14,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":167,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":53,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 15,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":5}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 46,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":153,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 47,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":41,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 48,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=68612 maxAlloc=42996 minFree=43232",
+    "[shell] entered 5  heap=68612 maxAlloc=42996 minFree=43232",
+    "[shell] switch 0->5 suspend=1ms wipe=27ms init=64ms taskbar=13ms total=105ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 13,
+   "lines": [
+    "[W][perf] iter=133ms (worst path so far: shell.switch:105ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":5,\"name\":\"Life\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":5}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 49,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 16,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 50,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":164,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 51,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":51,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 17,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[930075][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed [D]by the trusted CA",
+    "[serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[930094][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or[D] signature check failed",
+    "[serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[930118][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 53,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":166,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":49,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 55,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 18,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 56,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 57,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":44,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 58,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 19,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 59,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 60,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":52,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 61,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 20,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 62,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":154,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 63,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":40,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 64,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 1,
+   "lines": [
+    "[shell] leaving 5  heap=68616 maxAlloc=42996 minFree=43232",
+    "[shell] entered 10  heap=68616 maxAlloc=42996 minFree=43232",
+    "[shell] switch 5->10 suspend=0ms wipe=28ms init=35ms taskbar=12ms total=75ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 14,
+   "lines": [
+    "[W][perf] iter=90ms (worst path so far: shell.switch:105ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":10,\"name\":\"Settings\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":10,\"name\":\"Settings\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":10}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 65,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 21,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 66,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":156,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 67,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":43,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 68,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 2,
+   "lines": [
+    "[shell] leaving 10  heap=68616 maxAlloc=42996 minFree=43232",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=68616 maxAlloc=42996 minFree=43232",
+    "[shell] switch 10->0 suspend=0ms wipe=28ms init=43ms taskbar=13ms total=84ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 16,
+   "lines": [
+    "[W][perf] iter=122ms (worst path so far: shell.switch:105ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

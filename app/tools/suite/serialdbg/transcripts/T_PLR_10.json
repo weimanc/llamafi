@@ -1,0 +1,221 @@
+{
+ "schema": 1,
+ "id": "T_PLR_10",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:57:06Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 12  heap=90424 maxAlloc=42996 minFree=43184",
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] entered 1  heap=90424 maxAlloc=42996 minFree=43184",
+    "[shell] switch 12->1 suspend=35ms wipe=26ms init=46ms taskbar=12ms total=119ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=133ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=90424 maxAlloc=42996 minFree=43184",
+    "[I][m3u] loaded /playlists/short5.m3u: 5 entries in 13ms (total 15s)",
+    "[shell] entered 12  heap=82372 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->12 suspend=0ms wipe=27ms init=15ms taskbar=12ms total=54ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=132ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /mp3/rel.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /mp3/rel.m3u: 6 entries in 37ms (total 1458s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/mp3/rel.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=77ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/mp3/rel.m3u\",\"count\":6,\"loadMs\":37,\"totalSec\":1458,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":0,\"id\":0,\"text\":\"Gorillaz - Tomorrow Comes Today\",\"durSec\":192,\"path\":\"/mp3/01 - Tomorrow Comes Today.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 4",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":4,\"id\":4,\"text\":\"Gorillaz - Feel Good Inc\",\"durSec\":222,\"path\":\"/mp3/05 - Feel Good Inc.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /playlists/relpar.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /playlists/relpar.m3u: 3 entries in 12ms (total 741s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/relpar.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=63ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/relpar.m3u\",\"count\":3,\"loadMs\":12,\"totalSec\":741,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":0,\"id\":0,\"text\":\"Gorillaz - Tomorrow Comes Today\",\"durSec\":192,\"path\":\"/mp3/01 - Tomorrow Comes Today.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /mp3/../playlists/gate100.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 18ms (total 29890s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/mp3/../playlists/gate100.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=69ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":18,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

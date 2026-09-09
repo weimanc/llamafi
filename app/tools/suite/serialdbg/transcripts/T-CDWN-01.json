@@ -1,0 +1,158 @@
+{
+ "schema": 1,
+ "id": "T-CDWN-01",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:11:14Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get visMode",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"visMode\",\"mode\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 62 51",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":62,\"y\":51,\"hit\":\"VIS\",\"action\":\"VIS\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get visMode",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"visMode\",\"mode\":2,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 62 51",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":62,\"y\":51,\"hit\":\"CANVAS\",\"action\":\"NONE\",\"skipped\":true}"
+   ]
+  },
+  {
+   "cmd": "get cooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"cooldown\",\"remainingMs\":252,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get visMode",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"visMode\",\"mode\":2,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get cooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"cooldown\",\"remainingMs\":130,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get cooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"cooldown\",\"remainingMs\":18,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get cooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"cooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 62 51",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":62,\"y\":51,\"hit\":\"VIS\",\"action\":\"VIS\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get visMode",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"visMode\",\"mode\":0,\"last\":true}"
+   ]
+  }
+ ]
+}

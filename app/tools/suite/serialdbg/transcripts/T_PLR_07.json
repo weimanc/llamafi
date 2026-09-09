@@ -1,0 +1,42 @@
+{
+ "schema": 1,
+ "id": "T_PLR_07",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:57:00Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 259 100",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[I][touch] logo tap \u2192 TLS reset + force poll",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":259,\"y\":100,\"hit\":\"LOGO\",\"action\":\"TLS_RESET\",\"skipped\":false}",
+    "[W][perf] iter=54ms (worst path so far: shell.switch:174ms)"
+   ]
+  }
+ ]
+}

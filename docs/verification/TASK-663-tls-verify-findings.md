@@ -101,3 +101,29 @@ datum TASK-557 loses (dut_workflow §5a): a 39 h 38 m application-uptime window 
 
 **TASK-675 deprioritised** the same day: the human has lost Spotify access, wants the feature kept,
 cannot test it now. The two Spotify FAILs in `run/check-datatask-certs` are expected until it lands.
+
+## 7. PATCH-TLS-2 answered on the first boot, 2026-09-09
+
+```
+[E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA
+[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=359ms
+[E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA
+[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=290ms
+```
+
+**`BADCERT_NOT_TRUSTED`, and only that**, on both mirrors, every time. Not `CN_MISMATCH`, not
+`BAD_KEY`, not a bad-signature-md/pk flag. mbedTLS sets 0x08 when it finds **no parent that
+verifies** for the top of the chain it holds: either the cross-signed `Root YR` never reached the
+board (the chain it received ends at `YR2`, whose issuer is not X1), or it did and the RSA-4096
+signature check against X1 returned non-zero — and `x509_crt_check_signature` folds *any* pk
+error, including an allocation failure, into "not signed by this parent". The flag cannot tell
+those two apart; the next instrument can, and it is another six lines in the same place: on this
+flag, walk `mbedtls_ssl_get_peer_cert()->next` and log the chain length and each subject/issuer.
+A 2-cert chain says "the server sent a different chain to this client"; a 3-cert chain says the
+board's RSA-4096 verify of the cross cert failed. **No X1-anchored fetch of the two-cert shape
+(Weather via `api.open-meteo.com`) ran in this session's logs**, so the cheap discriminator —
+"does a chain needing one X1 RSA-4096 verify pass on the board while this one, needing two,
+fails" — is still owed: `./run/test-targeted --scope Weather` on the debug env.
+
+The boot-time Spotify token refresh printed the same 0x08 at t=10.7 s — expected, that pin is
+rotted (§3.2, TASK-675 deferred).

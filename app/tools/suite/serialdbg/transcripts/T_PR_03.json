@@ -1,0 +1,305 @@
+{
+ "schema": 1,
+ "id": "T_PR_03",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:27:37Z",
+ "generation": "48.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 380",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=55424 maxAlloc=42996 minFree=43268",
+    "[shell] entered 9  heap=55112 maxAlloc=42996 minFree=43268",
+    "[shell] switch 0->9 suspend=2ms wipe=54ms init=153ms taskbar=25ms total=234ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=257ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prInjectAircraft TEST01,A320,52.31,4.76,12.5,90,90,250,15000",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prInjectAircraft\",\"val\":\"TEST01,A320,52.31,4.76,12.5,90,90,250,15000\"}"
+   ]
+  },
+  {
+   "cmd": "set prRange 5",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=76ms (worst path so far: shell.switch:234ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prRange\",\"val\":\"5\"}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=290ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 120 120",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":120,\"y\":120,\"hit\":\"PLANERADAR\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get prRange",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=298ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prRange\",\"val\":10,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 120 120",
+   "nth": 1,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":120,\"y\":120,\"hit\":\"PLANERADAR\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get prRange",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=286ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prRange\",\"val\":15,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 120 120",
+   "nth": 2,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":120,\"y\":120,\"hit\":\"PLANERADAR\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get prRange",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=296ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prRange\",\"val\":25,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 120 120",
+   "nth": 3,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[D][dataTask.planeradar] GET 200 elapsed=4548ms size=-1",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":120,\"y\":120,\"hit\":\"PLANERADAR\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get prRange",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=200ms (worst path so far: shell.switch:234ms)",
+    "[D][dataTask.planeradar] ok=1 errorCode=0 count=5 scanned=40 epoch=0",
+    "[D][dataTask.planeradar] roster KLM1421,6.7,293;KLM64A,6.8,241;KLC21A,6.1,326;TRA21Q,3.1,196;ZXP01,2.6,77;",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=31k",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=31k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prRange\",\"val\":5,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set prClearInject 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prClearInject\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[D][planeradar] fetch rtt=0ms ok=1 errorCode=0",
+    "[W][perf] iter=73ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 9  heap=57176 maxAlloc=42996 minFree=43268",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=56576 maxAlloc=42996 minFree=43268",
+    "[shell] switch 9->0 suspend=2ms wipe=54ms init=80ms taskbar=26ms total=162ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=228ms (worst path so far: shell.switch:234ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

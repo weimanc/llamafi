@@ -169,6 +169,18 @@ def contract(dut):
     R.pass_("T_CGR_07")
 
 
+from lib.results import fail as _fail_by_name, pass_ as _pass_by_name   # noqa: E402
+
+
+def byname(dut):
+    """`honest`, but with fail/pass_ imported BY NAME the way every real suite
+    module does it. The first real recording graded zero assertions because the
+    witness rebound `results.fail` and never saw these calls."""
+    if dut.get_int("x") != 5:
+        _fail_by_name("T_CGR_10", "x"); return
+    _pass_by_name("T_CGR_10")
+
+
 def unhealthy(dut):
     if dut.get_str("appId", field="name") != "Clock":
         R.skip("T_CGR_08", "not on Clock"); return
@@ -177,7 +189,7 @@ def unhealthy(dut):
 
 BODIES = {"T_CGR_01": honest, "T_CGR_02": inverted, "T_CGR_03": skipper,
           "T_CGR_04": pair, "T_CGR_05": crasher, "T_CGR_06": flaker,
-          "T_CGR_07": contract, "T_CGR_08": unhealthy}
+          "T_CGR_07": contract, "T_CGR_08": unhealthy, "T_CGR_10": byname}
 
 LEDGER_HEAD = ("# ledger\n\n| id | outcome | why | owner | since |\n|---|---|---|---|---|\n")
 
@@ -205,7 +217,7 @@ def main() -> int:
     want = {"T_CGR_01": CF.Outcome.RED, "T_CGR_02": RWA,
             "T_CGR_03": CF.Outcome.NEVER_RED, "T_CGR_04": CF.Outcome.RED,
             "T_CGR_05": RWA, "T_CGR_06": RWA, "T_CGR_07": RWA,
-            "T_CGR_08": CF.Outcome.BASELINE_NOT_PASS}
+            "T_CGR_08": CF.Outcome.BASELINE_NOT_PASS, "T_CGR_10": CF.Outcome.RED}
     for tid, o in want.items():
         check(f"A {tid} ({BODIES[tid].__name__}) -> {o.value}",
               sw[tid].outcome is o, sw[tid].line().strip())
@@ -279,8 +291,8 @@ def main() -> int:
           and not any("T_CGR_08" in f for f in failures))
     check("E T_CGR_09 is UNRECORDED in the census",
           any(s.tid == "T_CGR_09" for s in census[CF.Outcome.UNRECORDED]))
-    check("E two RED in the census",
-          len(census[CF.Outcome.RED]) == 2, str([s.tid for s in census[CF.Outcome.RED]]))
+    check("E three RED in the census (honest, pair, byname)",
+          len(census[CF.Outcome.RED]) == 3, str([s.tid for s in census[CF.Outcome.RED]]))
 
     print("\nF — the ledger")
     rows = ("| `T_CGR_02` | RED-WITHOUT-ASSERTION | inverted guard, TASK-582 | TASK-582 | 2026-09-08 |\n"
@@ -328,7 +340,7 @@ def main() -> int:
     (pathlib.Path(d) / "T_CGR_77.json").write_text("{not json")
     ts["T_CGR_01"].save(pathlib.Path(d) / "T_CGR_88.json")      # misnamed
     loaded, errs = G.load_transcripts(d)
-    check("G eight transcripts round-trip through disk", len(loaded) == 8, str(sorted(loaded)))
+    check("G nine transcripts round-trip through disk", len(loaded) == 9, str(sorted(loaded)))
     check("G an unreadable file is an error, not a silent skip",
           any("T_CGR_77" in e for e in errs), str(errs))
     check("G a file whose name and id disagree is an error",

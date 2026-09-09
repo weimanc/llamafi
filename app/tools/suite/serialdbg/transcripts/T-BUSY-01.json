@@ -1,0 +1,452 @@
+{
+ "schema": 1,
+ "id": "T-BUSY-01",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:09:50Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get heap",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":67484,\"lfbInt\":42996,\"freeDma\":24408,\"lfbDma\":8180,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":3,\"nextPollMs\":40000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":559137,\"queueWaiting\":0,\"pendingMask\":2,\"inFlight\":1,\"inFlightMs\":557337,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":555787,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set stockMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=67484 maxAlloc=42996 minFree=43312",
+    "[shell] entered 6  heap=67484 maxAlloc=42996 minFree=43312",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=44ms taskbar=12ms total=84ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=88ms (worst path so far: shell.switch:95ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 10 7",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"NONE\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get heap",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":67484,\"lfbInt\":42996,\"freeDma\":24408,\"lfbDma\":8180,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":3,\"nextPollMs\":40000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":559937,\"queueWaiting\":1,\"pendingMask\":6,\"inFlight\":1,\"inFlightMs\":557337,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":555787,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 137 36",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":36,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 20,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=3 heap=63k maxAlloc=41k stack_hwm=11708b uptime=00:09:39 poll=0/16 last=-1 block_max=18645ms loop_max=122ms slow=shell.switch:95ms last_poll_age_ms=0 next_poll_in_ms=11509 last_render_age_ms=21090 build=Sep  9 20",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 26,
+   "lines": [
+    "[586093][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-29312) SSL - The connection indicated an EOF",
+    "[586104][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -29312",
+    "[lib] GET connect api.spotify.com:443 failed errno=128 (Socket is not connected)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF errstr='SSL - The connection indicated an EOF'",
+    "[D][spotify.poll] backoff: consecutive=4 next=60000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 27,
+   "lines": [
+    "[586459][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[586472][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[586486][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 28,
+   "lines": [
+    "[588032][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 30,
+   "lines": [
+    "[589567][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=3643ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.crypto] heap free=59k maxBlk=39k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 34,
+   "lines": [
+    "[D][dataTask.crypto] GET 200 elapsed=3907ms",
+    "[D][dataTask.crypto] heap free=58k maxBlk=39k",
+    "[D][dataTask.crypto] ok bitcoin=79372.00 ethereum=2501.70 ids=bitcoin ccy=usd",
+    "[D][dataTask.stock] heap free=61k maxBlk=39k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 36,
+   "lines": [
+    "[D][dataTask.stock] spark GET 200 elapsed=1777ms",
+    "[D][dataTask.stock] spark ok aapl=316.22 msft=505.74",
+    "[D][dataTask.stock] heap free=61k maxBlk=39k",
+    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=61k maxBlk=39k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 37,
+   "lines": [
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=1716ms",
+    "[D][dataTask.stock] chart pre-json heap free=13k maxBlk=7k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 38,
+   "lines": [
+    "[D][dataTask.stock] chart post-json heap free=59k maxBlk=39k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=315.18 hi=317.52",
+    "[D][dataTask.stock] heap free=61k maxBlk=39k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":79,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 6  heap=106488 maxAlloc=42996 minFree=43312",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=106024 maxAlloc=42996 minFree=43312",
+    "[shell] switch 6->0 suspend=0ms wipe=27ms init=41ms taskbar=14ms total=82ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:82ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

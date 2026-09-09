@@ -250,35 +250,45 @@ def poison_transcript(t: RP.Transcript, poison: Poison, extent: Extent,
 # ── grading ──────────────────────────────────────────────────────────────────
 
 class _FailWitness:
-    """Records, for every `results.fail` call during one replay, whether the
-    caller was `results.flake` (POLICY) or something else. Installed around the
-    body and removed after; the real `fail` runs unchanged underneath."""
+    """Records, for every FAIL verdict written during one replay, whether it
+    came through `results.flake` (POLICY) or not. Hooks the results STORE's
+    single choke point (`RESULTS.set_typed`) rather than rebinding `fail`:
+    suite modules import `fail` by name (`from lib.results import fail`), so a
+    rebound `results.fail` never sees their calls — measured on the first real
+    recording, where 119 bodies graded zero assertions. The store is the one
+    place every verdict passes, however the recorder was imported."""
 
     def __init__(self):
         self.calls: list = []       # [(tid, from_flake: bool)]
         self._orig = None
 
     def __enter__(self):
-        self._orig = R.fail
-        orig = self._orig
+        store = R.RESULTS
+        orig = store.set_typed
+        self._orig = orig
         witness = self
 
-        def fail(tid, reason):
-            f = sys._getframe(1)
-            from_flake = (f.f_code.co_name == "flake"
-                          and f.f_globals.get("__name__", "").endswith("results"))
-            witness.calls.append((tid, from_flake))
-            return orig(tid, reason)
+        def set_typed(tid, verdict, record):
+            if verdict is R.Verdict.FAIL:
+                from_flake = False
+                f = sys._getframe(1)
+                while f is not None:
+                    if (f.f_code.co_name == "flake"
+                            and f.f_globals.get("__name__", "").endswith("results")):
+                        from_flake = True
+                        break
+                    f = f.f_back
+                witness.calls.append((tid, from_flake))
+            return orig(tid, verdict, record)
 
-        R.fail = fail
-        # `dispatch` imported the name at module load; rebind there too so the
-        # BAD_FIELD / TIMEOUT / EXCEPTION arms are witnessed as well.
-        _dispatch.fail = fail
+        store.set_typed = set_typed
         return self
 
     def __exit__(self, *exc):
-        R.fail = self._orig
-        _dispatch.fail = self._orig
+        try:
+            del R.RESULTS.set_typed          # instance attr; class method resumes
+        except AttributeError:
+            pass
         return False
 
 

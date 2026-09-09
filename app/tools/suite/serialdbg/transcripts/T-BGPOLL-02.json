@@ -1,0 +1,40 @@
+{
+ "schema": 1,
+ "id": "T-BGPOLL-02",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:15:56Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get bgPoll",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "reconnect",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"reconnect\"}"
+   ]
+  },
+  {
+   "cmd": "get bgPoll",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,41 @@
+{
+ "schema": 1,
+ "id": "T084",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:00:54Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set backoff 5",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"5\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=100 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":5,\"nextPollMs\":60000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=100 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":0,\"nextPollMs\":5000,\"last\":true}"
+   ]
+  }
+ ]
+}

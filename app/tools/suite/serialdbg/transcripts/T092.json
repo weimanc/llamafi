@@ -1,0 +1,19 @@
+{
+ "schema": 1,
+ "id": "T092",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:01:55Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "reconnect",
+   "nth": 0,
+   "lines": [
+    "[W][spotify.task] queue full \u2014 dropped action=FORCE_POLL param=0",
+    "{\"ok\":true,\"cmd\":\"reconnect\"}"
+   ]
+  }
+ ]
+}

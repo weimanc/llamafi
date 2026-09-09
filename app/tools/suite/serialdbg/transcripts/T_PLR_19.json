@@ -1,0 +1,247 @@
+{
+ "schema": 1,
+ "id": "T_PLR_19",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:59:33Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 11  heap=49612 maxAlloc=42996 minFree=43184",
+    "[shell] entered 1  heap=49612 maxAlloc=42996 minFree=43184",
+    "[shell] switch 11->1 suspend=1ms wipe=27ms init=46ms taskbar=13ms total=87ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=101ms (worst path so far: shell.switch:87ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=49612 maxAlloc=42996 minFree=43184",
+    "[W][m3u] index alloc FAILED (3616 B) \u2014 free=47996",
+    "[shell] entered 12  heap=49612 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->12 suspend=1ms wipe=27ms init=2ms taskbar=12ms total=42ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=116ms (worst path so far: shell.switch:87ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":2,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 187 96",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":187,\"y\":96,\"hit\":\"SHUFFLE\",\"row\":-1,\"action\":\"SHUFFLE\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":2,\"last\":true}",
+    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=48k maxAlloc=41k stack_hwm=11708b uptime=00:27:32 poll=0/30 last=-1 block_max=0ms loop_max=146ms slow=shell.switch:87ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=3664 build=Sep  9 2026-11:19:",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=33318ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1985/6144 B)"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 225 96",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"REPEAT\",\"row\":-1,\"action\":\"REPEAT\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 140 77 140 77 1",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/2 sx=140 sy=77",
+    "[D][serial] inject sample 2/2 sx=140 sy=77",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":140,\"y1\":77,\"x2\":140,\"y2\":77,\"steps\":1}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"\",\"count\":0,\"loadMs\":0,\"totalSec\":0,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

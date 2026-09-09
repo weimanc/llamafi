@@ -1,0 +1,137 @@
+{
+ "schema": 1,
+ "id": "T_PLR_18",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:59:08Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 460",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1396 freeInt=48280). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "[shell] leaving 0  heap=48280 maxAlloc=42996 minFree=43184",
+    "[shell] entered 11  heap=48280 maxAlloc=42996 minFree=43184",
+    "[shell] switch 0->11 suspend=10ms wipe=28ms init=0ms taskbar=16ms total=54ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":460,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[I][webradio] HEAP post-fetch free=48280 min=43184",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=146ms (worst path so far: app.tick:65ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":1,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 187 96",
+   "nth": 0,
+   "lines": [
+    "[D][touch] dead zone tap \u2192 force poll",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":187,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}",
+    "[lib] GET write fail, retrying"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 225 96",
+   "nth": 0,
+   "lines": [
+    "[D][touch] dead zone tap \u2192 force poll",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 140 63",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][touch] enqueued ACT_VOLUME pct=49",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":140,\"y\":63,\"hit\":\"VOLUME\",\"action\":\"VOLUME\",\"skipped\":false}"
+   ]
+  }
+ ]
+}

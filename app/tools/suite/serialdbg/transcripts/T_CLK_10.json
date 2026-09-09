@@ -1,0 +1,52 @@
+{
+ "schema": 1,
+ "id": "T_CLK_10",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:25:33Z",
+ "generation": "48.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "switchApp 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle vfd",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=51ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=53588 maxAlloc=42996 minFree=43268",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=53588 maxAlloc=42996 minFree=43268",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=38ms taskbar=12ms total=78ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  }
+ ]
+}

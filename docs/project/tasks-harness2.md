@@ -45,7 +45,7 @@ renumberable — **kept rather than renumbered on purpose**, because the human r
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
 WP-Z's reserved band). **TASK-648 was never allocated either** — the band closed at 647 and the
 next filing started at 649. Allocated since: **TASK-649…660** on [tasks.md](tasks.md) (the TASK-587
-escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-676** (671–674 filed 2026-09-08 here; 675 on tasks.md)
+escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-677** (671–674, 676 filed here; 675 on tasks.md)
 (662–668 filed 2026-09-07 on [tasks.md](tasks.md) from the Phase 2 hardware sessions; **TASK-669**
 the same day, the board-currency gate, and **TASK-670** the LL-151 BP candidate, both also on
 [tasks.md](tasks.md)).
@@ -265,10 +265,11 @@ ratchet's clothes.
 | TASK-612 | P3 | BLOCKED — phase entry | scope resolution for the 55 % of the tree it cannot reach — [B-9](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-614 | P3 | OPEN — unblocked; **scope grew** | registry and tooling honesty — [B-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) … |
 | TASK-615 | P3 | OPEN — unblocked; **scope grew** | small correctness debts with named fixes — [H-17](../verification/reviews/M-TESTQUAL-Z-findings-review.md) … |
-| TASK-671 | P2 | **LANDED 2026-09-08** (`c444071`) — mechanism DONE, gate blocking on a 0-row ledger; **first recording owed** (ends a TASK-557 window; do it on purpose) | R34 at runtime: `check_can_go_red.py` executes each recorded body against its poisoned transcript; reds graded assertion/contract/accident/policy — [design](../architecture/designs/M-HARNESS2-runtime-gates.md) |
+| TASK-671 | P2 | **DONE 2026-09-09** (`c444071`; first recording landed, 193 transcripts, gate live on a 9-row ledger) | R34 at runtime: `check_can_go_red.py` executes each recorded body against its poisoned transcript; reds graded assertion/contract/accident/policy — [design](../architecture/designs/M-HARNESS2-runtime-gates.md) |
 | TASK-672 | P3 | OPEN — needs TASK-671's first recording; shares TASK-641's read-key instrument | R18 runtime arm: PASS under `DROP@k` on a field the body read = an oracle satisfied by a default — [design §4](../architecture/designs/M-HARNESS2-runtime-gates.md) |
 | TASK-673 | P3 | OPEN — needs TASK-671's first recording | R17 runtime arm: on every poisoned FAIL/UNMET path, an unacked or missing set-back is a leak on that path (`C-15`'s shape, host-side) — [design §4](../architecture/designs/M-HARNESS2-runtime-gates.md) |
 | TASK-674 | P3 | OPEN — needs TASK-671's first recording | R36 runtime arm: the healthy transcript's command set is the exact gating key set; check it, not a closure guess — [design §4](../architecture/designs/M-HARNESS2-runtime-gates.md) |
+| TASK-676 | P3 | OPEN — filed 2026-09-09 from the first recording | six bodies whose only red is a crash arm (`T077`, `T_CX_05`, `T_CX_07`, `T_WR_HEAP_01/02`, `T_WX_05`): they break on a bad reply and never assert on it — read typed, `fail()` on the subject — [ledger](../verification/can_go_red_ledger.md) |
 
 ---
 

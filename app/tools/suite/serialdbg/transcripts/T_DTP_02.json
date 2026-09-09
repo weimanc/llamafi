@@ -1,0 +1,1761 @@
+{
+ "schema": 1,
+ "id": "T_DTP_02",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:52:35Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set stockMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=47792 maxAlloc=42996 minFree=43792",
+    "[shell] entered 6  heap=52176 maxAlloc=42996 minFree=43792",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=155ms taskbar=25ms total=236ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=242ms (worst path so far: shell.switch:236ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get bgPoll",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1082903,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":4,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":1081367,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 1,
+   "lines": [
+    "[D][dataTask.stock] heatmap GET 200 elapsed=2095ms",
+    "[D][dataTask.stock] heatmap doc cap=2560",
+    "[D][dataTask.stock] heatmap ok count=20 usage=1844/2560",
+    "[D][dataTask.stock] heap free=59k maxBlk=41k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=77ms (worst path so far: shell.switch:236ms)",
+    "[1084257][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1084270][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1084284][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1084931,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1083945,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 2,
+   "lines": [
+    "[1085811][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1086960,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1083945,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 3,
+   "lines": [
+    "[1087336][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=8 next=60000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1088051][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1088064][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1088079][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1088990,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1091019,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1093047,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1095074,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1097101,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1099128,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1101155,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1103183,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 11,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1105211,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1107238,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1109266,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1111294,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 15,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=65k maxAlloc=41k stack_hwm=11708b uptime=00:18:32 poll=0/9 last=-1 block_max=3602ms loop_max=242ms slow=shell.switch:236ms last_poll_age_ms=0 next_poll_in_ms=35337 last_render_age_ms=30807 build=Sep  9 202",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1113322,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1115350,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1117377,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1119404,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1121431,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1123458,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1125485,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1127513,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1129540,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1131567,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1133595,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1087559,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 26,
+   "lines": [
+    "[1135095][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
+    "[lib] GET connect api.spotify.com:443 failed errno=11 (No more processes)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-1 (0xFFFF) ? errstr='ERROR - Generic error'",
+    "[D][spotify.poll] backoff: consecutive=9 next=60000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1135462][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1135475][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1135490][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1135622,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1135128,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 27,
+   "lines": [
+    "[1137030][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1137650,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1135128,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 28,
+   "lines": [
+    "[1138550][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=10 next=60000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1139066][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1139080][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1139094][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1139679,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1138773,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 29,
+   "lines": [
+    "[1140617][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1141708,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1138773,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 30,
+   "lines": [
+    "[1142153][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=103k maxAlloc=41k stack_hwm=11708b uptime=00:19:02 poll=0/11 last=-1 block_max=47538ms loop_max=32ms slow=app.tick:2ms last_poll_age_ms=0 next_poll_in_ms=56551 last_render_age_ms=60807 build=Sep  9 2026-11",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=11 next=60000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[1142674][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1142687][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1142702][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1143738,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1138773,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 31,
+   "lines": [
+    "[1144247][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1145767,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1138773,\"last\":true}[1145785][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=3625ms",
+    "[D][spotify.task] stack_hwm=3916B",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1146296][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1146310][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1146324][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[1147861][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1152883,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1146012,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1154910,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1146012,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1156937,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1146012,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1158964,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1146012,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1160991,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1146012,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1163019,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1146012,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 38,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=12 next=60000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1165046,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 39,
+   "lines": [
+    "[1166491][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1166504][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1166518][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1167074,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1169102,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1171130,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 42,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=66k maxAlloc=41k stack_hwm=11708b uptime=00:19:32 poll=0/13 last=-1 block_max=18359ms loop_max=33ms slow=app.tick:2ms last_poll_age_ms=0 next_poll_in_ms=52162 last_render_age_ms=90807 build=Sep  9 2026-11:",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1173158,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1175185,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1177212,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1179239,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 46,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1181267,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1164383,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 47,
+   "lines": [
+    "[1182051][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-29312) SSL - The connection indicated an EOF",
+    "[1182062][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -29312",
+    "[lib] GET connect api.spotify.com:443 failed errno=128 (Socket is not connected)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF errstr='SSL - The connection indicated an EOF'",
+    "[D][spotify.poll] backoff: consecutive=13 next=60000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1182760][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1182773][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1182788][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1183296,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 48,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1185325,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 49,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1187352,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 50,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1189379,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 51,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1191406,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1193433,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1074489,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 53,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1195460,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":4,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1197487,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":4,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 55,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1199514,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":4,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1182095,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 56,
+   "lines": [
+    "[1200638][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=14 next=60000ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1201543,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":4,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":1200861,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 57,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=50k maxAlloc=41k stack_hwm=11708b uptime=00:20:02 poll=0/15 last=-1 block_max=18743ms loop_max=26ms slow=app.tick:2ms last_poll_age_ms=0 next_poll_in_ms=58636 last_render_age_ms=120808 build=Sep  9 2026-11",
+    "[D][dataTask.stock] heatmap GET 200 elapsed=1905ms",
+    "[D][dataTask.stock] heatmap doc cap=2560",
+    "[D][dataTask.stock] heatmap ok count=20 usage=1844/2560",
+    "[D][dataTask.stock] heap free=58k maxBlk=41k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=78ms (worst path so far: app.tick:76ms)",
+    "[1203549][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1203562][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1203573,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1203259,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 58,
+   "lines": [
+    "[1203598][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[1205113][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1205606,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1203259,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 59,
+   "lines": [
+    "[1206621][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=15 next=60000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[1207139][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1207152][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1207167][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1207636,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1203259,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 60,
+   "lines": [
+    "[1208693][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1209665,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1203259,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 61,
+   "lines": [
+    "[1210226][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=3593ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1211124][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1211138][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1211152][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1211694,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 62,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1213723,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 63,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1215751,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 64,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1217779,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 65,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1219807,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 66,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1221835,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 67,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1223863,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 68,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1225890,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 69,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1227917,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 70,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1229944,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 71,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1231972,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 72,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=66k maxAlloc=41k stack_hwm=11708b uptime=00:20:32 poll=0/16 last=-1 block_max=3573ms loop_max=78ms slow=app.tick:76ms last_poll_age_ms=0 next_poll_in_ms=34621 last_render_age_ms=150808 build=Sep  9 2026-11",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1233999,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 73,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1236027,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 74,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1238054,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 75,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1240083,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 76,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1242110,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 77,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1244138,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 78,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1246165,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 79,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1248192,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 80,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1250219,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1210438,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 81,
+   "lines": [
+    "[1251635][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-29312) SSL - The connection indicated an EOF",
+    "[1251646][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -29312",
+    "[lib] GET connect api.spotify.com:443 failed errno=128 (Socket is not connected)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF errstr='SSL - The connection indicated an EOF'",
+    "[D][spotify.poll] backoff: consecutive=16 next=60000ms",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1252247,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1194490,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":0,\"spActMs\":1251677,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 137 36",
+   "nth": 0,
+   "lines": [
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.stock] chart START sym=MSFT range=1d heap free=61k maxBlk=41k",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":36,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=74ms (worst path so far: app.tick:37ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 46,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 47,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 46,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 48,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 47,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 49,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 48,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 50,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 49,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 51,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 50,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 51,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 53,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 53,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 55,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 56,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 55,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 57,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 56,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 58,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 57,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 59,
+   "lines": [
+    "[D][dataTask.stock] chart GET sym=MSFT range=1d 200 elapsed=1948ms",
+    "[D][dataTask.stock] chart pre-json heap free=8k maxBlk=3k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 58,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":2,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 60,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 59,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":2,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 61,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 60,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":2,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 62,
+   "lines": [
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=35k err=Ok",
+    "[D][dataTask.stock] chart ok sym=MSFT len=79 lo=490.52 hi=494.34",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 61,
+   "lines": [
+    "[W][perf] iter=58ms (worst path so far: app.tick:37ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":-1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 63,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 62,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":-1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 6  heap=106084 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=106084 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=0ms wipe=27ms init=37ms taskbar=12ms total=76ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=103ms (worst path so far: shell.switch:76ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,60 @@
+{
+ "schema": 1,
+ "id": "T_CLK_03",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:25:20Z",
+ "generation": "48.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "switchApp 1",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=56404 maxAlloc=42996 minFree=44828",
+    "[shell] entered 1  heap=56404 maxAlloc=42996 minFree=44828",
+    "[shell] switch 0->1 suspend=2ms wipe=55ms init=77ms taskbar=25ms total=159ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle flip",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=165ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "get clockStyle",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=135ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"nixieTheme\":0,\"vfdTheme\":2,\"dirty\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=87ms (worst path so far: shell.switch:163ms)",
+    "[W][dataTask.webradio] JSON err mirror=all.api.radio-browser.info: IncompleteInput",
+    "[W][dataTask.webradio] mirror=all.api.radio-browser.info JSON err on page 0 \u2014 retrying once",
+    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[shell] leaving 1  heap=57056 maxAlloc=42996 minFree=44828",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=58648 maxAlloc=42996 minFree=44828",
+    "[shell] switch 1->0 suspend=1ms wipe=28ms init=39ms taskbar=13ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  }
+ ]
+}

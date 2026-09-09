@@ -1,0 +1,73 @@
+{
+ "schema": 1,
+ "id": "T_WR_COEX_04",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:54:07Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get wrState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 3,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get heap",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":105216,\"lfbInt\":42996,\"freeDma\":62140,\"lfbDma\":42996,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":1,\"nextPollMs\":10000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1346945,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1323069,\"wrPhase\":2,\"wrPhaseMs\":1323684,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":1346893,\"last\":true}"
+   ]
+  }
+ ]
+}

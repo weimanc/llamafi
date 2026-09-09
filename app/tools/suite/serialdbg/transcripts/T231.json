@@ -1,0 +1,290 @@
+{
+ "schema": 1,
+ "id": "T231",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:40:13Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set stockMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] entered 6  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=44ms taskbar=12ms total=84ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=87ms (worst path so far: shell.switch:84ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 6  heap=47868 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=1ms wipe=27ms init=40ms taskbar=13ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:84ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set stockMode 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 1,
+   "lines": [
+    "[shell] leaving 0  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] entered 6  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=31ms taskbar=13ms total=72ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=76ms (worst path so far: shell.switch:84ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartTicker",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartTicker\",\"val\":\"AAPL\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 10 7",
+   "nth": 0,
+   "lines": [
+    "[509289][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=52ms (worst path so far: shell.switch:84ms)",
+    "[D][dataTask.stock] chart GET sym=NVDA range=1d -1 elapsed=120062ms",
+    "[D][dataTask.stock] chart retry ok=0 rc=-1 sym=NVDA",
+    "[D][dataTask.stock] heap free=57k maxBlk=35k",
+    "[D][dataTask.stock] heap free=57k maxBlk=35k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 1,
+   "lines": [
+    "[shell] leaving 6  heap=94452 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=94452 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=0ms wipe=27ms init=38ms taskbar=12ms total=77ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=104ms (worst path so far: shell.switch:84ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set stockMode 2",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"2\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 2,
+   "lines": [
+    "[shell] leaving 0  heap=51652 maxAlloc=42996 minFree=43792",
+    "[shell] entered 6  heap=49296 maxAlloc=42996 minFree=43792",
+    "[shell] switch 0->6 suspend=2ms wipe=53ms init=61ms taskbar=25ms total=141ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 4,
+   "lines": [
+    "[W][perf] iter=149ms (worst path so far: shell.switch:141ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"heatmap\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 260 7",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":260,\"y\":7,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=91ms (worst path so far: shell.switch:141ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 2,
+   "lines": [
+    "[shell] leaving 6  heap=52988 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=52448 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 5,
+   "lines": [
+    "[W][perf] iter=210ms (worst path so far: shell.switch:158ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set stockMode 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 3,
+   "lines": [
+    "[shell] leaving 0  heap=52320 maxAlloc=42996 minFree=43792",
+    "[shell] entered 6  heap=52260 maxAlloc=42996 minFree=43792",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=84ms taskbar=26ms total=166ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 6,
+   "lines": [
+    "[W][perf] iter=172ms (worst path so far: shell.switch:166ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set stockMode 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 3,
+   "lines": [
+    "[shell] leaving 6  heap=47672 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=47672 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 7,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:166ms)",
+    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:08:32 poll=0/7 last=-1 block_max=0ms loop_max=210ms slow=shell.switch:166ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=70 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,124 @@
+{
+ "schema": 1,
+ "id": "T157",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:13:36Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 13,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-64) disc=3 heap=46k maxAlloc=41k stack_hwm=11660b uptime=00:13:39 poll=0/20 last=-1 block_max=0ms loop_max=26ms slow=vu.tick:2ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=87230 build=Sep  9 2026-11:19:02",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  }
+ ]
+}

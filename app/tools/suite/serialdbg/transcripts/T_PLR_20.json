@@ -1,0 +1,328 @@
+{
+ "schema": 1,
+ "id": "T_PLR_20",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:59:36Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 12  heap=101888 maxAlloc=42996 minFree=43184",
+    "SettingsStorage: saved (doc 1985/6144 B)",
+    "[shell] entered 1  heap=101888 maxAlloc=42996 minFree=43184",
+    "[shell] switch 12->1 suspend=34ms wipe=27ms init=46ms taskbar=12ms total=119ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=134ms (worst path so far: shell.switch:119ms)",
+    "[D][spotify.task] dequeued action=FORCE_POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1674137][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1674151][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1674165][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=101888 maxAlloc=42996 minFree=43184",
+    "[I][m3u] loaded /probe200/anchor.m3u: 2 entries in 104ms (total 533s)",
+    "[shell] entered 12  heap=93840 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->12 suspend=1ms wipe=26ms init=107ms taskbar=12ms total=146ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=223ms (worst path so far: shell.switch:146ms)",
+    "[1674662][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1674675][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1674690][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] GET connect api.spotify.com:443 failed errno=11 (No more processes)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-9984 (-0x2700) X509_CERT_VERIFY_FAILED errstr='X509 - Certificate verification failed, e.g. CRL, CA or signature check failed'",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /playlists/gate20.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate20.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=64ms (worst path so far: shell.switch:146ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":14,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plOrder",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[7,11,2,17,18,16,6,15,14,12,13,19,5,0,10,1,8,4,9,3],\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":7,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":11,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":2,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":17,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":18,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":16,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":6,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":15,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":14,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":12,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":13,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":19,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":5,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":0,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":10,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":1,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":8,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":4,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":9,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":3,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

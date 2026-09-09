@@ -1,0 +1,622 @@
+{
+ "schema": 1,
+ "id": "T_PLR_13",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:57:33Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=62556 maxAlloc=42996 minFree=43184",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 20ms (total 29890s)",
+    "[shell] entered 12  heap=54508 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->12 suspend=1ms wipe=27ms init=22ms taskbar=13ms total=63ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=150ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set fbOpen /probe200",
+   "nth": 0,
+   "lines": [
+    "[I][filebrowser] browsing /probe200/",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probe200\",\"reason\":\"none\",\"free8\":7572,\"largest8\":4852}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=112ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=84ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=87ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=92ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 4,
+   "lines": [
+    "[W][perf] iter=97ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 5,
+   "lines": [
+    "[W][perf] iter=104ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 6,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 7,
+   "lines": [
+    "[W][perf] iter=115ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 8,
+   "lines": [
+    "[W][perf] iter=118ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 9,
+   "lines": [
+    "[W][perf] iter=126ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":7572,\"largest8\":4852,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 10,
+   "lines": [
+    "[W][perf] iter=131ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 11,
+   "lines": [
+    "[W][perf] iter=136ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 12,
+   "lines": [
+    "[W][perf] iter=141ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 13,
+   "lines": [
+    "[W][perf] iter=148ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 14,
+   "lines": [
+    "[W][perf] iter=150ms (worst path so far: shell.switch:138ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 15,
+   "lines": [
+    "[W][perf] iter=157ms (worst path so far: app.tick:143ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 16,
+   "lines": [
+    "[W][perf] iter=163ms (worst path so far: app.tick:148ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 17,
+   "lines": [
+    "[W][perf] iter=171ms (worst path so far: app.tick:155ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 18,
+   "lines": [
+    "[W][perf] iter=173ms (worst path so far: app.tick:159ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 19,
+   "lines": [
+    "[W][perf] iter=180ms (worst path so far: app.tick:166ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 20,
+   "lines": [
+    "[W][perf] iter=183ms (worst path so far: app.tick:169ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 21,
+   "lines": [
+    "[W][perf] iter=192ms (worst path so far: app.tick:178ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":11940,\"largest8\":8692,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 22,
+   "lines": [
+    "[W][perf] iter=278ms (worst path so far: app.tick:265ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9764,\"largest8\":4084,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 23,
+   "lines": [
+    "[W][perf] iter=354ms (worst path so far: app.tick:336ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9476,\"largest8\":4084,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 24,
+   "lines": [
+    "[W][perf] iter=368ms (worst path so far: app.tick:349ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9048,\"largest8\":4084,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 25,
+   "lines": [
+    "[W][perf] iter=379ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9128,\"largest8\":4084,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 26,
+   "lines": [
+    "[1541535][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-29312) SSL - The connection indicated an EOF",
+    "[1541547][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -29312",
+    "[lib] GET connect api.spotify.com:443 failed errno=128 (Socket is not connected)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF errstr='SSL - The connection indicated an EOF'",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.webradio] heap free=53k maxBlk=35k",
+    "[I][dataTask.webradio] fetch abandoned: playback started",
+    "[D][dataTask.webradio] heap free=53k maxBlk=37k",
+    "[D][dataTask.webradio] heap free=53k maxBlk=37k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=37k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=53k maxBlk=37k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[W][perf] iter=253ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 27,
+   "lines": [
+    "[W][perf] iter=214ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 28,
+   "lines": [
+    "[W][perf] iter=217ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 29,
+   "lines": [
+    "[W][perf] iter=224ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 30,
+   "lines": [
+    "[W][perf] iter=227ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 31,
+   "lines": [
+    "[W][perf] iter=232ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 32,
+   "lines": [
+    "[W][perf] iter=236ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 33,
+   "lines": [
+    "[W][perf] iter=243ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 34,
+   "lines": [
+    "[W][perf] iter=246ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 35,
+   "lines": [
+    "[W][perf] iter=252ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 36,
+   "lines": [
+    "[W][perf] iter=255ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 37,
+   "lines": [
+    "[W][perf] iter=264ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 38,
+   "lines": [
+    "[W][perf] iter=265ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 39,
+   "lines": [
+    "[W][perf] iter=271ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 40,
+   "lines": [
+    "[W][perf] iter=274ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 41,
+   "lines": [
+    "[W][perf] iter=283ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 42,
+   "lines": [
+    "[W][perf] iter=293ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 43,
+   "lines": [
+    "[W][perf] iter=304ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 44,
+   "lines": [
+    "[W][perf] iter=308ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 45,
+   "lines": [
+    "[W][perf] iter=316ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 46,
+   "lines": [
+    "[W][perf] iter=318ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 47,
+   "lines": [
+    "[W][perf] iter=324ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 48,
+   "lines": [
+    "[W][perf] iter=327ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 49,
+   "lines": [
+    "[W][perf] iter=335ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 50,
+   "lines": [
+    "[W][perf] iter=320ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 51,
+   "lines": [
+    "[W][perf] iter=324ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 52,
+   "lines": [
+    "[W][perf] iter=326ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 53,
+   "lines": [
+    "[W][perf] iter=330ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 54,
+   "lines": [
+    "[W][perf] iter=331ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 55,
+   "lines": [
+    "[W][perf] iter=335ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 56,
+   "lines": [
+    "[W][perf] iter=337ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 57,
+   "lines": [
+    "[W][perf] iter=340ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 58,
+   "lines": [
+    "[W][perf] iter=342ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 59,
+   "lines": [
+    "[W][perf] iter=346ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 60,
+   "lines": [
+    "[W][perf] iter=347ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 61,
+   "lines": [
+    "[W][perf] iter=351ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 62,
+   "lines": [
+    "[W][perf] iter=353ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55052,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=357ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

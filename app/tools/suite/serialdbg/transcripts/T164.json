@@ -1,0 +1,163 @@
+{
+ "schema": 1,
+ "id": "T164",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:15:12Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 110 297 60 10",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=110",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 4/11 sx=297 sy=95",
+    "[D][serial] inject sample 5/11 sx=297 sy=90",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=80",
+    "[D][serial] inject sample 8/11 sx=297 sy=75",
+    "[D][serial] inject sample 9/11 sx=297 sy=70",
+    "[D][serial] inject sample 10/11 sx=297 sy=65",
+    "[D][serial] inject sample 11/11 sx=297 sy=60",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":110,\"x2\":297,\"y2\":60,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":1}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":1}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":141,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":29,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 60 297 110 10",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=60",
+    "[shell] tb-press slot=1",
+    "[D][serial] inject sample 2/11 sx=297 sy=65",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=70",
+    "[D][serial] inject sample 4/11 sx=297 sy=75",
+    "[D][serial] inject sample 5/11 sx=297 sy=80",
+    "[D][serial] inject sample 6/11 sx=297 sy=85",
+    "[D][serial] inject sample 7/11 sx=297 sy=90",
+    "[D][serial] inject sample 8/11 sx=297 sy=95",
+    "[D][serial] inject sample 9/11 sx=297 sy=100",
+    "[D][serial] inject sample 10/11 sx=297 sy=105",
+    "[D][serial] inject sample 11/11 sx=297 sy=110",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":60,\"x2\":297,\"y2\":110,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,693 @@
+{
+ "schema": 1,
+ "id": "T-BUSY-02",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:11:04Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 50 97",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":50,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":1,\"action\":\"PLAY\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=52ms (worst path so far: shell.switch:96ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 2,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=3 heap=66k maxAlloc=41k stack_hwm=11708b uptime=00:11:09 poll=0/19 last=-1 block_max=18438ms loop_max=124ms slow=shell.switch:96ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=27 build=Sep  9 2026-11:1",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 46,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 47,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 48,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 49,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 50,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 51,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 53,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 55,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 56,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 57,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 58,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 59,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 60,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 61,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 62,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 63,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 64,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 65,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 66,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 67,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 68,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 69,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 70,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 71,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 72,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 73,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 74,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 75,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 76,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 77,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 78,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 79,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 80,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 81,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 82,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 83,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 84,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 85,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 86,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 87,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 88,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 89,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 90,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 91,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 92,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 93,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,213 @@
+{
+ "schema": 1,
+ "id": "T_WX_05",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:07:26Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 100",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=50708 maxAlloc=42996 minFree=43312",
+    "[shell] entered 2  heap=50708 maxAlloc=42996 minFree=43312",
+    "[shell] switch 0->2 suspend=1ms wipe=27ms init=53ms taskbar=12ms total=93ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":100,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=108ms (worst path so far: shell.switch:158ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":2,\"name\":\"Weather\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 7,
+   "lines": [
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 8,
+   "lines": [
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=33378ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.weather] heap free=45k maxBlk=35k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get weatherReady",
+   "nth": 10,
+   "lines": [
+    "[D][dataTask.weather] GET 200 elapsed=4326ms",
+    "[D][dataTask.weather] heap free=58k maxBlk=39k",
+    "[D][dataTask.weather] ok temp=17.8 hum=51 wind=14.0",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[453632][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[453645][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[453660][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\",\"ready\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":2,\"name\":\"Weather\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 2  heap=60800 maxAlloc=42996 minFree=43312",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=60592 maxAlloc=42996 minFree=43312",
+    "[shell] switch 2->0 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=221ms (worst path so far: shell.switch:158ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

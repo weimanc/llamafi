@@ -1,0 +1,54 @@
+{
+ "schema": 1,
+ "id": "T085",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:00:54Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get songDuration",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"songDuration\",\"ms\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set songDuration 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"songDuration\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 140 77",
+   "nth": 0,
+   "lines": [
+    "[D][touch] dead zone tap \u2192 force poll",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":140,\"y\":77,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "set songDuration 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"songDuration\",\"val\":\"0\"}"
+   ]
+  }
+ ]
+}

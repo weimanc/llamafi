@@ -1,0 +1,62 @@
+{
+ "schema": 1,
+ "id": "T154",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:05:39Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set songDuration 60000",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"songDuration\",\"val\":\"60000\"}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 180 77",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":180,\"y\":77,\"hit\":\"POSBAR\",\"seekMs\":39677,\"action\":\"SEEK\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get posbarDragMs",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=92ms (worst path so far: app.tick:84ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"posbarDragMs\",\"ms\":39677,\"last\":true}"
+   ]
+  }
+ ]
+}

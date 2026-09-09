@@ -1,0 +1,271 @@
+{
+ "schema": 1,
+ "id": "T_PLR_14",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:57:39Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=353ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=356ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=357ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=361ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=363ms (worst path so far: app.tick:361ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=367ms (worst path so far: app.tick:364ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=369ms (worst path so far: app.tick:366ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=373ms (worst path so far: app.tick:370ms)",
+    "[shell] leaving 12  heap=98160 maxAlloc=42996 minFree=43184",
+    "[shell] entered 1  heap=102596 maxAlloc=42996 minFree=43184",
+    "[shell] switch 12->1 suspend=1ms wipe=27ms init=46ms taskbar=12ms total=86ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=100ms (worst path so far: app.tick:370ms)",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=102596 maxAlloc=42996 minFree=43184",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 22ms (total 29890s)",
+    "[shell] entered 12  heap=91312 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->12 suspend=0ms wipe=29ms init=25ms taskbar=16ms total=70ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=161ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /probe200/anchor.m3u",
+   "nth": 0,
+   "lines": [
+    "[1557439][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1557453][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1557468][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[I][m3u] loaded /probe200/anchor.m3u: 2 entries in 147ms (total 533s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/probe200/anchor.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=199ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/probe200/anchor.m3u\",\"count\":2,\"loadMs\":147,\"totalSec\":533,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 147 97",
+   "nth": 0,
+   "lines": [
+    "[D][touch] dead zone tap \u2192 force poll",
+    "[I][localplayer] eject tap -> file browser: /probe200/",
+    "[I][filebrowser] browsing /probe200/",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":147,\"y\":97,\"hit\":\"EJECT\",\"row\":-1,\"action\":\"EJECT\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=98ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=68ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=83ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=96ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 10 10",
+   "nth": 0,
+   "lines": [
+    "[1558037][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1558050][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1558065][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] GET connect api.spotify.com:443 failed errno=11 (No more processes)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-9984 (-0x2700) X509_CERT_VERIFY_FAILED errstr='X509 - Certificate verification failed, e.g. CRL, CA or signature check failed'",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[W][perf] iter=117ms (worst path so far: app.tick:370ms)",
+    "[I][filebrowser] browsing /",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":10,\"hit\":\"DEADZONE\",\"row\":-1,\"action\":\"FORCE_POLL\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=75ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/\",\"dirCount\":4,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50680,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=55ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/\",\"dirCount\":8,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50680,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fbState",
+   "nth": 3,
+   "lines": [
+    "[I][filebrowser] /: 10 dirs, 0 files",
+    "[W][perf] iter=59ms (worst path so far: app.tick:370ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/\",\"dirCount\":10,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":51432,\"largest8\":38900,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

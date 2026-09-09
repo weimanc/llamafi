@@ -1,0 +1,414 @@
+{
+ "schema": 1,
+ "id": "T237",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:55:03Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 0  heap=59488 maxAlloc=42996 minFree=43472",
+    "[shell] entered 11  heap=59500 maxAlloc=42996 minFree=43472",
+    "[shell] switch 0->11 suspend=2ms wipe=54ms init=0ms taskbar=34ms total=90ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=328ms (worst path so far: shell.switch:153ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrStop 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrStop\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set wrAutoSkip 1",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrAutoSkip\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set wrDeadUrls 4",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"4\"}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":4,\"pending\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrPlay 0",
+   "nth": 0,
+   "lines": [
+    "[I][webradio] play idx=0 name=DEAD-0 url=http://127.0.0.1:1/dead",
+    "[W][webradio] play idx=0 \u2014 forced connect-fail (debug wrDeadUrls)",
+    "[I][webradio] auto-skip 1/4 from idx=0",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrPlay\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=56ms (worst path so far: shell.switch:153ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":56,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":380,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":699,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1018,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1336,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1654,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1972,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 7,
+   "lines": [
+    "[I][webradio] play idx=1 name=DEAD-1 url=http://127.0.0.1:1/dead",
+    "[W][webradio] play idx=1 \u2014 forced connect-fail (debug wrDeadUrls)",
+    "[I][webradio] auto-skip 2/4 from idx=1",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=64ms (worst path so far: shell.switch:153ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":289,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":607,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":924,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1242,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1560,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1878,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 13,
+   "lines": [
+    "[I][webradio] play idx=2 name=DEAD-2 url=http://127.0.0.1:1/dead",
+    "[W][webradio] play idx=2 \u2014 forced connect-fail (debug wrDeadUrls)",
+    "[I][webradio] auto-skip 3/4 from idx=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=67ms (worst path so far: shell.switch:153ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":3,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":197,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":3,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1716,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":5,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrStop 1",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrStop\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set wrAutoSkip 0",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrAutoSkip\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set wrDeadUrls 4",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"4\"}"
+   ]
+  },
+  {
+   "cmd": "set wrPlay 0",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=67ms (worst path so far: shell.switch:153ms)",
+    "[I][webradio] play idx=0 name=DEAD-0 url=http://127.0.0.1:1/dead",
+    "[W][webradio] play idx=0 \u2014 forced connect-fail (debug wrDeadUrls)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrPlay\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 15,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=90ms (worst path so far: shell.switch:153ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":0,\"tried\":0,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":1529,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrIdx",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrIdx\",\"idx\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrDeadUrls 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set wrAutoSkip 1",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrAutoSkip\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set wrStop 1",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrStop\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 11  heap=50036 maxAlloc=42996 minFree=43472",
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1460 freeInt=50036). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "[shell] entered 1  heap=50036 maxAlloc=42996 minFree=43472",
+    "[shell] switch 11->1 suspend=12ms wipe=28ms init=46ms taskbar=12ms total=98ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=113ms (worst path so far: shell.switch:153ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 1,
+   "lines": [
+    "[shell] leaving 1  heap=50036 maxAlloc=42996 minFree=43472",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=50036 maxAlloc=42996 minFree=43472",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=41ms taskbar=13ms total=82ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=120ms (worst path so far: shell.switch:153ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,327 @@
+{
+ "schema": 1,
+ "id": "T_PLE_WR_159",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:52:44Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set wrDeadUrls 15",
+   "nth": 0,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=103k maxAlloc=41k stack_hwm=11708b uptime=00:21:02 poll=0/17 last=-1 block_max=41207ms loop_max=200ms slow=app.tick:81ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=1447 build=Sep  9 2026-11:19",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"15\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrDeadUrls 15",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"15\"}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":15,\"pending\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][touch] PLEDIT drag start: startY=153 row=1",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "[D][touch] PLEDIT drag end: dy=30 startY=153 curY=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 1,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 2,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][touch] PLEDIT drag start: startY=153 row=1",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 3,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][touch] PLEDIT drag start: startY=153 row=1",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "[D][touch] PLEDIT drag end: dy=30 startY=153 curY=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 4,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "get scrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"scrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 140 163 140 150 1 hold",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"drag\",\"hold\":true,\"x1\":140,\"y1\":163,\"x2\":140,\"y2\":150,\"steps\":1}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 1,
+   "lines": [
+    "[D][serial] inject sample 1/1 sx=140 sy=163",
+    "[D][touch] PLEDIT drag start: startY=163 row=2",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_PLEDIT_SCROLL\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tick 10 20",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 2/1 sx=140 sy=150",
+    "{\"ok\":true,\"cmd\":\"tick\",\"steps\":10,\"dtMs\":20,\"scrollOffset\":0}"
+   ]
+  },
+  {
+   "cmd": "get wrScroll",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrScroll\",\"offset\":0,\"drag\":1,\"vel\":2.0004,\"accum\":0.4421,\"speedK\":0.1667,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "release",
+   "nth": 0,
+   "lines": [
+    "[D][touch] PLEDIT drag end: dy=-13 startY=163 curY=150",
+    "{\"ok\":true,\"cmd\":\"release\",\"x\":140,\"y\":150}"
+   ]
+  },
+  {
+   "cmd": "get wrScroll",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrScroll\",\"offset\":1,\"drag\":0,\"vel\":0.0000,\"accum\":0.0000,\"speedK\":0.1667,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrDeadUrls 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"0\"}"
+   ]
+  }
+ ]
+}

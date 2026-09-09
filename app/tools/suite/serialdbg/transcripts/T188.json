@@ -1,0 +1,636 @@
+{
+ "schema": 1,
+ "id": "T188",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:42:38Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set stockMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=47704 maxAlloc=42996 minFree=43792",
+    "[shell] entered 6  heap=47704 maxAlloc=42996 minFree=43792",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=31ms taskbar=13ms total=72ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=75ms (worst path so far: shell.switch:81ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set fetchFailed 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fetchFailed\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set fetchErrorCode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fetchErrorCode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 10 7",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 137 36",
+   "nth": 0,
+   "lines": [
+    "[W][dataTask] queue full \u2014 dropped stock chart idx=0 rng=0",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":36,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 148 9",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":148,\"y\":9,\"hit\":\"CANVAS\",\"action\":\"NONE\",\"skipped\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":613569,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":616632,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":619694,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":622756,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":625818,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":628881,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 19,
+   "lines": [
+    "[629857][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
+    "[D][dataTask.stock] spark GET -1 elapsed=120524ms",
+    "[D][dataTask.stock] heap free=57k maxBlk=33k",
+    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=57k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":631949,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 22,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:10:32 poll=0/7 last=-1 block_max=0ms loop_max=109ms slow=shell.switch:81ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=23684 build=Sep  9 2026-11:19:",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":635012,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":638075,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":641138,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":644201,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":647264,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":650328,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":653390,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":656454,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartProgress",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get heap",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":47864,\"lfbInt\":42996,\"freeDma\":4788,\"lfbDma\":2036,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":657521,\"queueWaiting\":3,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchFailed",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchFailed\",\"val\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchErrorCode",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":false,\"cmd\":\"get\",\"error\":\"unknown var\",\"var\":\"fetchErrorCode\"}"
+   ]
+  },
+  {
+   "cmd": "set fetchFailed 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fetchFailed\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set fetchErrorCode 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fetchErrorCode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 6  heap=47864 maxAlloc=42996 minFree=43792",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=47864 maxAlloc=42996 minFree=43792",
+    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=109ms (worst path so far: shell.switch:81ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

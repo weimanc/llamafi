@@ -1,0 +1,371 @@
+{
+ "schema": 1,
+ "id": "T_PLE_WR_155",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:52:37Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set wrDeadUrls 15",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"15\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 0  heap=106084 maxAlloc=42996 minFree=43792",
+    "[I][webradio] HEAP init free=105664 min=43792",
+    "[I][webradio] HEAP pre-fetch free=105664 min=43792",
+    "[shell] entered 11  heap=105664 maxAlloc=42996 minFree=43792",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
+    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=28ms total=56ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=200ms (worst path so far: app.tick:81ms)",
+    "[1255736][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1255749][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1255764][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=222ms",
+    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
+    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrDeadUrls 15",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"15\"}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=71ms (worst path so far: app.tick:81ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":15,\"pending\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 0,
+   "lines": [
+    "[1256076][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[1256109][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL[D], CA or signature check failed",
+    "[serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159[1256127][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=353ms",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
+    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[I][webradio] HEAP post-fetch free=105664 min=43740",
+    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=65ms (worst path so far: app.tick:81ms)",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 1,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 2,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 3,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][touch] PLEDIT drag start: startY=153 row=1",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "[D][touch] PLEDIT drag end: dy=30 startY=153 curY=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "drag 134 153 134 183 30",
+   "nth": 4,
+   "lines": [
+    "[D][serial] inject sample 1/31 sx=134 sy=153",
+    "[D][serial] inject sample 2/31 sx=134 sy=154",
+    "[D][serial] inject sample 3/31 sx=134 sy=155",
+    "[D][serial] inject sample 4/31 sx=134 sy=156",
+    "[D][serial] inject sample 5/31 sx=134 sy=157",
+    "[D][serial] inject sample 6/31 sx=134 sy=158",
+    "[D][serial] inject sample 7/31 sx=134 sy=159",
+    "[D][serial] inject sample 8/31 sx=134 sy=160",
+    "[D][serial] inject sample 9/31 sx=134 sy=161",
+    "[D][serial] inject sample 10/31 sx=134 sy=162",
+    "[D][serial] inject sample 11/31 sx=134 sy=163",
+    "[D][serial] inject sample 12/31 sx=134 sy=164",
+    "[D][serial] inject sample 13/31 sx=134 sy=165",
+    "[D][serial] inject sample 14/31 sx=134 sy=166",
+    "[D][serial] inject sample 15/31 sx=134 sy=167",
+    "[D][serial] inject sample 16/31 sx=134 sy=168",
+    "[D][serial] inject sample 17/31 sx=134 sy=169",
+    "[D][serial] inject sample 18/31 sx=134 sy=170",
+    "[D][serial] inject sample 19/31 sx=134 sy=171",
+    "[D][serial] inject sample 20/31 sx=134 sy=172",
+    "[D][serial] inject sample 21/31 sx=134 sy=173",
+    "[D][serial] inject sample 22/31 sx=134 sy=174",
+    "[D][serial] inject sample 23/31 sx=134 sy=175",
+    "[D][serial] inject sample 24/31 sx=134 sy=176",
+    "[D][serial] inject sample 25/31 sx=134 sy=177",
+    "[D][serial] inject sample 26/31 sx=134 sy=178",
+    "[D][serial] inject sample 27/31 sx=134 sy=179",
+    "[D][serial] inject sample 28/31 sx=134 sy=180",
+    "[D][serial] inject sample 29/31 sx=134 sy=181",
+    "[D][serial] inject sample 30/31 sx=134 sy=182",
+    "[D][serial] inject sample 31/31 sx=134 sy=183",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":134,\"y1\":153,\"x2\":134,\"y2\":183,\"steps\":30}"
+   ]
+  },
+  {
+   "cmd": "get scrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"scrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get scrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"scrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 140 150",
+   "nth": 0,
+   "lines": [
+    "[D][touch] PLEDIT drag start: startY=150 row=1",
+    "[D][touch] PLEDIT drag end: dy=0 startY=150 curY=150",
+    "[I][webradio] play idx=1 name=DEAD-1 url=http://127.0.0.1:1/dead",
+    "[W][webradio] play idx=1 \u2014 forced connect-fail (debug wrDeadUrls)",
+    "[I][webradio] auto-skip 1/15 from idx=1",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":140,\"y\":150,\"hit\":\"PLEDIT\",\"action\":\"DRAG_START\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get scrollOffset",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=86ms (worst path so far: app.tick:81ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"scrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set wrDeadUrls 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"0\"}"
+   ]
+  }
+ ]
+}

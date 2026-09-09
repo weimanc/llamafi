@@ -1,0 +1,18 @@
+{
+ "schema": 1,
+ "id": "T_PMT_04",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:00:25Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get variant",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"on\",\"last\":true}"
+   ]
+  }
+ ]
+}

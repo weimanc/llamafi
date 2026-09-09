@@ -1,0 +1,81 @@
+{
+ "schema": 1,
+ "id": "T-ERR-05",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:16:03Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get bgPoll",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set lastHttp 403",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"lastHttp\",\"val\":\"403\"}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":false,\"spotifyAuthError\":true,\"spotifyDegraded\":false,\"spotifyConnecting\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":false,\"spotifyAuthError\":true,\"spotifyDegraded\":false,\"spotifyConnecting\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set lastHttp 200",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"lastHttp\",\"val\":\"200\"}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

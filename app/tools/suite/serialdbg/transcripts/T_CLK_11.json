@@ -1,0 +1,124 @@
+{
+ "schema": 1,
+ "id": "T_CLK_11",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:25:37Z",
+ "generation": "48.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "switchApp 1",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=53588 maxAlloc=42996 minFree=43268",
+    "[shell] entered 1  heap=53588 maxAlloc=42996 minFree=43268",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
+   ]
+  },
+  {
+   "cmd": "info",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=83ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"5f5fa62+\",\"elf\":\"66d214c7\",\"build\":\"Sep  9 2026 11:19:00\",\"heap\":53588,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":0}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 2",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=69ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 3",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=62ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=51ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 1",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 2",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=68ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 3",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=62ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=51ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "info",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"5f5fa62+\",\"elf\":\"66d214c7\",\"build\":\"Sep  9 2026 11:19:00\",\"heap\":53588,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":0}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle 0",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=53588 maxAlloc=42996 minFree=43268",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=53588 maxAlloc=42996 minFree=43268",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=38ms taskbar=12ms total=78ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  }
+ ]
+}

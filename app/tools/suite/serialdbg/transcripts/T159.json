@@ -1,0 +1,178 @@
+{
+ "schema": 1,
+ "id": "T159",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:14:37Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 0,
+   "lines": [
+    "[D][dataTask.stock] chart post-json heap free=59k maxBlk=39k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=315.18 hi=317.52",
+    "[D][dataTask.stock] heap free=61k maxBlk=39k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 1,
+   "lines": [
+    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=62k maxBlk=39k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 2,
+   "lines": [
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=2456ms",
+    "[D][dataTask.stock] chart pre-json heap free=16k maxBlk=5k",
+    "[D][dataTask.stock] chart post-json heap free=54k maxBlk=33k err=IncompleteInput",
+    "[W][dataTask.stock] chart JSON err sym=AAPL: IncompleteInput",
+    "[D][dataTask.stock] chart parse failed rc=-92 sym=AAPL -> retry",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 3,
+   "lines": [
+    "[859906][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[859919][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[859933][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d -120 elapsed=297ms",
+    "[D][dataTask.stock] chart retry ok=0 rc=-120 sym=AAPL",
+    "[D][dataTask.stock] heap free=57k maxBlk=33k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[860439][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[860452][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[860466][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 11,
+   "lines": [
+    "[876793][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-29312) SSL - The connection indicated an EOF",
+    "[876804][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -29312",
+    "[lib] GET connect api.spotify.com:443 failed errno=128 (Socket is not connected)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF errstr='SSL - The connection indicated an EOF'",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[877159][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[877172][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[877186][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 12,
+   "lines": [
+    "[878797][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[I][hb] display=winamp wifi=rssi(-63) disc=3 heap=59k maxAlloc=41k stack_hwm=11660b uptime=00:14:39 poll=0/21 last=-1 block_max=16845ms loop_max=48ms slow=app.tick:46ms last_poll_age_ms=0 next_poll_in_ms=17420 last_render_age_ms=2559 build=Sep  9 2026-11:",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 13,
+   "lines": [
+    "[880419][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=3791ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[880945][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[880958][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[880972][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 14,
+   "lines": [
+    "[882584][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  }
+ ]
+}

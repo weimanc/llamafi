@@ -1,0 +1,291 @@
+{
+ "schema": 1,
+ "id": "T_PLR_11",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:57:08Z",
+ "generation": "48.3",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 60",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 12  heap=82372 maxAlloc=42996 minFree=43184",
+    "SettingsStorage: saved (doc 1994/6144 B)",
+    "[shell] entered 1  heap=90424 maxAlloc=42996 minFree=43184",
+    "[shell] switch 12->1 suspend=36ms wipe=27ms init=46ms taskbar=12ms total=121ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=135ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode player",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=90424 maxAlloc=42996 minFree=43184",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 19ms (total 29890s)",
+    "[shell] entered 12  heap=82372 maxAlloc=42996 minFree=43184",
+    "[shell] switch 1->12 suspend=0ms wipe=27ms init=21ms taskbar=22ms total=70ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=151ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /playlists/bad.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /playlists/bad.m3u: 8 entries in 14ms (total 891s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/bad.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=64ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/bad.m3u\",\"count\":8,\"loadMs\":14,\"totalSec\":891,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":0,\"id\":0,\"text\":\"Gorillaz - Tomorrow Comes Today\",\"durSec\":192,\"path\":\"/mp3/01 - Tomorrow Comes Today.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":1,\"id\":1,\"text\":\"02 - Clint Eastwood\",\"durSec\":0,\"path\":\"/mp3/02 - Clint Eastwood.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 2",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":2,\"id\":2,\"text\":\"Unknown duration\",\"durSec\":0,\"path\":\"/mp3/03 - 19-2000.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 3",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":3,\"id\":3,\"text\":\"Junk duration\",\"durSec\":0,\"path\":\"/mp3/04 - Rock The House.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 4",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":4,\"id\":4,\"text\":\"05 - Feel Good Inc\",\"durSec\":222,\"path\":\"/mp3/05 - Feel Good Inc.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 5",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":5,\"id\":5,\"text\":\"Gorillaz - DARE\",\"durSec\":246,\"path\":\"/mp3/06 - DARE.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 6",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":6,\"id\":6,\"text\":\"Missing File\",\"durSec\":231,\"path\":\"/mp3/this-file-does-not-exist.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 7",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":7,\"id\":7,\"text\":\"07 - Dirty Harry\",\"durSec\":0,\"path\":\"/mp3/07 - Dirty Harry.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /playlists/empty.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /playlists/empty.m3u: 0 entries in 13ms (total 0s)",
+    "[W][m3u] no playable entries in /playlists/empty.m3u",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/empty.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=63ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/empty.m3u\",\"count\":0,\"loadMs\":13,\"totalSec\":0,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /playlists/utf8.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /playlists/utf8.m3u: 9 entries in 13ms (total 1656s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/utf8.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=63ms (worst path so far: shell.switch:174ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/utf8.m3u\",\"count\":9,\"loadMs\":13,\"totalSec\":1656,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":0,\"id\":0,\"text\":\"Bjork - Joga\",\"durSec\":180,\"path\":\"/mp3/01 - Tomorrow Comes Today.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 1",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":1,\"id\":1,\"text\":\"Sigur Ros - Saeglopur\",\"durSec\":181,\"path\":\"/mp3/02 - Clint Eastwood.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 2",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":2,\"id\":2,\"text\":\"Antonin Dvorak - Symphony No. 9\",\"durSec\":182,\"path\":\"/mp3/03 - 19-2000.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 3",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":3,\"id\":3,\"text\":\"Motorhead - Ace of Spades\",\"durSec\":183,\"path\":\"/mp3/04 - Rock The House.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plRow 7",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":7,\"id\":7,\"text\":\"???? - Merry Christmas Mr. Lawrence\",\"durSec\":187,\"path\":\"/mp3/08 - Kids With Guns.mp3\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plMem",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plMem\",\"allocated\":true,\"indexBytes\":3616,\"freeHeap\":82376,\"largestBlock\":28660,\"minFreeHeap\":43184,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  }
+ ]
+}

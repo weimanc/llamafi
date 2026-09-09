@@ -1,0 +1,113 @@
+{
+ "schema": 1,
+ "id": "T-ERR-02",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:16:02Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get bgPoll",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-61) disc=3 heap=52k maxAlloc=41k stack_hwm=11660b uptime=00:16:09 poll=0/26 last=-1 block_max=27618ms loop_max=236ms slow=shell.switch:206ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=6163 build=Sep  9 2026-1",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set lastHttp 403",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"lastHttp\",\"val\":\"403\"}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":true,\"spotifyDegraded\":false,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 1",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=53872 maxAlloc=42996 minFree=43232",
+    "[shell] entered 1  heap=53872 maxAlloc=42996 minFree=43232",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=63ms taskbar=13ms total=104ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=108ms (worst path so far: shell.switch:104ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":true,\"spotifyDegraded\":false,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=53872 maxAlloc=42996 minFree=43232",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=53872 maxAlloc=42996 minFree=43232",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=38ms taskbar=12ms total=78ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get activeError",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=107ms (worst path so far: shell.switch:104ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":true,\"spotifyDegraded\":false,\"spotifyConnecting\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set lastHttp 200",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"lastHttp\",\"val\":\"200\"}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  }
+ ]
+}

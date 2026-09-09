@@ -1,0 +1,64 @@
+{
+ "schema": 1,
+ "id": "T149",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T12:05:05Z",
+ "generation": "48.4",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "set songDuration 120000",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"songDuration\",\"val\":\"120000\"}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "drag 40 77 200 77 10",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=40 sy=77",
+    "[D][serial] inject sample 2/11 sx=56 sy=77",
+    "[D][serial] inject sample 3/11 sx=72 sy=77",
+    "[D][serial] inject sample 4/11 sx=88 sy=77",
+    "[D][serial] inject sample 5/11 sx=104 sy=77",
+    "[D][serial] inject sample 6/11 sx=120 sy=77",
+    "[D][serial] inject sample 7/11 sx=136 sy=77",
+    "[D][serial] inject sample 8/11 sx=152 sy=77",
+    "[D][serial] inject sample 9/11 sx=168 sy=77",
+    "[D][serial] inject sample 10/11 sx=184 sy=77",
+    "[D][serial] inject sample 11/11 sx=200 sy=77",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":40,\"y1\":77,\"x2\":200,\"y2\":77,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get posbarDragMs",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"posbarDragMs\",\"ms\":89032,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dragState",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dragState\",\"state\":\"D_IDLE\",\"last\":true}"
+   ]
+  }
+ ]
+}

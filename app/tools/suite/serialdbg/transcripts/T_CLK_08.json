@@ -1,0 +1,29 @@
+{
+ "schema": 1,
+ "id": "T_CLK_08",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:25:31Z",
+ "generation": "48.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "switchApp 1",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=53588 maxAlloc=42996 minFree=43268",
+    "[shell] entered 1  heap=53588 maxAlloc=42996 minFree=43268",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
+   ]
+  },
+  {
+   "cmd": "set clockStyle nixie",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=83ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":false}"
+   ]
+  }
+ ]
+}

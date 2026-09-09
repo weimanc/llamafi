@@ -1,0 +1,580 @@
+{
+ "schema": 1,
+ "id": "T272",
+ "elf": "66d214c7",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-09T11:26:13Z",
+ "generation": "48.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":35322}"
+   ]
+  },
+  {
+   "cmd": "switchApp 8",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=62296 maxAlloc=42996 minFree=43268",
+    "[shell] entered 8  heap=61608 maxAlloc=42996 minFree=43268",
+    "[shell] switch 0->8 suspend=2ms wipe=54ms init=0ms taskbar=24ms total=80ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":8}"
+   ]
+  },
+  {
+   "cmd": "set triggerTeletextFetch 1",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=86ms (worst path so far: shell.switch:163ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"triggerTeletextFetch\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 2,
+   "lines": [
+    "[ 38066][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 3,
+   "lines": [
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[ 38596][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 38610][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 38624][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 6,
+   "lines": [
+    "[ 40183][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 8,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-66) disc=3 heap=59k maxAlloc=41k stack_hwm=12668b uptime=00:00:41 poll=0/1 last=-1 block_max=18804ms loop_max=304ms slow=shell.switch:163ms last_poll_age_ms=0 next_poll_in_ms=7168 last_render_age_ms=5814 build=Sep  9 2026",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 9,
+   "lines": [
+    "[ 41773][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 10,
+   "lines": [
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=3695ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.teletext] heap free=60k maxBlk=45k",
+    "[ 42264][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 42277][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 42291][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[D][dataTask.teletext] GET -120 elapsed=307ms",
+    "[D][dataTask.teletext] heap free=60k maxBlk=45k",
+    "[W][dataTask.teletext] http -120 page=101",
+    "[D][dataTask.teletext] heap free=60k maxBlk=45k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 11,
+   "lines": [
+    "[ 42573][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 42586][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 42600][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[D][dataTask.teletext] GET -120 elapsed=295ms",
+    "[D][dataTask.teletext] heap free=60k maxBlk=45k",
+    "[W][dataTask.teletext] http -120 page=101",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 12,
+   "lines": [
+    "[ 42927][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 42940][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 42955][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 16,
+   "lines": [
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 17,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 19,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 25,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 26,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 44,
+   "lines": [
+    "[ 59766][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-29312) SSL - The connection indicated an EOF",
+    "[ 59777][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -29312",
+    "[lib] GET connect api.spotify.com:443 failed errno=128 (Socket is not connected)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF errstr='SSL - The connection indicated an EOF'",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 46,
+   "lines": [
+    "[ 60517][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 60530][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 60545][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 47,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 48,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 49,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 50,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 51,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 52,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 53,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 54,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 55,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 56,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 57,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextReady",
+   "nth": 58,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextReady\",\"ready\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":8,\"name\":\"Teletext\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1396 freeInt=48892). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 8  heap=48892 maxAlloc=42996 minFree=43268",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=48892 maxAlloc=42996 minFree=43268",
+    "[shell] switch 8->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=162ms (worst path so far: shell.switch:81ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get teletextHttpCode",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextHttpCode\",\"val\":-120,\"last\":true}"
+   ]
+  }
+ ]
+}
