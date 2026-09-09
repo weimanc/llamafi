@@ -90,3 +90,14 @@ mbedtls-2.28.7/programs/x509/cert_app mode=file filename=chain.pem ca_file=x1.pe
 mbedtls-2.28.7/programs/ssl/ssl_client2 server_name=de1.api.radio-browser.info server_port=443 \
     ca_file=x1.pem auth_mode=required crt_file=none key_file=none min_version=tls12 max_version=tls12
 ```
+
+## 6. Session record — the TASK-557 window ended on purpose, 2026-09-09
+
+`./run/monitor-read` before the flash: **uptime 39:38:34**, build `Sep 7 2026-19:3x` (the debug
+env flashed after session B), `disc=121` flat. Ended by the human's instruction to flash the debug
+env for (a) the first transcript recording (TASK-671) and (b) PATCH-TLS-2's flags line. This is the
+datum TASK-557 loses (dut_workflow §5a): a 39 h 38 m application-uptime window on the
+`-DBOD_WATCH` build with no reset.
+
+**TASK-675 deprioritised** the same day: the human has lost Spotify access, wants the feature kept,
+cannot test it now. The two Spotify FAILs in `run/check-datatask-certs` are expected until it lands.
