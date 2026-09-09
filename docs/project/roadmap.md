@@ -529,7 +529,7 @@ observation those two ids say is still owed. That clause is struck. **C3 and C4 
 ADR-064 `get sig`** — `inkCount == 0` outside the content-panel rect for C3, and the
 `sig(Spotify, before) == sig(Spotify, after)` differential for C4, the identical shape
 M-CLOCK-STYLES C8 was re-recorded DEFERRED for. Both are structural: neither needs a golden. Owner
-**TASK-658**, @VE, blocked on TASK-638 (`get sig`).
+**TASK-658**, @VE — unblocked 2026-09-09, TASK-638 shipped `get sig` (ADR-064 as built).
 - TASK-141: SettingsApp class, constants, g_previousAppId tracking, SERIAL_DEBUG get settingsSection/settingsAppSubmenu
 - TASK-142: VE suite T-SET-01..08 written + executed; also fixed cmdTap bug (non-Spotify apps beyond Stock not dispatched to handleInput)
 **Design:** [M-MULTIAPP/settings.md](../architecture/designs/M-MULTIAPP/settings.md)
@@ -1605,7 +1605,8 @@ a property of a test id against its own assertion.
 surface. **Reasoning:** [PM programme decision](M-HARNESS2-PM-review.md). Do not re-derive either here.
 
 **Status: IN PROGRESS — Phases 0 and 1 COMPLETE (32 rows), Phase 2's hardware session executed,
-28 rows live.**
+30 rows live (2026-09-09: Phase 4's TASK-638 and Phase 5's TASK-671 DONE; the runtime R34 gate
+runs on 193 recorded transcripts; the falsifier taxonomy is ruled).**
 
 - **Phase 1 met every exit criterion**, all of them counts rather than judgements: ids with no
   reachable `fail()` = 0, gating ids whose precondition needs the network = 0 (blocking, 3 ledgered
@@ -1632,8 +1633,8 @@ developers already run **and falling across two consecutive milestones** — a r
 same number twice is cut, not carried.
 
 **Blocked on:** **TASK-557** (rig instability, unresolved and non-stationary) gates Phase 3 and,
-through it, Phase 5 — the same pin that holds M-TESTARCH's order switch. Phase 4's render half waits
-on `run/screendump` (TASK-589). **Deps:** M-TESTARCH · **Risk:** the same one M-TESTARCH carries and
+through it, Phase 5 — the same pin that holds M-TESTARCH's order switch. Phase 4's render half
+shipped 2026-09-09 (TASK-638, ADR-064 as built). **Deps:** M-TESTARCH · **Risk:** the same one M-TESTARCH carries and
 it is now demonstrated rather than theorised — the instrument under repair produced four days of
 green gates while two of its own headline mechanisms were dead.
 

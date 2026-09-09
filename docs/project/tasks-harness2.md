@@ -1,8 +1,10 @@
 # M-HARNESS2 + WP-Z — test-harness remediation programme
 
 > Owner: **Project Manager**
-> Status **2026-09-07**: **Phases 0 and 1 COMPLETE** (32 rows, all closed); **Phase 2's session is
-> executed** and 5 rows remain; Phases 3–5 scheduled behind named entry criteria. Only Phase 1 was
+> Status **2026-09-09**: **Phases 0 and 1 COMPLETE** (32 rows, all closed); **Phase 2's session is
+> executed** and 4 rows remain (582, 588, 595, 597); **Phase 4: TASK-638 DONE**, 637/639 open;
+> **Phase 5: TASK-671 DONE** (the runtime R34 gate is live on 193 transcripts), 641's taxonomy
+> ruled accepted, 672–674 and 676 filed; Phases 3 and the rest of 5 stay behind TASK-557. Only Phase 1 was
 > ever *committed* by the programme decision — 2, 4 and 5 have been worked opportunistically where
 > a row was unblocked, which is why closed rows appear in phases that are not committed.
 > **Where to start cold: the Totals table at the foot of this file** — it names the live rows per

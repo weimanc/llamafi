@@ -14,6 +14,15 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. **Last archive pass: 2026-08-15** — 80 closed entries / 7 561 lines swept out, and the M-WINAMP-PLAYER board split into its own file (see below). `tasks.md` went 9 787 → ~1 200 lines. Verified: 480 distinct task ids across the three files, no duplicates, none lost. Note for the next pass: result/resolution sub-sections are `###`-level in this project and must travel with their parent task — splitting on heading level alone orphans them. Prior pass: 2026-08-07 (moved 7 fully-closed milestone sections — M-CERT-ERRCODE remainder, M-APP-ORDER, M-WEBRADIO-WINAMP-UI, M-WEBRADIO-REAL-VIS, M-PR-LOCATIONS, M-MEMPLAN hygiene, M-CEEFAX — 2,513 lines — see archive file for the batch note). Prior pass: 2026-07-12 (TASK-143..313 range, 149 entries).
 
+> **PM sync 2026-09-09 (the Fable credit session, items 1–4 of the human's hard list).** Landed on
+> master, all gates green: **TASK-671** R34 at runtime (`check_can_go_red.py`, 193 transcripts, 9-row
+> ledger) with the four-static-gates design and TASK-672/673/674 filed; **TASK-641** falsifier
+> taxonomy ruled accepted (all eight points), spike measured; **TASK-663** §B.4's cross-sign theory
+> refuted by host mbedTLS 2.28.7, preflight rebuilt, PATCH-TLS-2 flashed and answering
+> `NOT_TRUSTED` (device-side cause still open — next instrument named in the findings doc);
+> **TASK-675** filed then DEFERRED; **TASK-638** ADR-064 as built and DUT-verified, unblocking
+> TASK-639/649/656/658. Open from the list: TASK-557 (needs the cable/hub null test). Developer owes
+> a `feature_inventory.yaml` line for the new console keys (`get sig`, `set now`, `get now`).
 > **PM sync 2026-07-18 (parallel session — M-CERT-ERRCODE remainder scheduled + ADR sweep)** —
 > Ran alongside the clock-faces agent (clock files untouched by this session). Two deliverables:
 > **(1)** M-CERT-ERRCODE remainder broken down into TASK-341..344 (section below) from the existing
@@ -40,20 +49,27 @@ prose on another board. They are here because this file is the index and is read
    ([tasks-architecture.md](tasks-architecture.md)). Permitted is not free: **a reflash resets the
    board and spends the running TASK-557 observation window** (9 h 33 m on 2026-09-07) — check for
    one first and record it if you end it, per
-   [dut_workflow.md §5a](../process/dut_workflow.md).
+   [dut_workflow.md §5a](../process/dut_workflow.md). **Last window: 39 h 38 m, ended on purpose
+   2026-09-09** for TASK-671's first recording and PATCH-TLS-2; the board now runs the debug env built
+   at `983cd54` (`get sig`, `set now`, the `[tls-verify]` flags line) — HEAD has moved since, so the
+   next `run/test*` will refuse `elf-mismatch` until you `run/flash-debug` again.
 2. **TASK-557 is the project's master blocker and is UNRESOLVED.** Rig instability, measured across
    four campaigns, non-stationary, no established cause. It gates M-HARNESS2 Phase 3 (and Phase 5
    through it) and holds M-TESTARCH's class-order switch. **The decisive experiment is a human-run
    cable/powered-hub null test** — it is not blocked on analysis, it is blocked on a person.
 3. **TASK-243 (Spotify Premium lapsed → permanent 403) blocks live-playback verdicts only.** UI,
    nav and app-switch tests run fine. Do not re-auth chasing it; validate on the host first.
+   **Since 2026-09-08 there is a second, independent Spotify defect: the pinned root is rotted**
+   (`accounts.spotify.com`/`i.scdn.co` moved to Certainly ← Starfield Root G2; TASK-675, **DEFERRED**
+   by the human — access lost, feature kept). Every boot's token refresh fails `-9984` and
+   `run/check-datatask-certs` reads FAIL on those two hosts. Expected; not a regression.
 4. **A criterion is closed against the oracle it names (BP-075).** A human judgement is **ACCEPTED**
    with accepter and date — never PASS. If you are about to write PASS on a milestone criterion,
    you are probably about to repeat the defect LL-146 was filed for.
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-676.**
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-677** (675 here, 676 on tasks-harness2.md).
 
 ---
 
