@@ -605,7 +605,7 @@ in one attempt is not fit to gate 213 tests. Bounded internal retries are a dead
 | `T_DH_01` | the shell answers **correct** data, not merely answers: `info` (ok / 8-hex `elf` / `build` / `heap > 0`), `get variant` (`spotify` is `on` or `off`), `get playerMode` (`name` in Spotify/WebRadio/Player, `val` 0–2) | one `cmd()` each at the suite's default 3 s | @Developer | `impl` |
 | `T_DH_02` | the device's own view of the network is coherent: `get ip` non-zero **and** `get wifiCfg`'s `err`/`ssid` consistent with an association | TASK-426's wedge signature (a configured SSID with no association, auto-reconnect retrying a dead AP forever) | @Developer | `impl` |
 | `T_DH_03` | app switching is alive: switch to a neighbour and back, `appId` correct at each step, `get idle` idle at each step | `get idle` (TASK-518) + the shell's own busy window | @Developer | `impl` |
-| `T_DH_05` | the GRAM readback channel is bit-exact: `colorprobe`'s 25 fillRect/pushRect writes read back equal (after readRect's documented byte swap) | TASK-340's 25/25; ADR-064 D4 — an unreadable panel is exit 4, not a wave of visual FAILs | @Developer | `impl` |
+| `T_DH_05` | the GRAM readback channel is bit-exact: `colorprobe`'s 25 fillRect/pushRect writes read back equal (fill after readRect's byte swap, push raw) | TASK-340's 25/25; ADR-064 D4 — an unreadable panel is exit 4, not a wave of visual FAILs | @Developer | `impl` |
 
 Three implementation constraints, all from §3.1 and all load-bearing:
 

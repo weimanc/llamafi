@@ -233,9 +233,9 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-637 | P2 | OPEN — ADR-063 taken | shell-side identity guard + tick/repaint counters — fixes the class for all thirteen apps — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
-| TASK-638 | P2 | OPEN — unblocked 2026-09-07: TASK-589 landed (`69984ed`), which was this row's only stated constraint (ADR-064 taken); instrument and readback path both re-verified on hardware | render signature over panel readback, ink/entropy metrics, time freeze, readback liveness check — [R5](../verification/M-HARNESS2-requirements.md) |
+| TASK-638 | P2 | **DONE 2026-09-09** (`983cd54`; DUT: `T_DH_05` 25/25, `T_CLK_SIG_01` ink 7463 / 63 colours; `.dram0.bss` +8 B, headroom 7 976 B) | `get sig` over panel readback with ink/entropy metrics, `set now [freeze]`, readback liveness in HEALTH — [R5](../verification/M-HARNESS2-requirements.md), [ADR-064](../architecture/decisions/ADR-064.md) |
 | TASK-593 | P2 | BLOCKED — TASK-637 | per-app result and entry-state observables, one app per commit, capped per app — [R3](../verification/M-HARNESS2-requirements.md) |
-| TASK-639 | P3 | BLOCKED — TASK-638 | the clock family is rewritten, not migrated — ledger five claims, re-file as new ids — [Dev §8.2](../architecture/designs/M-HARNESS2-DEV-review.md) |
+| TASK-639 | P3 | OPEN — unblocked 2026-09-09 (TASK-638 DONE) | the clock family is rewritten, not migrated — ledger five claims, re-file as new ids — [Dev §8.2](../architecture/designs/M-HARNESS2-DEV-review.md) |
 
 ---
 
@@ -284,9 +284,9 @@ ratchet's clothes.
 | 1 — host-only foundation | 26 | 26 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; `run/check` 43.5 s warm of 90, `run/check-docs` 1.1 s of 15 |
 | 2 — the 80-minute session | 12 | 7 | 5 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: 582, 588, 597, 595, 589 |
 | 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **TASK-557**; shrunk by H-1's refutation |
-| 4 — observability contract | 4 | 0 | 4 | ~10 | ADR-063/064 taken; **TASK-637 is the only unblocked row**, 638 gated on 589 |
+| 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
 | 5 — ratchets | 17 | 1 | 16 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
-| **total** | **71** | **40** | **31** | **~83** | Phases 0–1 done; only Phase 1 was ever *committed* |
+| **total** | **72** | **42** | **30** | **~83** | Phases 0–1 done; only Phase 1 was ever *committed* |
 
 **The three phases still ahead are not equally blocked.** Phase 2's five live rows and Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615 need **nothing but hands**. Everything else waits on

@@ -251,8 +251,9 @@ def _swap16(v: int) -> int:
 def t_dh_05(dut: Dut) -> None:
     """The GRAM readback channel is live: `colorprobe` writes 16 known RGB565
     values with fillRect and 9 raw words with pushRect into an 8x8 swatch and
-    reads each straight back; every readback must equal what was written
-    (after undoing readRect's documented byte swap, TASK-340's 25/25).
+    reads each straight back; every readback must equal what was written —
+    the fill family after undoing readRect's documented byte swap, the push
+    family raw (TASK-340's 25/25, both rules).
 
     Mutating in the narrowest sense — it draws 64 pixels at (40,40) on whatever
     app is up — so it runs before T_DH_03, whose restore repaints the entry app.
@@ -283,8 +284,17 @@ def t_dh_05(dut: Dut) -> None:
         except (KeyError, TypeError, ValueError):
             bad.append(f"malformed probe {pr!r}")
             continue
-        if _swap16(act) != exp:
-            bad.append(f"{pr.get('probe')}: wrote 0x{exp:04x}, read back 0x{_swap16(act):04x}")
+        # Two write paths, two rules (cmdColorProbe's own comment, TASK-340):
+        # fillRect encodes and the readback comes back byte-swapped, so
+        # swap16(actual) == expected; pushRect writes the raw words with
+        # _swapBytes OFF, so the swapped readback equals the raw word again
+        # and actual == expected. Measured 25/25 on hardware with this split;
+        # applying the fill rule to both misreads the five asymmetric push
+        # words as a dead panel.
+        kind = pr.get("probe")
+        got = act if kind == "push" else _swap16(act)
+        if got != exp:
+            bad.append(f"{kind}: wrote 0x{exp:04x}, read back 0x{got:04x}")
     if bad:
         fail(tid, f"GRAM readback is not bit-exact ({len(bad)}/25 mismatched): "
                   + "; ".join(bad[:4]) + " — the panel cannot be read, so no visual "
