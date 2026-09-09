@@ -3,6 +3,8 @@
 // the .cpp itself is always compiled, same convention as appTable.cpp /
 // cmdSystem.cpp / cmdMisc.cpp / cmdTouch.cpp.
 #include "debug/serialConsole/cmdGet.h"
+#include "debug/serialConsole/cmdMisc.h"   // readbackSignature (ADR-064 D1)
+#include "debug/timeInject.h"             // dbgTimeFrozen (ADR-064 D5)
 
 #ifdef SERIAL_DEBUG
 #include <Arduino.h>
@@ -37,6 +39,20 @@ void cmdGet(const char *args) {
   char buf[512]; buf[0] = '\0';
   // TASK-255 (M-WEBRADIO-NOPSRAM): build-variant query (V0). Lets the harness pick a
   // Spotify-poll-free readiness path and lets V2 assert the variant.
+  // ADR-064 D1 (TASK-638): panel-readback signature, ON DEMAND ONLY (D2).
+  if (strncmp(args, "sig", 3) == 0 && (args[3] == '\0' || args[3] == ' ')) {
+    readbackSignature(args + 3);
+    return;
+  }
+  // ADR-064 D5 (TASK-638): the injected/frozen wall time the Clock family reads.
+  if (strcmp(args, "now") == 0) {
+    time_t frozenAt = 0;
+    const bool frozen = dbgTimeFrozen(&frozenAt);
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"now\",\"epoch\":%ld,"
+                  "\"frozen\":%s,\"frozenEpoch\":%ld,\"last\":true}\n",
+                  (long)time(nullptr), frozen ? "true" : "false", (long)frozenAt);
+    return;
+  }
   if (strcmp(args, "variant") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"%s\",\"last\":true}\n",
 #ifdef DISABLE_SPOTIFY

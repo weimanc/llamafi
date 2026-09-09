@@ -1,5 +1,6 @@
 // clockApp.cpp — ClockApp method bodies, out-of-line (M-SRCLAYOUT Stage E).
 #include "apps/clockApp.h"
+#include "debug/timeInject.h"   // ADR-064 D5: host-injectable, freezable time (TASK-638)
 
 // Out-of-class definitions for the static constexpr theme tables — required
 // pre-C++17 (this project targets gnu++11) whenever a static constexpr array
@@ -117,7 +118,7 @@ void ClockApp::repaint() {
 }
 
 void ClockApp::_doTick() {
-    struct tm t; if (!getLocalTime(&t)) return;
+    struct tm t; if (!dbgLocalTime(&t)) return;
     uint8_t hh = clockHour(t);   // WIRE2-G2: digit pair stays two digits ("09")
     uint8_t digs[4] = {
         (uint8_t)(hh / 10), (uint8_t)(hh % 10),
@@ -161,7 +162,7 @@ void ClockApp::_doTick() {
 }
 
 void ClockApp::_drawDigital() {
-    struct tm t; if (!getLocalTime(&t)) return;
+    struct tm t; if (!dbgLocalTime(&t)) return;
     char hBuf[4], mBuf[4];
     // WIRE2-G2: 12h drops the leading zero (%d, "9:41"); 24h keeps %02d.
     snprintf(hBuf, sizeof(hBuf), g_settings.fmt24h ? "%02d" : "%d", clockHour(t));
@@ -194,7 +195,7 @@ void ClockApp::_drawDigital() {
 }
 
 void ClockApp::_drawSecondsBar() {
-    struct tm t; if (!getLocalTime(&t)) return;
+    struct tm t; if (!dbgLocalTime(&t)) return;
     for (int i = 0; i < 60; ++i) {
         uint16_t c = (i < t.tm_sec) ? tft.color565(
             (int)(sinf((float)i / 60.0f * TWO_PI)                    * 127 + 128),
@@ -206,7 +207,7 @@ void ClockApp::_drawSecondsBar() {
 }
 
 void ClockApp::_drawDate() {
-    struct tm t; if (!getLocalTime(&t)) return;
+    struct tm t; if (!dbgLocalTime(&t)) return;
     static const char* kDays[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);

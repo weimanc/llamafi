@@ -3,7 +3,8 @@ run_serialdbg_tests.py, TASK-480 stage 2 (pilot family)."""
 
 import time
 
-from lib.dut import Dut
+from lib.dut import BadField, Dut
+import coords as _c
 from lib.results import pass_, fail, unmet
 
 
@@ -205,6 +206,56 @@ def t_clk_12(dut: Dut):
     pass_(tid, "device stable after Clock→Spotify, appId=0")
 
 
+def _sig_field(r: dict, name: str) -> int:
+    """A typed read of one `get sig` field (R18: no defaults)."""
+    if not r.get("ok"):
+        raise BadField("sig", f"device refused `get sig`: {r!r}")
+    if name not in r or r[name] is None:
+        raise BadField("sig", f"`get sig` replied without {name!r}: {r!r}")
+    return int(r[name])
+
+
+def t_clk_sig_01(dut: Dut):
+    """T_CLK_SIG_01: the Clock canvas is DRAWN — ink and distinct colours over
+    the panel readback (ADR-064 D3), the structural assertion H-2 lacked.
+
+    A face rendering as a solid rectangle (H-2: passed all fourteen Clock ids)
+    reads back inkCount=0, distinctColors=1 and fails here with no golden hash
+    and no time freeze. Region is the app canvas, derived from the generated
+    shell layout (D7), read once after `get idle` (D8), never polled (D2).
+    """
+    tid = "T_CLK_SIG_01"
+    if not _switch_to_clock(dut):
+        unmet(tid, "switchApp 1 refused, so no Clock canvas was on screen to read")
+        return
+    deadline = time.monotonic() + 8.0
+    while not dut.get_bool("idle", field="idle", timeout=3.0):
+        if time.monotonic() > deadline:
+            unmet(tid, "shell never went idle within 8 s after switching to Clock — "
+                       "a signature taken mid-repaint is a torn read (ADR-064 D8)")
+            _restore_spotify_from_clock(dut)
+            return
+        time.sleep(0.2)
+    # Canvas = everything left of the taskbar: (0, 0, TASKBAR_X, SCREEN_H).
+    w, h = _c.TASKBAR_X, _c.SCREEN_H
+    r = dut.read_reply(f"get sig 0 0 {w} {h}", timeout=8.0, expect_var="sig")
+    ink, colours, bg = (_sig_field(r, "inkCount"), _sig_field(r, "distinctColors"),
+                        _sig_field(r, "bgColor"))
+    # Floor: 1 % of the canvas. Origin: ADR-064 D3 asks only that the region is
+    # not a constant; every shipped style's digits alone cover far more than
+    # 1 % of 275x240 (the Nixie tubes are ~120x60 each). A tighter bound is a
+    # per-style golden, which is TASK-639's job, not this id's.
+    floor = (w * h) // 100
+    if colours < 2 or ink < floor:
+        fail(tid, f"Clock canvas reads back as (nearly) a constant: inkCount={ink} "
+                  f"(floor {floor}), distinctColors={colours}, bgColor=0x{bg:04x} — "
+                  f"H-2's solid rectangle, now observable")
+        _restore_spotify_from_clock(dut)
+        return
+    pass_(tid, f"inkCount={ink} distinctColors={colours} over {w}x{h}, bg=0x{bg:04x}")
+    _restore_spotify_from_clock(dut)
+
+
 TESTS = {
     "T_CLK_01": t_clk_01,
     "T_CLK_03": t_clk_03,
@@ -216,4 +267,5 @@ TESTS = {
     "T_CLK_10": t_clk_10,
     "T_CLK_11": t_clk_11,
     "T_CLK_12": t_clk_12,
+    "T_CLK_SIG_01": t_clk_sig_01,
 }

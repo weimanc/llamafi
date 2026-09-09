@@ -3,6 +3,7 @@
 // the .cpp itself is always compiled, same convention as appTable.cpp /
 // cmdSystem.cpp / cmdMisc.cpp / cmdTouch.cpp / cmdGet.cpp.
 #include "debug/serialConsole/cmdSet.h"
+#include "debug/timeInject.h"             // dbgTimeSet/Thaw (ADR-064 D5)
 
 #ifdef SERIAL_DEBUG
 #include <Arduino.h>
@@ -187,6 +188,29 @@ void cmdSet(const char *args) {
   // raw args for the same reason `set aePlayFile` is — real paths on this card
   // carry spaces, which the %127s split below truncates at the first one.
   // Persists as the last playlist, so a reboot into Player mode reopens it.
+  // ADR-064 D5 (TASK-638): `set now <epoch> [freeze]` | `set now thaw`.
+  // Raw-args special case: the optional word does not fit the var/val split.
+  if (strncmp(args, "now", 3) == 0 && (args[3] == '\0' || args[3] == ' ')) {
+    const char *rest = args + 3;
+    while (*rest == ' ') rest++;
+    if (strcmp(rest, "thaw") == 0) {
+      dbgTimeThaw();
+      Serial.println("{\"ok\":true,\"cmd\":\"set\",\"var\":\"now\",\"frozen\":false}");
+      return;
+    }
+    long epoch = 0; char word[8] = {0};
+    const int n = sscanf(rest, "%ld %7s", &epoch, word);
+    if (n < 1 || epoch < 1600000000L) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"now\","
+                     "\"error\":\"usage: set now <epoch>=1600000000 [freeze] | set now thaw\"}");
+      return;
+    }
+    const bool freeze = (n == 2 && strcmp(word, "freeze") == 0);
+    dbgTimeSet((time_t)epoch, freeze);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"now\",\"epoch\":%ld,\"frozen\":%s}\n",
+                  epoch, freeze ? "true" : "false");
+    return;
+  }
   if (strncmp(args, "plLoad", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
     const char *path = (args[6] == ' ' && args[7] != '\0') ? args + 7 : "";
     if (!*path) {

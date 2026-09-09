@@ -9,6 +9,7 @@ void cmdSwitchApp(const char *);
 void cmdInfo(const char *);
 void cmdScreenDump(const char *);
 void cmdColorProbe(const char *);
+void readbackSignature(const char *);      // ADR-064 D1: `get sig <x> <y> <w> <h>` (TASK-638)
 void cmdSerialBurst(const char *);
 void cmdBod(const char *);
 void cmdBodMit(const char *);

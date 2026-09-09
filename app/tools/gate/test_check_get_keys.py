@@ -157,7 +157,7 @@ def case_fix_actually_recovered_the_app_keys():
     keys, _ = G.collect_with_sites()
     cmdget = set(re.findall(r'strcmp\(args,\s*"([A-Za-z0-9_]+)"',
                             G.CMDGET.read_text()))
-    assert len(cmdget) == 44, f"cmdGet.cpp source-1 count changed: {len(cmdget)}"
+    assert len(cmdget) == 45, f"cmdGet.cpp source-1 count changed: {len(cmdget)}"   # 45 since TASK-638 (`get now`)
     assert len(keys) > len(cmdget) + 50, (
         f"source 2 is still contributing almost nothing: {len(keys)} total "
         f"vs {len(cmdget)} from cmdGet.cpp")
@@ -181,7 +181,7 @@ CASES = [
     ("E5  a count below the floor",             case_count_below_floor),
     ("P1  the live tree is clean",              case_live_tree_is_clean),
     ("P2  declarations are not definitions",    case_declarations_are_not_definitions),
-    ("P3  the app keys came back (44 -> 112)",  case_fix_actually_recovered_the_app_keys),
+    ("P3  the app keys came back (45 -> 113)",  case_fix_actually_recovered_the_app_keys),
     ("P4  the floor equals reality",            case_floor_matches_reality),
 ]
 

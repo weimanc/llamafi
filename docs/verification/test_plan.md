@@ -605,6 +605,7 @@ in one attempt is not fit to gate 213 tests. Bounded internal retries are a dead
 | `T_DH_01` | the shell answers **correct** data, not merely answers: `info` (ok / 8-hex `elf` / `build` / `heap > 0`), `get variant` (`spotify` is `on` or `off`), `get playerMode` (`name` in Spotify/WebRadio/Player, `val` 0–2) | one `cmd()` each at the suite's default 3 s | @Developer | `impl` |
 | `T_DH_02` | the device's own view of the network is coherent: `get ip` non-zero **and** `get wifiCfg`'s `err`/`ssid` consistent with an association | TASK-426's wedge signature (a configured SSID with no association, auto-reconnect retrying a dead AP forever) | @Developer | `impl` |
 | `T_DH_03` | app switching is alive: switch to a neighbour and back, `appId` correct at each step, `get idle` idle at each step | `get idle` (TASK-518) + the shell's own busy window | @Developer | `impl` |
+| `T_DH_05` | the GRAM readback channel is bit-exact: `colorprobe`'s 25 fillRect/pushRect writes read back equal (after readRect's documented byte swap) | TASK-340's 25/25; ADR-064 D4 — an unreadable panel is exit 4, not a wave of visual FAILs | @Developer | `impl` |
 
 Three implementation constraints, all from §3.1 and all load-bearing:
 
@@ -5438,3 +5439,17 @@ discriminator (proving the busy window was really open) before the skip can hone
 - **Expected result**: Observable, verifiable outcome
 - **Status**: planned | written | passing | failing
 ```
+
+### T_CLK_SIG_01 — [clock-001] Clock canvas is drawn: ink and distinct colours over the canvas (ADR-064 D3)
+
+- **Type**: integration (DUT)
+- **Feature(s)**: clock-001
+- **Objective**: the Clock canvas, read back from the panel's GRAM with `get sig 0 0 <TASKBAR_X> <SCREEN_H>`, is not a constant: `distinctColors >= 2` and `inkCount >= 1 %` of the canvas.
+- **Preconditions**: HEALTH `T_DH_05` (readback channel bit-exact); `switchApp 1` accepted; `get idle` idle (ADR-064 D8).
+- **Steps**:
+  1. `switchApp 1`; wait for `get idle` → idle (≤ 8 s, else UNMET).
+  2. `get sig 0 0 275 240` once (region from the generated shell layout, D7; never polled, D2).
+  3. Restore Spotify.
+- **Expected result**: `distinctColors >= 2` and `inkCount >= 660`. A face rendered as a solid rectangle (finding `H-2`) reads `inkCount=0, distinctColors=1` and FAILs; a device that does not answer is UNMET; a malformed reply is a contract FAIL.
+- **Harness**: `run/test-targeted T_CLK_SIG_01`. Owner: VE.
+- **Status**: written (2026-09-09); DUT verification recorded on the TASK-638 row.

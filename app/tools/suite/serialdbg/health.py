@@ -7,6 +7,8 @@ be established in seconds with read-only console commands:
   T_DH_01  the shell answers CORRECT data, not merely answers
   T_DH_02  the device's own view of the network is coherent (`get wifiCfg`)
   T_DH_03  app switching is alive
+  T_DH_05  the GRAM readback channel is bit-exact (ADR-064 D4, TASK-638) —
+           `colorprobe`'s 25 write->read round trips; T_DH_04 stays reserved
 
 Two candidates were cut at review and are deliberately absent: a loop()-liveness
 check (redundant with TASK-564's `[bootphase] 6 ready` gate) and a heap/stack
@@ -230,6 +232,67 @@ def t_dh_02(dut: Dut) -> None:
     pass_(tid, f"ip={ip} ssid={cfg['ssid']!r} bssid_set={cfg['bssid_set']}")
 
 
+# ── T_DH_05 ──────────────────────────────────────────────────────────────────
+
+def _swap16(v: int) -> int:
+    return ((v << 8) | (v >> 8)) & 0xFFFF
+
+
+@meta(cls="HEALTH", effect="mutating",
+      effect_reason="draws-swatch",
+      cls_reason="Every signature-based visual id (ADR-064 D4) reads the panel's GRAM back "
+                 "over MISO through tft.readRect(). TASK-340 measured that read path "
+                 "failing on this board until its clock was dropped 8x; if it degrades "
+                 "again, every `get sig` comparison downstream reports a firmware "
+                 "rendering defect that is really an unreadable panel — R12's dead-channel "
+                 "hazard one layer down. An unreadable panel means the board is not a "
+                 "valid subject for visual claims, which is exit 4 and NOT-RUN, not a "
+                 "wave of FAILs.")
+def t_dh_05(dut: Dut) -> None:
+    """The GRAM readback channel is live: `colorprobe` writes 16 known RGB565
+    values with fillRect and 9 raw words with pushRect into an 8x8 swatch and
+    reads each straight back; every readback must equal what was written
+    (after undoing readRect's documented byte swap, TASK-340's 25/25).
+
+    Mutating in the narrowest sense — it draws 64 pixels at (40,40) on whatever
+    app is up — so it runs before T_DH_03, whose restore repaints the entry app.
+    """
+    tid = "T_DH_05"
+    dut.send("colorprobe")
+    try:
+        ack = dut.read_json(3.0)
+    except TimeoutError:
+        fail(tid, "`colorprobe` never acked — the console verb is missing or the "
+                  "board stopped answering")
+        return
+    if not ack.get("ok") or ack.get("cmd") != "colorprobe":
+        fail(tid, f"`colorprobe` ack malformed: {ack!r}")
+        return
+    try:
+        probes = dut.read_json_multi(timeout=15.0)
+    except TimeoutError:
+        fail(tid, "`colorprobe` stream did not terminate (no last:true) within 15 s")
+        return
+    if len(probes) != 25:
+        fail(tid, f"expected 25 probes (16 fill + 9 push), got {len(probes)}")
+        return
+    bad = []
+    for pr in probes:
+        try:
+            exp, act = int(pr["expected"]), int(pr["actual"])
+        except (KeyError, TypeError, ValueError):
+            bad.append(f"malformed probe {pr!r}")
+            continue
+        if _swap16(act) != exp:
+            bad.append(f"{pr.get('probe')}: wrote 0x{exp:04x}, read back 0x{_swap16(act):04x}")
+    if bad:
+        fail(tid, f"GRAM readback is not bit-exact ({len(bad)}/25 mismatched): "
+                  + "; ".join(bad[:4]) + " — the panel cannot be read, so no visual "
+                  "claim can be verified on this board")
+        return
+    pass_(tid, "25/25 write->read round trips bit-exact over MISO")
+
+
 # ── T_DH_03 ──────────────────────────────────────────────────────────────────
 
 def _app_id(dut: Dut, timeout: float = 3.0):
@@ -334,6 +397,7 @@ def t_dh_03(dut: Dut) -> None:
 HEALTH_TESTS = {
     "T_DH_01": t_dh_01,
     "T_DH_02": t_dh_02,
+    "T_DH_05": t_dh_05,       # ADR-064 D4: readback liveness; before the mutating T_DH_03
     "T_DH_03": t_dh_03,
 }
 

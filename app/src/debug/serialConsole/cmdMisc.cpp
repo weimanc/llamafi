@@ -6,6 +6,7 @@
 
 #ifdef SERIAL_DEBUG
 #include <Arduino.h>
+#include <string.h>
 #include <TFT_eSPI.h>
 #include <esp_ota_ops.h>   // esp_ota_get_app_description() for `info`
 #include <esp_task_wdt.h>  // esp_task_wdt_reset() during screendump's ~18s stream
@@ -129,6 +130,83 @@ void cmdScreenDump(const char *args) {
   Serial.println("SCREENDUMP:END");
   free(s_band);
   free(s_b64);
+}
+
+// ADR-064 D1/D3 (TASK-638): a device-computed signature over the panel's own
+// GRAM, on demand only (D2 — never from a render or tick path, never on a
+// timer). `get sig <x> <y> <w> <h>` reuses screendump's band loop with the
+// base64 + Serial.write replaced by a rolling FNV-1a and three counters:
+//   hash            FNV-1a 32 over the corrected RGB565 words, row-major
+//   inkCount        pixels whose colour != bgColor
+//   distinctColors  distinct RGB565 values seen (saturates at 256: "many")
+//   bgColor         the most frequent colour in the region
+// The structural pair (inkCount, distinctColors) is the load-bearing half:
+// a solid rectangle scores 0 and 1 with no golden and no time freeze (D3).
+// 0 B static RAM — the band and the colour table are malloc'd per call.
+static inline uint32_t fnv1a32(uint32_t h, uint16_t v) {
+  h ^= (uint8_t)(v & 0xFF);  h *= 16777619u;
+  h ^= (uint8_t)(v >> 8);    h *= 16777619u;
+  return h;
+}
+
+void readbackSignature(const char *args) {
+  int x = 0, y = 0, w = SCREEN_W, h = SCREEN_H;
+  if (args && *args) sscanf(args, "%d %d %d %d", &x, &y, &w, &h);
+  if (x < 0) x = 0;
+  if (y < 0) y = 0;
+  if (w <= 0 || x + w > SCREEN_W) w = SCREEN_W - x;
+  if (h <= 0 || y + h > SCREEN_H) h = SCREEN_H - y;
+  if (w <= 0 || h <= 0) {
+    Serial.println("{\"ok\":false,\"cmd\":\"get\",\"var\":\"sig\",\"error\":\"empty region\"}");
+    return;
+  }
+  static const int kBandRows = 8;
+  static const int kTable = 256;                        // open addressing, 2^8
+  uint16_t *band = (uint16_t *)malloc(sizeof(uint16_t) * w * kBandRows);
+  uint16_t *tcol = (uint16_t *)malloc(sizeof(uint16_t) * kTable);
+  uint32_t *tcnt = (uint32_t *)malloc(sizeof(uint32_t) * kTable);
+  if (!band || !tcol || !tcnt) {
+    free(band); free(tcol); free(tcnt);
+    Serial.println("{\"ok\":false,\"cmd\":\"get\",\"var\":\"sig\",\"error\":\"alloc failed\"}");
+    return;
+  }
+  memset(tcnt, 0, sizeof(uint32_t) * kTable);
+  uint32_t hash = 2166136261u;
+  int distinct = 0;
+  bool saturated = false;
+  for (int ry = 0; ry < h; ry += kBandRows) {
+    esp_task_wdt_reset();                               // D8: TWDT 15 s, panic=true
+    int rows = min(kBandRows, h - ry);
+    tft.readRect(x, y + ry, w, rows, band);
+    for (int i = 0; i < w * rows; i++) {
+      uint16_t v = band[i];
+      v = (uint16_t)((v << 8) | (v >> 8));              // undo readRect's pushRect swap (TASK-340)
+      hash = fnv1a32(hash, v);
+      // colour table: linear probe from a cheap hash of the colour
+      int slot = (int)(((uint32_t)v * 2654435761u) >> 24) & (kTable - 1);
+      bool placed = false;
+      for (int k = 0; k < kTable; k++) {
+        int sl = (slot + k) & (kTable - 1);
+        if (tcnt[sl] == 0) {
+          if (distinct < kTable) { tcol[sl] = v; tcnt[sl] = 1; distinct++; }
+          else saturated = true;
+          placed = true; break;
+        }
+        if (tcol[sl] == v) { tcnt[sl]++; placed = true; break; }
+      }
+      if (!placed) saturated = true;
+    }
+  }
+  uint32_t bgCount = 0; uint16_t bg = 0;
+  for (int sl = 0; sl < kTable; sl++)
+    if (tcnt[sl] > bgCount) { bgCount = tcnt[sl]; bg = tcol[sl]; }
+  const uint32_t total = (uint32_t)w * (uint32_t)h;
+  Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"sig\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,"
+                "\"hash\":\"%08x\",\"inkCount\":%u,\"distinctColors\":%d,\"saturated\":%s,"
+                "\"bgColor\":%u,\"px\":%u,\"last\":true}\n",
+                x, y, w, h, (unsigned)hash, (unsigned)(total - bgCount), distinct,
+                saturated ? "true" : "false", (unsigned)bg, (unsigned)total);
+  free(band); free(tcol); free(tcnt);
 }
 
 // TASK-340 investigation aid: fills a small on-screen swatch with a *known*

@@ -186,9 +186,14 @@ print("T_TRI_22  the live registry HAS a HEALTH class (TASK-565 landed)")
 import suite.serialdbg as _live_suite                                # noqa: E402
 _live = _live_suite.build_all_meta()
 _live_health = sorted(t for t, r in _live.items() if r["cls"] == "HEALTH")
-check("T_TRI_22a  the three ids", _live_health, ["T_DH_01", "T_DH_02", "T_DH_03"])
+# TASK-638 (ADR-064 D4): T_DH_05 joined the class. The check reads the live
+# registry's own key list (LL-114: parse, don't mirror) and asserts the three
+# original ids are still present, so a fifth id is not a "regression" here.
+check("T_TRI_22a  the original three ids are in the live class",
+      [t for t in ["T_DH_01", "T_DH_02", "T_DH_03"] if t in _live_health],
+      ["T_DH_01", "T_DH_02", "T_DH_03"])
 check("T_TRI_22b  verdict is no longer 'unavailable'",
-      _triage.health_verdict(_live, {}), "not-run(0/3)")
+      _triage.health_verdict(_live, {}), f"not-run(0/{len(_live_health)})")
 check("T_TRI_22c  and reports for real once they run",
       _triage.health_verdict(_live, {t: "PASS" for t in _live_health}), "ok")
 check("T_TRI_22d  a failing health id is named from the live registry",

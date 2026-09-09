@@ -53,7 +53,7 @@ from gen_get_keys import collect_with_sites   # noqa: E402
 #: raised to 112 on 2026-09-06 when TASK-645 added `get boardId` (the board
 #: identity the run artifact's premise needs). RAISE this when keys are added; a
 #: drop is a finding, not a reason to lower it.
-MIN_KEYS = 112
+MIN_KEYS = 113   # TASK-638 added `get now` (ADR-064 D5)
 
 #: Extensions the oracle will not open. Everything else under app/src/ is read
 #: as text, INCLUDING extensions the generator's own globs do not list — that is
