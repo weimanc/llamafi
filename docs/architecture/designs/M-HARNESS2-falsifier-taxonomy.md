@@ -1,10 +1,12 @@
 # M-HARNESS2 — what a falsifier means per test (TASK-641/642/643 design)
 
 > Owner: **@Architect**
-> Status: proposed
+> Status: accepted
 > Filed 2026-09-08 under TASK-671's session, for TASK-641/642/643 (Phase 5, blocked on the Phase 3
-> entry). Needs an @Architect/@VE ruling before the three rows execute; the rows' scope changes are
-> listed in §8. Substrate: `lib/replay.py` (TASK-628), `lib/canfail.py` + `lib/dispatch.py`
+> entry). **RULED 2026-09-09 by the human: all eight decision points accepted** (confirmed = every arm
+> in its cell; role + shape; contract reds do not count; POLL = freeze + dilation; freeze total on the
+> mutated key only; undeclared = incidental; physical expiry enforced; LocalPlayer + Clock first). The
+> rows execute as amended in §8. Substrate: `lib/replay.py` (TASK-628), `lib/canfail.py` + `lib/dispatch.py`
 > (TASK-671, [runtime-gates design](M-HARNESS2-runtime-gates.md)).
 > Sources: [R9/R10/R10a/R12](../../verification/M-HARNESS2-requirements.md), [DEV review §4](M-HARNESS2-DEV-review.md),
 > [PM review §4.1](../../project/M-HARNESS2-PM-review.md) (R1 prose reason cut; R11 campaign → enforced expiry).
