@@ -349,4 +349,12 @@ void cmdBodMit(const char *args) {
   Serial.printf("{\"ok\":true,\"cmd\":\"bodmit\",\"bootMit\":%u}\n",
                 (unsigned)bodWatchBootMit());
 }
+
+// TASK-678 (F-1): stamp esp_timer_get_time() only — no ring entry, no BOD
+// interaction. rigwatch (TASK-677) aligns this against its own host-side
+// receive timestamp to place a `[bod]` dip between "harness sent X" and
+// whatever happened next, to the millisecond.
+void cmdMark(const char *args) {
+  bodWatchMark((args && args[0]) ? args : "?");
+}
 #endif // SERIAL_DEBUG

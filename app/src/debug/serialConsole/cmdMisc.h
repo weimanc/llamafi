@@ -13,3 +13,4 @@ void readbackSignature(const char *);      // ADR-064 D1: `get sig <x> <y> <w> <
 void cmdSerialBurst(const char *);
 void cmdBod(const char *);
 void cmdBodMit(const char *);
+void cmdMark(const char *);          // TASK-678 F-1: `mark <label>` — esp_timer stamp only

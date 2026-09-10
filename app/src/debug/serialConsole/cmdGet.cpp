@@ -5,6 +5,7 @@
 #include "debug/serialConsole/cmdGet.h"
 #include "debug/serialConsole/cmdMisc.h"   // readbackSignature (ADR-064 D1)
 #include "debug/timeInject.h"             // dbgTimeFrozen (ADR-064 D5)
+#include "debug/bodWatch.h"               // BodSnapshot / bodWatchGetSnapshot() (TASK-678 F-1)
 
 #ifdef SERIAL_DEBUG
 #include <Arduino.h>
@@ -51,6 +52,28 @@ void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"now\",\"epoch\":%ld,"
                   "\"frozen\":%s,\"frozenEpoch\":%ld,\"last\":true}\n",
                   (long)time(nullptr), frozen ? "true" : "false", (long)frozenAt);
+    return;
+  }
+  // TASK-678 (F-1): structured `get bod` — the B covariate every suite test
+  // can read before/after its body (PROP-011-rig-ground-truth.md §3.1 item
+  // 1). hist[] is indexed by ladder-bottomed level (0..7); minLevel=8 means
+  // no event has been captured since the last `bod <n>`/`reboot` arm.
+  if (strcmp(args, "bod") == 0) {
+    BodSnapshot s;
+    bodWatchGetSnapshot(&s);
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"bod\",\"count\":%lu,"
+                  "\"dropped\":%lu,\"firstUs\":%lu,\"lastUs\":%lu,\"minLevel\":%u,"
+                  "\"maxDurUs\":%u,\"hist\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],"
+                  "\"phaseAtFirst\":%u,\"thres\":%u,\"armed\":%s,\"last\":true}\n",
+                  (unsigned long)s.count, (unsigned long)s.dropped,
+                  (unsigned long)s.firstUs, (unsigned long)s.lastUs,
+                  (unsigned)s.minLevel, (unsigned)s.maxDurUs,
+                  (unsigned long)s.hist[0], (unsigned long)s.hist[1],
+                  (unsigned long)s.hist[2], (unsigned long)s.hist[3],
+                  (unsigned long)s.hist[4], (unsigned long)s.hist[5],
+                  (unsigned long)s.hist[6], (unsigned long)s.hist[7],
+                  (unsigned)s.phaseAtFirst, (unsigned)s.thres,
+                  s.armed ? "true" : "false");
     return;
   }
   if (strcmp(args, "variant") == 0) {

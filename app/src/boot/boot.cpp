@@ -149,7 +149,8 @@ static inline void mb_heap_probe(const char *) {}   // no-op (production / non-d
 // Every phase boundary is also a brownout-latch read: the sag we are hunting
 // lands at phase 3 (WiFi init), and the latch tells us WHICH boundary it
 // crossed rather than only that the board fell over.
-#define BOOTPHASE(n, name) do { Serial.printf("[bootphase] %d %s\n", (n), (name)); \
+#define BOOTPHASE(n, name) do { bodWatchSetCtxBoot((uint8_t)(n)); \
+                                Serial.printf("[bootphase] %d %s\n", (n), (name)); \
                                 bodWatchPoll(name); } while (0)
 
 // ---------------------------------------------------------------------------
@@ -203,9 +204,13 @@ static void bodMitEnterWifi() {
   Serial.printf("[bodmit] mask=%u bl=%d tx=%d duty=%u\n", (unsigned)g_bodMit,
                 (g_bodMit & BODMIT_BL) ? 1 : 0, (g_bodMit & BODMIT_TX) ? 1 : 0,
                 (unsigned)ledcRead(TFT_LEDC_CHANNEL));
+  bodWatchSetCtxWifi(false);
+  bodWatchSetCtxBacklight((uint8_t)ledcRead(TFT_LEDC_CHANNEL));
 }
 
 static void bodMitExitWifi() {
+  bodWatchSetCtxWifi(WiFi.status() == WL_CONNECTED);
+  bodWatchSetCtxBacklight((uint8_t)ledcRead(TFT_LEDC_CHANNEL));
   // Polled BEFORE the restore, so a trip reported with this tag is unambiguously
   // inside the mitigated window rather than at the next phase boundary.
   Serial.printf("[bodmit] inwindow mask=%u t=%lums duty=%u txdbm=%d\n",
@@ -292,7 +297,9 @@ void setup()
   // TASK-427: gated on SD_BOOT_MOUNT, not SERIAL_DEBUG — production (cyd2usb_winamp)
   // does not define it and never mounts (sdReady() stubs to false there); the dedicated
   // cyd2usb_player variant and cyd2usb_winamp_debug both define it.
+  bodWatchSetCtxSdBusy(true);
   sdProbeBootMount();
+  bodWatchSetCtxSdBusy(false);
 #endif
 
   // TASK-267: arena is acquired JIT in WebRadioApp::_play(), NOT at boot (so the

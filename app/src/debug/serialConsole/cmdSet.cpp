@@ -24,6 +24,7 @@
 #include "settingsStorage.h"              // g_settings, SettingsStorage, PR_NUM_LOCS
 #include "spotifyDisplay.h"               // SpotifyDisplay
 #include "logSink.h"                      // logsink namespace
+#include "debug/bodWatch.h"               // bodWatchFault() (TASK-678 F-1)
 
 extern SpotifyDisplay *spotifyDisplay;    // defined in main.cpp (build-variant display)
 void prepareForReboot();                  // main.cpp — TASK-451: teardown + flush before a restart
@@ -367,6 +368,25 @@ void cmdSet(const char *args) {
   if (strcmp(args, "fbCancel") == 0) {
     const bool ok = g_LocalPlayerApp.dbgFbCancel();
     Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"fbCancel\"}\n", ok ? "true" : "false");
+    return;
+  }
+  // TASK-678 (F-1): `set fault bod <level>` — invokes bodWatch's real event-
+  // capture path with a synthetic reading, so the R34 runtime gate
+  // (check_can_go_red.py) can prove the harness parses `[bod] TRIP`/`get bod`
+  // without a real supply sag. Raw-args special case (two sub-tokens), same
+  // idiom as `geocode`/`kbShow` above — the generic var/val split below only
+  // takes one token each.
+  if (strncmp(args, "fault ", 6) == 0) {
+    const char *rest = args + 6;
+    if (strncmp(rest, "bod ", 4) == 0) {
+      int level = -1;
+      if (sscanf(rest + 4, "%d", &level) == 1 && level >= 0 && level <= 7) {
+        bodWatchFault((uint8_t)level);
+        return;
+      }
+    }
+    Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"fault\","
+                    "\"error\":\"usage: fault bod <0..7>\"}");
     return;
   }
   if (sscanf(args, "%31s %127s", var, val) != 2) {
