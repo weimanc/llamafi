@@ -60,13 +60,13 @@ The boot immediately before it (build `Sep 9 2026 11:19`, 56 min):
 - **118** `tag=run` BOD trips.
 
 Same firmware, cable, port and host, about five hours apart. **Steady-state sag trips track WiFi
-(re)association cycles, not wall time.** Every reconnect is a PHY bring-up — the same inrush that
-produces the boot-window trip. This is the variable no prior window controlled, and it is
-sufficient to explain "non-stationary": the rig was riding on a non-stationary AP (LL-096, TASK-426).
+activity, not wall time.** This is the variable no prior window controlled, and it is sufficient to
+explain "non-stationary": the rig was riding on a non-stationary AP (LL-096, TASK-426).
 
-The direction of causality is **not** established by this observation. Either the sag disturbs the
-radio (→ beacon loss → reason 200/201 → reconnect → more sag), or the AP drops (→ reconnect storm →
-sag per reconnect). P1 below separates them.
+The first reading of this — "every reconnect is a PHY bring-up, so trips ≈ reconnects" — was
+**refuted the same evening by P1 (§8)**: 20 forced re-associations to a present AP produced 0 trips.
+What trips the rail is the firmware's **`NO_AP_FOUND` retry loop** — a full active scan every ~2.4 s
+for as long as the AP is absent. Direction of causality: AP absence → retry loop → sag. See §9.
 
 Reading note: `[wifi-ev]` lines are rate-limited (`suppressed=N`); this boot logged 2 disconnect
 lines against a counter of 23. Count from `wifiDiag::discCount` in the heartbeat, never from log
@@ -209,7 +209,7 @@ This is the prerequisite for every phase below and the cheapest thing in the pro
 - Re-commit the burst checker as `tools/probe/burst_check.py` (it never was — `git log` shows no
   history for it anywhere).
 
-### P1 — causality of steady-state trips (live board, no reflash, ~1 h)
+### P1 — causality of steady-state trips (live board, no reflash, ~1 h) — **RUN 2026-09-10, see §8**
 
 Board as it sits, BOD armed at 7, rigwatch running.
 
@@ -303,13 +303,61 @@ are one DUT afternoon each. P5 is calendar time. P3 needs the human and (ideally
 - That the 7-byte `read_flash` corruption is explained. It is one event in ~15 MB with no
   reproduction; P4 is where it either recurs or is left as noise.
 
-## 8. Disposition of the finger-pointing, on today's evidence
+## 8. P1 results — 2026-09-10, live board, no reflash, rigwatch recording
+
+**(a) Baseline.** 29 h 02 m uptime, `thres=7`, `bod` → `tripsSinceArm=1` (the boot-window trip),
+`disc=23`. **0 steady-state trips in 29 h across 23 disconnect events.**
+
+**(b) 20 forced re-associations** (`set wifiDisc N` through the existing monitor, 15 s apart,
+21:02–21:07, every cycle stamped by rigwatch): `disc` 23 → 63 (each kick = one `reason=8` leave +
+one or two `reason=201` before `STA_GOT_IP` ~1.5 s later), 13 re-associations logged (rate-limited),
+20 acks, **0 `[bod] TRIP`, 0 resets.** `bod` after: `tripsSinceArm=1`, unchanged. **B_run = 0/20.**
+
+**(c) Re-read of the 118-trip boot (09-09 11:19, 56 min)** with the same lens, from the log alone:
+
+| WiFi event immediately preceding each `tag=run` trip | trips |
+|---|---|
+| `STA_DISCONNECTED reason=201` (NO_AP_FOUND) | **99** |
+| `STA_CONNECTED` / `STA_GOT_IP` (the connect that ended a retry burst) | 14 |
+| `reason=200` (beacon timeout) | 2 |
+| `reason=202` | 2 |
+| `STA_START` | 0 (there was one, at boot) |
+
+The 201s arrive at a **2.4 s cadence** in runs of 5–40 (`2.4 2.4 2.4 3.1 2.5 2.5 2.5 | 94.0 | 2.4 × 9 …`)
+— the ESP-IDF auto-reconnect retrying a scan+connect while no AP answers — and the trips land inside
+those runs, typically one per 2–3 retries, never during the long quiet gaps.
+
+**Verdict.** Association, TLS traffic and isolated scans do not sag the rail below level 7. A
+**sustained full-channel active-scan loop with no AP found** does, repeatedly, for as long as it
+lasts. So (1) the direction is **AP absence → firmware retry loop → sag**, not sag → radio loss —
+a sag cannot make an AP vanish for 94 s stretches on a metronomic 2.4 s cadence; (2) the covariate
+every rig verdict needs is not `disc` but **time spent in `NO_AP_FOUND` retry** (W′ = count of
+`reason=201` in-window); (3) the boot-window trip is the same phenomenon in miniature — WiFi init
+scans all channels once. Production's IDF brownout ISR would have rebooted this board ~118 times in
+that hour; the "rig instability" that blocked runs on flapping-AP days was this loop.
+
+**Consequences for the plan.** P2's ladder stays (it measures depth per load; P1 measured the
+trigger). P3 unchanged. **A firmware lever now exists that the mitigation matrix missed:** back
+off the `NO_AP_FOUND` retry (exponential, capped) — it removes the sustained sag at source, and it
+is the same loop TASK-426 documented as the boot-wedge mechanism. Filed as a candidate, not a
+decision: **TASK-679** (retry backoff when the AP is absent, `-DBOD_WATCH`-measured before/after).
+P1(c) proper — a bounded, non-persistent way to *provoke* the retry loop from the console (`set
+scanLoop <s>`, no NVS write) — joins TASK-678's console additions, since it costs a reflash and the
+board's current 29 h window is worth more than the confirmation tonight.
+
+**What P1 did not measure.** Trip depth (only level-7 presence/absence — the ISR ladder is
+TASK-678); whether a *single* scan with the AP absent trips (all observed trips were inside runs);
+anything about the 5 V rail.
+
+## 9. Disposition of the finger-pointing, on today's evidence
 
 - **Cable / host USB link:** clear — 0 protocol errors outside reset storms, 12 MB clean bulk
   read, 0 loss in the in-app burst.
 - **Harness:** guilty twice (orphaned monitors, open cadence), both fixed, both fixes measured.
 - **Board:** 3.3 V sags to ≈2.5 V on every PHY bring-up; IDF's ISR turns a survivable transient
   into a reboot loop. Real, hardware, unfixed.
-- **AP / RF environment:** the un-indicted co-driver. Every "non-stationary" observation on record
-  coincided with an unrecorded W.
+- **AP / RF environment:** the un-indicted co-driver — now indicted by P1 (§8): AP absence drives
+  the firmware's 2.4 s scan-retry loop, and that loop is what sags the rail in steady state.
+- **Firmware:** one lever nobody pulled — the unbounded `NO_AP_FOUND` retry cadence (TASK-679
+  candidate).
 - **Flakes filed as RIG since 2026-09-02:** R was 0. Each needs W read before the label stands.
