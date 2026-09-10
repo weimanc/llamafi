@@ -389,6 +389,52 @@ void cmdSet(const char *args) {
                     "\"error\":\"usage: fault bod <0..7>\"}");
     return;
   }
+  // TASK-678 (F-2): `set scanLoop <seconds>` — provoke the NO_AP_FOUND retry
+  // loop non-persistently (PROP-011-runbook.md §1 F-2). Bounded 5-300s, TWDT
+  // fed, never touches NVS (TASK-426's wedge is exactly a stale NVS write),
+  // restores the saved SSID on exit.
+  if (strncmp(args, "scanLoop", 8) == 0 && (args[8] == '\0' || args[8] == ' ')) {
+    int secs = -1;
+    sscanf(args + 8, "%d", &secs);
+    if (secs < 5 || secs > 300) {
+      Serial.println("{\"ok\":false,\"cmd\":\"set\",\"var\":\"scanLoop\","
+                      "\"error\":\"usage: scanLoop <seconds 5..300>\"}");
+      return;
+    }
+    wifi_config_t saved = {};
+    esp_wifi_get_config(WIFI_IF_STA, &saved);
+    char savedSsid[33];
+    strlcpy(savedSsid, (const char*)saved.sta.ssid, sizeof(savedSsid));
+
+    WiFi.persistent(false);   // never write NVS — TASK-426's wedge, deliberately not re-created
+    WiFi.disconnect(false, false);
+    char bogus[40];
+    snprintf(bogus, sizeof(bogus), "PROP011-no-such-ap-%lu", (unsigned long)millis());
+    WiFi.begin((const char*)bogus, (const char*)"x");   // auto-reconnect stays ON: IDF's own retry loop is the point
+
+    uint32_t r201 = 0;
+    const unsigned long t0 = millis();
+    const unsigned long deadline = t0 + (unsigned long)secs * 1000UL;
+    while (millis() < deadline) {
+      if (WiFi.status() == WL_NO_SSID_AVAIL) r201++;
+      delay(100);
+      esp_task_wdt_reset();
+    }
+
+    WiFi.disconnect(false, false);
+    delay(100);
+    WiFi.begin();   // back to the saved SSID/passphrase from NVS
+    uint32_t t1 = millis();
+    while (millis() - t1 < 20000 && WiFi.status() != WL_CONNECTED) {
+      delay(200);
+      esp_task_wdt_reset();
+    }
+    const bool reconnected = (WiFi.status() == WL_CONNECTED);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"scanLoop\",\"secs\":%d,"
+                  "\"r201\":%lu,\"reconnected\":%d,\"savedSsid\":\"%s\"}\n",
+                  secs, (unsigned long)r201, reconnected ? 1 : 0, savedSsid);
+    return;
+  }
   if (sscanf(args, "%31s %127s", var, val) != 2) {
     Serial.println("{\"ok\":false,\"cmd\":\"set\",\"error\":\"bad args\"}");
     return;
