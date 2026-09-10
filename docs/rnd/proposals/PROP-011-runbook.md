@@ -79,11 +79,11 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | id | experiment | tier | needs | board cost | status |
 |---|---|---|---|---|---|
 | X-P1a/b | baseline + forced re-association | done | — | none | **DONE 2026-09-10**, PROP-011 §8 |
-| F-1 | firmware: BOD ISR instrument (TASK-678 core) | Sonnet | — | 1 reflash (shared with F-2..F-5) | open |
-| F-2 | firmware: `set scanLoop <s>` provoke command | Sonnet | — | shared | open |
-| F-3 | firmware: `serialsink`, `serialecho`, `-DSERIAL_BAUD` | Sonnet | — | shared | open |
+| F-1 | firmware: BOD ISR instrument (TASK-678 core) | Sonnet | — | 1 reflash (shared with F-2..F-5) | done (`a7000c5`) |
+| F-2 | firmware: `set scanLoop <s>` provoke command | Sonnet | — | shared | done (`c36594c`) |
+| F-3 | firmware: `serialsink`, `serialecho`, `-DSERIAL_BAUD` | Sonnet | — | shared | done (`89625be`) |
 | F-4 | firmware: bodWatch ported into the bare rig | Sonnet | — | separate board flashes (P2) | open |
-| F-5 | firmware: `-DBOD_WATCH` orthogonal flag + `BOD_POLICY` stub | Sonnet | Architect ruling for defaults only | shared | open |
+| F-5 | firmware: `-DBOD_WATCH` orthogonal flag + `BOD_POLICY` stub | Sonnet | Architect ruling for defaults only | shared | done (`c4291bf`) |
 | H-1 | host: `rig_p1c.sh`, `rig_sweep.py`, `rig_ladder.py` drivers | Sonnet | F-1..F-3 merged | none | open |
 | X-P1c | provoke the NO_AP_FOUND loop, trips per retry | Haiku/Sonnet | F-1, F-2, H-1 | none after the F-flash | open |
 | X-P2 | load ladder, B_boot per rung | Sonnet | F-1, F-4, H-1 | ~12 reflashes, ends window | open |
