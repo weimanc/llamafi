@@ -14,3 +14,5 @@ void cmdSerialBurst(const char *);
 void cmdBod(const char *);
 void cmdBodMit(const char *);
 void cmdMark(const char *);          // TASK-678 F-1: `mark <label>` — esp_timer stamp only
+void cmdSerialSink(const char *);    // TASK-678 F-3
+void cmdSerialEcho(const char *);    // TASK-678 F-3

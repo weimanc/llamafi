@@ -241,7 +241,14 @@ void setup()
   // lifetime. audioEngine.h's aeDrainEof() asserts against this.
   g_loopTaskHandle = xTaskGetCurrentTaskHandle();
 
-  Serial.begin(115200);
+  // TASK-678 (F-3): -DSERIAL_BAUD overrides the default for the UART
+  // transfer matrix (PROP-011-runbook.md §3 X-P4); undefined everywhere
+  // except the cyd2usb_winamp_debug_921k env, which also sets pio's
+  // monitor_speed so the two stay paired.
+#ifndef SERIAL_BAUD
+#define SERIAL_BAUD 115200
+#endif
+  Serial.begin(SERIAL_BAUD);
   BOOTPHASE(0, "reset");        // earliest point anything can be said
   // TASK-572. WHY this boot happened, which nothing in the firmware has ever
   // said. Host-side counting sees THAT a boot occurred and never the cause —

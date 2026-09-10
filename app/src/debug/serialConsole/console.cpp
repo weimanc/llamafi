@@ -112,6 +112,8 @@ const SerialCmd kCmds[] = {
   { "bod", cmdBod, "TASK-557: brownout comparator state; <0..7> sets the threshold the NEXT boot arms with", "[thres]" },
   { "bodmit", cmdBodMit, "TASK-557: boot-inrush mitigation applied across the NEXT boot's WiFi window (bit0=backlight off, bit1=low TX power)", "[0..3]" },
   { "mark", cmdMark, "TASK-678: stamp esp_timer_get_time(), no BOD interaction — rigwatch host/DUT clock alignment", "[label]" },
+  { "serialsink", cmdSerialSink, "TASK-678: read+checksum N bytes from Serial (host->DUT direction instrument)", "<bytes>" },
+  { "serialecho", cmdSerialEcho, "TASK-678: echo N received lines back prefixed E# (bidirectional instrument)", "<lines>" },
   { "help",   cmdHelp,   "list commands",                   ""                                   },
   { "reboot", cmdReboot, "software reset (ESP.restart)",   ""                                   },
   { "advance", cmdAdvance, "TASK-418: step the play-order engine, no audio (ADR-059 D12)", "<next|prev>" },

@@ -357,4 +357,67 @@ void cmdBodMit(const char *args) {
 void cmdMark(const char *args) {
   bodWatchMark((args && args[0]) ? args : "?");
 }
+
+// TASK-678 (F-3): host->DUT direction/baud instrument. Reads exactly <bytes>
+// from Serial (10s timeout), running sum8 checksum + count — the counterpart
+// to `serialburst`'s DUT->host direction, so the UART transfer matrix
+// (PROP-011-runbook.md §3 X-P4) can measure both directions in the same
+// checksummed-stream idiom TASK-557 already validated.
+void cmdSerialSink(const char *args) {
+  long bytes = 0;
+  if (sscanf(args, "%ld", &bytes) != 1 || bytes < 1) {
+    Serial.println("{\"ok\":false,\"cmd\":\"serialsink\",\"error\":\"usage: serialsink <bytes>\"}");
+    return;
+  }
+  Serial.printf("{\"probe\":\"sink\",\"phase\":\"begin\",\"bytes\":%ld}\n", bytes);
+  uint32_t sum = 0;
+  long got = 0;
+  int bodTrips = 0;
+  bodWatchClear();
+  const unsigned long deadline = millis() + 10000UL;
+  while (got < bytes && millis() < deadline) {
+    if (Serial.available()) {
+      sum += (uint8_t)Serial.read();
+      got++;
+      if ((got & 511) == 0) esp_task_wdt_reset();
+    } else {
+      esp_task_wdt_reset();
+      delay(1);
+    }
+    if (bodWatchPollQuiet()) bodTrips++;
+  }
+  Serial.printf("{\"probe\":\"sink\",\"bytes\":%ld,\"got\":%ld,\"sum\":\"%08x\","
+                "\"bodTrips\":%d}\n",
+                bytes, got, (unsigned)sum, bodTrips);
+}
+
+// TASK-678 (F-3): bidirectional instrument — echoes each received line back
+// prefixed `E#`, so a host driver can diff what it sent against what came
+// back (X-P4's `serialecho` cell).
+void cmdSerialEcho(const char *args) {
+  int lines = 0;
+  if (sscanf(args, "%d", &lines) != 1 || lines < 1) {
+    Serial.println("{\"ok\":false,\"cmd\":\"serialecho\",\"error\":\"usage: serialecho <lines>\"}");
+    return;
+  }
+  Serial.printf("{\"probe\":\"echo\",\"phase\":\"begin\",\"lines\":%d}\n", lines);
+  char buf[208];
+  int got = 0;
+  const unsigned long deadline = millis() + 30000UL;
+  while (got < lines && millis() < deadline) {
+    if (Serial.available()) {
+      int len = Serial.readBytesUntil('\n', buf, sizeof(buf) - 1);
+      if (len <= 0) continue;
+      if (buf[len - 1] == '\r') len--;
+      buf[len] = '\0';
+      Serial.printf("E#%s\n", buf);
+      got++;
+      if ((got & 63) == 0) esp_task_wdt_reset();
+    } else {
+      esp_task_wdt_reset();
+      delay(1);
+    }
+  }
+  Serial.printf("{\"probe\":\"echo\",\"phase\":\"end\",\"lines\":%d,\"got\":%d}\n", lines, got);
+}
 #endif // SERIAL_DEBUG
