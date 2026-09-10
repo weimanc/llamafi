@@ -184,6 +184,10 @@ A run report that cannot state R and W did not measure the rig.
 
 ## 5. Plan
 
+> **Executable form:** [PROP-011-runbook.md](PROP-011-runbook.md) — per-experiment briefs (agent
+> tier, board cost, exact commands, decide-rules, report template) written so Sonnet/Haiku agents
+> can run the legwork. Its §0.4 table is the status board; this section stays the rationale.
+
 ### P0 — correlation infrastructure (host only, lands on `master` as TASK-677)
 
 This is the prerequisite for every phase below and the cheapest thing in the proposal.
