@@ -1565,7 +1565,7 @@ three independent reviews returned APPROVE/BUILDABLE/VERIFIABLE-WITH-CHANGES and
 > (partial) → **571** (mode P)
 
 Full rationale, the contested-priority rulings and the explicit not-doing list are in
-[tasks-architecture.md § M-TESTARCH ▶ SCHEDULED ORDER](tasks-architecture.md).
+[tasks-archive.md § tasks-architecture.md snapshot, M-TESTARCH ▶ SCHEDULED ORDER](tasks-archive.md#tasks-architecturemd--retired-2026-09-10-verbatim-snapshot) (board retired 2026-09-10; the live rig rows are on [tasks-harness2.md](tasks-harness2.md)).
 
 **Exit criteria for the milestone** (not for this block): a RIG or HEALTH fault can no longer be
 reported as a FEATURE regression; no `skip()` site records a failed assertion; and the class-ordered

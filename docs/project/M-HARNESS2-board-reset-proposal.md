@@ -7,7 +7,7 @@
 > Written: 2026-09-03
 > Question put to me: *can we retire/archive the `task*.md` files and start from a relatively clean
 > slate before scheduling the harness re-architecture?*
-> Against: [tasks.md](tasks.md) · [tasks-architecture.md](tasks-architecture.md) ·
+> Against: [tasks.md](tasks.md) · [tasks-architecture.md](tasks-archive.md#tasks-architecturemd--retired-2026-09-10-verbatim-snapshot) (retired 2026-09-10) ·
 > [tasks-winamp-player.md](tasks-winamp-player.md) · [tasks-archive.md](tasks-archive.md) ·
 > `app/tools/gate/check_docs.py` · [M-HARNESS2-PM-review.md](M-HARNESS2-PM-review.md) §3a
 > Method: static only. No DUT, no serial port, nothing under `app/tools/` imported. Every count

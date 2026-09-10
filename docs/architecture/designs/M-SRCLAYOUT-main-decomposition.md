@@ -484,7 +484,7 @@ measurement recorded in the task** — an evidence-based exception per D0a, not 
 Recorded here so the document matches the tree rather than describing landed work as hypothetical.
 
 **Verification of record (TASK-488, 2026-08-16).** Full id-by-id result table and the `T_488_11`
-disposition live in [tasks-architecture.md § TASK-488 — result](../../project/tasks-architecture.md).
+disposition live in [tasks-archive.md § TASK-488 — full result](../../project/tasks-archive.md#task-488--full-result--pass-criteria-archived-2026-08-22-from-tasks-architecturemd).
 The three findings that matter to this design:
 
 - **The moves are pure, provably.** Every one of the 14 moved blocks is byte-identical *and*

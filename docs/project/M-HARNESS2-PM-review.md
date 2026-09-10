@@ -11,7 +11,7 @@
 > [Developer review](../architecture/designs/M-HARNESS2-DEV-review.md) (~154 engineer-days) ·
 > [QM review](../quality/M-HARNESS2-QM-review.md) (21 of 55 are BPs that did not hold; ~30 ungated days)
 > Against: [WP-Z §4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) (41 proposed tasks) ·
-> [tasks.md](tasks.md) · [tasks-architecture.md](tasks-architecture.md) ·
+> [tasks.md](tasks.md) · [tasks-architecture.md](tasks-archive.md#tasks-architecturemd--retired-2026-09-10-verbatim-snapshot) (retired 2026-09-10) ·
 > [tasks-winamp-player.md](tasks-winamp-player.md) · [roadmap.md](roadmap.md)
 > Method: static only. No DUT, no serial port, nothing under `app/tools/` imported. The board is
 > pinned to the `-DBOD_WATCH` debug build for TASK-557.

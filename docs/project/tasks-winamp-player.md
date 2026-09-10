@@ -11,7 +11,7 @@
 > **Row format (BP-069, 2026-08-25, human), going forward only** — this board stays paused, this is
 > a process note, not new work: id/priority/status/one-line title/design-doc link/commit hash, no
 > inline verification narrative. Full contract in
-> [tasks-architecture.md § Row format](tasks-architecture.md#row-format-bp-069-2026-08-25-human--read-before-adding-or-closing-any-row).
+> [tasks.md § Row format](tasks.md#row-format-bp-069-2026-08-25-human--read-before-adding-or-closing-any-row).
 >
 > **This file is a stopgap, not a permanent board (human, 2026-08-26)** — also just a process note,
 > not an instruction to resume work while paused. When every row here is eventually closed, fold

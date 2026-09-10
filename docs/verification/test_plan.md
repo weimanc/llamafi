@@ -358,7 +358,7 @@ functional-tier hole; it is not an every-row hole, and `A5`/`A6` should not be c
 > so this does not recur.
 
 **Harness**: `app/tools/test_task488_partb.py` · **Driver**: `run/task488` (`DUT_TREE=<worktree>`
-flashes another checkout for an A/B) · **Criteria**: [tasks-architecture.md § TASK-488](../project/tasks-architecture.md)
+flashes another checkout for an A/B) · **Criteria**: [tasks-archive.md § TASK-488](../project/tasks-archive.md#task-488--full-result--pass-criteria-archived-2026-08-22-from-tasks-architecturemd)
 **Result of record**: 2026-08-16, commit `64bf839` — 10 PASS, 1 FAIL-not-attributable.
 
 | id | Objective | Status |

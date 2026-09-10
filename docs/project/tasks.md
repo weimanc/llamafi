@@ -8,8 +8,8 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 > status, one-line title, a design-doc link (only for genuine design/architectural work), commit
 > hash(es) — no diff summaries, DUT logs or byte-deltas pasted inline. Full template, dos/don'ts and
 > a worked before/after live in
-> [tasks-architecture.md § Row format](tasks-architecture.md#row-format-bp-069-2026-08-25-human--read-before-adding-or-closing-any-row)
-> — applies to every task board in this project, not just that file. Going-forward only; old rows
+> [§ Row format](#row-format-bp-069-2026-08-25-human--read-before-adding-or-closing-any-row) below
+> — applies to every task board in this project. Going-forward only; old rows
 > aren't retroactively rewritten.
 
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. **Last archive pass: 2026-08-15** — 80 closed entries / 7 561 lines swept out, and the M-WINAMP-PLAYER board split into its own file (see below). `tasks.md` went 9 787 → ~1 200 lines. Verified: 480 distinct task ids across the three files, no duplicates, none lost. Note for the next pass: result/resolution sub-sections are `###`-level in this project and must travel with their parent task — splitting on heading level alone orphans them. Prior pass: 2026-08-07 (moved 7 fully-closed milestone sections — M-CERT-ERRCODE remainder, M-APP-ORDER, M-WEBRADIO-WINAMP-UI, M-WEBRADIO-REAL-VIS, M-PR-LOCATIONS, M-MEMPLAN hygiene, M-CEEFAX — 2,513 lines — see archive file for the batch note). Prior pass: 2026-07-12 (TASK-143..313 range, 149 entries).
@@ -37,6 +37,47 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 ---
 
+## Row format (BP-069, 2026-08-25, human) — read before adding or closing any row
+
+**A row is a pointer, not a record.** It holds exactly: task id, priority, status, a one-line
+title/summary, a link to the governing design doc (only when the task is a genuine design or
+architectural decision — not for a mechanical or hygiene fix), and the landing commit hash(es).
+**It does not hold the verification narrative** — no diff summaries, no byte-deltas, no DUT logs,
+no judgment-call rationale pasted into the cell. That evidence already has two homes: the commit
+message (which should carry it in full — write the commit message as if the row won't), and, for
+tasks with a governing design doc, that doc's own as-built section (BP-065) — updated by the agent
+that lands the work, in the same commit, not as a follow-up.
+
+**Template:**
+```
+| TASK-NNN | P2 | DONE 2026-08-25 (`abc1234`) | One-line summary of what shipped. |
+```
+With a design doc behind it:
+```
+| TASK-NNN | P2 | DONE 2026-08-25 (`abc1234`) | One-line summary — see the governing design doc's as-built section for the shape and detail. |
+```
+
+**A real before/after**, TASK-472, this session: the original row was ~600 words of stock-split
+mechanics, back-reference/`friend` reasoning, a full levelization-audit account and a DUT
+verification narrative, all pasted into one table cell (still readable in full at
+[tasks-archive.md § TASK-472](tasks-archive.md#task-472-full-record-archived-2026-08-25-from-tasks-architecturemd)
+— none of that content was lost, it just isn't inline any more). It is now:
+`| **TASK-472** | P3 | **DONE 2026-08-22** — DUT-verified (`7669460`/TASK-529), levelization audit
+complete | Stage F — `stock/` → 3-component split; real gap surfaced and filed as TASK-530. [full
+record in tasks-archive.md](tasks-archive.md#task-472-full-record-archived-2026-08-25-from-tasks-architecturemd)
+|` — one line, everything still findable, nothing duplicated.
+
+**Do**: keep the row skimmable in one glance · link out for detail (design doc, commit, archive)
+· write the commit message as the actual record, not an afterthought.
+**Don't**: paste a diff summary, DUT log or byte-delta into the row · create a design doc for a
+one-line hygiene fix · retroactively rewrite an old verbose row (archive passes handle that,
+ordinarily — this convention is going-forward only, per BP-069).
+
+This applies to every board using this format — `tasks.md`, `tasks-harness2.md`,
+`tasks-winamp-player.md`. Moved here from `tasks-architecture.md` when that board was retired on 2026-09-10.
+
+---
+
 ## ▶ STANDING CONDITIONS — read before touching the DUT or planning work (@PM, 2026-09-07)
 
 Four facts that gate most of the open work and are otherwise discoverable only by reading a phase's
@@ -46,7 +87,7 @@ prose on another board. They are here because this file is the index and is read
    production.** Reflashing the *same* debug env is permitted (human, 2026-09-03); restoring
    `ENV_PROD` is not. The restore was deleted from all fourteen entry points by TASK-633, so no
    `run/` script will do it behind you — but a manual `run/flash` will. Owner: **TASK-557**
-   ([tasks-architecture.md](tasks-architecture.md)). Permitted is not free: **a reflash resets the
+   ([tasks-harness2.md § Rig stability](tasks-harness2.md)). Permitted is not free: **a reflash resets the
    board and spends the running TASK-557 observation window** (9 h 33 m on 2026-09-07) — check for
    one first and record it if you end it, per
    [dut_workflow.md §5a](../process/dut_workflow.md). **Last window: 39 h 38 m, ended on purpose
@@ -69,7 +110,25 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-677** (675 here, 676 on tasks-harness2.md).
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-679** (675 here, 676 on tasks-harness2.md, 677/678 on tasks-harness2.md — PROP-011 rig ground truth). `tasks-architecture.md` was retired 2026-09-10.
+
+---
+
+## Open — inherited from `tasks-architecture.md` (retired 2026-09-10)
+
+Five live rows that are not harness or rig work: the M-CODEQUAL remainder (462), two skeletons that
+are real open research (484, 486), an R&D spike owned by PROP-010 (549) and a QM record (568). The
+thirteen rig/harness rows went to [tasks-harness2.md § Rig stability](tasks-harness2.md); everything
+closed, and the retired board's prose, is in
+[tasks-archive.md](tasks-archive.md#tasks-architecturemd--retired-2026-09-10-verbatim-snapshot).
+
+| task | pri | status | title |
+|---|---|---|---|
+| TASK-462 | P3 | **UNBLOCKED** (454 verified) | C3 — table-driven `cmdGet`/`cmdSet` (1 308 lines → a table). **Investigation note (no status change):** the per-app `dbgGet()` delegation chain in `app/src/debug/serialConsole/cmdGet.cpp`/`cmdSet.cpp` is interleaved within the strcmp dispatch sequence, not cleanly separable before or after it — a naive single-table extraction per M-CODEQUAL's C3 design would silently change dispatch priority for any future key-name collision. Worth recording before this is picked up again, since ~128 DUT tests depend on this debug surface. |
+| TASK-484 | P3 | SKELETON | [M-ERRMODEL](../architecture/designs/M-ERRMODEL-error-model.md) — four overlapping error conventions; IFC-001 already ships the `errorCode==0` ambiguity |
+| TASK-486 | P3 | SKELETON | [M-VENDORING](../architecture/designs/M-VENDORING-upstream-policy.md) — five vendored trees, five conventions, no upstream refs recorded |
+| TASK-549 | P3 | **PARTIAL 2026-08-27 (`278ca00`, branch `rnd/testarch-oq-spikes`) — rung 2 done, rung 1 blocked** | §10 OQ-B **priced: +8 B `.dram0.bss`**, kill gate cleared, handed to Architect for the `set fault arena allocFail` design. OQ-A still blocked — host shim drafted but never compiled, this machine has no `gcc-c++`/`cc1plus` and no `sudo` to install it (separate gap from OQ-B's; that one just needed the project's pinned `$PIO` path, not a bare `pio` on `PATH`). See [PROP-010](../rnd/proposals/PROP-010-testarch-host-shim-and-fault-surface-spikes.md), [EXP-023](../rnd/reports/EXP-023-testarch-t1-host-shim-spike.md)/[EXP-024](../rnd/reports/EXP-024-testarch-set-fault-alloc-byte-cost.md). OQ-C closed in the design doc (no incident found), OQ-D split out as TASK-550. |
+| TASK-568 | P3 | **OPEN — filed 2026-09-01** | @QM: record the 2026-09-01 outward-attribution episode as an LL, and rule on the proposed attribution BP (Architect: adopt, do **not** mechanise in `check-docs`). [Design](../architecture/designs/M-TESTARCH-precedence-hierarchy.md) §5.1. **Owner:** @QM. |
 
 ---
 
@@ -164,10 +223,9 @@ almost did.
 
 | board | scope | live entries | entry point |
 |---|---|---|---|
-| [tasks-architecture.md](tasks-architecture.md) | M-SRCLAYOUT · M-CODEQUAL · M-TOOLING · M-DOCLIFE · M-TESTARCH | 16 | § ▶ EXECUTION SEQUENCE |
 | [tasks-winamp-player.md](tasks-winamp-player.md) | M-WINAMP-PLAYER (paused) | 12 | § Open — M-WINAMP-PLAYER |
-| [tasks-harness2.md](tasks-harness2.md) | M-HARNESS2 + WP-Z test-harness remediation, phases 0–5 | **28 live of 67** | § Totals — it names the live rows per phase |
-| this file | everything else — M-PLANERADAR (re-opened), M-PR-MOTION, Phase 2 fallout, M-WEBRADIO follow-ons, unowned failures | 25 | below |
+| [tasks-harness2.md](tasks-harness2.md) | M-HARNESS2 + WP-Z test-harness remediation, phases 0–5, **plus the TASK-557 rig chain and M-TESTARCH remainder** (moved in 2026-09-10) | **43 live of 85** | § Totals — it names the live rows per phase |
+| this file | everything else — M-PLANERADAR (re-opened), M-PR-MOTION, Phase 2 fallout, M-WEBRADIO follow-ons, unowned failures, five rows inherited from the retired `tasks-architecture.md` | 30 | below |
 | [tasks-archive.md](tasks-archive.md) | closed work, all milestones | — | the audit trail |
 
 **The split file is the entry, always.** The two mirror tables that used to sit below this

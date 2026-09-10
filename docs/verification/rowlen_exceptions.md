@@ -59,23 +59,16 @@ Owner = the task whose row this is, i.e. the one that can decide what the pointe
 
 | board | row | why it is over threshold today | owner | since |
 |---|---|---|---|---|
-| `docs/project/tasks-architecture.md` | `TASK-458` | 423 chars — C2 `TlsYieldGuard` row carries the RAII rationale inline | TASK-458 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-460` | 499 chars — enumerates all four converted fetch paths in the row | TASK-460 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-461` | 401 chars — one char over; canvas/screen dimension list inline | TASK-461 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-462` | 579 chars — carries the investigation note for the `cmdGet`/`cmdSet` table | TASK-462 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-463` | 439 chars — restates which ADR-061 decisions ratify the convention | TASK-463 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-475` | 456 chars — records the per-check promotion phases in the row | TASK-475 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-535` | 425 chars — per-app DUT results inline | TASK-535 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-549` | 787 chars — carries the §10 OQ-B pricing and hand-off narrative | TASK-549 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-557` | **20 680 chars** — the largest row in the repo: four measurement campaigns, their negative results, and the "not established" caveat, all in one table cell. Owed a design/disposition document, not a trim | TASK-557 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-564` | 742 chars — enumerates the seven per-phase deadlines | TASK-564 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-566` | 2 019 chars — the landed-inert record for the class-order switch | TASK-566 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-567` | 765 chars — the 187-site `skip()` adjudication split, counted in the row | TASK-567 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-573` | 1 199 chars — the live gate defect written up in the row | TASK-573 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-574` | 823 chars — the 74 masked-FAIL `skip()` sites, described inline | TASK-574 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-575` | 1 361 chars — the `_TeeSerial` defect and its fix, in the row | TASK-575 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-576` | 3 129 chars — the stale-monitor-log session narrative | TASK-576 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-577` | 812 chars — the `sdprobe` revert rationale | TASK-577 | 2026-09-05 |
-| `docs/project/tasks-architecture.md` | `TASK-578` | 836 chars — the brownout-ISR decision framing | TASK-578 | 2026-09-05 |
+| `docs/project/tasks.md` | `TASK-462` | 579 chars — carries the investigation note for the `cmdGet`/`cmdSet` table | TASK-462 | 2026-09-05 |
+| `docs/project/tasks.md` | `TASK-549` | 787 chars — carries the §10 OQ-B pricing and hand-off narrative | TASK-549 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-564` | 742 chars — enumerates the seven per-phase deadlines | TASK-564 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-566` | 2 019 chars — the landed-inert record for the class-order switch | TASK-566 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-567` | 765 chars — the 187-site `skip()` adjudication split, counted in the row | TASK-567 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-573` | 1 199 chars — the live gate defect written up in the row | TASK-573 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-574` | 823 chars — the 74 masked-FAIL `skip()` sites, described inline | TASK-574 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-575` | 1 361 chars — the `_TeeSerial` defect and its fix, in the row | TASK-575 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-576` | 3 129 chars — the stale-monitor-log session narrative | TASK-576 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-577` | 812 chars — the `sdprobe` revert rationale | TASK-577 | 2026-09-05 |
+| `docs/project/tasks-harness2.md` | `TASK-578` | 836 chars — the brownout-ISR decision framing | TASK-578 | 2026-09-05 |
 
 **18 rows. One board.** The three other live boards are at zero and stay there.

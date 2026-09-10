@@ -48,47 +48,12 @@ failure**.
 
 | board | row | kind | why | owner | since |
 |---|---|---|---|---|---|
-| `docs/project/tasks-architecture.md` | `TASK-474` | uncited-closure | pre-rule closure, uncited; the log offers `087f283` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-489` | uncited-closure | pre-rule closure, uncited; the log offers `575a034` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-490` | uncited-closure | pre-rule closure, uncited; no commit subject names this id | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-493` | uncited-closure | pre-rule closure, uncited; the log offers `0622f79` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-494` | uncited-closure | pre-rule closure, uncited; the log offers `0a90625` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-497` | uncited-closure | pre-rule closure, uncited; the log offers `bd7282d` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-500` | uncited-closure | pre-rule closure, uncited; the log offers `55ad417` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-501` | uncited-closure | pre-rule closure, uncited; the log offers `9957f4f` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-502` | uncited-closure | pre-rule closure, uncited; the log offers `f250433` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-504` | uncited-closure | pre-rule closure, uncited; the log offers `2951b42` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-507` | uncited-closure | pre-rule closure, uncited; no commit subject names this id | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-533` | uncited-closure | pre-rule closure, uncited; the log offers `905a0dd` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-534` | uncited-closure | pre-rule closure, uncited; the log offers `5b087b5` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-535` | uncited-closure | pre-rule closure, uncited; the log offers `4ef73b1` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-540` | uncited-closure | pre-rule closure, uncited; the log offers `045b797` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-543` | uncited-closure | pre-rule closure, uncited; the log offers `91e3758` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-545` | uncited-closure | pre-rule closure, uncited; the log offers `39c7df6` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-546` | uncited-closure | pre-rule closure, uncited; the log offers `4ac9c6a` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-547` | uncited-closure | pre-rule closure, uncited; the log offers `3555e0d` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-548` | uncited-closure | pre-rule closure, uncited; the log offers `aceeebe` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-550` | uncited-closure | pre-rule closure, uncited; the log offers `c2e9c30` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-551` | uncited-closure | pre-rule closure, uncited; the log offers `a4a80b5` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-552` | uncited-closure | pre-rule closure, uncited; the log offers `6800280` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-554` | uncited-closure | pre-rule closure, uncited; the log offers `dc4abca` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-555` | uncited-closure | pre-rule closure, uncited; the log offers `4c7381e` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-556` | uncited-closure | pre-rule closure, uncited; the log offers `520d5ab` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-558` | uncited-closure | pre-rule closure, uncited; the log offers `9707998` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-559` | uncited-closure | pre-rule closure, uncited; the log offers `f5d3d07` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-560` | uncited-closure | pre-rule closure, uncited; the log offers `67f6c26` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-561` | uncited-closure | pre-rule closure, uncited; the log offers `3596a7b` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-563` | uncited-closure | pre-rule closure, uncited; the log offers `a9ab248` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-564` | uncited-closure | pre-rule closure, uncited; the log offers `1ae7557` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-565` | uncited-closure | pre-rule closure, uncited; the log offers `66d0b95` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-570` | uncited-closure | pre-rule closure, uncited; the log offers `3cd37a3` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-571` | uncited-closure | pre-rule closure, uncited; the log offers `25394ce` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-572` | uncited-closure | pre-rule closure, uncited; the log offers `7e5a874` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-573` | stale-open | pre-rule: work landed under this id (`2a43a11`) and the row was never reconciled | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-574` | stale-open | pre-rule: work landed under this id (`6e5f866`) and the row was never reconciled | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-575` | uncited-closure | pre-rule closure, uncited; the log offers `8181a8d` | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-576` | stale-open | pre-rule: work landed under this id (`e58c2a3`) and the row was never reconciled | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-architecture.md` | `TASK-577` | stale-open | pre-rule: work landed under this id (`2fd8c0e`) and the row was never reconciled | TASK-669 | 2026-09-07 |
+| `docs/project/tasks-harness2.md` | `TASK-564` | uncited-closure | pre-rule closure, uncited; the log offers `1ae7557` | TASK-669 | 2026-09-07 |
+| `docs/project/tasks-harness2.md` | `TASK-573` | stale-open | pre-rule: work landed under this id (`2a43a11`) and the row was never reconciled | TASK-669 | 2026-09-07 |
+| `docs/project/tasks-harness2.md` | `TASK-574` | stale-open | pre-rule: work landed under this id (`6e5f866`) and the row was never reconciled | TASK-669 | 2026-09-07 |
+| `docs/project/tasks-harness2.md` | `TASK-575` | uncited-closure | pre-rule closure, uncited; the log offers `8181a8d` | TASK-669 | 2026-09-07 |
+| `docs/project/tasks-harness2.md` | `TASK-576` | stale-open | pre-rule: work landed under this id (`e58c2a3`) and the row was never reconciled | TASK-669 | 2026-09-07 |
+| `docs/project/tasks-harness2.md` | `TASK-577` | stale-open | pre-rule: work landed under this id (`2fd8c0e`) and the row was never reconciled | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-581` | uncited-closure | pre-rule closure, uncited; no commit subject names this id | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-583` | uncited-closure | pre-rule closure, uncited; no commit subject names this id | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-584` | uncited-closure | pre-rule closure, uncited; the log offers `d95a13c` | TASK-669 | 2026-09-07 |
