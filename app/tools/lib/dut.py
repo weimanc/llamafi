@@ -557,13 +557,31 @@ class _TeeSerial:
     # tee is forwarded to the wrapped serial by __setattr__ below — see there
     # for why. Adding state to this class means adding its name here, or the
     # assignment in __init__ ends up on the pyserial object instead.
-    _OWN_ATTRS = frozenset({"_ser", "_log", "_ring", "run_id", "boot_count"})
+    _OWN_ATTRS = frozenset({"_ser", "_log", "_ring", "run_id", "boot_count",
+                            "_ts_sidecar_path"})
+
+    #: TASK-677 / PROP-011 §5 P0 deliverable B. Off by default (public
+    #: checkout, RIGWATCH unset): zero behaviour change, not even the sidecar
+    #: file gets created. See lib/rigwatch.py's module docstring for what
+    #: reads this sidecar and why it exists — a host receive-timestamp per DUT
+    #: line, so the timeline tool can merge this session's boot/bod/wifi lines
+    #: against kernel USB events and other harness actions.
+    _RIGWATCH_ON = os.environ.get("RIGWATCH", "") == "1"
 
     def __init__(self, ser, log_path: Optional[str] = None,
                  run_id: Optional[str] = None):
         self._ser = ser
         self._log = open(log_path, "a", buffering=1) if log_path else None
         self._ring = collections.deque(maxlen=_SETUP_FAIL_TAIL_LINES)
+        # One shared file with the rigwatch daemon's monitor tail (they are
+        # never live together — the monitor is killed for every run), so a run
+        # without LOG_FILE still leaves timestamped DUT lines for the artifact's
+        # `rig` section to reason about. Same default as lib/rigwatch.py's
+        # DEFAULT_DUT_LINES; not imported from there to keep this module free
+        # of any rigwatch import at construction time.
+        self._ts_sidecar_path = (
+            os.environ.get("RIG_DUT_LINES", "/tmp/spotify-mon-dut-lines.jsonl")
+            if self._RIGWATCH_ON else None)
         # ── generation counter (TASK-564, design §16.2 / EC-S4) ──────────────
         # Counts observed `[bootphase] 0` lines, i.e. boots this session SAW.
         #
@@ -591,6 +609,23 @@ class _TeeSerial:
                 self._log.write(text)
                 if not line.endswith(b"\n"):
                     self._log.write("\n")
+            # TASK-677: host-timestamp the lines rigwatch's timeline reasons
+            # about. Written straight to disk (not through lib.rigwatch, which
+            # must never be import-time-coupled to a live serial session) so
+            # this stays a plain file append, never a board-touching call.
+            if self._ts_sidecar_path is not None:
+                stripped = text.rstrip("\n")
+                if ("[bootreason]" in stripped or "[bootphase]" in stripped
+                        or "[bod]" in stripped or "[wifi-ev]" in stripped
+                        or "[I][hb]" in stripped):
+                    try:
+                        with open(self._ts_sidecar_path, "a",
+                                 encoding="utf-8") as fh:
+                            fh.write(json.dumps(
+                                {"host_ts": time.time(), "line": stripped,
+                                 "via": "harness"}) + "\n")
+                    except OSError:
+                        pass
             # One `if`, on the one path every read line takes. EC-S4 wants the
             # increment VISIBLE in the run log: a spontaneous mid-session reset
             # (the TASK-557 class, a TWDT, a brownout) leaves no mark in the
@@ -697,6 +732,17 @@ class Dut:
         # this (the harness's own open timestamp, to correlate against udev
         # events and to kill the BOOT_WAIT/app-boot timing degeneracy).
         self._port_open_time = time.monotonic()
+        # TASK-677 / PROP-011 §5 P0: the reader PROP-011 §3 notes this field
+        # never had (`Dut._port_open_time is written and never read`). Off by
+        # default (RIGWATCH unset) — see _TeeSerial._RIGWATCH_ON above for why
+        # this must cost nothing on a public checkout. Lazy-imported and
+        # best-effort: a stamp failing must never fail a DUT session.
+        if os.environ.get("RIGWATCH", "") == "1":
+            try:
+                from . import rigwatch as _rigwatch
+                _rigwatch.stamp("port-open", port=port)
+            except Exception:
+                pass
         # Serial stream is NOT thread-safe. All methods that touch self.ser must be
         # called from the thread that constructed this Dut. Never read self.ser from
         # a background thread concurrently with cmd()/read_json() — ACKs will be
@@ -1658,3 +1704,9 @@ class Dut:
             self._gap_file.write_text(str(time.time()))
         except Exception:
             pass
+        if os.environ.get("RIGWATCH", "") == "1":
+            try:
+                from . import rigwatch as _rigwatch
+                _rigwatch.stamp("port-close", port=self.port)
+            except Exception:
+                pass

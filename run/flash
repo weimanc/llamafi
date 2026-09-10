@@ -11,7 +11,9 @@ echo "[flash] 1/3 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
 echo "[flash] 2/3 — flashing $ENV_PROD to $PORT"
+rigwatch_stamp flash-begin env="$ENV_PROD" port="$PORT"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_PROD" -t upload --upload-port "$PORT")
+rigwatch_stamp flash-end env="$ENV_PROD" port="$PORT"
 
 echo "[flash] 3/3 — restarting monitor"
 restart_monitor "$PORT"

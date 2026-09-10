@@ -11,5 +11,7 @@ echo "[flash-debug] 1/2 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
 echo "[flash-debug] 2/2 — flashing $ENV_DEBUG to $PORT"
+rigwatch_stamp flash-begin env="$ENV_DEBUG" port="$PORT"
 (cd "$PIO_DIR" && "$PIO" run -e "$ENV_DEBUG" -t upload --upload-port "$PORT")
+rigwatch_stamp flash-end env="$ENV_DEBUG" port="$PORT"
 echo "[flash-debug] done (monitor NOT restarted — port free for test harness)"

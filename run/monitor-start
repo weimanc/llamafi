@@ -23,6 +23,11 @@ PORT=$(resolve_port)
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 
 restart_monitor "$PORT"
+rigwatch_stamp monitor-start port="$PORT"
+rigwatch_daemon_start
 
 echo "[monitor-start] session '$SESSION' started on $PORT"
+if [ "${RIGWATCH:-0}" = "1" ]; then
+  echo "[monitor-start] rigwatch daemon started (RIGWATCH=1) — events -> ${RIG_EVENTS:-/tmp/spotify-mon-rig-events.jsonl}"
+fi
 echo "[monitor-start] disk log $MONITOR_LOG (run/monitor-read reads it)"

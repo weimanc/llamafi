@@ -578,6 +578,8 @@ def build_document(exit_code: int, health_fail: Optional[str] = None,
             "not_run": {r["id"]: r["blocked_by"] for r in rows
                         if r["verdict"] == "NOT-RUN"},
             "invariant_violations": list(violations or []),
+            # TASK-677 / PROP-011 §5 P0 / schema 1.3 (additive, optional).
+            "rig": _rig_section(),
         },
         "premise": {
             # R30's list. What this layer can know by itself is filled in; the
@@ -610,6 +612,45 @@ def build_document(exit_code: int, health_fail: Optional[str] = None,
         "per_class": per_class,
         "results": rows,
     }
+
+
+def _rig_section() -> Optional[dict]:
+    """TASK-677 / PROP-011 §5 P0 / schema 1.3. `None` unless RIGWATCH=1 (see
+    run/local.env.example) — a public checkout's artifacts are byte-for-byte
+    unaffected by this task, other than the one new optional key.
+
+    Imports lib.rigwatch lazily and NEVER raises: a summary read is a file
+    read (rigwatch never opens the serial port — see its module docstring),
+    but "the summary could not be computed" must not cost the run its
+    artifact, which is the one thing R29 actually requires.
+
+    The window is this run's own — from RUN_STARTED_AT to now — which is why
+    this is called from build_document() rather than computed once at import:
+    the run's `ended_at` is not known until the artifact is being assembled.
+    """
+    if os.environ.get("RIGWATCH", "") != "1":
+        return None
+    try:
+        from . import rigwatch as _rigwatch
+        # RUN_STARTED_AT is an ISO-8601 UTC string (see _utcnow()); rigwatch's
+        # since-parsing only understands an epoch float or a duration, so
+        # convert here rather than teach rigwatch a third format for one
+        # caller.
+        started = datetime.datetime.strptime(
+            RUN_STARTED_AT, "%Y-%m-%dT%H:%M:%S.%fZ"
+        ).replace(tzinfo=datetime.timezone.utc).timestamp()
+        summ = _rigwatch.summarize(started)
+        note = _rigwatch.annotate_run_rig(summ)
+        return {
+            "reenum": summ["reenum"],
+            "unexplained_boots": summ["unexplained_boots"],
+            "bod_trips": summ["bod_trips"],
+            "wifi_disc": summ["wifi_disc"],
+            "event_count": len(summ["events"]),
+            "annotation": note,
+        }
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
 
 
 def write_artifact(exit_code: int, health_fail: Optional[str] = None,

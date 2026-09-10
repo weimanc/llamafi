@@ -160,6 +160,12 @@ first:
 > it has been climbing; never `run/dut-health`, whose own port open resets the board). If one is,
 > either wait, or reflash deliberately and **say so in the session record** — the window's length
 > at the moment you ended it is the datum TASK-557 loses.
+>
+> With `RIGWATCH=1` (TASK-677 / PROP-011 §5 P0 — see `run/local.env.example` and
+> `docs/process/project_run_scripts.md`'s "Rig watch" section), `./run/rig-timeline` does this
+> check for you: it merges the kernel's own USB-attach/detach log with every harness flash/monitor
+> action and the DUT's own boot-phase/BOD/heartbeat lines into one ordered, file-only view (it never
+> opens the port), and labels each reset as harness-caused or `UNEXPLAINED`.
 
 The script executes internally: verify build (refuse if wrong) → snapshot settings → kill monitor →
 run suite → restore **settings** → restart monitor. Never split these steps manually.

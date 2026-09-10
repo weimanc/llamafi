@@ -32,3 +32,7 @@ __pycache__/
 *.swp
 *.swo
 *~
+
+# TASK-677 / PROP-011 §5 P0: per-machine rigwatch settings (RIGWATCH=1,
+# DUT_BY_PATH=...). run/lib.sh sources it if present; see run/local.env.example.
+run/local.env

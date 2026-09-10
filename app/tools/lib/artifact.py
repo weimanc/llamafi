@@ -92,7 +92,14 @@ SCHEMA_MAJOR = 1
 #: and belongs to @Architect — parked on TASK-644, which already owns IFC-008's
 #: unfilled clauses. If the ruling is MAJOR, the change is `SCHEMA_MAJOR = 2`
 #: and this comment; nothing else here moves.**
-SCHEMA_MINOR = 2
+#:
+#: 1.3 (TASK-677 / PROP-011 §5 P0): `run.rig` (new, additive, optional) — the
+#: host+DUT fault-correlation summary for this run's window (R/U/bod_trips/W
+#: per PROP-011 §4), present only when RIGWATCH=1 (see run/local.env.example).
+#: `null` on any run without it, including every run on a public checkout —
+#: an old reader that does not know the key simply never looks at it, which is
+#: exactly what MINOR promises.
+SCHEMA_MINOR = 3
 SCHEMA_VERSION = f"{SCHEMA_MAJOR}.{SCHEMA_MINOR}"
 
 #: Where a run writes when the caller named no path (layer L1).

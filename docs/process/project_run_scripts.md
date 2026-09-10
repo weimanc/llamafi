@@ -147,6 +147,33 @@ PORT=/dev/ttyUSB1 ./run/test-targeted T080,T083
 | `SCOPE` | (none) | Scope selector for `test-targeted` — app name, non-app scope, or a changed file's path (TASK-570). Same as `--scope` |
 | `RESULTS_JSON` | `app/tools/.runs/run-<UTC>-<pid>-<token>.json` | Where the run writes its result artifact (TASK-608 / IFC-008). Set it when you want the artifact at a path you own |
 | `RESULTS_RUN_TOKEN` | random per run | The staleness nonce. A consumer that sets it can read back with `python3 -m lib.artifact <path> --token <nonce>`, and an artifact from any **other** run is refused rather than scored |
+| `RIGWATCH` | unset (0) | `1` turns on rigwatch (TASK-677) — kernel-event daemon, harness stamps, DUT-line timestamps, the artifact's `rig` section. Set in `run/local.env`, not inline — see below |
+| `DUT_BY_PATH` | auto (first CH340 by-id) | Which DUT node rigwatch resolves to a USB topology port for kernel-log filtering. Only matters with two CH340s attached |
+| `RIG_EVENTS` | `/tmp/spotify-mon-rig-events.jsonl` | Where rigwatch's kernel + harness events are appended |
+
+---
+
+## Rig watch (TASK-677 / PROP-011 §5 P0)
+
+Host+DUT fault correlation: never open the serial port, only read the kernel's own udev log
+(`journalctl -k`) and the plain-text serial logs other processes already write. Off by default —
+copy `run/local.env.example` to `run/local.env` (gitignored) and set `RIGWATCH=1` to turn it on.
+With it unset, every script behaves exactly as before this task.
+
+```sh
+cp run/local.env.example run/local.env    # then edit RIGWATCH=1 in
+./run/monitor-start                       # also starts the rigwatch daemon
+./run/rig-timeline --since 2h             # merged host+DUT event timeline, files only —
+                                           # safe to run at any time, including mid-window
+python3 -m lib.rigwatch summary --since 24h --json   # R/U/bod_trips/W as JSON
+```
+
+`run/rig-timeline` is the automated form of `dut_workflow.md` §5a's manual "check for a live
+window" step: a reset the harness itself caused (flash, port-open) is labelled as such inline; any
+other `[bootphase] 0` is flagged `UNEXPLAINED boot`. With `RIGWATCH=1`, every `run/test`/
+`run/test-targeted` run's artifact also carries a `run.rig` section (schema 1.3, additive/optional)
+summarizing its own window, and prints a `[triage] rig: R=... U=...` annotation when either metric
+is nonzero — PROP-011 §4's RIG threshold is `R=0 and U=0`.
 
 ---
 
@@ -184,6 +211,7 @@ error, never an empty result set.
 | `run/flash-fs` | §3b SPIFFS only (full format — escape hatch) |
 | `run/spiffs` | §3b SPIFFS non-destructive read/modify/write |
 | `run/monitor-start/stop/read` | §4 Serial Monitor |
+| `run/rig-timeline` | §5a Pre-run checklist — automated "check for a live window" (TASK-677) |
 | `run/test` | §5a Pre-run checklist (BP-020) |
 | `run/test-targeted` | §5b Targeted feature validation (BP-021) |
 | `run/test-smoke` | §5b Quick smoke preset |

@@ -376,6 +376,25 @@ if ! "$PYTHON" lib/test_replay.py; then
     exit 1
 fi
 
+# ── TASK-677 — rigwatch's negative suite (PROP-011 §5 P0, BP-068). Kernel-line
+# parsing against real captured journalctl text, port-filter correctness (the
+# fingerprint-reader-on-1-4 false-positive case), R/U/W metric computation and
+# timeline rendering. No DUT, no journalctl subprocess, no network, ~0.01 s.
+if ! "$PYTHON" lib/test_rigwatch.py; then
+    echo "FAIL: lib/test_rigwatch.py (TASK-677 rigwatch negative suite) FAILED" >&2
+    exit 1
+fi
+
+# ── TASK-557/677 — the serialburst host checker's negative suite (PROP-011 §2
+# UART row: "the host checker was never committed" — it is now, and gated).
+# Sequence-gap, checksum-corruption, duplicate and truncated-stream detection
+# against a generated fixture matching cmdSerialBurst's exact wire format. No
+# DUT, ~0.01 s.
+if ! "$PYTHON" probe/test_burst_check.py; then
+    echo "FAIL: probe/test_burst_check.py (TASK-557/677 burst_check negative suite) FAILED" >&2
+    exit 1
+fi
+
 # ── TASK-646 / WP-A A-6 — one results layer, not five. The checker's negative
 # suite runs first (BP-068) and carries the migration's own identity arms:
 # `run_sync_tests.py`'s recorders must BE `lib.results`'s objects, not merely

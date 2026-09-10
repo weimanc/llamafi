@@ -2,6 +2,15 @@
 # run/lib.sh — sourced by all run/* scripts. Not executed directly.
 
 PROJ_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# TASK-677 / PROP-011 §5 P0. run/local.env is gitignored and per-machine: the
+# `RIGWATCH=1` + `DUT_BY_PATH=...` pair that turns on host+DUT fault
+# correlation on THIS rig. A checkout with no such file behaves exactly as
+# before this task landed — see run/local.env.example for the two knobs.
+if [ -f "$PROJ_ROOT/run/local.env" ]; then
+  # shellcheck source=/dev/null
+  source "$PROJ_ROOT/run/local.env"
+fi
 PIO="$HOME/.platformio/penv/bin/pio"
 _venv_default="$HOME/proj/esp/venv/bin/python3"
 VENV_PY="${VENV_PY:-$([ -x "$_venv_default" ] && echo "$_venv_default" || command -v python3)}"
@@ -376,6 +385,38 @@ restart_monitor() {
 # TASK-661/D-1b. Every entry point had this inline as
 # `tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true`, which throws
 # away the one bit that matters — whether there was a monitor to restore.
+# TASK-677 / PROP-011 §5 P0 — rigwatch integration. All three no-op instantly
+# (RIGWATCH unset -> return 0 before touching anything) so a public checkout
+# with no run/local.env sees zero behaviour change from this task, per its
+# own constraint.
+#
+# rigwatch_stamp KIND [key=value ...] — append one harness event. Never fails
+# the caller (matches stamp_reset_gap's contract above): a stamp is evidence,
+# not a precondition, and a run/flash*/run/test* script must not abort because
+# its OWN instrumentation could not write a file.
+rigwatch_stamp() {
+  [ "${RIGWATCH:-0}" = "1" ] || return 0
+  local kind="$1"; shift || true
+  ( cd "$PROJ_ROOT/app/tools" && RIGWATCH=1 "$VENV_PY" -m lib.rigwatch stamp \
+      "$kind" "$@" ) >/dev/null 2>&1 || true
+}
+
+# Start the rigwatch daemon (idempotent — see lib/rigwatch.py's pidfile logic)
+# in the background. Called from run/monitor-start.
+rigwatch_daemon_start() {
+  [ "${RIGWATCH:-0}" = "1" ] || return 0
+  ( cd "$PROJ_ROOT/app/tools" && \
+    RIGWATCH=1 DUT_BY_PATH="${DUT_BY_PATH:-}" nohup "$VENV_PY" -m lib.rigwatch \
+      daemon >>/tmp/spotify-rigwatch.log 2>&1 & disown ) 2>/dev/null || true
+}
+
+# Stop it. Called from run/monitor-stop. Safe to call when nothing is running.
+rigwatch_daemon_stop() {
+  [ "${RIGWATCH:-0}" = "1" ] || return 0
+  ( cd "$PROJ_ROOT/app/tools" && "$VENV_PY" -m lib.rigwatch daemon --stop \
+      ) >/dev/null 2>&1 || true
+}
+
 stop_monitor() {
   if tmux has-session -t "$SESSION" 2>/dev/null; then
     tmux kill-session -t "$SESSION" 2>/dev/null || true
@@ -533,6 +574,10 @@ require_build() {
   # guard can see it, so the driver's own open waits out the remainder of the
   # window instead of landing inside it (BP-018 / TASK-559).
   stamp_reset_gap "$port"
+  # TASK-677: this reset is HARNESS-caused (the require_build verify open),
+  # not a spontaneous one — rigwatch's `unexplained_boots` (U) must not count
+  # it. no-op unless RIGWATCH=1.
+  rigwatch_stamp reset who="$who" reason=require_build-verify
   return 0
 }
 

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# run/rig-timeline — TASK-677 / PROP-011 §5 P0: merged host+DUT event timeline.
+# Reads files only (RIG_EVENTS, MONITOR_LOG's .ts sidecar) — never opens the
+# serial port, never resets the board. Safe to run any time, including while
+# a TASK-557 observation window is live.
+#
+# Usage: ./run/rig-timeline [--since 2h|30m|<epoch>]   (default: 24h)
+#
+# This is the "check for a running window" step from docs/process/
+# dut_workflow.md §5a, automated: a reset the harness itself caused (flash,
+# port-open) is labelled as such; anything else is flagged UNEXPLAINED.
+set -euo pipefail
+source "$(dirname "$0")/lib.sh"
+cd "$PIO_DIR/tools"
+exec "$VENV_PY" -m lib.rigwatch timeline "$@"

@@ -11,5 +11,7 @@ echo "[flash-webradio] 1/2 — killing monitor"
 tmux kill-session -t "$SESSION" 2>/dev/null && sleep 1 || true
 
 echo "[flash-webradio] 2/2 — flashing cyd2usb_webradio to $PORT"
+rigwatch_stamp flash-begin env=cyd2usb_webradio port="$PORT"
 (cd "$PIO_DIR" && "$PIO" run -e cyd2usb_webradio -t upload --upload-port "$PORT")
+rigwatch_stamp flash-end env=cyd2usb_webradio port="$PORT"
 echo "[flash-webradio] done (monitor NOT restarted — port free for test harness)"

@@ -45,9 +45,11 @@ _cleanup() {
   # one. Re-stated last, because a reader greps the tail for PASS/FAIL and finds
   # neither.
   explain_exit_code "$rc" test-targeted
+  rigwatch_stamp run-end who=test-targeted rc="$rc"
   exit "$rc"
 }
 trap _cleanup EXIT INT TERM
+rigwatch_stamp run-begin who=test-targeted
 
 echo "[test-targeted] running: ${TESTS:-<scope ${SCOPE}>}"
 

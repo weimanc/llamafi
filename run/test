@@ -70,9 +70,11 @@ _cleanup() {
   # TASK-434 item 1 / TASK-566: rig (3) and health (4) restated last, because a
   # reader greps the tail for PASS/FAIL and finds neither.
   explain_exit_code "$rc" test
+  rigwatch_stamp run-end who=test rc="$rc"
   exit "$rc"
 }
 trap _cleanup EXIT INT TERM
+rigwatch_stamp run-begin who=test
 
 # Step 0 (TASK-298 / LL-103): TLS-pin preflight, WARN-ONLY. A pinned-CA rotation
 # (CoinGecko 2026-06-12 and again 2026-07-08) otherwise surfaces as a spray of
