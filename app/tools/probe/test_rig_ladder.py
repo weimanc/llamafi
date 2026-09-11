@@ -56,6 +56,12 @@ class TestParseAndRule(unittest.TestCase):
         self.assertEqual(rl.b_boot({7: 3, 5: 3, 3: 1, 2: 0}), 3)
         self.assertIsNone(rl.b_boot({7: 0}))
 
+    def test_drop_boots_never_end_the_descent(self):
+        self.assertFalse(rl.stop_rung(trips=0, drops=1, no_stop=False))
+        self.assertTrue(rl.stop_rung(trips=0, drops=0, no_stop=False))
+        self.assertFalse(rl.stop_rung(trips=0, drops=0, no_stop=True))
+        self.assertFalse(rl.stop_rung(trips=2, drops=0, no_stop=False))
+
     def test_stop_rule(self):
         self.assertTrue(rl.keep_descending(1))
         self.assertFalse(rl.keep_descending(0))

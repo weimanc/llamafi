@@ -76,6 +76,26 @@ def keep_descending(trips: int) -> bool:
     return trips > 0
 
 
+def stop_rung(trips: int, drops: int, no_stop: bool) -> bool:
+    """Pure: stop descending this rung after this level? A USB-dropped boot is
+    NO DATA, not a quiet boot, so a level whose only non-trips are drops never
+    ends the descent (2026-09-11: level 1 dropped USB on 3/3 first boots)."""
+    if no_stop:
+        return False
+    return not keep_descending(trips) and drops == 0
+
+
+def wait_for_node(port: str, timeout_s: float = 20.0) -> bool:
+    """After a USB drop the by-id node is gone until re-enumeration finishes."""
+    t0 = time.time()
+    while time.time() - t0 < timeout_s:
+        if os.path.exists(port):
+            time.sleep(1.5)   # let the ch341 driver finish binding
+            return True
+        time.sleep(0.25)
+    return False
+
+
 def _stamp(kind: str, **kw) -> None:
     from lib import rigwatch as rw
     rw.stamp(kind, **kw)
@@ -98,6 +118,8 @@ def _flash(bare_rig_dir: str, port: str, flags: str) -> bool:
 
 def _capture_boot(port: str) -> str:
     import serial
+    if not wait_for_node(port):
+        return "\n[rig] usb-drop: port node absent for 20 s before the boot\n"
     _stamp("reset", who="xp2")
     s = serial.Serial()
     s.port, s.baudrate, s.timeout = port, 115200, 0.5
@@ -139,6 +161,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--port", default=PORT_DEFAULT)
     ap.add_argument("--out", default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-stop", action="store_true",
+                    help="run every listed level in the given order (targeted repeats)")
     ap.add_argument("--i-know-this-resets-the-board", action="store_true")
     return ap
 
@@ -171,17 +195,21 @@ def main(argv: list) -> int:
             if not _flash(a.bare_rig_dir, a.port, flags):
                 print(json.dumps({"rung": rung, "level": level, "error": "flash failed"}), flush=True)
                 return 1
-            trips = 0
+            trips = drops = 0
             for rep in range(1, a.reps + 1):
-                row = {"rung": rung, "level": level, "rep": rep,
-                       **parse_boot(_capture_boot(a.port))}
+                text = _capture_boot(a.port)
+                row = {"rung": rung, "level": level, "rep": rep, "t": round(time.time(), 3),
+                       **parse_boot(text)}
                 trips += int(row["tripped"])
+                drops += int(row["usb_drop"])
                 print(json.dumps(row), flush=True)
                 if a.out:
                     with open(a.out, "a") as fh:
                         fh.write(json.dumps(row) + "\n")
-            per_level[level] = trips
-            if not keep_descending(trips):
+                    with open(a.out + ".raw", "a") as fh:
+                        fh.write(f"\n===== rung={rung} level={level} rep={rep} t={row['t']} =====\n{text}")
+            per_level[f"{level}@{len(per_level)}" if level in per_level else level] = trips
+            if stop_rung(trips, drops, a.no_stop):
                 break
         summary[rung] = {"trips_by_level": per_level, "b_boot": b_boot(per_level)}
         print(json.dumps({"rung": rung, **summary[rung]}), flush=True)
