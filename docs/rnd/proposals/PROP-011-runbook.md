@@ -92,6 +92,8 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | F-6 | firmware: adaptive-descent depth (re-arm one level lower after each trip; floor = where trips stop) — replaces the in-event ladder, which is inert on this dip | Sonnet | F-1 | 1 reflash | **DUT-verified 2026-09-11 incl. descent + quiet step-up via synthetic faults** ([EXP-033](../reports/EXP-033-f6-staircase-echo.md)) |
 | X-P1c | provoke the NO_AP_FOUND loop, trips per retry | Haiku/Sonnet | F-1, F-2, H-1 | none after the F-flash | **DONE 2026-09-11 — 0/121, refutes P1's inference** ([EXP-026](../reports/EXP-026-p1c-scanloop-trips.md)) |
 | X-P2 | load ladder, B_boot per rung | Opus | F-1, F-4, H-1 | ~60 flashes/boots, ends window | **DONE 2026-09-11** — WiFi carries the sag (no WiFi: no trip at 7; any WiFi rung: 3/3 at 7..2); **arm level ≤1 drops USB on every WiFi boot, either instrument** — never sweep below 2 ([EXP-035](../reports/EXP-035-load-ladder.md)) |
+| X-P2b-1 | display-only rung (TFT init + backlight full, no WiFi), levels 7,5,3,2, 3 boots | Sonnet | F-4, H-1 | ~12 flashes/boots | open |
+| X-P2b-2 | full firmware, WiFi on, level 2: backlight on vs off during WiFi init (`bodmit`), 6 boots each, alternating | Sonnet | F-5 (`bodmit`), H-1 | ~20 reboots + 1 reflash to restore | open |
 | X-P3 | supply A/B | **human + Sonnet** | F-1, H-1, cable/hub/meter | ~100 boots | open |
 | X-P4 | UART transfer matrix | Sonnet | F-3, H-1 | none | **DONE 2026-09-11 — link clean both directions**: burst DUT→host 6 cells L=0; sink host→DUT 64 KB L=0 after the `3a30e1c` trailing-LF fix; R=0. Echo cell = RX-overflow instrument limit, re-spec'd as host windowing (`--window 8`, default) — re-run 2026-09-11 hit **2000/2000 echoed, 0 mismatches on the first attempt** ([EXP-033](../reports/EXP-033-f6-staircase-echo.md); original defect analysis in [EXP-029](../reports/EXP-029-uart-matrix.md) §Correction) |
 | X-P5 | 72 h soaks, debug then production | Sonnet (monitoring) | F-1, F-5, **human go for production** | ends window; lifts pin | open |
@@ -291,6 +293,36 @@ For rungs 1–4: per level 7,5,3,2,1,0 (in that order, stop descending at the fi
 3 boots each → B_boot. For rung 5: `rig_sweep.py --levels 7..0 --reps 3`.
 **Decide:** the rung where B_boot first drops to ≥ 2 names the load that carries the sag.
 **Record:** `EXP-027-load-ladder.md`, table rung × level → trip/3.
+
+### X-P2b-1 — display-only rung (Sonnet, board cost: ~12 flashes/boots)
+
+**Pre:** F-4, H-1. EXP-035's ladder was cumulative — display was only ever tested on top of WiFi
+(rung 3 = WiFi+TFT), so it cannot separate the two loads. This rung isolates the display: TFT init
++ backlight full, **no WiFi** (`-DBARE_TFT`, rung 6 in `RUNG_FLAGS`).
+
+**Board cost:** ~12 flashes/boots (4 levels × 3 boots), ends the debug window if one is running
+(capture `run/rig-timeline` first, §0.1 rule 2).
+**Do:** `rig_ladder.py --rungs 6 --levels 7,5,3,2 --reps 3`.
+**Decide:** trips at level 7 → the display alone sags ≥ level 7 (comparable to a WiFi rung — the
+display is a real contributor). No trip at 7 → display alone contributes less than one comparator
+step (~50 mV, indicative/unverified table §0.2) and cannot explain EXP-035's WiFi-rung sag on its
+own.
+**Record:** `EXP-036-display-backlight.md`.
+
+### X-P2b-2 — backlight A/B during WiFi init at level 2 (Sonnet, board cost: ~20 reboots + 1 reflash)
+
+**Pre:** F-5 (`bodmit`), H-1. Level 2 (~2.53 V) is the finest usable step per RULES (never arm
+below 2 — level 1/0 knock USB off on every WiFi boot, EXP-035). This isolates whether the backlight
+specifically, not just the display's static draw, pushes the WiFi-init dip across that one step.
+
+**Do:** full debug firmware, arm level 2. For 6 alternating pairs (`bodmit 0`, `bodmit 1`, `bodmit
+0`, …, 12 boots total): `rig_sweep.py --levels 2 --reps 1 --all --bodmit N`. `bodmit 1` forces the
+backlight off across the WiFi-init window only; `bodmit 0` leaves it on. Each boot's
+`[bodmit] inwindow … duty=` line is the applied-state proof — a `bit0=1` boot must show `duty=0` in
+that window, else the boot is invalid (backlight-off was not actually applied) and excluded.
+**Decide:** trip rate at level 2 differs between the two arms by ≥ 3/6 → the backlight measurably
+pushes the WiFi-init dip across ~2.53 V. Smaller (or no) difference → no effect at this resolution.
+**Record:** `EXP-036-display-backlight.md`.
 
 ### X-P3 — supply A/B (HUMAN present + Sonnet driving, ~2 h)
 
