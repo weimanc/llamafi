@@ -55,8 +55,18 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 
 ### 0.3 Board and tooling facts an agent needs
 
-- Board: ESP32-2432S028R CYD, two-USB variant, on host USB port `1-1` (root hub, no hub), node
-  `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0`. `run/local.env` has `RIGWATCH=1`.
+- **Two boards (from 2026-09-11 21:48), both ESP32-2432S028R CYD two-USB, ESP32-D0WD-V3 rev 3.1:**
+  | board | factory MAC (eFuse) | host USB port | by-path socket |
+  |---|---|---|---|
+  | **DUT1** — every experiment up to EXP-036 | `8c:94:df:92:3c:94` | `1-1` | `pci-0000:c1:00.3-usbv2-0:1:1.0-port0` |
+  | **DUT2** — new, from EXP-037 on | `d4:8a:fc:c8:ee:d0` | `5-1` | `pci-0000:c3:00.3-usbv2-0:1:1.0-port0` |
+  **Never use `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0` with both attached**: the CH340 has no
+  serial number, so that link names whichever board attached LAST (it silently moved to DUT2 at
+  21:48). Select the board under test with `DUT_PORT_PATH=c1:00.3` / `c3:00.3` (honoured by every
+  `run/*` script via `resolve_port`) and `DUT_BY_PATH=<by-path>` for rigwatch, both in the gitignored
+  `run/local.env`; pass `--port <by-path>` to the `probe/rig_*` drivers. Identify a board with
+  `esptool --port <by-path> read_mac` (reads the eFuse from the ROM bootloader; firmware and flash
+  clones cannot change it). Every report names its board by MAC. `RIGWATCH=1` in `run/local.env`.
 - Debug env `cyd2usb_winamp_debug` (`-DBOD_WATCH -DSERIAL_DEBUG -DSD_BOOT_MOUNT`, CORE_DEBUG_LEVEL=1).
   Production `cyd2usb_winamp`. Bare rig: `~/proj/webradio-bare/` (104-line `main.cpp`, not a git
   repo, `[env:bare]`, `-DWITH_TFT` optional).
