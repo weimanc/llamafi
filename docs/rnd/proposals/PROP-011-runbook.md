@@ -84,8 +84,8 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | F-3 | firmware: `serialsink`, `serialecho`, `-DSERIAL_BAUD` | Sonnet | — | shared | done (`89625be`) |
 | F-4 | firmware: bodWatch ported into the bare rig | Sonnet | — | separate board flashes (P2) | open |
 | F-5 | firmware: `-DBOD_WATCH` orthogonal flag + `BOD_POLICY` stub | Sonnet | Architect ruling for defaults only | shared | done (`c4291bf`) |
-| H-1 | host: `rig_p1c.sh`, `rig_sweep.py`, `rig_ladder.py` drivers | Sonnet | F-1..F-3 merged | none | open (X-P1c was driven by a scratch script; `rig_p1c.py` still owed) |
-| F-6 | firmware: adaptive-descent depth (re-arm one level lower after each trip; floor = where trips stop) — replaces the in-event ladder, which is inert on this dip | Sonnet | F-1 | 1 reflash | open — filed from EXP-026 |
+| H-1 | host: `rig_p1c.py`, `rig_sweep.py`, `rig_ladder.py`, `rig_uart.py` drivers | Sonnet | F-1..F-3 merged | none | drivers + fixture tests written, wired into `smoke_test.sh`; `rig_ladder.py` refuses (F-4 not landed); none executed against the board (host-only per §0.1) |
+| F-6 | firmware: adaptive-descent depth (re-arm one level lower after each trip; floor = where trips stop) — replaces the in-event ladder, which is inert on this dip | Sonnet | F-1 | 1 reflash | host-verified (`./run/build-debug` SUCCESS, `./run/check` 11/11, `./run/check-docs` 7/7); DUT recipe written below, not yet run |
 | X-P1c | provoke the NO_AP_FOUND loop, trips per retry | Haiku/Sonnet | F-1, F-2, H-1 | none after the F-flash | **DONE 2026-09-11 — 0/121, refutes P1's inference** ([EXP-026](../reports/EXP-026-p1c-scanloop-trips.md)) |
 | X-P2 | load ladder, B_boot per rung | Sonnet | F-1, F-4, H-1 | ~12 reflashes, ends window | open |
 | X-P3 | supply A/B | **human + Sonnet** | F-1, H-1, cable/hub/meter | ~100 boots | open |
@@ -153,6 +153,49 @@ back on the real SSID with an IP within 20 s; `get wifiCfg` shows the original S
   must follow — add `cyd2usb_winamp_debug_921k` extending the debug env with the flag and
   `monitor_speed = 921600`, and register it in `run/check`'s env matrix if the matrix is
   enumerated by hand).
+
+### F-6 — adaptive-descent depth (filed from EXP-026)
+
+**Files:** `app/src/debug/bodWatch.{h,cpp}`, `app/src/debug/serialConsole/cmdMisc.cpp` (`bod`),
+`cmdGet.cpp` (`get bod`), `console.cpp` (help text). **Why:** EXP-026 §4 found the in-event ladder
+inert on this dip shape — every captured event reads `dur=0 min=7`, i.e. `BROWN_OUT_DET` is already
+clear by the time the ISR runs, so lowering the threshold mid-event finds nothing. Depth for
+steady-state events instead comes from moving the *armed* level itself, across events, in the
+consumer — never the ISR.
+
+**Behaviour:** off by default; `bod descend on|off` toggles it immediately (this session) and
+persists it in the same RTC_NOINIT block as the boot threshold, so it also survives a console
+`reboot` — a cold boot always comes up off. `bod quiet <ms>` sets the step-back-up interval
+(default 30000, floored at 1000). In `bodWatchRearm()`, when descend is on and the trip that just
+disarmed the ISR happened at armed level L>0, the next re-arm lowers the register to L-1 and
+records `floor = min(floor, L-1)`. If no trip occurs for `quietMs` while armed strictly below the
+boot threshold, `bodWatchTick()` steps back up one level (capped at the boot threshold). The
+boot-window trip (`tag=wifi-end`, still inside `setup()`, drained by boot.cpp's own
+`bodWatchPoll("wifi-end")`) is excluded by tag so it always fires at the boot threshold — B_boot
+from the reboot-per-level sweep stays comparable with descent on or off. Every level change prints
+`[bod] arm level=<n> reason=descend|quiet|manual` (`manual` = the `bod descend on` toggle itself,
+so rigwatch's timeline has a marker for where a descent run started). `get bod` gains `descend`,
+`armedLevel` (the live level — equals `thres` once descent has moved it), `floor` (8 = descent has
+never stepped down since arm), `stepsDown`, `stepsUp`, `quietMs`.
+
+**Acceptance (host, done):** `./run/build-debug` SUCCESS; `./run/check` 11/11; `./run/check-docs`
+7/7.
+
+**Acceptance (DUT, not yet run — recipe for whoever runs it next):**
+1. `tmux send-keys -t spotify-mon 'bod descend on' Enter` → expect
+   `{"ok":true,"cmd":"bod","var":"descend","on":true}` and a
+   `[bod] arm level=<boot-thres> reason=manual` line.
+2. `tmux send-keys -t spotify-mon 'set scanLoop 120' Enter`, wait ~150 s, repeat once more.
+3. Either a `[bod] arm level=<n> reason=descend` staircase appears (each line's level one lower
+   than the last, down to some floor) or no trips occur at all in the window (consistent with
+   X-P1c's 0/121 — descent has nothing to descend from on a quiet supply day).
+4. `tmux send-keys -t spotify-mon 'get bod' Enter` → `armedLevel` should equal the last `reason=`
+   line's level (or the boot threshold if nothing tripped); `floor` should equal the lowest level
+   any `reason=descend` line reached, or `8` if none did.
+5. If a `reason=descend` line appeared, wait `quietMs` (default 30 s) past the last trip with no
+   further provoke command running → expect a `reason=quiet` line stepping back toward the boot
+   threshold.
+6. `bod descend off` to leave the board in the safe default before any other experiment reuses it.
 
 ### F-4 — bodWatch in the bare rig
 

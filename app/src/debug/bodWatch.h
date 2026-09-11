@@ -20,6 +20,18 @@
 // `[bod] TRIP` line and `get bod`'s JSON. See PROP-011-rig-ground-truth.md
 // §3.1 for the design and PROP-011-runbook.md §1 F-1 for the acceptance
 // criteria.
+//
+// TASK-678 (F-6) adds adaptive-descent depth for steady-state events: EXP-026
+// found the in-event ladder above inert on this dip shape (`dur=0 min=7` —
+// BROWN_OUT_DET is already clear by the time the ISR runs, so lowering the
+// threshold mid-event finds nothing). Descent instead re-arms one level lower
+// than the level that just tripped (consumer-side, in bodWatchRearm() — the
+// ISR still only disarms), tracking a floor and stepping back up after a
+// quiet interval. Off by default (RTC_NOINIT-persisted like the boot
+// threshold, so a cold boot is always off); `bod descend on|off` / `bod quiet
+// <ms>` toggle it at runtime. The boot-window trip (tag `wifi-end`, still
+// inside setup()) is excluded from descent so B_boot stays comparable to the
+// reboot-per-level sweep. See PROP-011-runbook.md §1 F-6.
 
 #include <stdint.h>
 
@@ -41,6 +53,15 @@ struct BodSnapshot {
   uint32_t rearms;        // consumer-side INT re-arms since arm (one per captured event)
   uint32_t holdoffs;      // re-arm attempts skipped because DET was still asserted
   bool     disarmed;      // ISR has fired and loop() has not yet re-armed it
+  // F-6: adaptive descent
+  bool     descend;       // descent mode on/off (RTC_NOINIT-persisted)
+  uint8_t  armedLevel;    // level currently armed — the boot threshold when descend
+                           // is off, or wherever descent/quiet-timeout has moved it
+  uint8_t  floor;         // lowest level a descent step has ever reached since arm
+                           // (8 = descent has never stepped down)
+  uint32_t stepsDown;     // descent steps taken (one per non-boot-window trip)
+  uint32_t stepsUp;       // quiet-timeout steps back up
+  uint32_t quietMs;       // ms below the boot threshold with no trip before stepping up
 };
 
 #ifdef BOD_WATCH
@@ -63,6 +84,17 @@ uint8_t  bodWatchBootThres(void);
 // reflash — and so the whole experiment is one revert of one #ifdef block.
 void     bodWatchSetBootMit(uint8_t mask);
 uint8_t  bodWatchBootMit(void);
+
+// ── F-6: adaptive-descent depth ─────────────────────────────────────────────
+// `bod descend on|off`. Takes effect immediately (this session) AND persists
+// in the same RTC_NOINIT block as the boot threshold, so it also survives a
+// console `reboot`. A cold boot always comes up off.
+void     bodWatchSetDescend(bool on);
+bool     bodWatchDescend(void);
+// `bod quiet <ms>`. Same persistence as above. Floored at 1000 ms so a quiet
+// step can't itself become a storm source.
+void     bodWatchSetQuietMs(uint32_t ms);
+uint32_t bodWatchQuietMs(void);
 
 // ── F-1: interrupt-driven capture ──────────────────────────────────────────
 void     bodWatchGetSnapshot(BodSnapshot *out);   // `get bod`
@@ -92,6 +124,10 @@ static inline void     bodWatchSetBootThres(uint8_t) {}
 static inline uint8_t  bodWatchBootThres(void)     { return 7; }
 static inline void     bodWatchSetBootMit(uint8_t) {}
 static inline uint8_t  bodWatchBootMit(void)       { return 0; }
+static inline void     bodWatchSetDescend(bool)    {}
+static inline bool     bodWatchDescend(void)       { return false; }
+static inline void     bodWatchSetQuietMs(uint32_t) {}
+static inline uint32_t bodWatchQuietMs(void)       { return 30000; }
 static inline void     bodWatchGetSnapshot(BodSnapshot *out) { if (out) *out = BodSnapshot{}; }
 static inline void     bodWatchMark(const char *)  {}
 static inline void     bodWatchFault(uint8_t)      {}

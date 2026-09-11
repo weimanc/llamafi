@@ -8,6 +8,7 @@
 #include "driver/rtc_cntl.h"   // rtc_isr_register()
 #include "esp_rom_sys.h"       // esp_rom_delay_us() — ISR-safe busy wait
 #include "esp_timer.h"         // esp_timer_get_time()
+#include <string.h>            // strcmp() — F-6 boot-window tag check
 
 // esp_brownout_disable() deregisters IDF's own brownout ISR (which panics and
 // restarts the chip — exactly what this module exists to avoid) so this
@@ -24,6 +25,8 @@ extern "C" void esp_brownout_disable(void);
 RTC_NOINIT_ATTR static uint32_t s_bootThresMagic;
 RTC_NOINIT_ATTR static uint8_t  s_bootThres;
 RTC_NOINIT_ATTR static uint8_t  s_bootMit;      // TASK-557 mitigation mask
+RTC_NOINIT_ATTR static uint8_t  s_descendPersist;   // F-6: 0/1, survives `reboot`
+RTC_NOINIT_ATTR static uint32_t s_quietMsPersist;   // F-6: survives `reboot`
 #define BOD_BOOT_MAGIC 0xB0D7A15Eu
 
 static uint32_t s_trips = 0;
@@ -71,6 +74,22 @@ static volatile uint32_t s_histByLevel[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 static volatile uint8_t  s_isrDisarmed = 0;
 static volatile uint32_t s_rearms = 0;
 static volatile uint32_t s_holdoffs = 0;
+
+// ── F-6: adaptive-descent depth ──────────────────────────────────────────
+// s_thres doubles as "the level currently armed" once descent is live — it
+// still starts at (and the ISR ladder still bases itself on, and restores
+// to) the boot-configured level, but bodWatchRearm() may now move it down
+// after a trip, or bodWatchTick() may move it back up after a quiet spell.
+// s_baseLevel is the fixed ceiling (the boot threshold at bodWatchArm()
+// time) that quiet-timeout steps never rise above.
+#define BOD_DESCEND_QUIET_MS_DEFAULT 30000
+static bool     s_descendEnabled = false;
+static uint8_t  s_baseLevel = 7;
+static uint8_t  s_floor = 8;             // 8 = descent has never stepped down
+static uint32_t s_stepsDown = 0;
+static uint32_t s_stepsUp = 0;
+static uint32_t s_quietMs = BOD_DESCEND_QUIET_MS_DEFAULT;
+static unsigned long s_lastLevelChangeMs = 0;
 
 // Context shadow — plain globals the ISR only READS. Written exclusively
 // from non-ISR (loop/setup) code via the bodWatchSetCtx*() setters, so the
@@ -159,11 +178,23 @@ static void IRAM_ATTR bodIsr(void *arg) {
 }
 
 // Consumer-side re-arm (see s_isrDisarmed). Never called from the ISR.
-static void bodWatchRearm(void) {
+// isBootWindow: true only for the drain that follows boot.cpp's own
+// bodWatchPoll("wifi-end") — that trip stays at the boot threshold so B_boot
+// (the reboot-per-level sweep) remains comparable even with descent on.
+static void bodWatchRearm(bool isBootWindow) {
   if (!s_armed || !s_isrDisarmed) return;
   if (REG_READ(RTC_CNTL_BROWN_OUT_REG) & RTC_CNTL_BROWN_OUT_DET) {
     s_holdoffs++;           // rail still low — try again next tick
     return;
+  }
+  if (s_descendEnabled && !isBootWindow && s_thres > 0) {
+    const uint8_t nextLevel = (uint8_t)(s_thres - 1);
+    REG_SET_FIELD(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_DBROWN_OUT_THRES, nextLevel);
+    s_thres = nextLevel;
+    if (nextLevel < s_floor) s_floor = nextLevel;
+    s_stepsDown++;
+    s_lastLevelChangeMs = millis();
+    Serial.printf("[bod] arm level=%u reason=descend\n", (unsigned)nextLevel);
   }
   REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
   REG_SET_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
@@ -218,6 +249,19 @@ void bodWatchArm(uint8_t thres) {
   s_maxDurUs = 0;
   s_phaseAtFirst = 0xFF;
   for (int i = 0; i < 8; i++) s_histByLevel[i] = 0;
+
+  // F-6: live state seeded from the RTC_NOINIT-persisted values (same magic
+  // guard as bootThres/bootMit) so `bod descend on` survives a `reboot`, but
+  // a cold boot (magic garbage) always comes up off/default — the correct
+  // control state.
+  s_baseLevel = thres;
+  s_descendEnabled = (s_bootThresMagic == BOD_BOOT_MAGIC) && (s_descendPersist != 0);
+  s_quietMs = (s_bootThresMagic == BOD_BOOT_MAGIC && s_quietMsPersist >= 1000)
+                  ? s_quietMsPersist : BOD_DESCEND_QUIET_MS_DEFAULT;
+  s_floor = 8;
+  s_stepsDown = 0;
+  s_stepsUp = 0;
+  s_lastLevelChangeMs = millis();
 
   const uint32_t after = REG_READ(RTC_CNTL_BROWN_OUT_REG);
   // regBefore carries the level ESP-IDF booted with (sdkconfig says
@@ -275,7 +319,7 @@ bool bodWatchPoll(const char *tag) {
                   (unsigned long)ev.tUs, (unsigned)ev.durUs, (unsigned)ev.minLevel,
                   (unsigned)ev.ctx);
   }
-  bodWatchRearm();
+  bodWatchRearm(tag && strcmp(tag, "wifi-end") == 0);
   return any;
 }
 
@@ -286,7 +330,7 @@ bool bodWatchPollQuiet(void) {
   BodRingEntry ev;
   bool any = false;
   for (int n = 0; n < BOD_RING_SIZE && ringDrainOne(&ev); n++) any = true;
-  bodWatchRearm();
+  bodWatchRearm(false);
   return any;
 }
 
@@ -313,6 +357,34 @@ void bodWatchSetBootMit(uint8_t mask) {
 uint8_t bodWatchBootMit(void) {
   return (s_bootThresMagic == BOD_BOOT_MAGIC) ? (uint8_t)(s_bootMit & 0x03) : 0;
 }
+
+// ── F-6: adaptive-descent depth ────────────────────────────────────────
+// Takes effect immediately (this session), not just on the next boot — the
+// RTC_NOINIT write below only makes it survive a `reboot` too, same trick
+// as bootThres/bootMit. Resets the floor/step counters: a fresh toggle-on
+// starts a fresh descent, not a continuation of a stale one. The printed
+// line gives rigwatch's timeline a marker for "descent armed from here".
+void bodWatchSetDescend(bool on) {
+  s_descendEnabled = on;
+  s_descendPersist = on ? 1 : 0;
+  s_bootThresMagic = BOD_BOOT_MAGIC;
+  s_floor = 8;
+  s_stepsDown = 0;
+  s_stepsUp = 0;
+  s_lastLevelChangeMs = millis();
+  if (on) Serial.printf("[bod] arm level=%u reason=manual\n", (unsigned)s_thres);
+}
+
+bool bodWatchDescend(void) { return s_descendEnabled; }
+
+void bodWatchSetQuietMs(uint32_t ms) {
+  if (ms < 1000) ms = 1000;   // floor so a quiet step can't itself storm
+  s_quietMs = ms;
+  s_quietMsPersist = ms;
+  s_bootThresMagic = BOD_BOOT_MAGIC;
+}
+
+uint32_t bodWatchQuietMs(void) { return s_quietMs; }
 
 // ── F-5: BOD_POLICY stub ────────────────────────────────────────────────
 // Debug env leaves BOD_POLICY undefined (observe only, per the runbook's
@@ -347,7 +419,20 @@ void bodWatchTick(void) {
                   (unsigned)ev.ctx);
     bodWatchPolicyCheck(&ev);
   }
-  bodWatchRearm();
+  bodWatchRearm(false);
+
+  // F-6: quiet-timeout step back up. Only when fully armed (no event pending
+  // re-arm) and strictly below the boot ceiling — the level-change itself is
+  // a plain register write, safe from consumer context at any time.
+  if (s_armed && s_descendEnabled && !s_isrDisarmed && s_thres < s_baseLevel &&
+      (now - s_lastLevelChangeMs) >= s_quietMs) {
+    const uint8_t nextLevel = (uint8_t)(s_thres + 1 > s_baseLevel ? s_baseLevel : s_thres + 1);
+    REG_SET_FIELD(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_DBROWN_OUT_THRES, nextLevel);
+    s_thres = nextLevel;
+    s_stepsUp++;
+    s_lastLevelChangeMs = now;
+    Serial.printf("[bod] arm level=%u reason=quiet\n", (unsigned)nextLevel);
+  }
 
   if (g_bodDeep) {
     g_bodDeep = false;
@@ -379,6 +464,12 @@ void bodWatchGetSnapshot(BodSnapshot *out) {
   out->rearms = s_rearms;
   out->holdoffs = s_holdoffs;
   out->disarmed = s_isrDisarmed ? true : false;
+  out->descend = s_descendEnabled;
+  out->armedLevel = s_thres;
+  out->floor = s_floor;
+  out->stepsDown = s_stepsDown;
+  out->stepsUp = s_stepsUp;
+  out->quietMs = s_quietMs;
 }
 
 void bodWatchMark(const char *label) {

@@ -58,6 +58,9 @@ void cmdGet(const char *args) {
   // can read before/after its body (PROP-011-rig-ground-truth.md §3.1 item
   // 1). hist[] is indexed by ladder-bottomed level (0..7); minLevel=8 means
   // no event has been captured since the last `bod <n>`/`reboot` arm.
+  // TASK-678 (F-6): descend/armedLevel/floor/stepsDown/stepsUp/quietMs —
+  // adaptive-descent state (bodWatch.h's F-6 comment). floor=8 means descent
+  // has never stepped down since arm.
   if (strcmp(args, "bod") == 0) {
     BodSnapshot s;
     bodWatchGetSnapshot(&s);
@@ -65,7 +68,9 @@ void cmdGet(const char *args) {
                   "\"dropped\":%lu,\"firstUs\":%lu,\"lastUs\":%lu,\"minLevel\":%u,"
                   "\"maxDurUs\":%u,\"hist\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],"
                   "\"phaseAtFirst\":%u,\"thres\":%u,\"armed\":%s,"
-                  "\"rearms\":%lu,\"holdoffs\":%lu,\"disarmed\":%s,\"last\":true}\n",
+                  "\"rearms\":%lu,\"holdoffs\":%lu,\"disarmed\":%s,"
+                  "\"descend\":%s,\"armedLevel\":%u,\"floor\":%u,"
+                  "\"stepsDown\":%lu,\"stepsUp\":%lu,\"quietMs\":%lu,\"last\":true}\n",
                   (unsigned long)s.count, (unsigned long)s.dropped,
                   (unsigned long)s.firstUs, (unsigned long)s.lastUs,
                   (unsigned)s.minLevel, (unsigned)s.maxDurUs,
@@ -76,7 +81,10 @@ void cmdGet(const char *args) {
                   (unsigned)s.phaseAtFirst, (unsigned)s.thres,
                   s.armed ? "true" : "false",
                   (unsigned long)s.rearms, (unsigned long)s.holdoffs,
-                  s.disarmed ? "true" : "false");
+                  s.disarmed ? "true" : "false",
+                  s.descend ? "true" : "false", (unsigned)s.armedLevel,
+                  (unsigned)s.floor, (unsigned long)s.stepsDown,
+                  (unsigned long)s.stepsUp, (unsigned long)s.quietMs);
     return;
   }
   if (strcmp(args, "variant") == 0) {

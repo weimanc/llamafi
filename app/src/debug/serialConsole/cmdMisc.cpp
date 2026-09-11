@@ -320,7 +320,37 @@ void cmdSerialBurst(const char *args) {
 // TASK-557: read BOD state, and choose the threshold the NEXT boot arms with.
 // The boot-window sag lands ~1.5 s in, long before the console exists, so
 // sweeping it needs the value to survive the reboot — hence RTC_NOINIT.
+//
+// TASK-678 (F-6): `bod descend on|off` and `bod quiet <ms>` — adaptive
+// descent, off by default. See bodWatch.h's F-6 comment.
 void cmdBod(const char *args) {
+  if (args && strncmp(args, "descend", 7) == 0 &&
+      (args[7] == '\0' || args[7] == ' ')) {
+    const char *rest = args + 7;
+    while (*rest == ' ') rest++;
+    const bool on = (strcmp(rest, "on") == 0);
+    const bool off = (strcmp(rest, "off") == 0);
+    if (!on && !off) {
+      Serial.println("{\"ok\":false,\"cmd\":\"bod\",\"error\":\"usage: bod descend on|off\"}");
+      return;
+    }
+    bodWatchSetDescend(on);
+    Serial.printf("{\"ok\":true,\"cmd\":\"bod\",\"var\":\"descend\",\"on\":%s}\n",
+                  on ? "true" : "false");
+    return;
+  }
+  if (args && strncmp(args, "quiet", 5) == 0 &&
+      (args[5] == '\0' || args[5] == ' ')) {
+    long ms = -1;
+    if (sscanf(args + 5, "%ld", &ms) != 1 || ms < 0) {
+      Serial.println("{\"ok\":false,\"cmd\":\"bod\",\"error\":\"usage: bod quiet <ms>\"}");
+      return;
+    }
+    bodWatchSetQuietMs((uint32_t)ms);
+    Serial.printf("{\"ok\":true,\"cmd\":\"bod\",\"var\":\"quiet\",\"ms\":%lu}\n",
+                  (unsigned long)bodWatchQuietMs());
+    return;
+  }
   int t = -1;
   if (args && args[0] && sscanf(args, "%d", &t) == 1 && t >= 0 && t <= 7) {
     bodWatchSetBootThres((uint8_t)t);
