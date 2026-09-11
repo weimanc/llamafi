@@ -197,8 +197,16 @@ void bodWatchArm(uint8_t thres) {
                 s_isrInstalled ? 1 : 0);
 }
 
+static bool ringDrainOne(BodRingEntry *out);
+
+// Callers (serialburst) use this to start a measurement from zero. With the
+// ISR path the latch is cleared by the ISR itself, so "clear" has to mean
+// "discard events captured before now" — otherwise a boot-window trip still
+// sitting in the ring is counted as the burst's own.
 void bodWatchClear(void) {
   REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
+  BodRingEntry ev;
+  while (ringDrainOne(&ev)) {}
 }
 
 static bool ringDrainOne(BodRingEntry *out) {
@@ -272,13 +280,16 @@ uint8_t bodWatchBootMit(void) {
 // Debug env leaves BOD_POLICY undefined (observe only, per the runbook's
 // stated default); a production policy build would define it low. Defined
 // unconditionally here so the loop()-side check below compiles either way.
+// Deeper = LOWER level, so the policy fires when minLevel <= BOD_POLICY. The
+// disabled value must therefore sit BELOW level 0, not above 7 — an earlier
+// draft used 8 here, which made every trip a "deep" one.
 #ifndef BOD_POLICY
-#define BOD_POLICY 8   // 8 = above the ladder's max depth (7) -> never trips
+#define BOD_POLICY -1
 #endif
 static bool g_bodDeep = false;
 
 static void bodWatchPolicyCheck(BodRingEntry *ev) {
-  if (ev->minLevel <= BOD_POLICY && ev->durUs >= 500) g_bodDeep = true;
+  if ((int)ev->minLevel <= (int)(BOD_POLICY) && ev->durUs >= 500) g_bodDeep = true;
 }
 
 void bodWatchTick(void) {

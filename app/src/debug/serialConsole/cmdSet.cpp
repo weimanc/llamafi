@@ -406,7 +406,11 @@ void cmdSet(const char *args) {
     char savedSsid[33];
     strlcpy(savedSsid, (const char*)saved.sta.ssid, sizeof(savedSsid));
 
-    WiFi.persistent(false);   // never write NVS — TASK-426's wedge, deliberately not re-created
+    // NEVER write NVS — TASK-426's wedge is exactly a stale SSID in flash.
+    // WiFi.persistent(false) is NOT enough here: Arduino-ESP32 applies it only
+    // inside wifiLowLevelInit() (WiFiGeneric.cpp:694), which ran at boot with
+    // persistent(true), so the driver's storage is FLASH until told otherwise.
+    esp_wifi_set_storage(WIFI_STORAGE_RAM);
     WiFi.disconnect(false, false);
     char bogus[40];
     snprintf(bogus, sizeof(bogus), "PROP011-no-such-ap-%lu", (unsigned long)millis());
@@ -423,7 +427,13 @@ void cmdSet(const char *args) {
 
     WiFi.disconnect(false, false);
     delay(100);
-    WiFi.begin();   // back to the saved SSID/passphrase from NVS
+    // The driver's RAM config is now the bogus SSID; a bare begin() would
+    // reconnect to THAT. Put the saved config back first (storage is still
+    // RAM, so this does not touch NVS either), then restore FLASH storage so
+    // a later Settings-UI connect persists as it always did.
+    esp_wifi_set_config(WIFI_IF_STA, &saved);
+    WiFi.begin();
+    esp_wifi_set_storage(WIFI_STORAGE_FLASH);
     uint32_t t1 = millis();
     while (millis() - t1 < 20000 && WiFi.status() != WL_CONNECTED) {
       delay(200);
