@@ -405,9 +405,18 @@ void cmdSerialSink(const char *args) {
   int bodTrips = 0;
   bodWatchClear();
   const unsigned long deadline = millis() + 10000UL;
+  // The console dispatched this command on the '\r' of the monitor's "\r\n";
+  // the '\n' is still in the RX buffer. Counting it made the sink stop one
+  // payload byte early, and that byte was prepended to the NEXT command
+  // ("pserialecho" -> unknown command, EXP-029). Payloads are printable by
+  // contract (rig_uart.sink_payload), so leading CR/LF is never payload.
+  bool atStart = true;
   while (got < bytes && millis() < deadline) {
     if (Serial.available()) {
-      sum += (uint8_t)Serial.read();
+      const uint8_t b = (uint8_t)Serial.read();
+      if (atStart && (b == '\r' || b == '\n')) continue;
+      atStart = false;
+      sum += b;
       got++;
       if ((got & 511) == 0) esp_task_wdt_reset();
     } else {
