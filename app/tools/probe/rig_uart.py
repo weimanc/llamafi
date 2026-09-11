@@ -131,9 +131,19 @@ SERIALSINK_1MB_INFEASIBLE = (
 
 ECHO_LINES = 2000
 #: tmux send-keys -l with embedded '\n's sends each line without spawning a
-#: process per line — this is what keeps 2000+ lines inside serialecho's 30s
-#: window (cmdMisc.cpp:436).
+#: process per line — this is what keeps 2000+ lines inside serialecho's
+#: idle-based deadline (cmdMisc.cpp cmdSerialEcho, TASK-678).
 ECHO_CHUNK = 200
+#: TASK-677 (EXP-029 §Correction): the Arduino RX ring is 256 B and the echo
+#: firmware writes 2 B more per line than it reads (the `E#` prefix), so an
+#: unthrottled send overflows the ring under load — every 2026-09-11 defect
+#: was a splice, not a dropped/corrupted single line. A window of 8 lines
+#: (~150 B incl. line lengths here) stays comfortably under 256 B; the driver
+#: waits for each window's replies before sending the next.
+ECHO_WINDOW = 8
+#: how long to wait for one window's E# replies to catch up before giving up
+#: and sending the next window anyway (never block forever on a wedged link).
+ECHO_WINDOW_WAIT_S = 5.0
 
 
 # ── pure per-cell parsing/decision logic (fixture-tested, no device) ───────
@@ -196,6 +206,21 @@ def serialsink_cell_result(text: str, sent_len: int, sent_sum: str) -> dict:
 _ECHO_REPLY_RE = re.compile(r"^E#(.*)$")
 
 
+def echo_windows(sent: list, window: int = ECHO_WINDOW) -> list:
+    """Pure: split `sent` into chunks of `window` lines each, in order. The
+    last chunk may be shorter. `window` <= 0 falls back to one giant window
+    (the old unthrottled behaviour) rather than looping forever."""
+    if window <= 0:
+        return [sent] if sent else []
+    return [sent[i:i + window] for i in range(0, len(sent), window)]
+
+
+def count_echoed(text: str) -> int:
+    """Pure: count E#-prefixed reply lines anywhere in a log text slice."""
+    return sum(1 for line in text.splitlines()
+               if _ECHO_REPLY_RE.match(line.rstrip("\r\n")))
+
+
 def serialecho_diff(sent: list, echoed_lines: list) -> dict:
     """Pure: line-for-line diff of what was sent vs what came back E#-prefixed.
     Order-preserving (serialecho's own loop is FIFO), so a missing line is
@@ -251,17 +276,29 @@ def run_sink_cell(n_bytes: int = SERIALSINK_CELL_BYTES) -> dict:
     return serialsink_cell_result(text, n_bytes, sent_sum)
 
 
-def run_echo_cell(n_lines: int = ECHO_LINES) -> dict:
+def run_echo_cell(n_lines: int = ECHO_LINES, window: int = ECHO_WINDOW) -> dict:
+    """TASK-677: windowed — send `window` lines, then wait (poll the log, up
+    to ECHO_WINDOW_WAIT_S) until that window's E# replies have appeared,
+    before sending the next window. Keeps the Arduino's 256 B RX ring from
+    overflowing (EXP-029 §Correction) instead of firing the whole payload at
+    once. `window<=0` reproduces the old unthrottled single-shot send."""
     wait_console_idle()
     sent = [f"echo-line-{i:06d}" for i in range(n_lines)]
     off = mt.size()
-    rigwatch.stamp("note", phase="X-P4-echo", lines=str(n_lines))
+    rigwatch.stamp("note", phase="X-P4-echo", lines=str(n_lines), window=str(window))
     mt.send(f"serialecho {n_lines}")
     time.sleep(0.5)
-    for i in range(0, len(sent), ECHO_CHUNK):
-        chunk = "\n".join(sent[i:i + ECHO_CHUNK]) + "\n"
+    cumulative = 0
+    for w in echo_windows(sent, window):
+        chunk = "\n".join(w) + "\n"
         mt.send_literal(chunk)
-    time.sleep(5.0)
+        cumulative += len(w)
+        deadline = time.monotonic() + ECHO_WINDOW_WAIT_S
+        while time.monotonic() < deadline:
+            if count_echoed(mt.read_from(off)) >= cumulative:
+                break
+            time.sleep(0.2)
+    time.sleep(1.0)
     text = mt.read_from(off)
     wait_console_idle()
     return serialecho_diff(sent, text.splitlines())
@@ -284,33 +321,52 @@ def _dry_run() -> None:
     print("[dry-run] at the end: lib.rigwatch summarize() for whole-run R")
 
 
+DEFAULT_CELLS = ("burst", "sink", "echo")
+
+
 def main(argv: list) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", help="append one JSON line per cell here too")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--window", type=int, default=ECHO_WINDOW,
+                     help="echo cell: lines per window (default "
+                          f"{ECHO_WINDOW}; <=0 for the old unthrottled send)")
+    ap.add_argument("--cells", default=",".join(DEFAULT_CELLS),
+                     help="comma list of cells to run: burst,sink,echo "
+                          "(default: all three)")
     a = ap.parse_args(argv)
 
     if a.dry_run:
         _dry_run()
         return 0
 
+    selected = [c.strip() for c in a.cells.split(",") if c.strip()]
+    unknown = set(selected) - set(DEFAULT_CELLS)
+    if unknown:
+        print(f"unknown --cells entries: {sorted(unknown)} "
+              f"(valid: {list(DEFAULT_CELLS)})")
+        return 2
+
     out_fh = open(a.out, "a", encoding="utf-8") if a.out else None
     try:
         results = []
-        for lines in BURST_LINES:
-            for pad in BURST_PADS:
-                r = run_burst_cell(lines, pad)
-                r["cell"] = f"burst lines={lines} pad={pad}"
-                results.append(r)
+        if "burst" in selected:
+            for lines in BURST_LINES:
+                for pad in BURST_PADS:
+                    r = run_burst_cell(lines, pad)
+                    r["cell"] = f"burst lines={lines} pad={pad}"
+                    results.append(r)
 
-        r = run_sink_cell(SERIALSINK_CELL_BYTES)
-        r["cell"] = f"sink bytes={SERIALSINK_CELL_BYTES}"
-        results.append(r)
-        print(f"skipped 1 MB sink cell: {SERIALSINK_1MB_INFEASIBLE}")
+        if "sink" in selected:
+            r = run_sink_cell(SERIALSINK_CELL_BYTES)
+            r["cell"] = f"sink bytes={SERIALSINK_CELL_BYTES}"
+            results.append(r)
+            print(f"skipped 1 MB sink cell: {SERIALSINK_1MB_INFEASIBLE}")
 
-        r = run_echo_cell(ECHO_LINES)
-        r["cell"] = f"echo lines={ECHO_LINES}"
-        results.append(r)
+        if "echo" in selected:
+            r = run_echo_cell(ECHO_LINES, window=a.window)
+            r["cell"] = f"echo lines={ECHO_LINES} window={a.window}"
+            results.append(r)
 
         for r in results:
             line = json.dumps(r)

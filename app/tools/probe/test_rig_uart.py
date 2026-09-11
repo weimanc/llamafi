@@ -150,6 +150,104 @@ class TestBurstTimeoutScalesWithPayload(unittest.TestCase):
                            ru.burst_timeout_s(20000, 64))
 
 
+class TestEchoWindows(unittest.TestCase):
+    """echo_windows is a pure splitter — no device touched."""
+
+    def test_splits_into_fixed_size_chunks(self):
+        sent = [f"l{i}" for i in range(10)]
+        w = ru.echo_windows(sent, 4)
+        self.assertEqual(w, [["l0", "l1", "l2", "l3"],
+                              ["l4", "l5", "l6", "l7"],
+                              ["l8", "l9"]])
+
+    def test_window_le_zero_is_one_giant_window(self):
+        sent = ["a", "b", "c"]
+        self.assertEqual(ru.echo_windows(sent, 0), [["a", "b", "c"]])
+
+    def test_empty_sent_is_no_windows(self):
+        self.assertEqual(ru.echo_windows([], 8), [])
+
+    def test_exact_multiple_has_no_short_trailing_window(self):
+        sent = [f"l{i}" for i in range(8)]
+        w = ru.echo_windows(sent, 4)
+        self.assertEqual(len(w), 2)
+        self.assertEqual(len(w[-1]), 4)
+
+
+class TestCountEchoed(unittest.TestCase):
+    def test_counts_only_e_hash_lines(self):
+        text = "E#a\nsome log chatter\nE#b\nE#c\n"
+        self.assertEqual(ru.count_echoed(text), 3)
+
+    def test_zero_on_no_replies_yet(self):
+        self.assertEqual(ru.count_echoed('{"probe":"echo","phase":"begin"}'), 0)
+
+
+class _FakeEchoLog:
+    """Simulates the DUT's tmux log for run_echo_cell: send_literal() feeds
+    lines through drop_lines/corrupt_lines and appends their E#-prefixed
+    echo immediately (fast synchronous DUT), so windowing can be exercised
+    without a device or a sleep-driven poll loop."""
+
+    def __init__(self, drop_lines=frozenset(), corrupt_lines=frozenset()):
+        self.buf = ""
+        self.sent_seen = 0
+        self.drop_lines = drop_lines
+        self.corrupt_lines = corrupt_lines
+
+    def size(self):
+        return len(self.buf)
+
+    def send(self, cmd):
+        self.buf += cmd + "\n"
+
+    def send_literal(self, text):
+        for line in text.splitlines():
+            idx = self.sent_seen
+            self.sent_seen += 1
+            if idx in self.drop_lines:
+                continue
+            echoed = "XXCORRUPT" if idx in self.corrupt_lines else line
+            self.buf += f"E#{echoed}\n"
+
+    def read_from(self, offset):
+        return self.buf[offset:]
+
+
+class TestRunEchoCellWindowed(unittest.TestCase):
+    """run_echo_cell against a fake, instantly-responsive log — checks the
+    windowing loop terminates promptly and reports the same shape
+    serialecho_diff would from a real transcript."""
+
+    def _run(self, n_lines, window, fake):
+        orig_mt = ru.mt
+        orig_stamp = ru.rigwatch.stamp
+        ru.mt = fake
+        ru.rigwatch.stamp = lambda *a, **k: None
+        try:
+            return ru.run_echo_cell(n_lines, window=window)
+        finally:
+            ru.mt = orig_mt
+            ru.rigwatch.stamp = orig_stamp
+
+    def test_all_lines_echoed_clean(self):
+        r = self._run(20, 4, _FakeEchoLog())
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["sent"], 20)
+        self.assertEqual(r["echoed"], 20)
+        self.assertEqual(r["lost"], 0)
+
+    def test_dropped_line_reported_lost(self):
+        r = self._run(10, 3, _FakeEchoLog(drop_lines={5}))
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["lost"], 1)
+
+    def test_corrupted_line_reported_mismatch(self):
+        r = self._run(10, 3, _FakeEchoLog(corrupt_lines={2}))
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["mismatches"], 1)
+
+
 class TestWaitConsoleIdle(unittest.TestCase):
     """wait_console_idle must observe a quiet log without ever touching the
     device (mt.size() stubbed to a fixed value simulates an already-idle
