@@ -89,7 +89,7 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | X-P1c | provoke the NO_AP_FOUND loop, trips per retry | Haiku/Sonnet | F-1, F-2, H-1 | none after the F-flash | **DONE 2026-09-11 — 0/121, refutes P1's inference** ([EXP-026](../reports/EXP-026-p1c-scanloop-trips.md)) |
 | X-P2 | load ladder, B_boot per rung | Sonnet | F-1, F-4, H-1 | ~12 reflashes, ends window | open |
 | X-P3 | supply A/B | **human + Sonnet** | F-1, H-1, cable/hub/meter | ~100 boots | open |
-| X-P4 | UART transfer matrix | Sonnet | F-3, H-1 | none | open |
+| X-P4 | UART transfer matrix | Sonnet | F-3, H-1 | none | **DONE 2026-09-11** — DUT→host leg closes clean (L=0, R=0); host→DUT/bidirectional (`sink`/`echo`) does not close, deterministic functional mismatch flagged for follow-up ([EXP-029](../reports/EXP-029-uart-matrix.md)) |
 | X-P5 | 72 h soaks, debug then production | Sonnet (monitoring) | F-1, F-5, **human go for production** | ends window; lifts pin | open |
 | X-P6 | reset-gap sweep n≥30 | Sonnet | F-1 | ~150 resets | open |
 
