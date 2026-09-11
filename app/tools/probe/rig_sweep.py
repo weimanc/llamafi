@@ -107,7 +107,11 @@ def run_one_boot(level: int, rep: int) -> dict:
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--levels", default="7,5,3,2,1,0")
+    ap.add_argument("--levels", default="7,5,3,2")
+    ap.add_argument("--allow-low-levels", action="store_true",
+                    help="permit levels 1 and 0 — on 2026-09-11 every WiFi boot armed at "
+                         "<=1 dropped the CH340 off USB (EXP-035); the board then stays armed "
+                         "there and the console is unreachable")
     ap.add_argument("--reps", type=int, default=3)
     ap.add_argument("--all", action="store_true",
                     help="do not stop descending at the first no-trip level")
@@ -122,6 +126,13 @@ def main(argv: list[str]) -> int:
     if a.dry_run:
         _dry_run(levels, a.reps)
         return 0
+
+    if min(levels, default=7) < 2 and not a.allow_low_levels:
+        print("REFUSED: levels below 2 drop the CH340 off USB on every WiFi boot on this "
+              "board (EXP-035), leaving it armed low with the console unreachable. Pass "
+              "--allow-low-levels only with a recovery plan (EXP-035 §aftermath).",
+              file=sys.stderr)
+        return 3
 
     if not a.confirmed:
         print("REFUSED: rig_sweep.py resets the board on every rep (each "
@@ -141,18 +152,26 @@ def main(argv: list[str]) -> int:
         print(f"WARN: could not capture the pre-reflash timeline: {e}", file=sys.stderr)
 
     results = []
-    for level in levels:
-        level_results = []
-        for rep in range(a.reps):
-            r = run_one_boot(level, rep)
-            level_results.append(r)
-            print(r)
-        results.extend(level_results)
-        trips = sum(1 for r in level_results if r["tripped"])
-        print(f"level={level}: {trips}/{a.reps} tripped")
-        if not a.all and trips == 0:
-            print(f"stopping descent at level={level} (0/{a.reps} tripped)")
-            break
+    try:
+        for level in levels:
+            level_results = []
+            for rep in range(a.reps):
+                r = run_one_boot(level, rep)
+                level_results.append(r)
+                print(r)
+            results.extend(level_results)
+            trips = sum(1 for r in level_results if r["tripped"])
+            print(f"level={level}: {trips}/{a.reps} tripped")
+            if not a.all and trips == 0:
+                print(f"stopping descent at level={level} (0/{a.reps} tripped)")
+                break
+    finally:
+        # `bod N` persists across reboots (RTC_NOINIT): never leave the board armed at
+        # a sweep level. monitor_tmux.send() stamps the reboot as a harness reset.
+        mt.send("bod 7")
+        time.sleep(1.0)
+        mt.send("reboot")
+        print("restored: bod 7 + reboot sent")
 
     print("\nlevel  trips/reps")
     for level in levels:

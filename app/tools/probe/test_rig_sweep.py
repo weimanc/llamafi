@@ -96,5 +96,26 @@ class TestRefusal(unittest.TestCase):
         self.assertIn("[dry-run]", p.stdout)
 
 
+class TestLowLevelFloor(unittest.TestCase):
+    """EXP-035: an arm level <=1 dropped USB on every WiFi boot and left the board
+    armed there with its console unreachable. The sweep must refuse it by default."""
+
+    def _run(self, *args):
+        tools = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return subprocess.run([sys.executable, "probe/rig_sweep.py", *args],
+                              cwd=tools, capture_output=True, text=True, timeout=20)
+
+    def test_refuses_level_1_even_when_confirmed(self):
+        p = self._run("--levels", "7,1", "--i-know-this-resets-the-board")
+        self.assertEqual(p.returncode, 3)
+        self.assertIn("--allow-low-levels", p.stderr)
+
+    def test_default_levels_stop_at_2(self):
+        p = self._run("--dry-run")
+        self.assertEqual(p.returncode, 0)
+        self.assertNotIn("bod 1", p.stdout)
+        self.assertNotIn("bod 0", p.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
