@@ -150,3 +150,39 @@ the 09-02 corruption) is closed.
   single-iteration stall that would trip a naive watchdog metric elsewhere.
 - No board reset, `esptool`, or serial-port-opening tool was used anywhere in this experiment; all
   device interaction went through the existing `spotify-mon` tmux session per §0.1.
+
+## Correction — 2026-09-11, after the report above (reviewer, commit `3a30e1c` + DUT re-run)
+
+**The host→DUT failures above were one protocol bug, not a link or "functional mismatch" finding.**
+The console dispatches a command on the `\r` of the monitor's `\r\n`; the `\n` stayed in the RX
+buffer and `serialsink` counted it as payload byte 0. Arithmetic proof from the 7 identical
+replies: expected sum 5 176 777; board `0x004efd63` = 5 176 675 = 5 176 777 − 112 (the last payload
+byte, `p`) + 10 (`\n`). That unread `p` was then prepended to the next command — the log reads
+`unknown command "pserialecho"` — so `serialecho` never started and its 2 000 payload lines were
+parsed as console commands. That is the entire "0/2000 echoed" result.
+
+**Re-run on the fixed build (`3a30e1c`, leading CR/LF skipped):**
+
+```
+{"probe":"sink","bytes":65536,"got":65536,"sum":"004efdc9","bodTrips":0}   # 0x004efdc9 = 5176777, exact
+{"probe":"echo","phase":"end","lines":2000,"got":778}
+E#echo-line-00ine-000235      E#echo-lineo-line-000392      E#echo-line0455   (spliced lines)
+```
+
+| cell | L | verdict |
+|---|---|---|
+| sink 64 KB host→DUT | **0** (exact checksum) | **clean** |
+| echo 2000 bidirectional | 778/2000 echoed, 572 altered | **instrument limit, not link** |
+
+The altered echo lines are **splices** — two adjacent lines joined with a run of bytes missing — and
+never single-character corruption. That is RX overflow: `serialecho` writes 2 bytes more per line
+than it reads (`E#` prefix), at the same baud, with no flow control, into the Arduino-ESP32 default 256-byte
+RX ring (no `setRxBufferSize` anywhere in `app/src`); the backlog grows every line until it
+overflows. The cell as specified measures that design, not link integrity.
+
+**Decision, re-applied:** DUT→host (6 burst cells, up to 5.3 MB) L=0 and host→DUT (64 KB sink) L=0,
+R=0 throughout → **the link is clean on record in both directions; PROP-011 §2's UART rows close.**
+The bidirectional cell is re-specified, not failed: host-side windowing (send a chunk only after its
+`E#` lines are back, chunk ≤ the RX ring) or a debug-build `Serial.setRxBufferSize(4096)`. Filed as a
+runbook follow-up; not a rig finding. The single 7-byte `read_flash` corruption of 09-02 still has
+no reproduction and stays recorded as single-event noise.
