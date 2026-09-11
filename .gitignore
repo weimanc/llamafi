@@ -36,3 +36,7 @@ __pycache__/
 # TASK-677 / PROP-011 §5 P0: per-machine rigwatch settings (RIGWATCH=1,
 # DUT_BY_PATH=...). run/lib.sh sources it if present; see run/local.env.example.
 run/local.env
+
+# PROP-011 F-4 bare rig: WiFi credentials, never committed
+rig/bare_bod/src/secrets.h
+rig/bare_bod/.pio/

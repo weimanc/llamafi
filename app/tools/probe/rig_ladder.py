@@ -1,100 +1,183 @@
 #!/usr/bin/env python3
-"""probe/rig_ladder.py — PROP-011 X-P2 bare-rig load-ladder orchestration
-(TASK-677 H-1).
+"""probe/rig_ladder.py — PROP-011 X-P2 load ladder on the F-4 bare rig.
 
-BLOCKED ON F-4 (PROP-011-runbook.md §1 F-4: bodWatch ported into the bare
-rig, `~/proj/webradio-bare/`). F-4 is not landed — this file exists so the
-argument shape is settled and reviewable now, but `main()` REFUSES to do
-anything until F-4's marker (a `bodWatch.h` in the bare rig checkout) is
-present. Nothing beyond the parser and the refusal is implemented; adding
-the real flash/monitor/parse loop without F-4 would be exactly the kind of
-half-finished implementation this project's conventions avoid — there is
-nothing on the other end of `pio run -e bare -t upload` to drive yet.
+For each rung (1 bare, 2 +WiFi, 3 +WiFi+TFT, 4 +WiFi+TFT+SD) and each brownout
+level in descending order: build and flash rig/bare_bod with that rung's
+-DBARE_* flags and -DBARE_BOD_THRES=<level>, then capture REPS boots. A boot =
+stamp `reset who=xp2` in rigwatch, open the port, pulse EN via RTS, read up to
+BOOT_TIMEOUT_S, and record whether `[bod] TRIP tag=wifi-end` appeared. A rung
+stops descending at its first level with 0/REPS trips; B_boot for the rung is
+the lowest level that tripped at least once.
 
-Once F-4 lands: for each rung 1-4 (PROP-011-runbook.md §3 X-P2 table), for
-each level 7,5,3,2,1,0 (stop at the first no-trip level), 3 boots: flash
-`~/proj/webradio-bare` with that rung's `-DBARE_*` flags via
-`pio run -e bare -t upload` (its own port open is allowed there — a
-different, disposable board, not the CYD under a TASK-557 window), read
-`[bod]` lines from a short bounded `pio device monitor` capture, record
-trip/no-trip, move on. Scheduled after the CYD's debug window has been
-deliberately ended (PROP-011-runbook.md §3 X-P2's ordering).
+THIS DRIVER FLASHES AND RESETS THE BOARD and opens the serial port directly —
+the experiment needs it. It refuses without --i-know-this-resets-the-board, and
+refuses if F-4 (rig/bare_bod/src/debug/bodWatch.h) is absent. Nothing at import.
 
-    python3 probe/rig_ladder.py --dry-run
+    python3 probe/rig_ladder.py --i-know-this-resets-the-board --out /tmp/claude-1000/xp2/ladder.jsonl
 """
-
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
 import sys
+import time
 
-BARE_RIG_DIR = os.environ.get("BARE_RIG_DIR",
-                              os.path.expanduser("~/proj/webradio-bare"))
-
-#: F-4's own deliverable — bodWatch ported into the bare rig. Its presence is
-#: this driver's only readiness check; it deliberately does not try to be
-#: cleverer than that (e.g. grepping for a specific symbol) since F-4's exact
-#: shape is still open (PROP-011-runbook.md §1 F-4).
-F4_MARKER = os.path.join(BARE_RIG_DIR, "src", "bodWatch.h")
-
-
-def f4_landed(marker_path: str = F4_MARKER) -> bool:
-    return os.path.exists(marker_path)
-
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+BARE_RIG_DIR = os.environ.get("BARE_RIG_DIR", os.path.join(REPO, "rig", "bare_bod"))
+PORT_DEFAULT = "/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0"
+PIO = os.path.expanduser("~/.platformio/penv/bin/pio")
 
 LEVELS = (7, 5, 3, 2, 1, 0)
 RUNGS = (1, 2, 3, 4)
 REPS = 3
+BOOT_TIMEOUT_S = 30.0
+RUNG_FLAGS = {1: "", 2: "-DBARE_WIFI", 3: "-DBARE_WIFI -DBARE_TFT",
+              4: "-DBARE_WIFI -DBARE_TFT -DBARE_SD"}
+
+
+def marker(bare_rig_dir: str) -> str:
+    return os.path.join(bare_rig_dir, "src", "debug", "bodWatch.h")
+
+
+def f4_landed(marker_path: str) -> bool:
+    return os.path.exists(marker_path)
+
+
+def build_flags(rung: int, level: int) -> str:
+    return f"{RUNG_FLAGS[rung]} -DBARE_BOD_THRES={level}".strip()
+
+
+_TRIP_RE = re.compile(r"\[bod\] TRIP tag=wifi-end\b")
+_REASON_RE = re.compile(r"\[bootreason\] (\d+) (\w+)")
+_THRES_RE = re.compile(r"\[bod\] armed thres=(\d+)")
+
+
+def parse_boot(text: str) -> dict:
+    """Pure: one boot's serial text -> what the ladder needs."""
+    reason = _REASON_RE.search(text)
+    thres = _THRES_RE.search(text)
+    return {"tripped": bool(_TRIP_RE.search(text)),
+            "ready": "[bootphase] 6 ready" in text,
+            "bootreason": int(reason.group(1)) if reason else None,
+            "armed_thres": int(thres.group(1)) if thres else None,
+            "wifi_ip": "[wifi] IP " in text}
+
+
+def b_boot(level_results: dict) -> int | None:
+    """Pure: {level: trips} for one rung -> lowest level with >=1 trip, or None."""
+    tripped = [lvl for lvl, trips in level_results.items() if trips > 0]
+    return min(tripped) if tripped else None
+
+
+def keep_descending(trips: int) -> bool:
+    return trips > 0
+
+
+def _stamp(kind: str, **kw) -> None:
+    from lib import rigwatch as rw
+    rw.stamp(kind, **kw)
+
+
+def _flash(bare_rig_dir: str, port: str, flags: str) -> bool:
+    import subprocess
+    env = dict(os.environ, PLATFORMIO_BUILD_FLAGS=flags)
+    for attempt in range(4):
+        _stamp("flash-begin", who="xp2", flags=flags)
+        p = subprocess.run([PIO, "run", "-e", "bare", "-t", "upload", "--upload-port", port],
+                           cwd=bare_rig_dir, env=env, capture_output=True, text=True, timeout=600)
+        _stamp("flash-end", who="xp2", rc=str(p.returncode))
+        if p.returncode == 0:
+            return True
+        time.sleep(2)
+    sys.stderr.write((p.stdout or "")[-1500:] + (p.stderr or "")[-1500:])
+    return False
+
+
+def _capture_boot(port: str) -> str:
+    import serial
+    _stamp("reset", who="xp2")
+    s = serial.Serial()
+    s.port, s.baudrate, s.timeout = port, 115200, 0.5
+    s.dtr = False
+    s.rts = False
+    s.open()
+    s.rts = True            # EN low
+    time.sleep(0.1)
+    s.rts = False           # EN released -> boot
+    buf, t0, ready_at = [], time.time(), None
+    while time.time() - t0 < BOOT_TIMEOUT_S:
+        d = s.read(4096)
+        if d:
+            buf.append(d.decode("utf-8", "replace"))
+            if ready_at is None and "[bootphase] 6 ready" in "".join(buf):
+                ready_at = time.time()
+        if ready_at and time.time() - ready_at > 2.0:
+            break
+    s.close()
+    return "".join(buf)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--rungs", default=",".join(str(r) for r in RUNGS),
-                    help="comma-separated bare-rig rungs (1-4; PROP-011-runbook §3 X-P2 table)")
+    ap.add_argument("--rungs", default=",".join(str(r) for r in RUNGS))
     ap.add_argument("--levels", default=",".join(str(l) for l in LEVELS))
     ap.add_argument("--reps", type=int, default=REPS)
     ap.add_argument("--bare-rig-dir", default=BARE_RIG_DIR)
+    ap.add_argument("--port", default=PORT_DEFAULT)
+    ap.add_argument("--out", default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--i-know-this-resets-the-board", action="store_true")
     return ap
 
 
-def _dry_run(rungs: list, levels: list, reps: int, bare_rig_dir: str) -> None:
-    print(f"[dry-run] bare rig: {bare_rig_dir}")
-    for rung in rungs:
-        for level in levels:
-            for rep in range(reps):
-                print(f"[dry-run] rung={rung} level={level} rep={rep}: "
-                     f"pio run -e bare -t upload (rung's -DBARE_* flags), "
-                     f"bounded pio device monitor capture, look for [bod] TRIP")
-
-
 def main(argv: list) -> int:
-    ap = build_arg_parser()
-    a = ap.parse_args(argv)
-
+    a = build_arg_parser().parse_args(argv)
     rungs = [int(x) for x in a.rungs.split(",") if x.strip()]
     levels = [int(x) for x in a.levels.split(",") if x.strip()]
-
     if a.dry_run:
-        _dry_run(rungs, levels, a.reps, a.bare_rig_dir)
+        print(f"[dry-run] bare rig: {a.bare_rig_dir}")
+        for rung in rungs:
+            for level in levels:
+                print(f"[dry-run] rung={rung} level={level}: PLATFORMIO_BUILD_FLAGS="
+                      f"'{build_flags(rung, level)}' pio run -e bare -t upload; "
+                      f"{a.reps} boots; stop the rung at the first 0/{a.reps} level")
         return 0
-
-    if not f4_landed(os.path.join(a.bare_rig_dir, "src", "bodWatch.h")):
-        print("REFUSED: F-4 (bodWatch ported into the bare rig) is not landed "
-             f"— no {os.path.join(a.bare_rig_dir, 'src', 'bodWatch.h')} found. "
-             "See PROP-011-runbook.md §1 F-4 and §3 X-P2. rig_ladder.py has "
-             "only its argument parser and this refusal until F-4 lands.",
-             file=sys.stderr)
+    if not f4_landed(marker(a.bare_rig_dir)):
+        print(f"REFUSED: F-4 not landed — no {marker(a.bare_rig_dir)}. "
+              "See PROP-011-runbook.md §1 F-4.", file=sys.stderr)
         return 3
-
-    # Unreachable until F-4 lands and the check above passes — intentionally
-    # not implemented (see module docstring).
-    print("F-4 marker found, but rig_ladder.py's flash/monitor/parse loop is "
-         "not yet implemented — this is as far as H-1 could take X-P2's "
-         "orchestration without F-4 to drive.", file=sys.stderr)
-    return 3
+    if not a.i_know_this_resets_the_board:
+        print("rig_ladder: refusing — flashes and resets the board and opens the port. "
+              "Re-run with --i-know-this-resets-the-board.", file=sys.stderr)
+        return 3
+    summary = {}
+    for rung in rungs:
+        per_level = {}
+        for level in levels:
+            flags = build_flags(rung, level)
+            if not _flash(a.bare_rig_dir, a.port, flags):
+                print(json.dumps({"rung": rung, "level": level, "error": "flash failed"}), flush=True)
+                return 1
+            trips = 0
+            for rep in range(1, a.reps + 1):
+                row = {"rung": rung, "level": level, "rep": rep,
+                       **parse_boot(_capture_boot(a.port))}
+                trips += int(row["tripped"])
+                print(json.dumps(row), flush=True)
+                if a.out:
+                    with open(a.out, "a") as fh:
+                        fh.write(json.dumps(row) + "\n")
+            per_level[level] = trips
+            if not keep_descending(trips):
+                break
+        summary[rung] = {"trips_by_level": per_level, "b_boot": b_boot(per_level)}
+        print(json.dumps({"rung": rung, **summary[rung]}), flush=True)
+    print(json.dumps({"summary": summary}), flush=True)
+    return 0
 
 
 if __name__ == "__main__":
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     sys.exit(main(sys.argv[1:]))
