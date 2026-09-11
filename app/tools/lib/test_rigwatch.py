@@ -312,6 +312,32 @@ class TestMonitorTailStartsAtEnd(_SummaryFixture):
         self.assertEqual(rw.summarize(1.0)["bod_trips"], 1)
 
 
+class TestTeeWritesOnlyForRealPort(_SummaryFixture):
+    """run/lib.sh exports RIGWATCH=1, so host tests that wrap a FAKE serial in
+    _TeeSerial (test_boot_gate.py) wrote fixture `[bootphase] 0` lines into the
+    live DUT-lines file: 16 fabricated unexplained boots, 2026-09-11."""
+
+    def test_fake_serial_writes_nothing_even_with_rigwatch_on(self):
+        from lib import dut as d
+
+        class _Fake:
+            def __init__(self):
+                self.lines = [b"[bootphase] 0 reset\n", b""]
+
+            def readline(self):
+                return self.lines.pop(0) if self.lines else b""
+
+        old = d._TeeSerial._RIGWATCH_ON
+        d._TeeSerial._RIGWATCH_ON = True
+        try:
+            tee = d._TeeSerial(_Fake(), run_id="t")
+            tee.readline()
+        finally:
+            d._TeeSerial._RIGWATCH_ON = old
+        self.assertFalse(os.path.exists(self._dutlines)
+                         and os.path.getsize(self._dutlines) > 0)
+
+
 class TestDaemonIdempotency(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="rigwatch-pid-")

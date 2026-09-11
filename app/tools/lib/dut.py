@@ -579,9 +579,13 @@ class _TeeSerial:
         # `rig` section to reason about. Same default as lib/rigwatch.py's
         # DEFAULT_DUT_LINES; not imported from there to keep this module free
         # of any rigwatch import at construction time.
+        # Real port only. run/lib.sh exports RIGWATCH=1 from run/local.env, so
+        # every host test that wraps a fake serial in this tee inherited it and
+        # wrote its fixture `[bootphase] 0` lines into the live DUT-lines file —
+        # 16 fabricated "unexplained boots" on 2026-09-11 (EXP-029).
         self._ts_sidecar_path = (
             os.environ.get("RIG_DUT_LINES", "/tmp/spotify-mon-dut-lines.jsonl")
-            if self._RIGWATCH_ON else None)
+            if (self._RIGWATCH_ON and isinstance(ser, serial.Serial)) else None)
         # ── generation counter (TASK-564, design §16.2 / EC-S4) ──────────────
         # Counts observed `[bootphase] 0` lines, i.e. boots this session SAW.
         #
