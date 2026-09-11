@@ -110,7 +110,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-680** (675 here; 676–679 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-682** (675 here; 676–681 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth; 680/681 are the boot cascade race + stale git banner fixes). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 

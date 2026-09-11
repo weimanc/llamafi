@@ -124,6 +124,11 @@ a `run`-tag trip to descend from.
   by the F-6 commits, so its embedded version string is unchanged from an earlier build even though
   the binary linked in this build is a fresh one (ELF id `2b4485af`) with F-6's console/`get bod`
   code active, confirmed functionally above. Not fixed here per the task's explicit instruction.
+  **TASK-681 (2026-09-11, `39246e0`):** root-caused and fixed — `-DGIT_REV` was not a file SCons'
+  dependency scanner tracked, so an incremental build could recompile the linked binary without
+  recompiling `boot.cpp`/`cmdMisc.cpp`. This report's build citation above came from that stale
+  banner; the flashed build's ELF id (`2b4485af`), not the banner text, was this run's actual
+  identity. `[boot] git=` now names the flashed commit — DUT-verified over 2 reboots.
 - The adaptive-descent staircase (`reason=descend` levels stepping down, `reason=quiet` stepping
   back up) was not observed on this run because no `run`-tag trip occurred — this board's supply
   did not produce one in either 120s provoke window, consistent with X-P1c's 0/121. A future run on
