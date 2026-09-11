@@ -45,8 +45,8 @@ def f4_landed(marker_path: str) -> bool:
     return os.path.exists(marker_path)
 
 
-def build_flags(rung: int, level: int) -> str:
-    return f"{RUNG_FLAGS[rung]} -DBARE_BOD_THRES={level}".strip()
+def build_flags(rung: int, level: int, extra: str = "") -> str:
+    return f"{RUNG_FLAGS[rung]} -DBARE_BOD_THRES={level} {extra}".strip()
 
 
 _TRIP_RE = re.compile(r"\[bod\] TRIP tag=wifi-end\b")
@@ -161,6 +161,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ap.add_argument("--port", default=PORT_DEFAULT)
     ap.add_argument("--out", default=None)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--extra-flags", default="",
+                    help="appended to every build, e.g. '-DBOD_NO_ISR' for an A/B")
     ap.add_argument("--no-stop", action="store_true",
                     help="run every listed level in the given order (targeted repeats)")
     ap.add_argument("--i-know-this-resets-the-board", action="store_true")
@@ -176,7 +178,7 @@ def main(argv: list) -> int:
         for rung in rungs:
             for level in levels:
                 print(f"[dry-run] rung={rung} level={level}: PLATFORMIO_BUILD_FLAGS="
-                      f"'{build_flags(rung, level)}' pio run -e bare -t upload; "
+                      f"'{build_flags(rung, level, a.extra_flags)}' pio run -e bare -t upload; "
                       f"{a.reps} boots; stop the rung at the first 0/{a.reps} level")
         return 0
     if not f4_landed(marker(a.bare_rig_dir)):
@@ -191,7 +193,7 @@ def main(argv: list) -> int:
     for rung in rungs:
         per_level = {}
         for level in levels:
-            flags = build_flags(rung, level)
+            flags = build_flags(rung, level, a.extra_flags)
             if not _flash(a.bare_rig_dir, a.port, flags):
                 print(json.dumps({"rung": rung, "level": level, "error": "flash failed"}), flush=True)
                 return 1

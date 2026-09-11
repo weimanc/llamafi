@@ -216,11 +216,17 @@ void bodWatchArm(uint8_t thres) {
 
   // Take over the shared RTC brownout interrupt from IDF's own panic-and-
   // restart handler (see esp_brownout_disable()'s declaration above).
+  // A/B flags (X-P2, 2026-09-11): at arm levels 0/1 the interrupt build drops
+  // the CH340 off USB on every WiFi boot, where the old polled build booted
+  // clean. -DBOD_NO_ISR restores the polled latch exactly; -DBOD_NO_HWACT keeps
+  // the ISR but disables the brownout's hardware RF/flash actions.
+#ifndef BOD_NO_ISR
   if (!s_isrInstalled) {
     esp_brownout_disable();
     rtc_isr_register(bodIsr, NULL, RTC_CNTL_BROWN_OUT_INT_ENA_M);
     s_isrInstalled = true;
   }
+#endif
 
   REG_SET_FIELD(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_DBROWN_OUT_THRES, thres);
   REG_SET_BIT(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_BROWN_OUT_ENA);
@@ -235,12 +241,20 @@ void bodWatchArm(uint8_t thres) {
   // they were, so the interrupt path is the ONLY thing under test.
   {
     const uint32_t hwBits = RTC_CNTL_BROWN_OUT_PD_RF_ENA_M | RTC_CNTL_BROWN_OUT_CLOSE_FLASH_ENA_M;
+#ifdef BOD_NO_HWACT
+    REG_WRITE(RTC_CNTL_BROWN_OUT_REG, REG_READ(RTC_CNTL_BROWN_OUT_REG) & ~hwBits);
+#else
     REG_WRITE(RTC_CNTL_BROWN_OUT_REG,
               (REG_READ(RTC_CNTL_BROWN_OUT_REG) & ~hwBits) | (before & hwBits));
+#endif
   }
 
   REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
+#ifdef BOD_NO_ISR
+  REG_CLR_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
+#else
   REG_SET_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
+#endif
 
   s_thres = thres;
   s_armed = true;
@@ -312,8 +326,20 @@ static bool ringDrainOne(BodRingEntry *out) {
 // share the one ring) and prints each under this tag. Keeps the existing
 // fields (`tag=`, `t=`, `thres=`, `trips=`, `det=`) and ADDS the per-event
 // ones (`us=`, `dur=`, `min=`, `ctx=`) — TASK-678 F-1.
+#ifdef BOD_NO_ISR
+// The pre-F-1 instrument: read the RAW latch, clear it, record one event.
+static void bodPollLatch(void) {
+  if (!(REG_READ(RTC_CNTL_INT_RAW_REG) & RTC_CNTL_BROWN_OUT_INT_RAW)) return;
+  REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
+  bodCaptureEvent((uint32_t)esp_timer_get_time(), 0, s_thres);
+}
+#else
+static inline void bodPollLatch(void) {}
+#endif
+
 bool bodWatchPoll(const char *tag) {
   if (!s_armed) return false;
+  bodPollLatch();
   bool any = false;
   BodRingEntry ev;
   for (int n = 0; n < BOD_RING_SIZE && ringDrainOne(&ev); n++) {
@@ -334,6 +360,7 @@ bool bodWatchPoll(const char *tag) {
 // printing so a caller can count locally and report once, afterwards.
 bool bodWatchPollQuiet(void) {
   if (!s_armed) return false;
+  bodPollLatch();
   BodRingEntry ev;
   bool any = false;
   for (int n = 0; n < BOD_RING_SIZE && ringDrainOne(&ev); n++) any = true;
@@ -414,6 +441,7 @@ void bodWatchTick(void) {
   const unsigned long now = millis();
   if (now - last < 200) return;   // the ring holds; draining faster buys nothing
   last = now;
+  if (s_armed) bodPollLatch();
 
   BodRingEntry ev;
   for (int n = 0; n < BOD_RING_SIZE && ringDrainOne(&ev); n++) {
