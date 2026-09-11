@@ -41,6 +41,7 @@ if TOOLS not in sys.path:
 from lib import monitor_tmux as mt  # noqa: E402
 from lib import rigwatch  # noqa: E402
 
+_BOOTPHASE0_RE = re.compile(r"\[bootphase\]\s+0\b")
 _BOOTPHASE6_RE = re.compile(r"\[bootphase\]\s+6\b")
 _WIFI_END_TRIP_RE = re.compile(
     r"\[bod\] TRIP tag=wifi-end[^\n]*\bmin=(\d+)[^\n]*\bdur=(\d+)")
@@ -52,9 +53,23 @@ _WIFI_END_TRIP_RE_ALT = re.compile(
 #: applied-state proof that bit0 (backlight forced off across WiFi init) actually
 #: took effect this boot — duty must read 0 when bit0 is set.
 _BODMIT_INWINDOW_RE = re.compile(r"\[bodmit\] inwindow mask=(\d+)[^\n]*\bduty=(\d+)")
+#: The console's `bod` QUERY reply (bare `bod`, no argument) — used as a
+#: liveness check that the console is actually reading Serial before we type
+#: anything else at it. The SET reply (`bod N`) has `"bootThres"` but not
+#: `"thresNow"`, so this pattern (requiring thresNow) never matches a set-ack.
+_BOD_QUERY_ACK_RE = re.compile(
+    r'\{"ok":true,"cmd":"bod","thresNow":(\d+),"bootThres":(\d+)')
+#: `bod N`'s SET reply carries `"note"` right after bootThres and no thresNow.
+_BOD_SET_ACK_RE = re.compile(r'\{"ok":true,"cmd":"bod","bootThres":(\d+),"note"')
+#: `bodmit N`'s reply (set or query — both carry bootMit; set additionally
+#: carries "note", which we don't need to key on since the query form is never
+#: sent by this driver's write path).
+_BODMIT_ACK_RE = re.compile(r'\{"ok":true,"cmd":"bodmit","bootMit":(\d+)')
+_BOD_ARMED_RE = re.compile(r"\[bod\] armed thres=(\d+)")
 
 DEFAULT_LEVELS = [7, 5, 3, 2, 1, 0]
 BOOT_TIMEOUT_S = 60.0
+ACK_TIMEOUT_S = 5.0
 
 
 def parse_boot_slice(text: str) -> dict:
@@ -74,15 +89,55 @@ def reached_bootphase6(text: str) -> bool:
     return bool(_BOOTPHASE6_RE.search(text))
 
 
-def parse_bodmit_proof(text: str) -> dict:
-    """Pure: did `[bodmit] inwindow ...` appear in this boot's log slice, and if
-    so does its duty reading prove the requested mask was actually applied
-    (bit0 set -> duty must read 0 in-window)? No device involved."""
+def slice_since_bootphase0(text: str) -> str | None:
+    """Pure: the reviewer's fault #2 fix. `text` is everything read since the
+    offset taken BEFORE the `reboot` was sent (which may still contain the
+    tail of the PREVIOUS boot, if that previous boot's own reader hadn't
+    caught up yet). Returns only what comes from the first `[bootphase] 0`
+    onward — the new boot — or None if that boot hasn't reached phase 0 yet
+    (caller should keep polling)."""
+    m = _BOOTPHASE0_RE.search(text)
+    return text[m.start():] if m else None
+
+
+def bod_query_ack_seen(text: str) -> bool:
+    """Pure: did a bare `bod` query reply appear (console liveness check)?"""
+    return bool(_BOD_QUERY_ACK_RE.search(text))
+
+
+def bod_set_ack_level(text: str) -> int | None:
+    """Pure: the bootThres value from the most recent `bod N` SET reply, or
+    None if no set-ack appears."""
+    matches = list(_BOD_SET_ACK_RE.finditer(text))
+    return int(matches[-1].group(1)) if matches else None
+
+
+def bodmit_ack_mask(text: str) -> int | None:
+    """Pure: the bootMit value from the most recent `bodmit N` reply, or None
+    if no ack appears."""
+    matches = list(_BODMIT_ACK_RE.finditer(text))
+    return int(matches[-1].group(1)) if matches else None
+
+
+def armed_level_from(text: str) -> int | None:
+    """Pure: the threshold this boot actually armed with, from its own
+    `[bod] armed thres=` line (first occurrence in the slice)."""
+    m = _BOD_ARMED_RE.search(text)
+    return int(m.group(1)) if m else None
+
+
+def parse_bodmit_proof(text: str, requested: int = 0) -> dict:
+    """Pure: did `[bodmit] inwindow ...` appear in this boot's log slice, and
+    does it prove the REQUESTED mask (default 0 = unmitigated, matching the
+    board's rest state) was the one actually applied? Reviewer fix #4: proof
+    now compares requested vs applied mask, not just internal duty/mask
+    self-consistency — a boot that silently kept the old mask must not read
+    as proved just because that old mask's own duty reading was consistent."""
     m = _BODMIT_INWINDOW_RE.search(text)
     if not m:
         return {"seen": False, "mask": None, "duty": None, "proved": False}
     mask, duty = int(m.group(1)), int(m.group(2))
-    proved = (duty == 0) if (mask & 1) else True
+    proved = (mask == requested) and ((duty == 0) if (requested & 1) else True)
     return {"seen": True, "mask": mask, "duty": duty, "proved": proved}
 
 
@@ -91,41 +146,98 @@ def _dry_run(levels: list[int], reps: int, bodmit: int | None = None) -> None:
     for level in levels:
         for rep in range(reps):
             print(f"[dry-run] stamp phase=X-P2-sweep level={level} rep={rep} bodmit={bodmit}")
+            print(f"[dry-run] send: bod (liveness check, wait <={ACK_TIMEOUT_S:.0f}s for ack)")
             if bodmit is not None:
-                print(f"[dry-run] send: bodmit {bodmit}")
-            print(f"[dry-run] send: bod {level}")
+                print(f"[dry-run] send: bodmit {bodmit} (wait for ack, else INVALID)")
+            print(f"[dry-run] send: bod {level} (wait for ack, else INVALID)")
             print("[dry-run] send: reboot   <-- RESETS THE BOARD")
-            print(f"[dry-run] wait up to {BOOT_TIMEOUT_S:.0f}s for [bootphase] 6, "
-                 f"slice log for [bod] TRIP tag=wifi-end")
+            print(f"[dry-run] wait up to {BOOT_TIMEOUT_S:.0f}s for the NEW boot's own "
+                 f"[bootphase] 0 then [bootphase] 6, slice from bootphase 0 onward, "
+                 f"parse [bod] TRIP tag=wifi-end within that slice only")
         print(f"[dry-run] (stop descending here if level={level} produced 0/{reps} trips, "
              f"unless --all)")
+
+
+def _wait_for(off: int, predicate, timeout_s: float, poll: float = 0.5) -> tuple[bool, str]:
+    """Poll `mt.read_from(off)` until `predicate(text)` is truthy or timeout.
+    Returns (found, last-text-read). Not pure (reads the device log) — the
+    thing under test in the fixtures below is `predicate`, not this loop."""
+    deadline = time.monotonic() + timeout_s
+    text = mt.read_from(off)
+    while not predicate(text):
+        if time.monotonic() >= deadline:
+            return False, text
+        time.sleep(poll)
+        text = mt.read_from(off)
+    return True, text
+
+
+def _invalid(level: int, rep: int, bodmit: int | None, reason: str) -> dict:
+    print(f"INVALID boot level={level} rep={rep} bodmit={bodmit}: {reason}")
+    return {"level": level, "rep": rep, "bodmit": bodmit, "invalid": reason,
+            "tripped": False, "booted": False}
 
 
 def run_one_boot(level: int, rep: int, bodmit: int | None = None) -> dict:
     rigwatch.stamp("note", phase="X-P2-sweep", level=str(level), rep=str(rep),
                     bodmit=str(bodmit) if bodmit is not None else "-")
+    requested_mask = bodmit if bodmit is not None else 0
+
+    # Reviewer fault #1/#2: never type into a board that might still be
+    # booting from the PREVIOUS reboot. Confirm the console is live first.
     off = mt.size()
+    mt.send("bod")
+    ok, text = _wait_for(off, bod_query_ack_seen, ACK_TIMEOUT_S)
+    if not ok:
+        return _invalid(level, rep, bodmit, "console did not ack a bare `bod` "
+                         f"query within {ACK_TIMEOUT_S}s — board likely still booting")
+
     if bodmit is not None:
+        off = mt.size()
         mt.send(f"bodmit {bodmit}")
-        time.sleep(0.5)
+        ok, text = _wait_for(off, lambda t: bodmit_ack_mask(t) is not None, ACK_TIMEOUT_S)
+        got = bodmit_ack_mask(text) if ok else None
+        if not ok or got != bodmit:
+            return _invalid(level, rep, bodmit,
+                             f"bodmit {bodmit} not acked (got {got!r})")
+
+    off = mt.size()
     mt.send(f"bod {level}")
-    time.sleep(1.0)
+    ok, text = _wait_for(off, lambda t: bod_set_ack_level(t) is not None, ACK_TIMEOUT_S)
+    got = bod_set_ack_level(text) if ok else None
+    if not ok or got != level:
+        return _invalid(level, rep, bodmit, f"bod {level} not acked (got {got!r})")
+
+    # Only now — both acks confirmed — do we reboot.
+    pre_reboot_off = mt.size()
     mt.send("reboot")
+
+    # Reviewer fault #3: analyse only the NEW boot. Wait for its own
+    # [bootphase] 0 before trusting anything in the read text as this boot's.
     deadline = time.monotonic() + BOOT_TIMEOUT_S
-    text = ""
+    boot_text = None
     booted = False
     while time.monotonic() < deadline:
-        time.sleep(1.0)
-        text = mt.read_from(off)
-        if reached_bootphase6(text):
+        raw = mt.read_from(pre_reboot_off)
+        boot_text = slice_since_bootphase0(raw)
+        if boot_text is not None and reached_bootphase6(boot_text):
             booted = True
             break
-    result = parse_boot_slice(text)
+        time.sleep(1.0)
+    if boot_text is None:
+        # Never reached [bootphase] 0 at all within the timeout.
+        return _invalid(level, rep, bodmit,
+                         "no [bootphase] 0 seen after reboot within "
+                         f"{BOOT_TIMEOUT_S}s")
+
+    result = parse_boot_slice(boot_text)
     result["level"] = level
     result["rep"] = rep
     result["booted"] = booted
     result["bodmit"] = bodmit
-    result.update({f"bodmit_{k}": v for k, v in parse_bodmit_proof(text).items()})
+    result["armed_level"] = armed_level_from(boot_text)
+    result.update({f"bodmit_{k}": v
+                    for k, v in parse_bodmit_proof(boot_text, requested_mask).items()})
     return result
 
 
@@ -202,8 +314,14 @@ def main(argv: list[str]) -> int:
         time.sleep(0.5)
         mt.send("bod 7")
         time.sleep(1.0)
+        restore_off = mt.size()
         mt.send("reboot")
-        print("restored: bodmit 0 + bod 7 + reboot sent")
+        # Reviewer fault #1: THIS process's own exit must not race the next
+        # invocation's first command into a board that hasn't booted yet —
+        # wait for the restore boot to actually reach ready before returning.
+        ready, _ = _wait_for(restore_off, reached_bootphase6, BOOT_TIMEOUT_S)
+        print(f"restored: bodmit 0 + bod 7 + reboot sent, "
+              f"{'ready' if ready else f'NOT ready within {BOOT_TIMEOUT_S:.0f}s'}")
 
     print("\nlevel  trips/reps")
     for level in levels:

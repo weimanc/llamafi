@@ -73,30 +73,117 @@ class TestParseBootSlice(unittest.TestCase):
 
 class TestBodmitProof(unittest.TestCase):
     """PROP-011 X-P2b-2: the `[bodmit] inwindow ... duty=` line is the
-    applied-state proof that bit0 (backlight forced off across WiFi init)
-    actually took effect — duty must read 0 in-window when bit0 is set."""
+    applied-state proof that the REQUESTED mask actually took effect this
+    boot. Reviewer fix #4 (2026-09-11): proof compares requested vs applied
+    mask, not just the applied mask's own internal duty consistency — the
+    original EXP-036 run's `bodmit=1` boots all read `mask=0` (the old value
+    silently carried over) and the buggy proof called that `proved=True`."""
 
-    def test_bit0_set_duty_zero_is_proved(self):
+    def test_requested_matches_applied_bit0_off_with_duty_zero_is_proved(self):
         text = "[bodmit] inwindow mask=1 t=120ms duty=0 txdbm=8\n"
-        r = rs.parse_bodmit_proof(text)
+        r = rs.parse_bodmit_proof(text, requested=1)
         self.assertTrue(r["seen"])
         self.assertEqual((r["mask"], r["duty"]), (1, 0))
         self.assertTrue(r["proved"])
 
-    def test_bit0_set_duty_nonzero_is_not_proved(self):
+    def test_requested_bit0_but_duty_nonzero_is_not_proved(self):
         text = "[bodmit] inwindow mask=1 t=120ms duty=128 txdbm=8\n"
-        r = rs.parse_bodmit_proof(text)
+        r = rs.parse_bodmit_proof(text, requested=1)
         self.assertFalse(r["proved"])
 
-    def test_mask_zero_needs_no_duty_proof(self):
+    def test_requested_zero_matches_applied_zero_is_proved(self):
         text = "[bodmit] inwindow mask=0 t=120ms duty=255 txdbm=8\n"
-        r = rs.parse_bodmit_proof(text)
+        r = rs.parse_bodmit_proof(text, requested=0)
         self.assertTrue(r["proved"])
 
+    def test_requested_one_but_applied_stayed_zero_is_not_proved(self):
+        # The original EXP-036 driver bug: bodmit=1 was requested but the log
+        # shows mask=0 (the mitigation never took). Old code called this
+        # "proved" because it only checked duty-given-mask, never
+        # requested-vs-mask. Must be False now.
+        text = "[bodmit] inwindow mask=0 t=120ms duty=256 txdbm=8\n"
+        r = rs.parse_bodmit_proof(text, requested=1)
+        self.assertFalse(r["proved"])
+
+    def test_requested_zero_but_applied_was_one_is_not_proved(self):
+        # The mirror-image fault also seen in the original run (send #3):
+        # requested 0, board applied 1 anyway.
+        text = "[bodmit] inwindow mask=1 t=120ms duty=0 txdbm=8\n"
+        r = rs.parse_bodmit_proof(text, requested=0)
+        self.assertFalse(r["proved"])
+
     def test_absent_line_is_not_seen(self):
-        r = rs.parse_bodmit_proof(_BOOT_SLICE_TRIPPED)
+        r = rs.parse_bodmit_proof(_BOOT_SLICE_TRIPPED, requested=0)
         self.assertFalse(r["seen"])
         self.assertFalse(r["proved"])
+
+
+class TestSliceSinceBootphase0(unittest.TestCase):
+    """Reviewer fault #2: analyse only the NEW boot, not a leftover tail of
+    the previous one that a too-fast read_from() offset can still contain."""
+
+    def test_returns_text_from_first_bootphase0_onward(self):
+        raw = ("[bod] TRIP tag=run t=9000ms thres=7\n"   # tail of the OLD boot
+               "[bootphase] 0 reset\n[bootphase] 1 fs\n[bootphase] 6 ready\n")
+        sliced = rs.slice_since_bootphase0(raw)
+        self.assertIsNotNone(sliced)
+        self.assertNotIn("tag=run", sliced)
+        self.assertTrue(sliced.startswith("[bootphase] 0"))
+
+    def test_none_when_no_bootphase0_yet(self):
+        self.assertIsNone(rs.slice_since_bootphase0("still booting, nothing yet\n"))
+
+    def test_old_boots_trip_line_never_leaks_into_the_slice(self):
+        # Reproduces the original bug directly: the previous (level=7) boot's
+        # trip line sits before the new boot's [bootphase] 0. Slicing must
+        # drop it so parse_boot_slice sees only the new boot.
+        raw = ("[bod] TRIP tag=wifi-end t=1ms thres=7 trips=9 det=0 us=1 dur=0 min=7 ctx=00\n"
+               "[bootphase] 0 reset\n[bootphase] 3 wifi\n"
+               "[bod] TRIP tag=wifi-end t=1ms thres=2 trips=10 det=0 us=1 dur=0 min=2 ctx=00\n"
+               "[bootphase] 6 ready\n")
+        sliced = rs.slice_since_bootphase0(raw)
+        r = rs.parse_boot_slice(sliced)
+        self.assertEqual(r["min"], 2)   # the NEW boot's trip, not the old min=7
+
+
+class TestAcks(unittest.TestCase):
+    def test_bod_query_ack_seen(self):
+        self.assertTrue(rs.bod_query_ack_seen(
+            '{"ok":true,"cmd":"bod","thresNow":7,"bootThres":2,"tripsSinceArm":0}\n'))
+
+    def test_bod_query_ack_not_confused_with_set_ack(self):
+        self.assertFalse(rs.bod_query_ack_seen(
+            '{"ok":true,"cmd":"bod","bootThres":2,"note":"takes effect on next reboot"}\n'))
+
+    def test_bod_set_ack_level_reads_requested_value(self):
+        text = '{"ok":true,"cmd":"bod","bootThres":2,"note":"takes effect on next reboot"}\n'
+        self.assertEqual(rs.bod_set_ack_level(text), 2)
+
+    def test_bod_set_ack_level_none_when_only_query_seen(self):
+        text = '{"ok":true,"cmd":"bod","thresNow":7,"bootThres":2,"tripsSinceArm":0}\n'
+        self.assertIsNone(rs.bod_set_ack_level(text))
+
+    def test_bod_set_ack_takes_the_latest_of_several(self):
+        text = ('{"ok":true,"cmd":"bod","bootThres":5,"note":"x"}\n'
+               '{"ok":true,"cmd":"bod","bootThres":2,"note":"x"}\n')
+        self.assertEqual(rs.bod_set_ack_level(text), 2)
+
+    def test_bodmit_ack_mask(self):
+        text = '{"ok":true,"cmd":"bodmit","bootMit":1,"note":"takes effect on next reboot"}\n'
+        self.assertEqual(rs.bodmit_ack_mask(text), 1)
+
+    def test_bodmit_ack_mask_absent(self):
+        self.assertIsNone(rs.bodmit_ack_mask("nothing here\n"))
+
+
+class TestArmedLevelFrom(unittest.TestCase):
+    def test_reads_the_armed_threshold(self):
+        text = ("[bootphase] 0 reset\n"
+                "[bod] armed thres=2 regBefore=0x43ffc000 regAfter=0x53ffc000 ena=1\n")
+        self.assertEqual(rs.armed_level_from(text), 2)
+
+    def test_none_when_absent(self):
+        self.assertIsNone(rs.armed_level_from("[bootphase] 0 reset\n"))
 
 
 class TestReachedBootphase6(unittest.TestCase):
