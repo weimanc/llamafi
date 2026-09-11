@@ -70,6 +70,10 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 - `esptool`: `~/.platformio/packages/tool-esptoolpy/esptool.py`. `--after no_reset` leaves the
   chip in the ROM bootloader (no app, no WiFi — the bare-minimum load); `--after hard_reset` boots
   the app. Both `--before default_reset`. **These open the port — allowed only where stated.**
+- **A console `reboot` must be stamped** or rigwatch reports it as an UNEXPLAINED boot (U).
+  Drivers going through `lib/monitor_tmux.send()` stamp it automatically; by hand, run
+  `(cd app/tools && RIGWATCH=1 python3 -m lib.rigwatch stamp reset who=console)` immediately
+  before `tmux send-keys -t spotify-mon 'reboot' Enter`.
 - Reading BOD state without a reset: `tmux send-keys -t spotify-mon 'bod' Enter; sleep 2;
   tail -c 6000 /tmp/spotify-mon-serial.log | grep -a '"cmd":"bod"' | tail -1`.
 - A ~150 s heap settle after any reset before trusting heap numbers (LL/BP-063); irrelevant to BOD.

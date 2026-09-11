@@ -338,6 +338,27 @@ class TestTeeWritesOnlyForRealPort(_SummaryFixture):
                          and os.path.getsize(self._dutlines) > 0)
 
 
+class TestConsoleRebootIsStamped(_SummaryFixture):
+    """A console `reboot` sent through monitor_tmux.send() must leave a `reset`
+    stamp, or the boot it causes is reported UNEXPLAINED (2026-09-11)."""
+
+    def test_reboot_via_send_explains_the_boot(self):
+        from lib import monitor_tmux as mt
+        calls = []
+        real_run = mt.subprocess.run
+        mt.subprocess.run = lambda argv, **kw: calls.append(argv)
+        try:
+            mt.send("reboot", session="fake")
+            mt.send("get bod", session="fake")
+        finally:
+            mt.subprocess.run = real_run
+        resets = [e for e in rw.read_jsonl(self._events) if e.get("kind") == "reset"]
+        self.assertEqual(len(resets), 1)              # only the reboot is stamped
+        self.assertEqual(len(calls), 2)               # both commands still sent
+        self._dut(resets[0]["host_ts"] + 1.0, "[bootphase] 0 reset")
+        self.assertEqual(rw.summarize(resets[0]["host_ts"] - 5)["unexplained_boots"], 0)
+
+
 class TestDaemonIdempotency(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="rigwatch-pid-")

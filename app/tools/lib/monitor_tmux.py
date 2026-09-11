@@ -38,7 +38,15 @@ def log_path() -> str:
 def send(cmd: str, session: str | None = None, timeout: float = 10.0) -> None:
     """`tmux send-keys -t <session> '<cmd>' Enter`. The one function in this
     module that touches anything outside the interpreter — callers gate it
-    behind --dry-run."""
+    behind --dry-run.
+
+    A console `reboot` is stamped as a harness `reset` first: rigwatch counts a
+    boot with no harness stamp within ±3 s as UNEXPLAINED, and on 2026-09-11 a
+    plain console reboot was reported as one (and rig_sweep.py, which stamps
+    its reboots as `note`, would have reported every sweep reboot the same way)."""
+    if cmd.strip() == "reboot":
+        from . import rigwatch
+        rigwatch.stamp("reset", who="console", via="monitor_tmux")
     subprocess.run(
         ["tmux", "send-keys", "-t", session or session_name(), cmd, "Enter"],
         check=True, timeout=timeout)
