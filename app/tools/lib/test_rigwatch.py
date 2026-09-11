@@ -294,6 +294,24 @@ class TestTimeline(_SummaryFixture):
         self.assertEqual(rw.render_timeline(summ), "(no events in window)")
 
 
+class TestMonitorTailStartsAtEnd(_SummaryFixture):
+    """First daemon run stamped 158 historical boots with 'now' (U=33 out of
+    thin air). The first call must only record the offset; only lines written
+    AFTER it are timestamped."""
+
+    def test_preexisting_lines_are_not_backfilled(self):
+        with open(self._monlog, "w") as fh:
+            fh.write("[bootphase] 0 reset\n[bod] TRIP tag=run t=1 thres=7 trips=1 det=0\n")
+        state = {}
+        rw._tail_monitor_log(state)
+        self.assertEqual(rw.summarize(1.0)["bod_trips"], 0)
+        self.assertEqual(rw.summarize(1.0)["unexplained_boots"], 0)
+        with open(self._monlog, "a") as fh:
+            fh.write("[bod] TRIP tag=run t=2 thres=7 trips=2 det=0\n")
+        rw._tail_monitor_log(state)
+        self.assertEqual(rw.summarize(1.0)["bod_trips"], 1)
+
+
 class TestDaemonIdempotency(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.mkdtemp(prefix="rigwatch-pid-")

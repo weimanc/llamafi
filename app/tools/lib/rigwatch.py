@@ -341,7 +341,13 @@ def _tail_monitor_log(state: dict) -> None:
         return
     sidecar = ts_sidecar_path(path)
     size = os.path.getsize(path)
-    pos = state.get("pos", 0)
+    if "pos" not in state:
+        # First call: start at the END. Lines already in the log were written
+        # at unknown times; stamping them "now" fabricates a boot storm (the
+        # first daemon run reported U=33 from 158 historical boots).
+        state["pos"] = size
+        return
+    pos = state["pos"]
     if size < pos:
         pos = 0  # log was truncated/rotated underneath us
     if size == pos:

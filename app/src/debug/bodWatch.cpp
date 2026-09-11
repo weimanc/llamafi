@@ -62,6 +62,15 @@ static volatile uint8_t  s_minLevelEver = 8;   // 8 = "never tripped"
 static volatile uint16_t s_maxDurUs = 0;
 static volatile uint8_t  s_phaseAtFirst = 0xFF;
 static volatile uint32_t s_histByLevel[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+// One event per re-arm. The ISR disarms INT_ENA on exit; loop() re-arms it
+// at most every 200 ms and only once DET has cleared. A level-asserted latch
+// re-fired the ISR back-to-back on the first F-1 flash (2026-09-11): loopTask
+// starved, TASK_WDT at 15 s, boot loop. Rate-limiting in the consumer makes a
+// storm impossible by construction; `holdoffs` counts how often the rail was
+// still low at re-arm time, which is itself a duration measurement.
+static volatile uint8_t  s_isrDisarmed = 0;
+static volatile uint32_t s_rearms = 0;
+static volatile uint32_t s_holdoffs = 0;
 
 // Context shadow — plain globals the ISR only READS. Written exclusively
 // from non-ISR (loop/setup) code via the bodWatchSetCtx*() setters, so the
@@ -145,6 +154,21 @@ static void IRAM_ATTR bodIsr(void *arg) {
   bodCaptureEvent((uint32_t)t0, durUs, minLevel);
 
   REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
+  REG_CLR_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
+  s_isrDisarmed = 1;
+}
+
+// Consumer-side re-arm (see s_isrDisarmed). Never called from the ISR.
+static void bodWatchRearm(void) {
+  if (!s_armed || !s_isrDisarmed) return;
+  if (REG_READ(RTC_CNTL_BROWN_OUT_REG) & RTC_CNTL_BROWN_OUT_DET) {
+    s_holdoffs++;           // rail still low — try again next tick
+    return;
+  }
+  REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
+  REG_SET_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
+  s_isrDisarmed = 0;
+  s_rearms++;
 }
 
 void bodWatchArm(uint8_t thres) {
@@ -167,6 +191,15 @@ void bodWatchArm(uint8_t thres) {
   // during a sag can corrupt. That is why this is -DBOD_WATCH on the debug env
   // and never production.
   REG_CLR_BIT(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_BROWN_OUT_RST_ENA);
+  // Parity with the polled build that ran 40 h without a reset:
+  // esp_brownout_disable() zeroes PD_RF_ENA and CLOSE_FLASH_ENA (regAfter
+  // read 0x7bff0000 against the old 0x7bffc000). Put them back exactly as
+  // they were, so the interrupt path is the ONLY thing under test.
+  {
+    const uint32_t hwBits = RTC_CNTL_BROWN_OUT_PD_RF_ENA_M | RTC_CNTL_BROWN_OUT_CLOSE_FLASH_ENA_M;
+    REG_WRITE(RTC_CNTL_BROWN_OUT_REG,
+              (REG_READ(RTC_CNTL_BROWN_OUT_REG) & ~hwBits) | (before & hwBits));
+  }
 
   REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
   REG_SET_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
@@ -174,6 +207,9 @@ void bodWatchArm(uint8_t thres) {
   s_thres = thres;
   s_armed = true;
   s_trips = 0;
+  s_isrDisarmed = 0;
+  s_rearms = 0;
+  s_holdoffs = 0;
   s_ringHead = s_ringTail = 0;
   s_ringDrops = 0;
   s_ringCount = 0;
@@ -229,7 +265,7 @@ bool bodWatchPoll(const char *tag) {
   if (!s_armed) return false;
   bool any = false;
   BodRingEntry ev;
-  while (ringDrainOne(&ev)) {
+  for (int n = 0; n < BOD_RING_SIZE && ringDrainOne(&ev); n++) {
     any = true;
     Serial.printf("[bod] TRIP tag=%s t=%lums thres=%u trips=%lu det=%d "
                   "us=%lu dur=%u min=%u ctx=%02x\n",
@@ -239,6 +275,7 @@ bool bodWatchPoll(const char *tag) {
                   (unsigned long)ev.tUs, (unsigned)ev.durUs, (unsigned)ev.minLevel,
                   (unsigned)ev.ctx);
   }
+  bodWatchRearm();
   return any;
 }
 
@@ -248,7 +285,8 @@ bool bodWatchPollQuiet(void) {
   if (!s_armed) return false;
   BodRingEntry ev;
   bool any = false;
-  while (ringDrainOne(&ev)) any = true;
+  for (int n = 0; n < BOD_RING_SIZE && ringDrainOne(&ev); n++) any = true;
+  bodWatchRearm();
   return any;
 }
 
@@ -299,7 +337,7 @@ void bodWatchTick(void) {
   last = now;
 
   BodRingEntry ev;
-  while (ringDrainOne(&ev)) {
+  for (int n = 0; n < BOD_RING_SIZE && ringDrainOne(&ev); n++) {
     s_trips = s_ringCount;
     Serial.printf("[bod] TRIP tag=run t=%lums thres=%u trips=%lu det=%d "
                   "us=%lu dur=%u min=%u ctx=%02x\n",
@@ -309,6 +347,7 @@ void bodWatchTick(void) {
                   (unsigned)ev.ctx);
     bodWatchPolicyCheck(&ev);
   }
+  bodWatchRearm();
 
   if (g_bodDeep) {
     g_bodDeep = false;
@@ -337,6 +376,9 @@ void bodWatchGetSnapshot(BodSnapshot *out) {
   out->phaseAtFirst = s_phaseAtFirst;
   out->thres = s_thres;
   out->armed = s_armed;
+  out->rearms = s_rearms;
+  out->holdoffs = s_holdoffs;
+  out->disarmed = s_isrDisarmed ? true : false;
 }
 
 void bodWatchMark(const char *label) {

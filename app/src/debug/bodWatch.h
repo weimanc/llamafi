@@ -38,6 +38,9 @@ struct BodSnapshot {
   uint8_t  phaseAtFirst;  // boot-phase context byte captured at the first event
   uint8_t  thres;         // threshold currently armed
   bool     armed;
+  uint32_t rearms;        // consumer-side INT re-arms since arm (one per captured event)
+  uint32_t holdoffs;      // re-arm attempts skipped because DET was still asserted
+  bool     disarmed;      // ISR has fired and loop() has not yet re-armed it
 };
 
 #ifdef BOD_WATCH

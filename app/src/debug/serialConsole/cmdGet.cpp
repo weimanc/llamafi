@@ -64,7 +64,8 @@ void cmdGet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"bod\",\"count\":%lu,"
                   "\"dropped\":%lu,\"firstUs\":%lu,\"lastUs\":%lu,\"minLevel\":%u,"
                   "\"maxDurUs\":%u,\"hist\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu],"
-                  "\"phaseAtFirst\":%u,\"thres\":%u,\"armed\":%s,\"last\":true}\n",
+                  "\"phaseAtFirst\":%u,\"thres\":%u,\"armed\":%s,"
+                  "\"rearms\":%lu,\"holdoffs\":%lu,\"disarmed\":%s,\"last\":true}\n",
                   (unsigned long)s.count, (unsigned long)s.dropped,
                   (unsigned long)s.firstUs, (unsigned long)s.lastUs,
                   (unsigned)s.minLevel, (unsigned)s.maxDurUs,
@@ -73,7 +74,9 @@ void cmdGet(const char *args) {
                   (unsigned long)s.hist[4], (unsigned long)s.hist[5],
                   (unsigned long)s.hist[6], (unsigned long)s.hist[7],
                   (unsigned)s.phaseAtFirst, (unsigned)s.thres,
-                  s.armed ? "true" : "false");
+                  s.armed ? "true" : "false",
+                  (unsigned long)s.rearms, (unsigned long)s.holdoffs,
+                  s.disarmed ? "true" : "false");
     return;
   }
   if (strcmp(args, "variant") == 0) {

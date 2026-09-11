@@ -416,14 +416,24 @@ void cmdSet(const char *args) {
     snprintf(bogus, sizeof(bogus), "PROP011-no-such-ap-%lu", (unsigned long)millis());
     WiFi.begin((const char*)bogus, (const char*)"x");   // auto-reconnect stays ON: IDF's own retry loop is the point
 
-    uint32_t r201 = 0;
+    // This command blocks loop() for its whole duration, so bodWatchTick()
+    // cannot re-arm the ISR after its first event — the first DUT run read
+    // `disarmed:true` and "1 trip in 30 s" was the instrument going blind,
+    // not the rail. Poll/re-arm here, the way serialburst does, and report
+    // the trips so X-P1c is one JSON line. discCount is the real reason=201
+    // event counter (rate-limited [wifi-ev] lines are not); r201 stays as
+    // the 100 ms-poll approximation of time spent with no AP.
+    uint32_t r201 = 0, bodTrips = 0;
+    const uint32_t disc0 = wifiDiag::discCount;
     const unsigned long t0 = millis();
     const unsigned long deadline = t0 + (unsigned long)secs * 1000UL;
     while (millis() < deadline) {
       if (WiFi.status() == WL_NO_SSID_AVAIL) r201++;
+      if (bodWatchPollQuiet()) bodTrips++;
       delay(100);
       esp_task_wdt_reset();
     }
+    const uint32_t discDelta = wifiDiag::discCount - disc0;
 
     WiFi.disconnect(false, false);
     delay(100);
@@ -441,8 +451,10 @@ void cmdSet(const char *args) {
     }
     const bool reconnected = (WiFi.status() == WL_CONNECTED);
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"scanLoop\",\"secs\":%d,"
-                  "\"r201\":%lu,\"reconnected\":%d,\"savedSsid\":\"%s\"}\n",
-                  secs, (unsigned long)r201, reconnected ? 1 : 0, savedSsid);
+                  "\"r201\":%lu,\"disc\":%lu,\"bodTrips\":%lu,\"reconnected\":%d,"
+                  "\"savedSsid\":\"%s\"}\n",
+                  secs, (unsigned long)r201, (unsigned long)discDelta,
+                  (unsigned long)bodTrips, reconnected ? 1 : 0, savedSsid);
     return;
   }
   if (sscanf(args, "%31s %127s", var, val) != 2) {
