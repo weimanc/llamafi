@@ -317,8 +317,13 @@ void setup()
   // SERIAL_DEBUG gate per ADR-021 Decision 4 as a production-safe diagnostic
   // — gives any host (test rig or end user) a deterministic way to confirm
   // which firmware is actually flashed without round-tripping a command.
-  // GIT_REV comes from scripts/inject_git_hash.py; "n/a" when undefined
-  // (e.g. non-debug envs that skip the pre-script).
+  // GIT_REV comes from scripts/inject_git_hash.py via gen_build/git_rev.h
+  // (TASK-681: a real #include, not a -D, so an incremental build actually
+  // recompiles this TU when the hash changes); "n/a" when undefined (e.g.
+  // non-debug envs that skip the pre-script and never produce the header).
+#if __has_include("gen_build/git_rev.h")
+#include "gen_build/git_rev.h"
+#endif
   {
     const esp_app_desc_t *d = esp_ota_get_app_description();
     char elf[9];

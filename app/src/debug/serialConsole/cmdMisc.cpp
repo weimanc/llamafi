@@ -17,6 +17,13 @@
 
 #include "display/tft.h"
 
+// TASK-681: real #include of a generated header (scripts/inject_git_hash.py),
+// not a -D, so an incremental build recompiles this TU when the hash
+// actually changes. See boot.cpp's matching banner for the full rationale.
+#if __has_include("gen_build/git_rev.h")
+#include "gen_build/git_rev.h"
+#endif
+
 void cmdSwitchApp(const char *args) {
   int id = -1;
   if (sscanf(args, "%d", &id) != 1 || id < 0 || id >= (int)AppId::COUNT) {

@@ -29,3 +29,8 @@ tools/rnd_logs/
 # of a run, not of the tree. Nothing reads this directory by name; a consumer
 # that needs an artifact names its own path via RESULTS_JSON.
 tools/.runs/
+
+# TASK-681: generated per-build header (current git hash) -- not golden.sha256
+# -gated, since it is expected to change on every commit. See
+# scripts/inject_git_hash.py.
+gen_build/
