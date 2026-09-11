@@ -58,11 +58,16 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 - **Two boards (from 2026-09-11 21:48), both ESP32-2432S028R CYD two-USB, ESP32-D0WD-V3 rev 3.1:**
   | board | factory MAC (eFuse) | host USB port | by-path socket |
   |---|---|---|---|
-  | **DUT1** — every experiment up to EXP-036 | `8c:94:df:92:3c:94` | `1-1` | `pci-0000:c1:00.3-usbv2-0:1:1.0-port0` |
-  | **DUT2** — new, from EXP-037 on | `d4:8a:fc:c8:ee:d0` | `5-1` | `pci-0000:c3:00.3-usbv2-0:1:1.0-port0` |
+  | **DUT1** — every experiment up to EXP-036 | `d4:8a:fc:c8:ee:d0` | `5-1` since 21:48 (`1-1` before) | `pci-0000:c3:00.3-usbv2-0:1:1.0-port0` |
+  | **DUT2** — new, from EXP-037 on | `8c:94:df:92:3c:94` | `1-1` since 21:35 | `pci-0000:c1:00.3-usbv2-0:1:1.0-port0` |
+  *Corrected 2026-09-11 (commit `bbb65fd` had the MACs swapped): the first MAC read came right after
+  an unnoticed replug on `1-1` (21:34:48 → 21:35:04) that had already swapped the new board in.
+  Proof DUT1 = `d4:8a…`: all 264 `STA_GOT_IP` in the day's log are `192.168.1.181`, and the host's
+  ARP table maps `.181` to `d4:8a:fc:c8:ee:d0`. Lesson: read the MAC in the SAME command as the
+  uptime/banner check, never across a gap in which the bench can change.*
   **Never use `/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0` with both attached**: the CH340 has no
-  serial number, so that link names whichever board attached LAST (it silently moved to DUT2 at
-  21:48). Select the board under test with `DUT_PORT_PATH=c1:00.3` / `c3:00.3` (honoured by every
+  serial number, so that link names whichever board attached LAST (it silently moved to the
+  5-1 board at 21:48). Select the board under test with `DUT_PORT_PATH=c1:00.3` / `c3:00.3` (honoured by every
   `run/*` script via `resolve_port`) and `DUT_BY_PATH=<by-path>` for rigwatch, both in the gitignored
   `run/local.env`; pass `--port <by-path>` to the `probe/rig_*` drivers. Identify a board with
   `esptool --port <by-path> read_mac` (reads the eFuse from the ROM bootloader; firmware and flash
