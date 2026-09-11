@@ -70,6 +70,9 @@ class TestParseAndRule(unittest.TestCase):
         self.assertEqual(rl.build_flags(1, 7), "-DBARE_BOD_THRES=7")
         self.assertEqual(rl.build_flags(4, 0), "-DBARE_WIFI -DBARE_TFT -DBARE_SD -DBARE_BOD_THRES=0")
 
+    def test_rung_6_is_display_only_no_wifi(self):
+        self.assertEqual(rl.build_flags(6, 7), "-DBARE_TFT -DBARE_BOD_THRES=7")
+
 
 class TestCliGuards(unittest.TestCase):
     def test_refuses_when_f4_not_landed(self):

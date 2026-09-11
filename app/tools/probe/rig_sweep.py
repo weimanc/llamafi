@@ -48,6 +48,10 @@ _WIFI_END_TRIP_RE = re.compile(
 #: this driver does not silently miss a trip if that ordering ever changes.
 _WIFI_END_TRIP_RE_ALT = re.compile(
     r"\[bod\] TRIP tag=wifi-end[^\n]*\bdur=(\d+)[^\n]*\bmin=(\d+)")
+#: PROP-011 X-P2b-2: `[bodmit] inwindow mask=<m> t=<ms> duty=<d> txdbm=<n>` is the
+#: applied-state proof that bit0 (backlight forced off across WiFi init) actually
+#: took effect this boot — duty must read 0 when bit0 is set.
+_BODMIT_INWINDOW_RE = re.compile(r"\[bodmit\] inwindow mask=(\d+)[^\n]*\bduty=(\d+)")
 
 DEFAULT_LEVELS = [7, 5, 3, 2, 1, 0]
 BOOT_TIMEOUT_S = 60.0
@@ -70,11 +74,25 @@ def reached_bootphase6(text: str) -> bool:
     return bool(_BOOTPHASE6_RE.search(text))
 
 
-def _dry_run(levels: list[int], reps: int) -> None:
+def parse_bodmit_proof(text: str) -> dict:
+    """Pure: did `[bodmit] inwindow ...` appear in this boot's log slice, and if
+    so does its duty reading prove the requested mask was actually applied
+    (bit0 set -> duty must read 0 in-window)? No device involved."""
+    m = _BODMIT_INWINDOW_RE.search(text)
+    if not m:
+        return {"seen": False, "mask": None, "duty": None, "proved": False}
+    mask, duty = int(m.group(1)), int(m.group(2))
+    proved = (duty == 0) if (mask & 1) else True
+    return {"seen": True, "mask": mask, "duty": duty, "proved": proved}
+
+
+def _dry_run(levels: list[int], reps: int, bodmit: int | None = None) -> None:
     print("[dry-run] would write ./run/rig-timeline --since 48h to a file first")
     for level in levels:
         for rep in range(reps):
-            print(f"[dry-run] stamp phase=X-P2-sweep level={level} rep={rep}")
+            print(f"[dry-run] stamp phase=X-P2-sweep level={level} rep={rep} bodmit={bodmit}")
+            if bodmit is not None:
+                print(f"[dry-run] send: bodmit {bodmit}")
             print(f"[dry-run] send: bod {level}")
             print("[dry-run] send: reboot   <-- RESETS THE BOARD")
             print(f"[dry-run] wait up to {BOOT_TIMEOUT_S:.0f}s for [bootphase] 6, "
@@ -83,9 +101,13 @@ def _dry_run(levels: list[int], reps: int) -> None:
              f"unless --all)")
 
 
-def run_one_boot(level: int, rep: int) -> dict:
-    rigwatch.stamp("note", phase="X-P2-sweep", level=str(level), rep=str(rep))
+def run_one_boot(level: int, rep: int, bodmit: int | None = None) -> dict:
+    rigwatch.stamp("note", phase="X-P2-sweep", level=str(level), rep=str(rep),
+                    bodmit=str(bodmit) if bodmit is not None else "-")
     off = mt.size()
+    if bodmit is not None:
+        mt.send(f"bodmit {bodmit}")
+        time.sleep(0.5)
     mt.send(f"bod {level}")
     time.sleep(1.0)
     mt.send("reboot")
@@ -102,6 +124,8 @@ def run_one_boot(level: int, rep: int) -> dict:
     result["level"] = level
     result["rep"] = rep
     result["booted"] = booted
+    result["bodmit"] = bodmit
+    result.update({f"bodmit_{k}": v for k, v in parse_bodmit_proof(text).items()})
     return result
 
 
@@ -113,6 +137,10 @@ def main(argv: list[str]) -> int:
                          "<=1 dropped the CH340 off USB (EXP-035); the board then stays armed "
                          "there and the console is unreachable")
     ap.add_argument("--reps", type=int, default=3)
+    ap.add_argument("--bodmit", type=int, default=None, choices=[0, 1, 2, 3],
+                    help="PROP-011 X-P2b-2: send `bodmit N` before each `bod <level>` "
+                         "this run (bit0 = backlight forced off across the WiFi-init "
+                         "window only). Omit to leave bodmit untouched.")
     ap.add_argument("--all", action="store_true",
                     help="do not stop descending at the first no-trip level")
     ap.add_argument("--timeline-out", default="/tmp/rig_sweep_pre_timeline.txt")
@@ -124,7 +152,7 @@ def main(argv: list[str]) -> int:
     levels = [int(x) for x in a.levels.split(",") if x.strip()]
 
     if a.dry_run:
-        _dry_run(levels, a.reps)
+        _dry_run(levels, a.reps, a.bodmit)
         return 0
 
     if min(levels, default=7) < 2 and not a.allow_low_levels:
@@ -156,7 +184,7 @@ def main(argv: list[str]) -> int:
         for level in levels:
             level_results = []
             for rep in range(a.reps):
-                r = run_one_boot(level, rep)
+                r = run_one_boot(level, rep, bodmit=a.bodmit)
                 level_results.append(r)
                 print(r)
             results.extend(level_results)
@@ -166,12 +194,16 @@ def main(argv: list[str]) -> int:
                 print(f"stopping descent at level={level} (0/{a.reps} tripped)")
                 break
     finally:
-        # `bod N` persists across reboots (RTC_NOINIT): never leave the board armed at
-        # a sweep level. monitor_tmux.send() stamps the reboot as a harness reset.
+        # `bod N` and `bodmit N` both persist across reboots (RTC_NOINIT): never leave
+        # the board armed at a sweep level or with the backlight mitigation still set.
+        # bodmit must go back to 0 BEFORE bod 7, not after. monitor_tmux.send() stamps
+        # the reboot as a harness reset.
+        mt.send("bodmit 0")
+        time.sleep(0.5)
         mt.send("bod 7")
         time.sleep(1.0)
         mt.send("reboot")
-        print("restored: bod 7 + reboot sent")
+        print("restored: bodmit 0 + bod 7 + reboot sent")
 
     print("\nlevel  trips/reps")
     for level in levels:

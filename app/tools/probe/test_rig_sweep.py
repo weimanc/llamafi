@@ -71,6 +71,34 @@ class TestParseBootSlice(unittest.TestCase):
         self.assertEqual(r["dur"], 9)
 
 
+class TestBodmitProof(unittest.TestCase):
+    """PROP-011 X-P2b-2: the `[bodmit] inwindow ... duty=` line is the
+    applied-state proof that bit0 (backlight forced off across WiFi init)
+    actually took effect — duty must read 0 in-window when bit0 is set."""
+
+    def test_bit0_set_duty_zero_is_proved(self):
+        text = "[bodmit] inwindow mask=1 t=120ms duty=0 txdbm=8\n"
+        r = rs.parse_bodmit_proof(text)
+        self.assertTrue(r["seen"])
+        self.assertEqual((r["mask"], r["duty"]), (1, 0))
+        self.assertTrue(r["proved"])
+
+    def test_bit0_set_duty_nonzero_is_not_proved(self):
+        text = "[bodmit] inwindow mask=1 t=120ms duty=128 txdbm=8\n"
+        r = rs.parse_bodmit_proof(text)
+        self.assertFalse(r["proved"])
+
+    def test_mask_zero_needs_no_duty_proof(self):
+        text = "[bodmit] inwindow mask=0 t=120ms duty=255 txdbm=8\n"
+        r = rs.parse_bodmit_proof(text)
+        self.assertTrue(r["proved"])
+
+    def test_absent_line_is_not_seen(self):
+        r = rs.parse_bodmit_proof(_BOOT_SLICE_TRIPPED)
+        self.assertFalse(r["seen"])
+        self.assertFalse(r["proved"])
+
+
 class TestReachedBootphase6(unittest.TestCase):
     def test_true_when_present(self):
         self.assertTrue(rs.reached_bootphase6(_BOOT_SLICE_TRIPPED))
@@ -115,6 +143,24 @@ class TestLowLevelFloor(unittest.TestCase):
         self.assertEqual(p.returncode, 0)
         self.assertNotIn("bod 1", p.stdout)
         self.assertNotIn("bod 0", p.stdout)
+
+
+class TestBodmitFlag(unittest.TestCase):
+    def test_dry_run_shows_bodmit_send(self):
+        p = self._run_dry("--dry-run", "--levels", "2", "--reps", "1", "--bodmit", "1")
+        self.assertIn("bodmit 1", p.stdout)
+
+    def test_bodmit_omitted_by_default(self):
+        p = self._run_dry("--dry-run", "--levels", "2", "--reps", "1")
+        self.assertNotIn("send: bodmit", p.stdout)
+
+    def test_bodmit_out_of_range_rejected(self):
+        p = self._run_dry("--dry-run", "--levels", "2", "--reps", "1", "--bodmit", "4")
+        self.assertNotEqual(p.returncode, 0)
+
+    def _run_dry(self, *args):
+        return subprocess.run([sys.executable, "probe/rig_sweep.py", *args],
+                              cwd=TOOLS, capture_output=True, text=True, timeout=20)
 
 
 if __name__ == "__main__":

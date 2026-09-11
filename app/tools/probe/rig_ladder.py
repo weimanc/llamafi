@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """probe/rig_ladder.py — PROP-011 X-P2 load ladder on the F-4 bare rig.
 
-For each rung (1 bare, 2 +WiFi, 3 +WiFi+TFT, 4 +WiFi+TFT+SD) and each brownout
+For each rung (1 bare, 2 +WiFi, 3 +WiFi+TFT, 4 +WiFi+TFT+SD, 6 display-only
++TFT no WiFi — PROP-011 X-P2b-1) and each brownout
 level in descending order: build and flash rig/bare_bod with that rung's
 -DBARE_* flags and -DBARE_BOD_THRES=<level>, then capture REPS boots. A boot =
 stamp `reset who=xp2` in rigwatch, open the port, pulse EN via RTS, read up to
@@ -34,7 +35,8 @@ RUNGS = (1, 2, 3, 4)
 REPS = 3
 BOOT_TIMEOUT_S = 30.0
 RUNG_FLAGS = {1: "", 2: "-DBARE_WIFI", 3: "-DBARE_WIFI -DBARE_TFT",
-              4: "-DBARE_WIFI -DBARE_TFT -DBARE_SD"}
+              4: "-DBARE_WIFI -DBARE_TFT -DBARE_SD",
+              6: "-DBARE_TFT"}
 
 
 def marker(bare_rig_dir: str) -> str:
