@@ -62,7 +62,8 @@ def parse_boot(text: str) -> dict:
             "ready": "[bootphase] 6 ready" in text,
             "bootreason": int(reason.group(1)) if reason else None,
             "armed_thres": int(thres.group(1)) if thres else None,
-            "wifi_ip": "[wifi] IP " in text}
+            "wifi_ip": "[wifi] IP " in text,
+            "usb_drop": "[rig] usb-drop" in text}
 
 
 def b_boot(level_results: dict) -> int | None:
@@ -108,14 +109,24 @@ def _capture_boot(port: str) -> str:
     s.rts = False           # EN released -> boot
     buf, t0, ready_at = [], time.time(), None
     while time.time() - t0 < BOOT_TIMEOUT_S:
-        d = s.read(4096)
+        try:
+            d = s.read(4096)
+        except serial.SerialException as e:
+            # The CH340 fell off USB mid-boot (2026-09-11, rung 2 level 1). That
+            # is the TASK-557 signature and the thing being measured: record it
+            # as data. Never reopen inside this boot — an open is another reset.
+            buf.append(f"\n[rig] usb-drop at +{time.time() - t0:.2f}s: {e}\n")
+            break
         if d:
             buf.append(d.decode("utf-8", "replace"))
             if ready_at is None and "[bootphase] 6 ready" in "".join(buf):
                 ready_at = time.time()
         if ready_at and time.time() - ready_at > 2.0:
             break
-    s.close()
+    try:
+        s.close()
+    except (serial.SerialException, OSError):
+        pass
     return "".join(buf)
 
 

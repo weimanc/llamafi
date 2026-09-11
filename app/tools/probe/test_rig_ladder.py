@@ -45,6 +45,13 @@ class TestParseAndRule(unittest.TestCase):
     def test_run_tag_trip_is_not_a_boot_trip(self):
         self.assertFalse(rl.parse_boot(BOOT_QUIET + "[bod] TRIP tag=run t=9000ms thres=3\n")["tripped"])
 
+    def test_usb_drop_is_recorded_not_raised(self):
+        b = rl.parse_boot("[bootphase] 0 reset\n[bootreason] 1 POWERON\n"
+                          "[rig] usb-drop at +0.61s: device reports readiness to read but returned no data\n")
+        self.assertTrue(b["usb_drop"])
+        self.assertFalse(b["ready"])
+        self.assertFalse(rl.parse_boot(BOOT_TRIP)["usb_drop"])
+
     def test_b_boot_is_lowest_tripping_level(self):
         self.assertEqual(rl.b_boot({7: 3, 5: 3, 3: 1, 2: 0}), 3)
         self.assertIsNone(rl.b_boot({7: 0}))
