@@ -419,6 +419,10 @@ if ! "$PYTHON" probe/test_rig_ladder.py; then
     echo "FAIL: probe/test_rig_ladder.py (TASK-677 H-1 rig_ladder.py negative suite) FAILED" >&2
     exit 1
 fi
+if ! "$PYTHON" probe/test_rig_resetgap.py; then
+    echo "FAIL: probe/test_rig_resetgap.py (PROP-011 X-P6 rig_resetgap.py negative suite) FAILED" >&2
+    exit 1
+fi
 
 # ── TASK-646 / WP-A A-6 — one results layer, not five. The checker's negative
 # suite runs first (BP-068) and carries the migration's own identity arms:
