@@ -557,9 +557,31 @@ void setup()
     const char* connectedSsid = nullptr;
     const char* connectedPass = nullptr;
     for (uint8_t i = 0; i < candCount && !wifiConnected; i++) {
+      // TASK-680: candidate i-1's auto-reconnect retry (armed by default on
+      // every WiFi.begin()) is still live when candidate i starts — same
+      // cross-stage race TASK-404 fixed between NVS and SPIFFS, here between
+      // cascade candidates. esp_wifi_connect() for candidate i then returns
+      // ESP_ERR_WIFI_CONN ("sta is connecting") and silently no-ops, so the
+      // candidate never actually gets tried until the retry happens to land
+      // between attempts. Apply TASK-404's exact teardown before every
+      // candidate after the first.
+      if (i > 0) {
+        WiFi.setAutoReconnect(false);
+        WiFi.disconnect(false);
+        { unsigned long dl = millis() + 300;
+          while (millis() < dl) { delay(20); esp_task_wdt_reset(); }
+        }
+      }
       winampDisplay.setTitle("WI-FI: CONNECTING...");  // M-BOOT-UI (TASK-364) §2
       Serial.printf("[wifi] Connecting from saved networks (%u/%u): %s\n",
                     (unsigned)(i + 1), (unsigned)candCount, cand[i].ssid);
+      // TASK-680: WiFi.persistent(false) called here is a no-op in
+      // Arduino-ESP32 2.0.17 — it only takes effect inside
+      // wifiLowLevelInit(), which already ran (WiFiGeneric.cpp:694). Without
+      // the storage bracket, a wrong-password candidate's begin() can still
+      // land in NVS via the driver's own persistence. Bracket with a RAM
+      // storage mode instead (same pattern as `set scanLoop`, cmdSet.cpp).
+      esp_wifi_set_storage(WIFI_STORAGE_RAM);
       WiFi.persistent(false);  // don't corrupt NVS if creds are wrong (TASK-167)
       WiFi.mode(WIFI_STA);
       bodMitApplyTx();            // TASK-557 experiment
@@ -603,6 +625,7 @@ void setup()
       } else {
         WiFi.disconnect(false);
       }
+      esp_wifi_set_storage(WIFI_STORAGE_FLASH);  // TASK-680: close the RAM bracket
     }
 
     if (wifiConnected) {
