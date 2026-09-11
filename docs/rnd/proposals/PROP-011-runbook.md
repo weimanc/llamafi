@@ -167,16 +167,20 @@ consumer — never the ISR.
 persists it in the same RTC_NOINIT block as the boot threshold, so it also survives a console
 `reboot` — a cold boot always comes up off. `bod quiet <ms>` sets the step-back-up interval
 (default 30000, floored at 1000). In `bodWatchRearm()`, when descend is on and the trip that just
-disarmed the ISR happened at armed level L>0, the next re-arm lowers the register to L-1 and
-records `floor = min(floor, L-1)`. If no trip occurs for `quietMs` while armed strictly below the
-boot threshold, `bodWatchTick()` steps back up one level (capped at the boot threshold). The
+disarmed the ISR happened at armed level L, the re-arm records `floor = min(floor, L)` (a level
+that actually tripped) and, if L>0, lowers the register to L-1. Every such trip also resets the
+quiet timer. If no trip occurs for `quietMs` while armed strictly below the boot threshold,
+`bodWatchTick()` steps back up one level (capped at the boot threshold). The
 boot-window trip (`tag=wifi-end`, still inside `setup()`, drained by boot.cpp's own
 `bodWatchPoll("wifi-end")`) is excluded by tag so it always fires at the boot threshold — B_boot
 from the reboot-per-level sweep stays comparable with descent on or off. Every level change prints
 `[bod] arm level=<n> reason=descend|quiet|manual` (`manual` = the `bod descend on` toggle itself,
 so rigwatch's timeline has a marker for where a descent run started). `get bod` gains `descend`,
-`armedLevel` (the live level — equals `thres` once descent has moved it), `floor` (8 = descent has
-never stepped down since arm), `stepsDown`, `stepsUp`, `quietMs`.
+`armedLevel` (the live level — equals `thres` once descent has moved it), `floor` (lowest level
+that tripped under descent since arm; 8 = none), `stepsDown`, `stepsUp`, `quietMs`.
+*(Corrected 2026-09-11 at review, commit after `e636513`: the first implementation recorded the
+level stepped down TO — one below anything observed — and reset the quiet timer only on level
+changes, so a board tripping steadily at level 0 would have been stepped up.)*
 
 **Acceptance (host, done):** `./run/build-debug` SUCCESS; `./run/check` 11/11; `./run/check-docs`
 7/7.
@@ -190,8 +194,9 @@ never stepped down since arm), `stepsDown`, `stepsUp`, `quietMs`.
    than the last, down to some floor) or no trips occur at all in the window (consistent with
    X-P1c's 0/121 — descent has nothing to descend from on a quiet supply day).
 4. `tmux send-keys -t spotify-mon 'get bod' Enter` → `armedLevel` should equal the last `reason=`
-   line's level (or the boot threshold if nothing tripped); `floor` should equal the lowest level
-   any `reason=descend` line reached, or `8` if none did.
+   line's level (or the boot threshold if nothing tripped); `floor` should equal the lowest `thres=`
+   on any `[bod] TRIP tag=run` line in the window (one above the last `reason=descend` level if the
+   staircase stopped on its own), or `8` if nothing tripped.
 5. If a `reason=descend` line appeared, wait `quietMs` (default 30 s) past the last trip with no
    further provoke command running → expect a `reason=quiet` line stepping back toward the boot
    threshold.

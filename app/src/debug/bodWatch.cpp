@@ -187,14 +187,21 @@ static void bodWatchRearm(bool isBootWindow) {
     s_holdoffs++;           // rail still low — try again next tick
     return;
   }
-  if (s_descendEnabled && !isBootWindow && s_thres > 0) {
-    const uint8_t nextLevel = (uint8_t)(s_thres - 1);
-    REG_SET_FIELD(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_DBROWN_OUT_THRES, nextLevel);
-    s_thres = nextLevel;
-    if (nextLevel < s_floor) s_floor = nextLevel;
-    s_stepsDown++;
+  if (s_descendEnabled && !isBootWindow) {
+    // The event being re-armed after fired at s_thres, so s_thres is a level
+    // that TRIPPED — that is what `floor` means. Recording the level we step
+    // down TO would report one below anything ever observed.
+    if (s_thres < s_floor) s_floor = s_thres;
+    // "Quiet" means no trips, not no level changes: a board tripping steadily
+    // at level 0 (no step possible) must not be stepped up by the timer.
     s_lastLevelChangeMs = millis();
-    Serial.printf("[bod] arm level=%u reason=descend\n", (unsigned)nextLevel);
+    if (s_thres > 0) {
+      const uint8_t nextLevel = (uint8_t)(s_thres - 1);
+      REG_SET_FIELD(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_DBROWN_OUT_THRES, nextLevel);
+      s_thres = nextLevel;
+      s_stepsDown++;
+      Serial.printf("[bod] arm level=%u reason=descend\n", (unsigned)nextLevel);
+    }
   }
   REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
   REG_SET_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
@@ -427,8 +434,12 @@ void bodWatchTick(void) {
   if (s_armed && s_descendEnabled && !s_isrDisarmed && s_thres < s_baseLevel &&
       (now - s_lastLevelChangeMs) >= s_quietMs) {
     const uint8_t nextLevel = (uint8_t)(s_thres + 1 > s_baseLevel ? s_baseLevel : s_thres + 1);
-    REG_SET_FIELD(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_DBROWN_OUT_THRES, nextLevel);
+    // INT is live here and the ISR runs on this core: it reads s_thres and
+    // its ladder restores that value to the register on exit. Publish
+    // s_thres FIRST, so an ISR landing between the two lines restores the new
+    // level rather than silently undoing the step while s_thres claims it.
     s_thres = nextLevel;
+    REG_SET_FIELD(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_DBROWN_OUT_THRES, nextLevel);
     s_stepsUp++;
     s_lastLevelChangeMs = now;
     Serial.printf("[bod] arm level=%u reason=quiet\n", (unsigned)nextLevel);
