@@ -494,6 +494,13 @@ void bodWatchMark(const char *label) {
 void bodWatchFault(uint8_t level) {
   if (level > 7) level = 7;
   bodCaptureEvent((uint32_t)esp_timer_get_time(), 1, level);
+  // Take the same exit path bodIsr() takes on a real trip (clear INT, disarm
+  // INT_ENA, set s_isrDisarmed) so this synthetic fault drives the real
+  // consumer-side re-arm/descent path in bodWatchRearm() instead of being
+  // silently absorbed by its `if (!s_armed || !s_isrDisarmed) return;` guard.
+  REG_WRITE(RTC_CNTL_INT_CLR_REG, RTC_CNTL_BROWN_OUT_INT_CLR);
+  REG_CLR_BIT(RTC_CNTL_INT_ENA_REG, RTC_CNTL_BROWN_OUT_INT_ENA);
+  s_isrDisarmed = 1;
   Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"fault\",\"synthetic\":\"bod\","
                 "\"level\":%u}\n", (unsigned)level);
 }

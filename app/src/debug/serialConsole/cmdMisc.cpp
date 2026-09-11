@@ -442,8 +442,16 @@ void cmdSerialEcho(const char *args) {
   Serial.printf("{\"probe\":\"echo\",\"phase\":\"begin\",\"lines\":%d}\n", lines);
   char buf[208];
   int got = 0;
-  const unsigned long deadline = millis() + 30000UL;
-  while (got < lines && millis() < deadline) {
+  // TASK-678: deadline is idle-based (30 s since the LAST received line, not
+  // a fixed 30 s from START) so a windowed host driver can pace sends across
+  // several windows without tripping the deadline while it waits between
+  // them; an overall cap still bounds a fully wedged link.
+  const unsigned long IDLE_TIMEOUT_MS = 30000UL;
+  const unsigned long OVERALL_CAP_MS = 600000UL;
+  const unsigned long start = millis();
+  unsigned long idleDeadline = start + IDLE_TIMEOUT_MS;
+  while (got < lines && millis() < idleDeadline &&
+         (millis() - start) < OVERALL_CAP_MS) {
     if (Serial.available()) {
       int len = Serial.readBytesUntil('\n', buf, sizeof(buf) - 1);
       if (len <= 0) continue;
@@ -451,6 +459,7 @@ void cmdSerialEcho(const char *args) {
       buf[len] = '\0';
       Serial.printf("E#%s\n", buf);
       got++;
+      idleDeadline = millis() + IDLE_TIMEOUT_MS;
       if ((got & 63) == 0) esp_task_wdt_reset();
     } else {
       esp_task_wdt_reset();
