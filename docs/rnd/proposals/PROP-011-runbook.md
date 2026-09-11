@@ -79,13 +79,14 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | id | experiment | tier | needs | board cost | status |
 |---|---|---|---|---|---|
 | X-P1a/b | baseline + forced re-association | done | — | none | **DONE 2026-09-10**, PROP-011 §8 |
-| F-1 | firmware: BOD ISR instrument (TASK-678 core) | Sonnet | — | 1 reflash (shared with F-2..F-5) | done (`a7000c5`) |
-| F-2 | firmware: `set scanLoop <s>` provoke command | Sonnet | — | shared | done (`c36594c`) |
+| F-1 | firmware: BOD ISR instrument (TASK-678 core) | Sonnet | — | 1 reflash (shared with F-2..F-5) | done (`a7000c5`, storm fix `4bda928`); DUT-verified 2026-09-11 **except depth**: ladder inert (`dur=0 min=7`, EXP-026 §4) |
+| F-2 | firmware: `set scanLoop <s>` provoke command | Sonnet | — | shared | done (`c36594c`; NVS-safety + bodTrips fixes `e9f659f`/`4bda928`); DUT-verified |
 | F-3 | firmware: `serialsink`, `serialecho`, `-DSERIAL_BAUD` | Sonnet | — | shared | done (`89625be`) |
 | F-4 | firmware: bodWatch ported into the bare rig | Sonnet | — | separate board flashes (P2) | open |
 | F-5 | firmware: `-DBOD_WATCH` orthogonal flag + `BOD_POLICY` stub | Sonnet | Architect ruling for defaults only | shared | done (`c4291bf`) |
-| H-1 | host: `rig_p1c.sh`, `rig_sweep.py`, `rig_ladder.py` drivers | Sonnet | F-1..F-3 merged | none | open |
-| X-P1c | provoke the NO_AP_FOUND loop, trips per retry | Haiku/Sonnet | F-1, F-2, H-1 | none after the F-flash | open |
+| H-1 | host: `rig_p1c.sh`, `rig_sweep.py`, `rig_ladder.py` drivers | Sonnet | F-1..F-3 merged | none | open (X-P1c was driven by a scratch script; `rig_p1c.py` still owed) |
+| F-6 | firmware: adaptive-descent depth (re-arm one level lower after each trip; floor = where trips stop) — replaces the in-event ladder, which is inert on this dip | Sonnet | F-1 | 1 reflash | open — filed from EXP-026 |
+| X-P1c | provoke the NO_AP_FOUND loop, trips per retry | Haiku/Sonnet | F-1, F-2, H-1 | none after the F-flash | **DONE 2026-09-11 — 0/121, refutes P1's inference** ([EXP-026](../reports/EXP-026-p1c-scanloop-trips.md)) |
 | X-P2 | load ladder, B_boot per rung | Sonnet | F-1, F-4, H-1 | ~12 reflashes, ends window | open |
 | X-P3 | supply A/B | **human + Sonnet** | F-1, H-1, cable/hub/meter | ~100 boots | open |
 | X-P4 | UART transfer matrix | Sonnet | F-3, H-1 | none | open |

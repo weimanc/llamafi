@@ -349,6 +349,19 @@ P1(c) proper — a bounded, non-persistent way to *provoke* the retry loop from 
 scanLoop <s>`, no NVS write) — joins TASK-678's console additions, since it costs a reflash and the
 board's current 29 h window is worth more than the confirmation tonight.
 
+**CORRECTED 2026-09-11 by X-P1c ([EXP-026](../reports/EXP-026-p1c-scanloop-trips.md)).** The
+verdict above was correlation. Provoking the identical `NO_AP_FOUND` retry loop with `set scanLoop`
+— 300 s, 121 retry events, same board/cable/port, plus ~4 min of a natural outage — produced
+**0 trips at level 7**. The 09-09 boot's 99 in-loop trips had a co-factor that is not the retry
+loop itself and is **unidentified** (deeper sag that day; concurrent TLS retries; or an
+instrument difference between the polled latch and the ISR — each named and untested in EXP-026
+§4). What survives of §8: re-association does not trip (still 0/20); the boot-window trip is
+deterministic and caught every boot by both instruments; W′ remains the right covariate to record,
+but it is no longer shown to be the driver. TASK-679 (retry backoff) stays filed as a robustness
+candidate, not as a rig fix. The depth ladder built for F-1 is **inert on this dip** (`dur=0
+min=7` on every event — DET is clear before the ISR runs), so depth still comes from the
+reboot-per-level sweep until the adaptive-descent variant lands.
+
 **What P1 did not measure.** Trip depth (only level-7 presence/absence — the ISR ladder is
 TASK-678); whether a *single* scan with the AP absent trips (all observed trips were inside runs);
 anything about the 5 V rail.
