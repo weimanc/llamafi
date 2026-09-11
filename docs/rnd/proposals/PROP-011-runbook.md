@@ -86,16 +86,16 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | F-1 | firmware: BOD ISR instrument (TASK-678 core) | Sonnet | — | 1 reflash (shared with F-2..F-5) | done (`a7000c5`, storm fix `4bda928`); DUT-verified 2026-09-11 **except depth**: ladder inert (`dur=0 min=7`, EXP-026 §4) |
 | F-2 | firmware: `set scanLoop <s>` provoke command | Sonnet | — | shared | done (`c36594c`; NVS-safety + bodTrips fixes `e9f659f`/`4bda928`); DUT-verified |
 | F-3 | firmware: `serialsink`, `serialecho`, `-DSERIAL_BAUD` | Sonnet | — | shared | done (`89625be`) |
-| F-4 | firmware: bodWatch ported into the bare rig | Sonnet | — | separate board flashes (P2) | open |
+| F-4 | firmware: bodWatch ported into the bare rig | Opus | — | separate board flashes (P2) | **done (`e522a73`)** — tracked copy at `rig/bare_bod/` (outside `app/`), rungs `-DBARE_WIFI/TFT/SD`, arm level `-DBARE_BOD_THRES`; all 4 rungs compile |
 | F-5 | firmware: `-DBOD_WATCH` orthogonal flag + `BOD_POLICY` stub | Sonnet | Architect ruling for defaults only | shared | done (`c4291bf`) |
-| H-1 | host: `rig_p1c.py`, `rig_sweep.py`, `rig_ladder.py`, `rig_uart.py` drivers | Sonnet | F-1..F-3 merged | none | drivers + fixture tests written, wired into `smoke_test.sh`; `rig_ladder.py` refuses (F-4 not landed); none executed against the board (host-only per §0.1) |
+| H-1 | host: `rig_p1c.py`, `rig_sweep.py`, `rig_ladder.py`, `rig_uart.py`, `rig_resetgap.py` drivers | Sonnet/Opus | F-1..F-3 merged | none | done; fixture suites in `smoke_test.sh`; `rig_uart` run on the DUT (EXP-029/033), `rig_resetgap` (EXP-034), `rig_ladder` implemented (`e522a73`) and running X-P2 |
 | F-6 | firmware: adaptive-descent depth (re-arm one level lower after each trip; floor = where trips stop) — replaces the in-event ladder, which is inert on this dip | Sonnet | F-1 | 1 reflash | **DUT-verified 2026-09-11 incl. descent + quiet step-up via synthetic faults** ([EXP-033](../reports/EXP-033-f6-staircase-echo.md)) |
 | X-P1c | provoke the NO_AP_FOUND loop, trips per retry | Haiku/Sonnet | F-1, F-2, H-1 | none after the F-flash | **DONE 2026-09-11 — 0/121, refutes P1's inference** ([EXP-026](../reports/EXP-026-p1c-scanloop-trips.md)) |
 | X-P2 | load ladder, B_boot per rung | Sonnet | F-1, F-4, H-1 | ~12 reflashes, ends window | open |
 | X-P3 | supply A/B | **human + Sonnet** | F-1, H-1, cable/hub/meter | ~100 boots | open |
 | X-P4 | UART transfer matrix | Sonnet | F-3, H-1 | none | **DONE 2026-09-11 — link clean both directions**: burst DUT→host 6 cells L=0; sink host→DUT 64 KB L=0 after the `3a30e1c` trailing-LF fix; R=0. Echo cell = RX-overflow instrument limit, re-spec'd as host windowing (`--window 8`, default) — re-run 2026-09-11 hit **2000/2000 echoed, 0 mismatches on the first attempt** ([EXP-033](../reports/EXP-033-f6-staircase-echo.md); original defect analysis in [EXP-029](../reports/EXP-029-uart-matrix.md) §Correction) |
 | X-P5 | 72 h soaks, debug then production | Sonnet (monitoring) | F-1, F-5, **human go for production** | ends window; lifts pin | open |
-| X-P6 | reset-gap sweep n≥30 | Sonnet | F-1 | ~150 resets | open |
+| X-P6 | reset-gap sweep n≥30 | Opus | F-1 | ~300 resets | **DONE 2026-09-11 (quiet-rig leg)** — 0/150 wedged incl. 0/60 at ≤2 s, R=0 U=0; BP-018 not retired (flapping-rig + production legs owed) ([EXP-034](../reports/EXP-034-reset-gap.md)) |
 
 Order: F-1…F-5 in one firmware commit set → one reflash → X-P1c → X-P4 (no further resets) →
 X-P2 → X-P3 → X-P6 → X-P5. The first reflash ends the current window; capture it (§0.1 rule 2).
