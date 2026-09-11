@@ -395,6 +395,31 @@ if ! "$PYTHON" probe/test_burst_check.py; then
     exit 1
 fi
 
+# ── TASK-677/678 H-1 — the PROP-011 experiment drivers' negative suites.
+# Every driver's parsing/decision logic is pure and fixture-tested; the
+# refusal-based drivers (rig_sweep.py's board-reset guard, rig_ladder.py's
+# F-4-not-landed guard) are exercised as subprocesses so the CLI's actual
+# exit code and message are pinned, not just the underlying function. No
+# DUT, no tmux, no pio — import safety (gate/check_import_safety.py) holds:
+# nothing in probe/rig_*.py or lib/monitor_tmux.py touches tmux/serial at
+# import, only from inside main()/the *_cell()/run_*() functions it calls.
+if ! "$PYTHON" probe/test_rig_p1c.py; then
+    echo "FAIL: probe/test_rig_p1c.py (TASK-677 H-1 rig_p1c.py negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" probe/test_rig_sweep.py; then
+    echo "FAIL: probe/test_rig_sweep.py (TASK-677 H-1 rig_sweep.py negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" probe/test_rig_uart.py; then
+    echo "FAIL: probe/test_rig_uart.py (TASK-677/678 H-1 rig_uart.py negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" probe/test_rig_ladder.py; then
+    echo "FAIL: probe/test_rig_ladder.py (TASK-677 H-1 rig_ladder.py negative suite) FAILED" >&2
+    exit 1
+fi
+
 # ── TASK-646 / WP-A A-6 — one results layer, not five. The checker's negative
 # suite runs first (BP-068) and carries the migration's own identity arms:
 # `run_sync_tests.py`'s recorders must BE `lib.results`'s objects, not merely

@@ -218,24 +218,38 @@ default is TASK-578's ruling, not this task's.
 
 ## 2. Host work item H-1 — experiment drivers (`app/tools/probe/`)
 
-All drivers talk to the board **only** through `tmux send-keys -t spotify-mon` and read
-`/tmp/spotify-mon-serial.log`; they stamp phases with `python3 -m lib.rigwatch stamp note …` and
-end by printing `./run/rig-timeline --since <window>`. Each has a `--dry-run` that prints what it
-would send. Device-free tests with recorded fixtures, wired into `smoke_test.sh`.
+All drivers talk to the board **only** through the tmux monitor (`app/tools/lib/monitor_tmux.py` —
+`tmux send-keys -t spotify-mon`, reading `/tmp/spotify-mon-serial.log`); they stamp phases via
+`lib.rigwatch.stamp()`. Each has a `--dry-run` that prints the exact command/stamp sequence and
+touches nothing. Device-free tests with recorded fixtures (`probe/test_rig_*.py`), wired into
+`smoke_test.sh` next to `probe/test_burst_check.py`. Delivered (TASK-677/678, this commit set):
 
-- `rig_p1c.py --secs 60 --reps 3`: sends `bod` (baseline), `set scanLoop 60`, waits, `bod`,
-  `get bod`; reports trips, r201 count, W′, trips per retry, min level histogram.
-- `rig_sweep.py --levels 7..0 --reps 3`: `bod N` → `reboot` → wait for `[bootphase] 6` → record
-  whether `[bod] TRIP tag=wifi-end` appeared and its `min=`; outputs B_boot and the per-level table.
-  **Each `reboot` is a reset: this driver is only run inside an experiment whose board cost says so.**
-- `rig_ladder.py`: P2 orchestration for the bare rig — flashes `[env:bare]` with the rung's flags
-  via `pio run -e bare -t upload` in `~/proj/webradio-bare` (its own port open is allowed there),
-  reads `[bod]` lines from a short `pio device monitor` capture with a hard timeout, moves on.
-  Runs against the **same physical board**, so it is scheduled after the debug firmware's window
-  has been deliberately ended and before it is reflashed.
-- `rig_uart.py`: P4 matrix driver — `serialburst` cells via `burst_check.py`; `serialsink` cells by
-  writing N bytes through `tmux load-buffer`/`paste-buffer` (or a pyserial write **only** if the
-  experiment authorises a port open); `serialecho` diff.
+- `probe/rig_p1c.py --secs 60,60,60,120`: reproduces EXP-026 §1 step 5's sequence exactly (stamp
+  begin, baseline `get bod`, per-secs: stamp, `set scanLoop N`, sleep N+30s, slice the log, pull the
+  scanLoop JSON + trip/reason=201 counts, `get bod`; `get wifiCfg`, stamp end). W′/retries are
+  derived from the JSON fields (§0.2), not the rate-limited `reason=201` line count.
+- `probe/rig_sweep.py --levels 7,5,3,2,1,0 --reps 3`: `bod N` → `reboot` → wait for `[bootphase] 6`
+  → record whether `[bod] TRIP tag=wifi-end` appeared and its `min=`/`dur=`; outputs B_boot and the
+  per-level table. **Refuses (exit 3) without `--i-know-this-resets-the-board`** — every rep is a
+  real reset — and captures `./run/rig-timeline --since 48h` to a file before the first one.
+- `probe/rig_ladder.py`: the argument parser and a REFUSAL only — **BLOCKED on F-4** (not landed).
+  Checks for `~/proj/webradio-bare/src/bodWatch.h` as F-4's landing marker; even once F-4 lands, the
+  flash/monitor/parse loop itself is not implemented yet (there was nothing to drive it against this
+  session). Fixture test pins both the refusal and the "still not implemented" message.
+- `probe/rig_uart.py`: the X-P4 matrix. `serialburst` cells (2000/20000 lines × 8/64/200 pad) reuse
+  `burst_check.check()` against a tmux-sliced log — no second wire-format parser. `serialsink`: only
+  the **64 KB cell is implemented**; the 1 MB cell is not merely slow over tmux, it is unreachable on
+  the current firmware — `cmdSerialSink`'s own 10 s deadline (cmdMisc.cpp:377) caps one call at
+  ~115 KB at 115200 baud regardless of transport (the `_921k` env would raise that ceiling to
+  ~1.15 MB/10 s, but needs its own reflash, out of this session's scope). `serialecho`: 2000
+  generated lines fed via `tmux send-keys -l` in 200-line chunks (avoids the per-line subprocess
+  cost that would otherwise threaten the firmware's 30 s window), diffed against the E#-prefixed
+  replies.
+
+None of the four were run against the live board this session (PROP-011-runbook.md §0.1: `--dry-run`
+only) — `rig_p1c.py`'s and `rig_uart.py`'s non-dry-run paths are implemented and fixture-tested but
+unexercised on hardware; whoever runs X-P1c again, X-P2, or X-P4 next should treat the first live run
+as this session's real acceptance test.
 
 ---
 
