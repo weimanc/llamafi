@@ -49,9 +49,60 @@ from probe import burst_check as bc  # noqa: E402
 
 BURST_LINES = (2000, 20000)
 BURST_PADS = (8, 64, 200)
-#: generous margin over "lines / typical throughput" — a hung burst still
-#: ends the wait at this ceiling rather than blocking forever.
+#: legacy floor, kept only as the historical constant referenced in comments
+#: and tests below — no longer used directly as a timeout.
 BURST_TIMEOUT_S = 60.0
+#: wire rate in bytes/s at 115200 baud, 8N1.
+BURST_BAUD_BPS = 11520.0
+#: bytes per emitted line beyond `pad` itself: `#<seq> <pad chars> <csum>\r\n`
+#: overhead — 16 per the reviewer's measured-vs-formula reconciliation
+#: (TASK-677, 2026-09-11: 20000x64 measured elapsedMs=139663 on the DUT).
+BURST_LINE_OVERHEAD_BYTES = 16
+#: safety multiplier over the raw wire-time estimate.
+BURST_TIMEOUT_MULT = 1.5
+#: fixed margin added on top of the scaled estimate.
+BURST_TIMEOUT_MARGIN_S = 15.0
+#: console is considered idle after this many seconds with no new log bytes.
+IDLE_QUIET_S = 1.5
+#: how long to wait for the console to go idle before giving up and sending
+#: anyway (never block forever on a wedged board).
+IDLE_MAX_WAIT_S = 30.0
+
+
+def burst_timeout_s(lines: int, pad: int) -> float:
+    """Pure: how long to wait for a `serialburst <lines> <pad>` cell to print
+    its `phase:end` marker. TASK-677 X-P4 run (2026-09-11) found the old
+    fixed 60s constant too short for lines=20000 pad=64/200: the cell timed
+    out mid-burst while the DUT kept printing, and the next cell's command
+    bytes went to a console still busy inside cmdSerialBurst, cascading into
+    `began: false` / `no reply` failures for every cell after it (20000x64
+    actually finished cleanly at elapsedMs=139663 per the live log — this was
+    a driver timing bug, not a link fault). Formula per review:
+    `lines*(pad+16)/11520*1.5 + 15`."""
+    return lines * (pad + BURST_LINE_OVERHEAD_BYTES) / BURST_BAUD_BPS * \
+        BURST_TIMEOUT_MULT + BURST_TIMEOUT_MARGIN_S
+
+
+def wait_console_idle(quiet_s: float = IDLE_QUIET_S,
+                       max_wait_s: float = IDLE_MAX_WAIT_S) -> bool:
+    """Block until the tmux log has been silent for `quiet_s` seconds, or
+    `max_wait_s` elapses. Cells must never overlap: a command sent while the
+    DUT is still mid-print (e.g. still inside cmdSerialBurst) is what turned
+    one slow cell into four failed cells in the 2026-09-11 run. Returns True
+    if idle was observed, False if it gave up at max_wait_s (still safe to
+    proceed — just no longer guaranteed quiet)."""
+    deadline = time.monotonic() + max_wait_s
+    last_size = mt.size()
+    last_change = time.monotonic()
+    while time.monotonic() < deadline:
+        time.sleep(0.3)
+        cur = mt.size()
+        if cur != last_size:
+            last_size = cur
+            last_change = time.monotonic()
+        elif time.monotonic() - last_change >= quiet_s:
+            return True
+    return False
 
 #: cmdSerialSink's own hard deadline (cmdMisc.cpp:377, `deadline = millis() +
 #: 10000UL`). At 115200 baud, 8N1, the wire itself moves ~11520 B/s, so the
@@ -168,20 +219,23 @@ def serialecho_diff(sent: list, echoed_lines: list) -> dict:
 # ── device-facing cell runners (tmux only; never called by --dry-run) ─────
 
 def run_burst_cell(lines: int, pad: int) -> dict:
+    wait_console_idle()  # never start a cell while the DUT is still printing
     off = mt.size()
     rigwatch.stamp("note", phase="X-P4-burst", lines=str(lines), pad=str(pad))
     mt.send(f"serialburst {lines} {pad}")
-    deadline = time.monotonic() + BURST_TIMEOUT_S
+    deadline = time.monotonic() + burst_timeout_s(lines, pad)
     text = ""
     while time.monotonic() < deadline:
         time.sleep(0.5)
         text = mt.read_from(off)
         if '"probe":"burst","phase":"end"' in text:
             break
+    wait_console_idle()  # let any trailing bytes drain before the next cell
     return serialburst_cell(text.splitlines())
 
 
 def run_sink_cell(n_bytes: int = SERIALSINK_CELL_BYTES) -> dict:
+    wait_console_idle()
     payload = sink_payload(n_bytes)
     sent_sum = sink_sum8(payload)
     off = mt.size()
@@ -193,10 +247,12 @@ def run_sink_cell(n_bytes: int = SERIALSINK_CELL_BYTES) -> dict:
         mt.send_literal(chunk)
     time.sleep(SERIALSINK_DEADLINE_S + 1.0)
     text = mt.read_from(off)
+    wait_console_idle()
     return serialsink_cell_result(text, n_bytes, sent_sum)
 
 
 def run_echo_cell(n_lines: int = ECHO_LINES) -> dict:
+    wait_console_idle()
     sent = [f"echo-line-{i:06d}" for i in range(n_lines)]
     off = mt.size()
     rigwatch.stamp("note", phase="X-P4-echo", lines=str(n_lines))
@@ -207,6 +263,7 @@ def run_echo_cell(n_lines: int = ECHO_LINES) -> dict:
         mt.send_literal(chunk)
     time.sleep(5.0)
     text = mt.read_from(off)
+    wait_console_idle()
     return serialecho_diff(sent, text.splitlines())
 
 

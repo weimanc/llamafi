@@ -122,5 +122,49 @@ class TestOneMbInfeasibility(unittest.TestCase):
         self.assertEqual(ru.SERIALSINK_CELL_BYTES, 64 * 1024)
 
 
+class TestBurstTimeoutScalesWithPayload(unittest.TestCase):
+    """EXP-029 (TASK-677) found the old fixed 60s wait too short for
+    lines=20000 pad=64/200: the DUT log shows 20000x64 actually finished
+    cleanly at elapsedMs=139663, and 20000x200 at elapsedMs=375765, well
+    past the old 60s constant — the driver gave up early both times and the
+    next cell's command landed on a still-busy console. burst_timeout_s
+    (formula: lines*(pad+16)/11520*1.5 + 15) must cover both measured
+    times."""
+
+    def test_formula_matches_spec(self):
+        lines, pad = 2000, 8
+        expected = lines * (pad + 16) / 11520 * 1.5 + 15
+        self.assertAlmostEqual(ru.burst_timeout_s(lines, pad), expected)
+
+    def test_20000_pad64_exceeds_the_old_fixed_60s(self):
+        self.assertGreater(ru.burst_timeout_s(20000, 64), 60.0)
+
+    def test_20000_pad64_covers_the_measured_139663ms(self):
+        self.assertGreaterEqual(ru.burst_timeout_s(20000, 64), 139.663)
+
+    def test_20000_pad200_covers_the_measured_375765ms(self):
+        self.assertGreaterEqual(ru.burst_timeout_s(20000, 200), 375.765)
+
+    def test_larger_pad_needs_more_time(self):
+        self.assertGreater(ru.burst_timeout_s(20000, 200),
+                           ru.burst_timeout_s(20000, 64))
+
+
+class TestWaitConsoleIdle(unittest.TestCase):
+    """wait_console_idle must observe a quiet log without ever touching the
+    device (mt.size() stubbed to a fixed value simulates an already-idle
+    console)."""
+
+    def test_returns_true_when_already_idle(self):
+        import types
+        fake_mt = types.SimpleNamespace(size=lambda: 42)
+        orig = ru.mt
+        ru.mt = fake_mt
+        try:
+            self.assertTrue(ru.wait_console_idle(quiet_s=0.05, max_wait_s=2.0))
+        finally:
+            ru.mt = orig
+
+
 if __name__ == "__main__":
     unittest.main()
