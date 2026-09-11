@@ -5,7 +5,8 @@
 > window; length not tracked for DUT2 before today (new board). DUT1 untouched throughout.
 
 Boards, named by eFuse MAC (PROP-011-runbook §0.3, corrected 2026-09-11):
-- **DUT1** `d4:8a:fc:c8:ee:d0` — host USB port `5-1` (`pci-0000:c3:00.3`) — not touched this session.
+- **DUT1** `d4:8a:fc:c8:ee:d0` — on host USB port `5-1` since 21:48, but **every DUT1 result compared
+  here (EXP-034/035/036) was taken on port `1-1`** — the same port DUT2 used. Not touched this session.
 - **DUT2** `8c:94:df:92:3c:94` — host USB port `1-1` (`pci-0000:c1:00.3`) — under test this session.
 
 ## Setup — exact commands run, in order
@@ -115,7 +116,7 @@ E5/E6 themselves, which each report R=0 in their own driver output. Not board an
 
 ## Numbers — side-by-side, DUT1 (EXP-034/035/036) vs DUT2 (this run)
 
-| result | DUT1 (`d4:8a:fc:c8:ee:d0`, port 5-1) | DUT2 (`8c:94:df:92:3c:94`, port 1-1) |
+| result | DUT1 (`d4:8a:fc:c8:ee:d0`, data taken on port 1-1) | DUT2 (`8c:94:df:92:3c:94`, port 1-1) |
 |---|---|---|
 | reset-gap wedges @ 1 s (n=30) | 0/30 | **0/30** |
 | reset-gap wedges @ 2 s (n=30) | 0/30 | **0/30** |
@@ -131,8 +132,19 @@ E5/E6 themselves, which each report R=0 in their own driver output. Not board an
 
 ## Decision
 
-Runbook framing: *same on both boards → the CYD design (host port differs, so a match also rules
-out the port); different → which board is marginal on which result, port remains a confound.*
+Runbook framing: *same on both boards → the CYD design; different → which board is marginal.*
+
+**Reviewer correction (coordinator, same day):** the host USB port is **not** a confound. All of
+DUT1's compared data were taken on laptop port `1-1` (DUT1 moved to `5-1` only at 21:48, after its
+experiments; the 32 reset-gap trials run on it there by mistake are excluded), and DUT2 was tested
+on the same `1-1`. Verified from the raw rows: DUT2's WiFi rungs connected on every boot
+(`wifi_ip` 3/3, 3/3, and 9/9 at levels 1/0), every boot was armed at the requested level and
+reached `ready`; its 29 full-firmware boots all armed with `isr=1` (17 at level 7, 12 at level 2),
+all got `STA_GOT_IP 192.168.1.200`, and logged **0** `[bod] TRIP` lines of any tag. So "no trip"
+is not WiFi failing to start and not the instrument being off. Remaining confounds: the **USB
+cable** (whether DUT2 used DUT1's cable is not recorded) and **conditions** — DUT1's data came
+after hours of continuous flashing and resets (board temperature, AP state), DUT2's from a cold
+board in the evening.
 
 **Different, and different in one direction: DUT2 never tripped the BOD comparator at all, at any
 arm level from 7 down to 2, with the full firmware and WiFi running — where DUT1 tripped 3/3 at
@@ -144,13 +156,12 @@ This means **EXP-035/036's central finding — "WiFi bring-up sags the 3V3 rail 
 comparator threshold, ≥2 levels for the low-level USB-drop mechanism" — does not replicate on
 DUT2.** Either DUT1 is the marginal board (worse regulator, worse decoupling, or simply looser
 process variation) and EXP-034/035/036 measured DUT1's specific weakness rather than a property of
-the CYD design in general, or the host USB port matters enough on its own to move the result (DUT1
-sits on port 5-1, DUT2 on 1-1, and this run did not control for port — swapping the boards between
-ports is the next step to separate the two). Given the size of the gap (trip vs. no-trip at every
+the CYD design in general — the host port is the same for both datasets (see the correction
+above), leaving the cable and the conditions as the only alternatives. Given the size of the gap (trip vs. no-trip at every
 level tested, not a partial shift), a same-model, same-silicon-revision board showing **zero**
 comparator trips where the reference board showed trips at **every** level down to 2 reads as board
-(or port) marginality, not CYD-design margin. It does **not** rule out the port as the driver — that
-requires the swap this report recommends but did not run.
+marginality, not CYD-design margin, unless the cable or DUT1's condition turns out to explain it —
+which the two next steps below test directly.
 
 None of DUT2's results contradict DUT1's qualitative ranking of loads (WiFi > everything else,
 display negligible) — DUT2 simply never entered the regime where any load produced a trip, so the
@@ -173,7 +184,8 @@ via the `--rungs`/`--levels` list once a higher level already shows 0 trips).
   E3/E5/E6, each of which reports R=0 in its own driver output. Lesson for the next brief: stamp
   `who=<reason>` *before* an `esptool` identity check, not after, even when the runbook's rule 1
   is about the tmux monitor rather than esptool.
-- Board/port swap (moving DUT2 to port 5-1 and vice versa, or an identical rig on a third port) is
-  the only way to separate "board" from "port" as the cause of the gap above; not run this session.
-- A stray pre-existing untracked file, `run/local.env.bak-dut1` (dated 2026-09-10, before this
-  session), remains in the tree; not created or touched by this session, left alone.
+- **Next steps to close the remaining confounds:** (1) cable swap — run DUT1's rung-2 ladder and the
+  level-1 check on the exact cable and port DUT2 used, and DUT2's on DUT1's cable; (2) a cold-board
+  repeat of DUT1 (after ≥1 h powered off) at levels 7 and 2. If DUT1 still trips and drops on
+  DUT2's cable when cold, it is DUT1's board.
+- `run/local.env.bak-dut1` was the coordinator's own backup of the local env; deleted.
