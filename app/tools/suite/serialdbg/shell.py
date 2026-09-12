@@ -1888,6 +1888,37 @@ def _get_shell_busy(dut: Dut) -> bool | None:
     return None
 
 
+def _busy05_verdict(results: list) -> tuple:
+    """T-BUSY-05's post-switch adjudication, split out so it can be pinned by a
+    host test independent of the DUT (TASK-582, WP-C C-1).
+
+    Lives here, beside its only caller, and NOT in `_helpers.py`: that module's
+    own docstring reserves itself for helpers shared by 2+ families and sends a
+    single-family helper back to its family's module (M-TOOLING §3). Being
+    host-testable is not a reason to promote it — the test imports it from
+    here.
+
+    `results` is the list of `_get_shell_busy()` readings taken after
+    `switchApp`; each entry is `True`, `False` or `None` (a failed `get
+    shellBusy` read). -> (outcome, message) where outcome is
+    'pass' | 'fail' | 'unmet'.
+
+    A `None` in the list means the read itself failed — the test's premise
+    (that shellBusy could be observed) never held, so that is `unmet`, not a
+    verdict on the firmware (TASK-596/R18: a failed read must never silently
+    stand in for a real reading, and per lib/results.py an unreadable value is
+    closer to UNMET than to FAIL). Only once every reading is a real bool does
+    this adjudicate the firmware: all-False is the amber clearing (pass),
+    anything else — including all-True, the total regression this function
+    exists to catch — is fail.
+    """
+    if any(b is None for b in results):
+        return ("unmet", f"get shellBusy failed during post-switch poll: {results}")
+    if any(b is not False for b in results):
+        return ("fail", f"shellBusy not false after switchApp: {results}")
+    return ("pass", f"shellBusy=false in all 3 polls after switchApp (results={results})")
+
+
 # ── T-BUSY-01 — StockApp row tap triggers busy; clears on fetch complete ──────
 
 @meta(cls="FEATURE", cls_reason=
@@ -2094,17 +2125,21 @@ def t_busy_03(dut: Dut):
 # ── T-BUSY-05 — App switch while busy clears amber ────────────────────────────
 
 @meta(cls="FEATURE", cls_reason=
-      "TASK-626, approved 2026-09-06. DEMOTED from a SEEDED CORE. Its failure is LOCAL "
-      "in the strongest sense available: today the id cannot report a failure at all. "
-      "WP-C `C-1` — the guard at the end of the body is inverted (`if any(b is not "
-      "True ...)` is False exactly when all three post-switch reads are `True`, i.e. "
-      "when the amber did NOT clear), so control falls through to `pass_()` precisely "
-      "when the regression is present, and four `skip()` exits mean it usually never "
-      "reaches the assertion. A test that passes on its own regression cannot license "
-      "stopping the run; nothing downstream is protected by it. Re-promotion is "
-      "arguable once TASK-582 corrects C-1 and it has been run on hardware, not "
-      "before. Its precondition (`set triggerFetch 1` + a Stock activation fetch) is "
-      "not satisfiable offline either (R36).")
+      "TASK-626, approved 2026-09-06; C-1 corrected by TASK-582 on 2026-09-12, class "
+      "UNCHANGED. The demotion was argued on the ground that the id could not report a "
+      "failure at all: WP-C `C-1`, the end-of-body guard was inverted (`if any(b is "
+      "not True ...)` is False exactly when all three post-switch reads are `True`, "
+      "i.e. when the amber did NOT clear), so control fell through to `pass_()` "
+      "precisely on the regression. That guard is GONE — `_busy05_verdict` now fails "
+      "the all-True case and returns `unmet` on an unreadable one, pinned host-side by "
+      "`suite/test_busy05_guard.py`. The class stays FEATURE anyway, for the reason "
+      "the demotion gave second and TASK-582 did not touch: this id has NEVER been "
+      "observed exercising its corrected path, so there is no evidence either way "
+      "about the firmware behaviour underneath, and three `skip()` exits upstream "
+      "mean the assertion is reached only when all three preconditions hold. "
+      "Re-promotion needs a hardware run, not a corrected predicate. Its precondition "
+      "(`set triggerFetch 1` + a Stock activation fetch) is not satisfiable offline "
+      "either (R36).")
 def t_busy_05(dut: Dut):
     """T-BUSY-05: Stock row tap (busy) → switchApp(Spotify) → shellBusy false × 3."""
     print("T-BUSY-05  App switch while busy → amber clears")
@@ -2137,12 +2172,13 @@ def t_busy_05(dut: Dut):
             results.append(_get_shell_busy(dut))
             time.sleep(0.02)
         _poll_shell_busy(dut, False, timeout_ms=5000)
-    if any(b is not True for b in results):
-        bad = [str(r) for r in results if r is not False]
-        if bad:
-            fail("T-BUSY-05", f"shellBusy not false after switchApp: {results}")
-            return
-    pass_("T-BUSY-05", f"shellBusy=false in all 3 polls after switchApp (results={results})")
+    outcome, msg = _busy05_verdict(results)
+    if outcome == "unmet":
+        unmet("T-BUSY-05", msg)
+    elif outcome == "fail":
+        fail("T-BUSY-05", msg)
+    else:
+        pass_("T-BUSY-05", msg)
 
 
 # ── T-CDWN-01 — VIS Phase-2 cooldown gate (touchScreenCoolDownTime) ───────────

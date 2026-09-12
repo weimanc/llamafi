@@ -468,4 +468,17 @@ if ! "$PYTHON" gate/check_board_currency.py; then
     exit 1
 fi
 
+# ── TASK-582 — T-BUSY-05's post-switch guard, WP-C finding C-1. The old guard
+# (`if any(b is not True for b in results): ...`) was False, and so fell
+# through to a silent pass_(), exactly when every post-switch reading was
+# True — the amber never clearing, the one outcome the id exists to catch.
+# Pins the fixed adjudicator (`_busy05_verdict`) against all four reading
+# shapes, including the all-True regression arm and the None (failed-read)
+# arm, which is `unmet()` per TASK-596/R18 rather than a silent pass or an
+# unearned fail. Host-only, no DUT, ~0.05 s.
+if ! "$PYTHON" suite/test_busy05_guard.py; then
+    echo "FAIL: test_busy05_guard.py (TASK-582 C-1 guard negative suite) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"
