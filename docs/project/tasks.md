@@ -86,9 +86,11 @@ prose on another board. They are here because this file is the index and is read
 1. **The board is PINNED to the `cyd2usb_winamp_debug` (`-DBOD_WATCH`) build. Do not restore
    production.** Reflashing the *same* debug env is permitted (human, 2026-09-03); restoring
    `ENV_PROD` is not. The restore was deleted from all fourteen entry points by TASK-633, so no
-   `run/` script will do it behind you — but a manual `run/flash` will. Owner: **TASK-578** (@Architect ruling), **re-opened by TASK-682**: the production
-   brownout reboots that motivated this pin were measured through the faulty cable (see 2), so the pin
-   itself is now unjustified-until-retested rather than settled — do not lift it without that retest. Permitted is not free: **a reflash resets the
+   `run/` script will do it behind you — but a manual `run/flash` will. Owner: **TASK-578** (@Architect ruling), **re-scoped 2026-09-12 as TASK-682**: TASK-578 is
+   RULED (BOD ride-through never ships in production), and the brownout reboots that motivated this
+   pin were measured through DUT1's faulty micro-USB connector (see 2). The pin is therefore
+   unjustified-until-retested rather than settled — lift it only after TASK-682's single production
+   boot on the USB-C wiring shows no brownout reboot. Permitted is not free: **a reflash resets the
    board and spends the running TASK-557 observation window** (9 h 33 m on 2026-09-07) — check for
    one first and record it if you end it, per
    [dut_workflow.md §5a](../process/dut_workflow.md). **Last window: 39 h 38 m, ended on purpose
@@ -119,7 +121,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-683** (675 here; 676–679, 682 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin/TASK-578 retest). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-685** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 

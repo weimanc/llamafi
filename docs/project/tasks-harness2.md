@@ -1,10 +1,12 @@
 # M-HARNESS2 + WP-Z — test-harness remediation programme
 
 > Owner: **Project Manager**
-> Status **2026-09-09**: **Phases 0 and 1 COMPLETE** (32 rows, all closed); **Phase 2's session is
+> Status **2026-09-12**: **Phases 0 and 1 COMPLETE** (32 rows, all closed); **Phase 2's session is
 > executed** and 4 rows remain (582, 588, 595, 597); **Phase 4: TASK-638 DONE**, 637/639 open;
 > **Phase 5: TASK-671 DONE** (the runtime R34 gate is live on 193 transcripts), 641's taxonomy
-> ruled accepted, 672–674 and 676 filed; Phases 3 and the rest of 5 stay behind TASK-557. Only Phase 1 was
+> ruled accepted, 672–674 and 676 filed. **TASK-557 is DONE (2026-09-12) — Phases 3 and 5 no longer
+> wait on it; their remaining gate is Phase 2's three live rows (582, 595, 597), TASK-588 having
+> closed 2026-09-12.** Only Phase 1 was
 > ever *committed* by the programme decision — 2, 4 and 5 have been worked opportunistically where
 > a row was unblocked, which is why closed rows appear in phases that are not committed.
 > **Where to start cold: the Totals table at the foot of this file** — it names the live rows per
@@ -47,7 +49,7 @@ renumberable — **kept rather than renumbered on purpose**, because the human r
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
 WP-Z's reserved band). **TASK-648 was never allocated either** — the band closed at 647 and the
 next filing started at 649. Allocated since: **TASK-649…660** on [tasks.md](tasks.md) (the TASK-587
-escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-684** (671–674, 676–683 filed here; 675 on tasks.md)
+escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-685** (671–674, 676–684 filed here; 675 on tasks.md)
 (662–668 filed 2026-09-07 on [tasks.md](tasks.md) from the Phase 2 hardware sessions; **TASK-669**
 the same day, the board-currency gate, and **TASK-670** the LL-151 BP candidate, both also on
 [tasks.md](tasks.md)).
@@ -88,11 +90,14 @@ TASK-621 are closed. Every exit criterion is met.
 
 ---
 
-## Phase 1 — host-only foundation (~28.5 d) — **COMPLETE 2026-09-06, all 26 rows closed**
+## Phase 1 — host-only foundation (~28.5 d) — **COMPLETE 2026-09-06, all 26 rows closed; one exit criterion has since REGRESSED (TASK-684)**
 
-**Every exit criterion below was met and is mechanically re-checkable.** The stop criterion did not
-fire: all three summary parsers were retired by TASK-608, and `run/check` holds at **43.5 s warm**
-(cold ~100 s, rebuild-dominated, and the script says so) against its 90 s budget.
+**Every exit criterion below was met on 2026-09-06 and is mechanically re-checkable — and being
+re-checkable is how one of them was caught regressing.** The stop criterion did not fire at the
+time: all three summary parsers were retired by TASK-608, and `run/check` held at **43.5 s warm**
+against its 90 s budget. **It no longer does: 98.8 s warm, measured 2026-09-12** (73.4 s of it in
+`smoke_test.sh` alone). Filed as **TASK-684**; the wall-clock criterion is NOT met today. The other
+exit criteria are unaffected and still hold.
 
 **Entry: none.** Every row is host-only: no board, no ADR, no graded finding, unaffected by the
 TASK-557 pin.
@@ -134,6 +139,7 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-644 | P3 | **DONE 2026-09-06** | all five specification gaps ruled in the documents that own them — [ADR-066](../architecture/decisions/ADR-066.md) D2a/D4a, [IFC-008](../architecture/interfaces/IFC-008.md) I8/I9 + D-COMP/D-SNAP/D-VER, [R28/R21](../verification/M-HARNESS2-requirements.md) corrected. Four of five confirm as-built; **D2a narrows TASK-636** |
 | TASK-645 | P3 | **DONE 2026-09-06** — artifact schema **1.2**; T_ART_16/17 blocking | the premise now identifies what it ran against: harness = a content hash over `app/tools/**/*.py` + `run/*` (git is provenance only); board = the efuse MAC via a new `get boardId` key, port demoted to `transport`. **`get boardId` DUT-VERIFIED 2026-09-07**, both arms (session review §0) |
 | TASK-646 | P2 | **DONE 2026-09-06** — on `lib/results` + the artifact; `check_private_results.py` blocking, [1-row ledger](../verification/private_results_exceptions.md) | `run/test-sync`'s 20 ids had no machine interface — [A-6](../verification/reviews/M-TESTQUAL-A-harness-review.md). They now get the flake retry, `NOT-RUN`/`UNMET` and the artifact. The private `Dut` stays: TASK-599 |
+| TASK-684 | P2 | **OPEN — filed 2026-09-12** | Phase 1's wall-clock exit criterion regressed: `run/check` **98.8 s warm** of 90 (43.5 s at TASK-629, 63.1 s at TASK-671), **73.4 s of it `smoke_test.sh`**. Cut inside gate 8 or re-price the budget with a reason — do not just raise the number. Host-only. **Owner:** @Developer. |
 
 ---
 
@@ -151,9 +157,10 @@ shrinks by roughly a third, and the Phase 5 corpus retrofit is not cut.
 conversion had never been executed against a board and both its headline mechanisms were dead, and
 the ELF guard had been inert since 2026-08-17 while every artefact said otherwise. A gate that greps
 for a call is not a gate that runs it (TASK-661).
-**Still open here: TASK-582, TASK-588, TASK-597, TASK-589, TASK-595** — none blocked by the session
-any more; 588/597 wait on nothing but hands. **589 landed 2026-09-07 (PARTIAL — uncommitted)**, so
-Phase 4's render half is no longer waiting on an instrument.
+**Still open here: TASK-582, TASK-595, TASK-597** — none blocked by the session any more; 597
+waits on nothing but hands. **TASK-588 closed 2026-09-12** (`9988d7e`) and **TASK-589 is DONE**
+(`69984ed`), so Phase 4's render half is no longer waiting on an instrument. **These three are now
+the sole phase-level gate on Phase 3, and on Phase 5 through it.**
 
 **Entry: TASK-618 — RULED 2026-09-03. SATISFIED 2026-09-06 by TASK-633.** The entry points now
 verify and refuse (ADR-067): they read the board's build identity and exit 3 (`elf-mismatch`, RIG) if
@@ -182,7 +189,7 @@ corpus retrofit is cut to delta-scoped rules only.
 | TASK-581 | P1 | **CLOSED 2026-09-07 — REFUTED on hardware**, not fixed | the aircraft injector freezes the radar for the rest of the boot — [H-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). All eight ids PASS; `H-5`'s companion claim (`T_PR_05` a permanent SKIP) is **STALE** — it passes — [§1.3](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-582 | P1 | **OPEN — unblocked 2026-09-07** (TASK-634 done) | an inverted guard that passes exactly on the regression — [C-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Its id `T-BUSY-05` was demoted out of CORE by TASK-626, so it no longer gates the run — the inverted guard itself is still unfixed |
 | TASK-583 | P1 | **CLOSED 2026-09-05, subject deleted** — not fixed, GONE | the error-suite teardown writes the wrong state — [F-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). TASK-603 deleted `_wr_err_test` with the only four bodies that called it (`T_WR_ERR_01`-`04`) … [retired_test_ids.md](../verification/retired_test_ids.md) |
-| TASK-588 | P1 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | a skipped health check announced as a health PASS — [C-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md). `unmet()` is the verdict it needed and it now exists |
+| TASK-588 | P1 | **DONE 2026-09-12** (`9988d7e`) | a skipped health check announced as a health PASS — [C-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Gating was already right (TASK-624); the two hardcoded `[health] PASS` literals were not. Both now branch on `_triage.health_verdict()`, so banner and premise cannot disagree. |
 | TASK-597 | P2 | **OPEN — unblocked** (TASK-624 DONE 2026-09-04) | the player gate's health machinery cannot fire — [E-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-595 | P2 | **OPEN — unblocked 2026-09-07** (TASK-579 done); **scope grew** | sweep the flake registry against its call sites, both directions — [C-7](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Hardware confirmed `T092`/`T_PLR_07` and found a **third**: `T_WR_EJECT_01` FAILs `UNDECLARED flake`. Also owns the 4 `no_reachable_fail` rows (`T084`/`T087`/`T091`/`T092`) |
 | TASK-589 | P1 | **DONE 2026-09-07** (`69984ed`) | repair `run/screendump`, broken at import — [A-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Portal branch DROPPED not restored; 3 dependants wrapped; `--colorprobe` 25/25 + 4/4 swatch on DUT; gated by `check_screendump_instrument.py` |
@@ -243,12 +250,12 @@ because it carries a gate's authority.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-635 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/588/595/597)**; its row predecessor TASK-608 is DONE | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
-| TASK-592 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/588/595/597)**; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-636 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/588/595/597)**; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
+| TASK-635 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/595/597)**; its row predecessor TASK-608 is DONE | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
+| TASK-592 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/595/597)**; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-636 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/595/597)**; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
 | TASK-594 | P2 | BLOCKED — TASK-636 | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-604 | P2 | BLOCKED — phase entry | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-605 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/588/595/597)**; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-605 | P2 | BLOCKED — **phase entry (Phase 2 remainder 582/595/597)**; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 
 ---
 
@@ -316,24 +323,27 @@ ratchet's clothes.
 
 ## Totals
 
-**Recounted mechanically 2026-09-08.** The previous table read 61 rows and predated TASK-644/645/
-646/647 and TASK-661; every count below is derived from the tables above, not carried forward.
+**Recounted mechanically 2026-09-12.** The 2026-09-08 recount predated the sixteen rig/M-TESTARCH
+rows moved in on 2026-09-10 and was not re-derived when they landed, so its totals row (88/51/37)
+did not match its own phase rows (87/43/44). Every count below is derived from the tables above by
+reading each row's leading status token, not carried forward.
 
 | phase | rows | closed | live | days | state |
 |---|---|---|---|---|---|
 | 0 — decisions | 6 | 6 | 0 | ~1 | **DISCHARGED 2026-09-04** |
-| 1 — host-only foundation | 26 | 26 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; `run/check` 43.5 s warm of 90, `run/check-docs` 1.1 s of 15 |
-| 2 — the 80-minute session | 12 | 7 | 5 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: 582, 588, 597, 595, 589 |
-| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **Phase 2's remainder** (TASK-557 DONE 2026-09-12); shrunk by H-1's refutation |
+| 1 — host-only foundation | 27 | 26 | 1 | ~28.5 | rows COMPLETE 2026-09-06, but the wall-clock exit criterion **regressed**: `run/check` **98.8 s warm of 90** (was 43.5 s), `run/check-docs` 1.1 s of 15. Live: **684** |
+| 2 — the 80-minute session | 12 | 9 | 3 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: 582, 595, 597 — the gate on Phases 3 and 5 |
+| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **Phase 2's remainder** alone (TASK-557 DONE 2026-09-12; TASK-575's owed `run/test` pass is the other entry clause); shrunk by H-1's refutation |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
-| rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 16 | 2 | 14 | — | 557 gates Phase 3; 564/566/567 are the order-switch chain; 573/574 gate defects; 677/678 PROP-011; **680/681 DONE 2026-09-11** |
-| 5 — ratchets | 17 | 1 | 16 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
-| **total** | **88** | **51** | **37** | **~83** | Phases 0–1 done; only Phase 1 was ever *committed* |
+| rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 18 | 7 | 11 | — | **557 DONE 2026-09-12 — it gates nothing now**; 564/566/567 are the order-switch chain; 573/574 gate defects; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
+| 5 — ratchets | 18 | 1 | 17 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
+| **total** | **91** | **50** | **41** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
 
-**The three phases still ahead are not equally blocked.** Phase 2's five live rows and Phase 4's
-TASK-637 and Phase 5's TASK-610/614/615 need **nothing but hands**. Everything else waits on
-TASK-557 (Phase 3, and Phase 5 through it). TASK-589 — Phase 4's render half — was repaired and
-hardware-verified on 2026-09-07 and no longer holds anything back.
+**The three phases still ahead are not equally blocked.** Phase 2's three live rows and Phase 4's
+TASK-637 and Phase 5's TASK-610/614/615/672–674/676 need **nothing but hands**. Everything else
+waits on **Phase 2's remainder** (Phase 3, and Phase 5 through it) — no longer on TASK-557, which
+closed on 2026-09-12. TASK-589 — Phase 4's render half — was repaired and hardware-verified on
+2026-09-07 and no longer holds anything back.
 
 **~60 engineer-days were cut outright and are not on this board** — R44's retrofit, R8, R26, R53's
 budget table, R11's quarterly campaign, the three-consecutive-shuffled-runs criterion, R1's prose
