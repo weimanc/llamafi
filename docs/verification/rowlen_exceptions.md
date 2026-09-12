@@ -69,6 +69,5 @@ Owner = the task whose row this is, i.e. the one that can decide what the pointe
 | `docs/project/tasks-harness2.md` | `TASK-575` | 1 361 chars — the `_TeeSerial` defect and its fix, in the row | TASK-575 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-576` | 3 129 chars — the stale-monitor-log session narrative | TASK-576 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-577` | 812 chars — the `sdprobe` revert rationale | TASK-577 | 2026-09-05 |
-| `docs/project/tasks-harness2.md` | `TASK-578` | 836 chars — the brownout-ISR decision framing | TASK-578 | 2026-09-05 |
 
 **18 rows. One board.** The three other live boards are at zero and stay there.

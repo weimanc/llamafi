@@ -255,6 +255,36 @@ this doc:
 
 ---
 
+## 5f. Rig-stability triage — run this before blaming firmware (TASK-557, 2026-09-12)
+
+TASK-557 cost six weeks because four campaigns theorised about firmware (brownout ISR, retry loops,
+harness resets) before anyone swapped a connector. The cause was **DUT1's micro-USB connector**, a
+mechanically intermittent contact (EXP-039). **Any future doubt about rig stability starts here**, in
+cost order. The instruments all exist and every driver refuses to run without an explicit flag.
+
+| # | check | command | what it settles |
+|---|---|---|---|
+| 1 | **Ask for mechanical symptoms** | — | Backlight flicker, touch-sensitivity at the plug, a board that recovers when nudged. No log shows this, and it ended TASK-557 in one sentence. |
+| 2 | **Host-side truth** | `./run/rig-timeline --since 48h`, `python3 -m lib.rigwatch summary --since <w>` | R (USB re-enumerations) and U (unexplained boots). R=0 means the link never dropped, whatever the symptom felt like. |
+| 3 | **Kill host-side causes first** | `pgrep -af '[p]io device monitor'` | An orphaned monitor resets the board in a loop (TASK-558); a stale monitor fd reads as a dead board (TASK-576). |
+| 4 | **Brownout margin, per load** | `probe/rig_ladder.py --port <by-path> --rungs 1,2,4,6 --levels 7,5,3,2 --reps 3` | Which load sags the 3V3 rail, one load at a time, on the bare rig. WiFi bring-up is the only load that has ever mattered. |
+| 5 | **Swap ONE physical thing per run** | repeat #4 after each swap | cable, then board-side connector, then host socket, then board. Changing two at once is what made the first EXP-039 write-up wrong. |
+| 6 | **Second board** | same as #4 with `--port <other by-path>` | Separates a board fault from wiring. Identify each board by `esptool … read_mac` **in the same command** as the check — with two CH340s attached, `/dev/serial/by-id/` names whichever attached last. |
+| 7 | **Reset cadence** | `probe/rig_resetgap.py --i-know-this-resets-the-board --gaps 1,2 --trials 30` | Whether back-to-back resets wedge the board (0/150 as of 2026-09-11). |
+| 8 | **Link integrity** | `probe/rig_uart.py` | Bytes lost per direction (0 in 5.3 MB as of 2026-09-11). |
+
+**Never arm the brownout comparator below level 2** (`rig_sweep.py` refuses; EXP-035): on a board with
+a marginal supply path every WiFi boot then drops USB, and the board stays armed there with its
+console unreachable — recovery needs `esptool write_mem` on the RTC magic.
+
+**Standing rig facts:** DUT1 `d4:8a:fc:c8:ee:d0` runs **USB-C only** (its micro connector is retired);
+DUT2 `8c:94:df:92:3c:94` is unaffected. `-DBOD_WATCH` is a debug-env instrument and **never ships in
+production** (human ruling, TASK-578) — production keeps ESP-IDF's stock brownout reset, which matters
+more now that a speaker DUT (higher current draw) is planned (TASK-683).
+
+Full method and results: [PROP-011 runbook](../rnd/proposals/PROP-011-runbook.md) §0.4 status board,
+EXP-026/034/035/036/037/038/039.
+
 ## 6. Python Tooling
 
 ```sh

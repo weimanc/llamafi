@@ -1552,7 +1552,8 @@ milestone level:
   mechanism it cites left the firmware one week *after* the BP was adopted, leaving ~3 months of
   unreachable code reading as live safety code. The 12 s gap is kept as an explicitly unverified
   precaution with a written retirement criterion.
-- **TASK-557 (rig instability) is UNRESOLVED and non-stationary.** Four measurement windows; the
+- **TASK-557 is CLOSED (2026-09-12): DUT1's micro-USB connector**, a mechanically intermittent contact
+  (EXP-039). What follows is the historical record of the four windows that preceded it; the
   phenomenon stopped on its own at 23:22 on 2026-08-31 and the confound-free interleaved A/B
   consequently had no discriminating power (0/12, 0/12). DTR is exonerated as a *sufficient* cause.
   A human-run cable/powered-hub null test is still the decisive experiment.
@@ -1569,7 +1570,7 @@ Full rationale, the contested-priority rulings and the explicit not-doing list a
 
 **Exit criteria for the milestone** (not for this block): a RIG or HEALTH fault can no longer be
 reported as a FEATURE regression; no `skip()` site records a failed assertion; and the class-ordered
-switch has passed @VE's three binding preconditions. **The order switch is HELD until TASK-557
+switch has passed @VE's three binding preconditions. ~~**The order switch is HELD until TASK-557
 closes or signs off** — it reorders a suite with proven order-dependence (TASK-553) on a rig whose
 stability is unexplained.
 
@@ -1632,7 +1633,8 @@ resting on an `UNOBSERVABLE` id while carrying a PASS; each ratchet count printe
 developers already run **and falling across two consecutive milestones** — a ratchet that reads the
 same number twice is cut, not carried.
 
-**Blocked on:** **TASK-557** (rig instability, unresolved and non-stationary) gates Phase 3 and,
+**Blocked on:** ~~TASK-557~~ (CLOSED 2026-09-12 — DUT1's micro-USB connector, EXP-039); what remains is
+**Phase 2's remainder** (582, 588, 595, 597), which gates Phase 3 and,
 through it, Phase 5 — the same pin that holds M-TESTARCH's order switch. Phase 4's render half
 shipped 2026-09-09 (TASK-638, ADR-064 as built). **Deps:** M-TESTARCH · **Risk:** the same one M-TESTARCH carries and
 it is now demonstrated rather than theorised — the instrument under repair produced four days of
