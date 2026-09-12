@@ -1,4 +1,4 @@
-# EXP-039 — TASK-557's root cause: a faulty USB cable (DUT1 failed only through it)
+# EXP-039 — TASK-557 narrowed to DUT1's MICRO-USB path (cable vs connector still open)
 
 > Owner: R&D · 2026-09-12 00:30–00:45 · operator: Opus (human swapped the cables between runs and
 > confirmed each step) · instrument rig/bare_bod (F-4) · driver `probe/rig_ladder.py`.
@@ -117,3 +117,36 @@ needed, is now cheap: the rig is clean and the instrument works.
 **Action taken / owed:** the bad cable must leave the bench (label or bin it) — it is the one that was
 on `1-1` until 2026-09-12 01:00. X-P3 (supply A/B with a meter) is **moot** for this fault and should
 only be revived if a sag ever reappears on known-good wiring.
+
+
+## Correction — 2026-09-12, human: the cable swap also swapped the board-side CONNECTOR
+
+The CYD two-USB variant has **two board-side USB connectors**, and every cell above changed the cable
+and the connector together:
+
+| cell | board | board-side connector | cable | trips @7 | USB drops @1 |
+|---|---|---|---|---|---|
+| A / D | DUT1 | **micro-USB** | micro | **3/3** | **9/9, 3/3** |
+| B | DUT2 | micro-USB | the *same* micro cable | 0/3 | 0/12 |
+| C | DUT1 | USB-C (host port `5-1`) | USB-C | 0/3 | 0/3 |
+| E | DUT1 | USB-C (host port `1-1`) | USB-C | 0/3 | 0/3 |
+
+**Revised decision: the fault lies in DUT1's micro-USB path** — its connector, that connector's solder
+joints, or the board wiring behind it — **and not in the board's regulator, the ESP32, the host socket,
+or the CYD design.** Every DUT1 failure ran through DUT1's micro-USB connector; both DUT1 passes ran
+through its USB-C connector; DUT2 was clean on the same micro cable, so the micro cable conducts well
+enough for a board with DUT2's inrush.
+
+**Still not separated: cable vs connector.** A marginally resistive micro *cable* that only DUT1's
+larger WiFi inrush exposes fits the same four cells. The decisive test is one run: **a second,
+known-good micro-USB cable into DUT1's micro connector** (cell F).
+* F fails → DUT1's micro connector/board path is damaged; retire that connector for this board.
+* F passes → the original micro cable was the marginal part after all; bin that cable.
+
+A second useful control, cheap: **DUT2 on the USB-C cable** (cell G) — expected clean, and it rules out
+any notion that the USB-C path is "magic" rather than simply adequate.
+
+**What the earlier "faulty cable" wording got wrong:** it treated cable and connector as one variable
+because the swaps moved both. The retirement note stands unchanged — EXP-026/035/036's voltage margins
+describe DUT1-through-its-micro-USB-path, not the board or the design — but the artefact to remove from
+the bench is not yet identified. Do not bin the micro cable until cell F says which it is.
