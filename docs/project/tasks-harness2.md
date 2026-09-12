@@ -324,11 +324,11 @@ ratchet's clothes.
 | 0 — decisions | 6 | 6 | 0 | ~1 | **DISCHARGED 2026-09-04** |
 | 1 — host-only foundation | 26 | 26 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; `run/check` 43.5 s warm of 90, `run/check-docs` 1.1 s of 15 |
 | 2 — the 80-minute session | 12 | 7 | 5 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: 582, 588, 597, 595, 589 |
-| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **TASK-557**; shrunk by H-1's refutation |
+| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **Phase 2's remainder** (TASK-557 DONE 2026-09-12); shrunk by H-1's refutation |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
 | rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 16 | 2 | 14 | — | 557 gates Phase 3; 564/566/567 are the order-switch chain; 573/574 gate defects; 677/678 PROP-011; **680/681 DONE 2026-09-11** |
 | 5 — ratchets | 17 | 1 | 16 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
-| **total** | **88** | **44** | **44** | **~83** | Phases 0–1 done; only Phase 1 was ever *committed* |
+| **total** | **88** | **51** | **37** | **~83** | Phases 0–1 done; only Phase 1 was ever *committed* |
 
 **The three phases still ahead are not equally blocked.** Phase 2's five live rows and Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615 need **nothing but hands**. Everything else waits on
