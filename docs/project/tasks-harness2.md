@@ -90,14 +90,17 @@ TASK-621 are closed. Every exit criterion is met.
 
 ---
 
-## Phase 1 — host-only foundation (~28.5 d) — **COMPLETE 2026-09-06, all 26 rows closed; one exit criterion has since REGRESSED (TASK-684)**
+## Phase 1 — host-only foundation (~28.5 d) — **COMPLETE 2026-09-06, all 26 rows closed; one exit criterion regressed 2026-09-12 and was restored the same day (TASK-684)**
 
 **Every exit criterion below was met on 2026-09-06 and is mechanically re-checkable — and being
-re-checkable is how one of them was caught regressing.** The stop criterion did not fire at the
-time: all three summary parsers were retired by TASK-608, and `run/check` held at **43.5 s warm**
-against its 90 s budget. **It no longer does: 98.8 s warm, measured 2026-09-12** (73.4 s of it in
-`smoke_test.sh` alone). Filed as **TASK-684**; the wall-clock criterion is NOT met today. The other
-exit criteria are unaffected and still hold.
+re-checkable is how one of them was caught regressing.** The stop criterion did not fire: all three
+summary parsers were retired by TASK-608, and `run/check` held at **43.5 s warm** against its 90 s
+budget. It reached **98.8 s on 2026-09-12** and was **restored to 70.0 s the same day** by
+**TASK-684**. Worth keeping in view, because the budget line is *printed, not enforced*, so nothing
+would have failed had no one looked: of the 73.4 s the host gates then cost, **50.5 s was two
+scripts** — `check_can_go_red` at 21.6 s, which is priced and accepted (TASK-671's design doc says
+so), and `probe/test_rig_uart.py` at 28.9 s, which was **not** — it slept for real, device-free,
+because it drives the actual poll loops in `rig_uart.py`. The other 45 scripts cost ≤3.1 s each.
 
 **Entry: none.** Every row is host-only: no board, no ADR, no graded finding, unaffected by the
 TASK-557 pin.
@@ -139,7 +142,7 @@ new gates in it — **stop and re-scope the whole programme.**
 | TASK-644 | P3 | **DONE 2026-09-06** | all five specification gaps ruled in the documents that own them — [ADR-066](../architecture/decisions/ADR-066.md) D2a/D4a, [IFC-008](../architecture/interfaces/IFC-008.md) I8/I9 + D-COMP/D-SNAP/D-VER, [R28/R21](../verification/M-HARNESS2-requirements.md) corrected. Four of five confirm as-built; **D2a narrows TASK-636** |
 | TASK-645 | P3 | **DONE 2026-09-06** — artifact schema **1.2**; T_ART_16/17 blocking | the premise now identifies what it ran against: harness = a content hash over `app/tools/**/*.py` + `run/*` (git is provenance only); board = the efuse MAC via a new `get boardId` key, port demoted to `transport`. **`get boardId` DUT-VERIFIED 2026-09-07**, both arms (session review §0) |
 | TASK-646 | P2 | **DONE 2026-09-06** — on `lib/results` + the artifact; `check_private_results.py` blocking, [1-row ledger](../verification/private_results_exceptions.md) | `run/test-sync`'s 20 ids had no machine interface — [A-6](../verification/reviews/M-TESTQUAL-A-harness-review.md). They now get the flake retry, `NOT-RUN`/`UNMET` and the artifact. The private `Dut` stays: TASK-599 |
-| TASK-684 | P2 | **OPEN — filed 2026-09-12** | Phase 1's wall-clock exit criterion regressed: `run/check` **98.8 s warm** of 90 (43.5 s at TASK-629, 63.1 s at TASK-671), **73.4 s of it `smoke_test.sh`**. Cut inside gate 8 or re-price the budget with a reason — do not just raise the number. Host-only. **Owner:** @Developer. |
+| TASK-684 | P2 | **DONE 2026-09-12** (`49c005b`) | `run/check` 98.8 s -> **70.0 s** of 90 (measured twice). Not drift: `probe/test_rig_uart.py` really slept 28.8 s of its 28.9 s, device-free, driving the real poll loops. Now on `lib/replay`'s virtual clock (TASK-628). `check_can_go_red`'s 21.6 s stays — priced. |
 
 ---
 
@@ -331,13 +334,13 @@ reading each row's leading status token, not carried forward.
 | phase | rows | closed | live | days | state |
 |---|---|---|---|---|---|
 | 0 — decisions | 6 | 6 | 0 | ~1 | **DISCHARGED 2026-09-04** |
-| 1 — host-only foundation | 27 | 26 | 1 | ~28.5 | rows COMPLETE 2026-09-06, but the wall-clock exit criterion **regressed**: `run/check` **98.8 s warm of 90** (was 43.5 s), `run/check-docs` 1.1 s of 15. Live: **684** |
+| 1 — host-only foundation | 27 | 27 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; the wall-clock one regressed to 98.8 s on 2026-09-12 and was restored to **70.0 s of 90** by TASK-684 the same day. `run/check-docs` 1.1 s of 15 |
 | 2 — the 80-minute session | 12 | 9 | 3 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: 582, 595, 597 — the gate on Phases 3 and 5 |
 | 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **Phase 2's remainder** alone (TASK-557 DONE 2026-09-12; TASK-575's owed `run/test` pass is the other entry clause); shrunk by H-1's refutation |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
 | rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 18 | 7 | 11 | — | **557 DONE 2026-09-12 — it gates nothing now**; 564/566/567 are the order-switch chain; 573/574 gate defects; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
 | 5 — ratchets | 18 | 1 | 17 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
-| **total** | **91** | **50** | **41** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
+| **total** | **91** | **51** | **40** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
 
 **The three phases still ahead are not equally blocked.** Phase 2's three live rows and Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615/672–674/676 need **nothing but hands**. Everything else

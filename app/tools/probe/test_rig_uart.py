@@ -3,6 +3,18 @@
 (TASK-677/678 H-1). Every cell's parsing/decision function is pure, so this
 never touches tmux or a device.
 
+DEVICE-FREE IS NOT THE SAME AS TIME-FREE (TASK-684). Three of these cases drive
+the real `run_echo_cell`/`wait_console_idle` against a stub, and those functions
+poll with `time.sleep` — so the suite cost 28.9 s of pure sleeping, 112 calls,
+which is 40 % of `run/check`'s whole host-gate budget for a suite that talks to
+nothing. They now run under `lib.replay`'s virtual clock, which TASK-628 built
+for exactly this ("the suite's ~250 fixed sleeps cost nothing"). `dilation=1.0`
+is deliberate: sleeps advance the clock by exactly what was asked, so every
+deadline loop terminates on the same condition and after the same number of
+iterations it always did — the clock is faithful, it just does not wait. The
+cases below assert that directly, so a future change that turns a poll loop into
+a no-op cannot hide behind the fast clock.
+
     python3 app/tools/probe/test_rig_uart.py [-v]
 """
 
@@ -14,6 +26,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from lib.replay import VirtualClock, virtual_time
 from probe import rig_uart as ru
 
 
@@ -220,32 +233,77 @@ class TestRunEchoCellWindowed(unittest.TestCase):
     serialecho_diff would from a real transcript."""
 
     def _run(self, n_lines, window, fake):
+        """-> (result, clock). The clock is returned, not swallowed: what the
+        polling loops did with time is an assertable property here, not an
+        invisible side effect (TASK-684).
+
+        `wait_console_idle` is stubbed out so the clock measures the WINDOWING
+        LOOP and nothing else. It has its own case below, and leaving it in
+        added two IDLE_QUIET_S waits to every reading — which is exactly what
+        made the first draft of these assertions read 5.1 s for all three cases
+        and conclude, wrongly, that no window ever reached its deadline.
+        """
         orig_mt = ru.mt
         orig_stamp = ru.rigwatch.stamp
+        orig_idle = ru.wait_console_idle
         ru.mt = fake
         ru.rigwatch.stamp = lambda *a, **k: None
+        ru.wait_console_idle = lambda *a, **k: True
+        clock = VirtualClock()
         try:
-            return ru.run_echo_cell(n_lines, window=window)
+            with virtual_time(clock):
+                return ru.run_echo_cell(n_lines, window=window), clock
         finally:
             ru.mt = orig_mt
             ru.rigwatch.stamp = orig_stamp
+            ru.wait_console_idle = orig_idle
+
+    #: What `run_echo_cell` sleeps unconditionally, outside any poll loop: the
+    #: settle after `serialecho` and the drain before the final read. Every
+    #: reading below is this plus whatever the windowing loop chose to wait,
+    #: so the assertions are stated as deadlines burned, never as wall clock.
+    FIXED_SLEEP_S = 0.5 + 1.0
+
+    def _windows_burned(self, clock) -> float:
+        """How many window deadlines the loop ran out. Derived from the probe's
+        own constant, so re-tuning ECHO_WINDOW_WAIT_S cannot silently change
+        what these cases assert. A float quotient by construction — callers
+        compare it with assertAlmostEqual, not assertEqual."""
+        return (clock.slept_s - self.FIXED_SLEEP_S) / ru.ECHO_WINDOW_WAIT_S
 
     def test_all_lines_echoed_clean(self):
-        r = self._run(20, 4, _FakeEchoLog())
+        r, clock = self._run(20, 4, _FakeEchoLog())
         self.assertTrue(r["ok"])
         self.assertEqual(r["sent"], 20)
         self.assertEqual(r["echoed"], 20)
         self.assertEqual(r["lost"], 0)
+        # The fake answers immediately, so every window breaks on its first
+        # look and none reaches its deadline. This is the "windowing loop
+        # terminates promptly" claim in the class docstring, which until now
+        # was asserted only by the suite finishing at all.
+        self.assertAlmostEqual(self._windows_burned(clock), 0)
 
     def test_dropped_line_reported_lost(self):
-        r = self._run(10, 3, _FakeEchoLog(drop_lines={5}))
+        r, clock = self._run(10, 3, _FakeEchoLog(drop_lines={5}))
         self.assertFalse(r["ok"])
         self.assertEqual(r["lost"], 1)
+        # `cumulative` is a running total, so once a line is missing NO later
+        # window can reach it either: with 10 lines in windows of 3, the drop at
+        # line 5 falls in window 2 and windows 2, 3 and 4 all poll to their
+        # deadline. Three, not one — the loop does not re-baseline after a loss,
+        # and that is worth pinning: it is the difference between a lost line
+        # costing 5 s and costing the rest of the cell.
+        self.assertAlmostEqual(self._windows_burned(clock), 3)
 
     def test_corrupted_line_reported_mismatch(self):
-        r = self._run(10, 3, _FakeEchoLog(corrupt_lines={2}))
+        r, clock = self._run(10, 3, _FakeEchoLog(corrupt_lines={2}))
         self.assertFalse(r["ok"])
         self.assertEqual(r["mismatches"], 1)
+        # A corrupted line still ARRIVES and still carries its E# prefix, so
+        # `count_echoed` is satisfied and no window waits: corruption is caught
+        # by the diff afterwards, never by a timeout. The contrast with the
+        # dropped-line case above is the point of having both.
+        self.assertAlmostEqual(self._windows_burned(clock), 0)
 
 
 class TestWaitConsoleIdle(unittest.TestCase):
@@ -258,10 +316,19 @@ class TestWaitConsoleIdle(unittest.TestCase):
         fake_mt = types.SimpleNamespace(size=lambda: 42)
         orig = ru.mt
         ru.mt = fake_mt
+        clock = VirtualClock()
         try:
-            self.assertTrue(ru.wait_console_idle(quiet_s=0.05, max_wait_s=2.0))
+            with virtual_time(clock):
+                self.assertTrue(ru.wait_console_idle(quiet_s=0.05,
+                                                     max_wait_s=2.0))
         finally:
             ru.mt = orig
+        # It observed quiet by WAITING for it, not by returning early: the poll
+        # step is 0.3 s, so reaching a 0.05 s quiet window costs at least one
+        # sleep. Without this, a `wait_console_idle` that never polled at all
+        # would still pass this case.
+        self.assertGreaterEqual(clock.sleeps, 1)
+        self.assertLess(clock.slept_s, 2.0, "must not reach max_wait_s")
 
 
 if __name__ == "__main__":
