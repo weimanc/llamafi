@@ -463,6 +463,21 @@ T_PMT_03 NOT-RUN"
   if [ "$rc" = "0" ]; then echo "  [PASS] selftest DUT_HEALTH=gate (the default) is accepted"
   else echo "  [FAIL] selftest DUT_HEALTH=gate — rc=$rc want=0"; fails=$((fails+1)); fi
 
+  # TASK-597: the exit-4 mapping above is only real if the runner invocation
+  # actually asks for the HEALTH phase — without --health-phase the runner
+  # never reaches HEALTH_FAIL_EXIT and every branch above is decorative
+  # (E-13, M-TESTQUAL-Z-findings-review.md line 149). Source-grep, not a DUT
+  # call: this guards the wiring, not the runner's own behaviour (that is
+  # app/tools/test_class_order.py's job).
+  _leg_body="$(sed -n '/^_run_runner_leg()/,/^}/p' "$0")"
+  if printf '%s' "$_leg_body" | grep -q -- '--health-phase' \
+      && printf '%s' "$_leg_body" | grep -q -- '--health-ids T_DH_01,T_DH_03'; then
+    echo "  [PASS] selftest _run_runner_leg asks for the HEALTH phase, EXP-040's subset"
+  else
+    echo "  [FAIL] selftest _run_runner_leg lost --health-phase or EXP-040's subset — exit 4 is unreachable again"
+    fails=$((fails+1))
+  fi
+
   # condition (a) is a hard refusal
   set +e
   ( ALLOW_NO_CROSSMODE=0; _assert_crossmode A "T_PLR_01,T_PLR_02" ) >/dev/null 2>&1
@@ -578,9 +593,26 @@ _run_runner_leg() {
   local nonce="pg-$leg-$$-$(date -u +%Y%m%d%H%M%S)"
   rm -f "$art"
   set +e
+  # TASK-597: --health-phase makes the runner's HEALTH gate (and its exit-4
+  # path) real for this leg WITHOUT adopting --class-order (TASK-566 stays
+  # held OFF — TASK-617 RULED 2026-09-03). DUT_HEALTH is inherited from this
+  # script's own environment, same as always; _assert_health_premise() above
+  # already refused the run before this point if it was warn|skip.
+  #
+  # The SUBSET is EXP-040's measured decision, not a guess:
+  #   T_DH_01  the console answers correct data — this gate reads everything
+  #            it scores through that console, so it is the premise for all of it
+  #   T_DH_03  app switching is alive — this gate is a MODE-transition gate,
+  #            so switch health is its subject's own precondition
+  # Deliberately NOT T_DH_02 (network): this gate exercises local SD playback
+  # and has never needed the network, so a wifi blip could only refuse it —
+  # measured PASS at zero arena cost, and still excluded, because the risk was
+  # never cost. Deliberately NOT T_DH_05 (GRAM readback): nothing here reads
+  # the panel back. See EXP-040 §6/§7 for the numbers and the residual.
   ( cd "$PIO_DIR" && DUT_ENV="$env" RESULTS_JSON="$art" RESULTS_RUN_TOKEN="$nonce" \
       "$VENV_PY" -u tools/suite/serialdbg/runner.py \
-      --port "$PORT" --tests "$ids" ) 2>&1 | tee "$log"
+      --port "$PORT" --tests "$ids" \
+      --health-phase --health-ids T_DH_01,T_DH_03 ) 2>&1 | tee "$log"
   rc=${PIPESTATUS[0]}
   set -e
   : > "$OUT_DIR/leg$leg.results"

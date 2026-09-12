@@ -50,7 +50,6 @@ failure**.
 |---|---|---|---|---|---|
 | `docs/project/tasks-harness2.md` | `TASK-564` | uncited-closure | pre-rule closure, uncited; the log offers `1ae7557` | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-574` | stale-open | pre-rule: work landed under this id (`6e5f866`) and the row was never reconciled | TASK-669 | 2026-09-07 |
-| `docs/project/tasks-harness2.md` | `TASK-575` | uncited-closure | pre-rule closure, uncited; the log offers `8181a8d` | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-576` | stale-open | pre-rule: work landed under this id (`e58c2a3`) and the row was never reconciled | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-577` | stale-open | pre-rule: work landed under this id (`2fd8c0e`) and the row was never reconciled | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-581` | uncited-closure | pre-rule closure, uncited; no commit subject names this id | TASK-669 | 2026-09-07 |

@@ -275,6 +275,61 @@ def arm_inert():
           "no NOT-RUN row is ever produced with the switch off")
 
 
+def arm_health_id_selection():
+    """TASK-597 / EXP-040 — `--health-ids`' selection logic, pure.
+
+    Pins what CAN be pinned host-side. What cannot: that runner.py hands the
+    SELECTED set to the gate rather than the full registry. The first cut of
+    this change filtered `health_selected` and then passed `health_tests` to
+    `run_suite`, so the flag parsed, every host check passed, the selftest
+    grepped the command line and agreed — and the gate ran all four ids. Only
+    reading a real run's `── HEALTH class ──` line caught it. A replay-driven
+    test over runner.main() (TASK-628's engine) is the instrument that would;
+    it does not exist yet, and this docstring is the honest marker for that.
+    """
+    from suite.serialdbg.runner import select_health_ids as sel
+    print("\n── TASK-597 — --health-ids narrows the HEALTH class, or refuses ──")
+    H = ["T_DH_01", "T_DH_02", "T_DH_05", "T_DH_03"]
+    check(sel(H, None) == H, "no spec means the whole class, unreordered")
+    check(sel(H, "T_DH_01,T_DH_03") == ["T_DH_01", "T_DH_03"], "a subset is the subset")
+    # The class's own ordering constraint outranks the caller's spelling:
+    # ADR-064 D4 puts T_DH_05 before the mutating T_DH_03, so selection must
+    # never be an opportunity to reorder the class.
+    check(sel(H, "T_DH_03,T_DH_01") == ["T_DH_01", "T_DH_03"],
+          "spec order does not reorder the class")
+    check(sel(H, " T_DH_01 , T_DH_03 ") == ["T_DH_01", "T_DH_03"], "whitespace tolerated")
+    try:
+        sel(H, "T_DH_99")
+        check(False, "an unknown id must refuse, not narrow silently")
+    except SystemExit as e:
+        check("T_DH_99" in str(e), f"the refusal names the id: {e}")
+
+
+def arm_health_subset_still_blocks():
+    """TASK-597 / EXP-040 — a NARROWED health phase is still a gate.
+
+    run/player-gate asks for T_DH_01,T_DH_03 and deliberately not T_DH_02/05.
+    The risk that buys is obvious once stated: a subset is a smaller premise,
+    and a smaller premise that also stopped BLOCKING would be worse than the
+    decorative gate E-13 found — it would look checked and gate nothing.
+
+    So this drives the gate with a single-member health set and asserts the
+    full blocking contract still holds: exit 4, nothing dispatched, every id
+    NOT-RUN and attributed to the health id that failed. BP-068: a gate never
+    observed to fail is not a gate, and this one was decorative for its whole
+    life before TASK-597.
+    """
+    print("\n── TASK-597 — a SUBSET health phase still blocks and still exits 4 ──")
+    rc, ran, res, out, calls = _run(health_failed=("H1",), class_order=False,
+                                     health_phase=True)
+    check(rc == 4, f"a one-id health set still exits 4 (got {rc})")
+    check(ran == [], f"nothing was dispatched behind a failed subset: {ran}")
+    check(all(res.get(t, "").startswith("NOT-RUN: blocked-by=HEALTH/H1")
+              for t in SELECTED),
+          f"every id is attributed to the subset member that failed: {res}")
+    check("[HEALTH-FAIL]" in out, "the operator is told, not only the artifact")
+
+
 def arm_health_phase_without_class_order():
     """TASK-597 — E-13: the HEALTH gate must be reachable WITHOUT adopting
     class ordering (TASK-617 RULED 2026-09-03 holds --class-order OFF). This
@@ -568,6 +623,8 @@ def main():
     arm_app()
     arm_inert()
     arm_health_phase_without_class_order()
+    arm_health_subset_still_blocks()
+    arm_health_id_selection()
     arm_ordering()
     arm_health_downgrades()
     arm_unmet_core()

@@ -146,7 +146,7 @@ new gates in it — **stop and re-scope the whole programme.**
 
 ---
 
-## Phase 2 — the 80-minute session (board) — **SESSION EXECUTED 2026-09-07; 3 rows remain**
+## Phase 2 — the 80-minute session (board) — **COMPLETE 2026-09-12, all 12 rows**
 
 **Status 2026-09-07.** The session ran twice — A (`d3a3600`) and B (`f66a4d2`) — and is recorded in
 [M-TESTQUAL-phase2-session-review.md](../verification/reviews/M-TESTQUAL-phase2-session-review.md).
@@ -160,8 +160,8 @@ shrinks by roughly a third, and the Phase 5 corpus retrofit is not cut.
 conversion had never been executed against a board and both its headline mechanisms were dead, and
 the ELF guard had been inert since 2026-08-17 while every artefact said otherwise. A gate that greps
 for a call is not a gate that runs it (TASK-661).
-**Still open here: TASK-597 only** — mechanism landed, the `run/player-gate` wiring held for a
-DUT run. **TASK-588 closed 2026-09-12** (`9988d7e`) and **TASK-589 is DONE**
+**Phase 2 is CLOSED** — all twelve rows. TASK-597 was the last, and its premise was measured
+(EXP-040) rather than guessed. **TASK-588 closed 2026-09-12** (`9988d7e`) and **TASK-589 is DONE**
 (`69984ed`), so Phase 4's render half is no longer waiting on an instrument. **These three are now
 the sole phase-level gate on Phase 3, and on Phase 5 through it.**
 
@@ -193,7 +193,7 @@ corpus retrofit is cut to delta-scoped rules only.
 | TASK-582 | P1 | **DONE 2026-09-12** (`0ede429`) | `T-BUSY-05`'s guard passed on its own total regression (all-True) and failed only on the partial one — [C-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Adjudication split into `_busy05_verdict`, all-True now FAILs, unreadable is `unmet()`; truth table pinned host-side. **Class stays FEATURE — no hardware run yet.** |
 | TASK-583 | P1 | **CLOSED 2026-09-05, subject deleted** — not fixed, GONE | the error-suite teardown writes the wrong state — [F-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). TASK-603 deleted `_wr_err_test` with the only four bodies that called it (`T_WR_ERR_01`-`04`) … [retired_test_ids.md](../verification/retired_test_ids.md) |
 | TASK-588 | P1 | **DONE 2026-09-12** (`9988d7e`) | a skipped health check announced as a health PASS — [C-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Gating was already right (TASK-624); the two hardcoded `[health] PASS` literals were not. Both now branch on `_triage.health_verdict()`, so banner and premise cannot disagree. |
-| TASK-597 | P2 | **PARTIAL 2026-09-12** (`e8ba10f`) — mechanism in; premise MEASURED, wiring owed | [E-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md). `--health-phase` decouples the HEALTH gate from the held `--class-order`. [EXP-040](../rnd/reports/EXP-040-player-gate-health-premise.md) chose **subset `T_DH_01`+`T_DH_03`**; next: size `--health-ids` vs its 40-line falsifier. |
+| TASK-597 | P2 | **DONE 2026-09-12** | the player gate's health machinery could not fire — [E-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md). `--health-phase` + `--health-ids`; premise measured by [EXP-040](../rnd/reports/EXP-040-player-gate-health-premise.md), as-built in [M-TESTBASE §9](../architecture/designs/M-TESTBASE-phase1-player-gate.md). |
 | TASK-595 | P2 | **DONE 2026-09-12** (`2b32e70`) — both directions swept, `T084` DUT-verified | [C-7](../verification/reviews/M-TESTQUAL-Z-findings-review.md). 3 vestigial declarations removed, 3 real flakes declared; `T084`'s race removed at source (`_bgpoll_suspended`) and its 4 `flake()` calls converted, 3/3 PASS on hardware. F6/F7/F8 added, **at zero**. 3 ledger rows retired. |
 | TASK-589 | P1 | **DONE 2026-09-07** (`69984ed`) | repair `run/screendump`, broken at import — [A-1](../verification/reviews/M-TESTQUAL-Z-findings-review.md). Portal branch DROPPED not restored; 3 dependants wrapped; `--colorprobe` 25/25 + 4/4 swatch on DUT; gated by `check_screendump_instrument.py` |
 
@@ -215,7 +215,7 @@ ledger entries that name them were re-keyed to this file in the same commit, not
 | task | pri | status | title |
 |---|---|---|---|
 | TASK-557 | **P2** | **DONE 2026-09-12 (`5d47cd4`) — DUT1's micro-USB connector** | All DUT1 `d4:8a…` failures via its micro connector; clean via USB-C on two host ports; DUT2 clean on the same micro cable; fault follows finger pressure at the DUT-side plug. Connector retired, DUT1 runs USB-C. [EXP-039](../rnd/reports/EXP-039-board-cable-interaction.md). **Owner:** @RnD |
-| TASK-575 | **P2** | **FIXED 2026-09-02 — host-tested; DUT regression pass PENDING** | `_TeeSerial` (`app/tools/lib/dut.py`) wraps the serial object but defines no `__setattr__`, so every `self.ser.timeout = …` in the readiness path sets a **shadow attribute on the wrapper** and never reaches pyserial. Read timeouts have silently been whatever the constructor passed, for as long as the tee has existed. TASK-564's own deadline loops are monotonic-clock based and so are correct regardless, which is why this surfaced by inspection rather than as a failure — but every other caller that sets a timeout is affected. Fixed by a `__setattr__` that forwards to the wrapped object, with `_OWN_ATTRS` naming the wrapper's own state explicitly (`run_id`/`boot_count` have no leading underscore, so an underscore rule would have pushed the generation counter onto pyserial). 14 cases in `test_boot_gate.py`. **The fix tightens real timeouts across the whole harness** — 14 post-wrap sites in `dut.py`/`shell.py` that meant 0.3–1.0 s were silently getting the constructor's value, and `test_fetch_stress.py`'s `write_timeout` was never armed at all. Correctness is unaffected (deadline loops are monotonic-clock based) but reads now give up sooner, so **a full `run/test` pass is owed once the board is repaired** (TASK-557). **Owner:** @Developer · **Deps:** none. |
+| TASK-575 | **P2** | **PARTIAL 2026-09-02 — host-fixed; the full `run/test` pass is OWED, and is Phase 3's last entry clause** | `_TeeSerial` (`app/tools/lib/dut.py`) wraps the serial object but defines no `__setattr__`, so every `self.ser.timeout = …` in the readiness path sets a **shadow attribute on the wrapper** and never reaches pyserial. Read timeouts have silently been whatever the constructor passed, for as long as the tee has existed. TASK-564's own deadline loops are monotonic-clock based and so are correct regardless, which is why this surfaced by inspection rather than as a failure — but every other caller that sets a timeout is affected. Fixed by a `__setattr__` that forwards to the wrapped object, with `_OWN_ATTRS` naming the wrapper's own state explicitly (`run_id`/`boot_count` have no leading underscore, so an underscore rule would have pushed the generation counter onto pyserial). 14 cases in `test_boot_gate.py`. **The fix tightens real timeouts across the whole harness** — 14 post-wrap sites in `dut.py`/`shell.py` that meant 0.3–1.0 s were silently getting the constructor's value, and `test_fetch_stress.py`'s `write_timeout` was never armed at all. Correctness is unaffected (deadline loops are monotonic-clock based) but reads now give up sooner, so **a full `run/test` pass is owed once the board is repaired** (TASK-557). **Owner:** @Developer · **Deps:** none. |
 | TASK-576 | P3 | **OPEN — filed 2026-09-02** | **A stale monitor log was mistaken for a dead board, twice in one session, and the misdiagnosis stopped two scheduled tasks.** The `by-id` symlink moved `ttyUSB0`→`ttyUSB1`; `pio device monitor` kept the old fd, so `run/monitor-read` returned a frozen boot banner ending at `[bootphase] 3 wifi`, and the monitor's own reopen attempts each asserted DTR and reset the board — which is what produced the "re-enumerating every ~1.5 s" reading. With the port free: **0 re-enumerations in 45 s**, and the board had in fact been up 9 h 26 m (`disc=0`, `rssi -49`). `run/monitor-read` **did** print its `stale/deleted tty` WARN (TASK-558) and both the agent and the orchestrator read past it. **Correction 2026-09-02: "re-resolve by VID:PID" was a wrong fix candidate — `resolve_port()` already returns the `by-id` path (ADR-062 R1) and `monitor-start` already passes it.** The stale thing is never the *name*, it is the **open fd**: a re-enumeration destroys the tty, and an fd opened before it does not follow, while the `by-id` path is recreated and would open fine. `run/lib.sh`'s ADR-062 comment over-claims here ("the path handed out at script start stays valid for the device's entire session … nothing downstream needs to re-resolve anything") — true of the path, false of a long-lived fd, which is why the monitor is the only exposed consumer (everything else reopens per operation). **Reopen-on-stale is DEAD — measured 2026-09-02 and it does not work.** A reopen asserts DTR again, so it resets the board again, which drops again at t=1.47 s: probe result `open-1` boot banner → hangup 1.47 s → `reopen-2` **boot banner again** → hangup 1.47 s. Every open resets, every reset drops, so the harness can never hold a session while the drop persists — and that loop is almost certainly what the "re-enumerating every ~1.5 s" observation actually was (`pio device monitor` reopening). No fd-layer or naming-layer fix exists; the drop itself has to stop. Two candidate paths, in cost order: **(a) physical** — different cable / powered hub / the other USB socket, the cheapest null test and TASK-557's own named experiment; **(b) firmware inrush mitigation** at the exact moment measured — back off TFT backlight and/or set a lower `WiFi.setTxPower()` immediately before `WiFi.begin()`, since the drop is timed to `[bootphase] 3 wifi`. Flashing still works (`run/flash*` succeeded repeatedly today), so (b) is testable without solving (a) first. Per TASK-557's measurement the reopen must distinguish two cases, and `[bootreason]` (TASK-572) + the generation counter (TASK-564) are the discriminator: a reset **we** caused reports `1 POWERON` and is benign bookkeeping, whereas `4 PANIC` / `5-6 WDT` / `9 BROWNOUT` — or any generation increment the harness did not ask for — is a finding that must reach the HEALTH/triage path and never be silently absorbed. Caveat to settle first: a real supply glitch may also report `POWERON`, so the rule needs `Dut._port_open_time` (recorded since TASK-557, still unread) as a second input. **Owner:** @Developer · **Deps:** none · Host-only. |
 | TASK-577 | P3 | **OPEN — filed 2026-09-02, TASK-424 follow-up** | Revert `sdprobe`'s short-burst bench-fixture loop to a plain single-open write, and consider the same for `sd_put.py`'s 90 B chunking. Both are workarounds for TASK-424's write defect, which was root-caused and fixed on 2026-09-01 (PATCH-TLS-1) — TASK-424's own record asks for the revert once that landed, and calls the burst loop "a workaround, not a design". Keep `sd_put.py`'s per-call size verification regardless: that is TASK-548's dropped-ack guard, unrelated to TASK-424. **Not started because it cannot be verified**: the gate is a DUT write run, and the harness cannot hold a port session while TASK-557's inrush drop persists. Do not land it blind — the whole point is removing a guard. **Owner:** @Developer · **Deps:** none — TASK-557 discharged 2026-09-12, so the DUT write run this needs is available. |
 | TASK-578 | P2 | **RULED 2026-09-12 (human) — never in production** | `-DBOD_WATCH` (brownout ride-through) stays a debug-env rig affordance; production keeps ESP-IDF's stock brownout reset. Reason: a speaker DUT is planned and will raise current draw, so production must keep real brownout protection. [EXP-039](../rnd/reports/EXP-039-board-cable-interaction.md). **Owner:** @Architect |
@@ -240,9 +240,10 @@ ledger entries that name them were re-keyed to this file in the same commit, not
 **Entry:** Phase 1 complete; Phase 2 complete **and its stop criterion not triggered**; TASK-575's owed
 full `run/test` pass (§ Rig stability above). The third clause — *TASK-557 closed or explicitly signed
 off by the human* — is **satisfied**.
-**TASK-557 is DONE (2026-09-12, `5d47cd4`): a faulty USB cable, not rig instability — that half of the
-entry is discharged.** What still blocks this phase is **Phase 2's remainder** (582, 588, 595, 597);
-every row below inherits that, not TASK-557.
+**Two of the three entry clauses are discharged.** TASK-557 is DONE (2026-09-12, `5d47cd4`) — DUT1's
+micro-USB connector, not rig instability. **Phase 2 is COMPLETE** (2026-09-12, all twelve rows), and
+its stop criterion did not fire. What remains is the third clause alone: **TASK-575's owed full
+`run/test` pass** (§ Rig stability above). Every row below inherits that, and nothing else.
 **Exit:** armed device state enumerable and asserted at every test boundary, with the failure
 landing on the test that armed it; per-family shuffled runs produce the canonical verdict set;
 TASK-617's exit criteria met and the switch decision re-put to the human with evidence.
@@ -253,12 +254,12 @@ because it carries a gate's authority.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-635 | P2 | BLOCKED — **phase entry (Phase 2 remainder: TASK-597's wiring)**; its row predecessor TASK-608 is DONE | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
-| TASK-592 | P2 | BLOCKED — **phase entry (Phase 2 remainder: TASK-597's wiring)**; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-636 | P2 | BLOCKED — **phase entry (Phase 2 remainder: TASK-597's wiring)**; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
+| TASK-635 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; its row predecessor TASK-608 is DONE | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
+| TASK-592 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-636 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
 | TASK-594 | P2 | BLOCKED — TASK-636 | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-604 | P2 | BLOCKED — phase entry | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-605 | P2 | BLOCKED — **phase entry (Phase 2 remainder: TASK-597's wiring)**; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-605 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 
 ---
 
@@ -291,8 +292,8 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 
 ## Phase 5 — the ratchets (open-ended, delta-scoped)
 
-**Entry:** Phases 1 and 3. **Blocked at phase level by Phase 3** (whose own remaining gate is Phase 2's
-remainder; TASK-557 is DONE since 2026-09-12).
+**Entry:** Phases 1 and 3. **Blocked at phase level by Phase 3**, whose own remaining gate is now
+TASK-575's owed full `run/test` pass (TASK-557 DONE and Phase 2 COMPLETE, both 2026-09-12).
 **Exit:** each ratchet count is printed by the thing developers already run, and has fallen across
 two consecutive milestones.
 **Stop criterion:** any ratchet whose count is unchanged across two consecutive milestones is
@@ -335,14 +336,14 @@ reading each row's leading status token, not carried forward.
 |---|---|---|---|---|---|
 | 0 — decisions | 6 | 6 | 0 | ~1 | **DISCHARGED 2026-09-04** |
 | 1 — host-only foundation | 27 | 27 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; the wall-clock one regressed to 98.8 s on 2026-09-12 and was restored to **70.0 s of 90** by TASK-684 the same day. `run/check-docs` 1.1 s of 15 |
-| 2 — the 80-minute session | 12 | 11 | 1 | ~6 | **session executed 2026-09-07**; stop criterion did not fire. Live: **597 only** (mechanism in, player-gate wiring held for a DUT run) — the last gate on Phases 3 and 5 |
-| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | blocked at phase level on **Phase 2's remainder** alone (TASK-557 DONE 2026-09-12; TASK-575's owed `run/test` pass is the other entry clause); shrunk by H-1's refutation |
+| 2 — the 80-minute session | 12 | 12 | 0 | ~6 | **COMPLETE 2026-09-12** — session executed 2026-09-07, stop criterion did not fire; the remainder closed 2026-09-12. **No longer gates Phase 3 or 5** |
+| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | entry now rests on **TASK-575's owed full `run/test` pass** alone — TASK-557 DONE and Phase 2 COMPLETE, both 2026-09-12; shrunk by H-1's refutation |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
 | rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 18 | 8 | 10 | — | **557 DONE 2026-09-12 — it gates nothing now**; 564/566/567 are the order-switch chain; **573 CLOSED 2026-09-12 — it was fixed on 2026-09-02 and the row was never reconciled; TASK-566 loses its last named blocker**; 574 is the remaining gate defect; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
 | 5 — ratchets | 18 | 1 | 17 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
-| **total** | **91** | **54** | **37** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
+| **total** | **91** | **55** | **36** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
 
-**The three phases still ahead are not equally blocked.** Phase 2's one live row and Phase 4's
+**The phases still ahead are not equally blocked.** Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615/672–674/676 need **nothing but hands**. Everything else
 waits on **Phase 2's remainder** (Phase 3, and Phase 5 through it) — no longer on TASK-557, which
 closed on 2026-09-12. TASK-589 — Phase 4's render half — was repaired and hardware-verified on

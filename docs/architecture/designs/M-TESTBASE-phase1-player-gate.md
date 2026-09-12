@@ -682,3 +682,70 @@ It does not stop someone relocating the surface and forgetting to update `get pl
 binding observable is itself a mirror of the truth, and LL-114 says mirrors rot. The honest defence is
 that `T_PMT_00` fails loudly the moment they disagree, which is the same bargain
 `check_settings_wiring.py` makes and the reason it has held.
+
+---
+
+## 9. The health premise — as built, TASK-597 (2026-09-12)
+
+**This document specified no health premise for the gate, and that is very likely why the gate had
+none.** `run/player-gate` grew a full refusal apparatus — `_assert_health_premise()` refusing to run
+under `DUT_HEALTH=warn|skip` on the stated ground that *"a gate run whose health premise was
+DOWNGRADED is not a gate run"*, `_HEALTH_FAIL`, an exit-4 path, and a "the BOARD was not a valid test
+subject" message — while invoking the runner in a way that ran **no health check at all** (WP-E
+`E-13`). It policed the integrity of a premise nothing established. Nothing in §1–§8 said what the
+gate had to require, so nothing noticed it required nothing.
+
+### 9.1 What the gate now requires
+
+Each leg runs the HEALTH class as a gate, narrowed to **two ids**:
+
+| id | why this gate needs it |
+|---|---|
+| `T_DH_01` | the console answers **correct** data, not merely answers. Every cell this gate scores is read through that console, so it is the premise for all of them. |
+| `T_DH_03` | app switching is alive. This is a **mode-transition** gate (§4 P3), so switch health is its subject's own precondition, not a general fitness check. |
+
+Excluded, deliberately:
+
+- **`T_DH_02` (network).** This gate exercises local SD playback and has never needed the network. A
+  wifi blip could only ever refuse it. Measured PASS at zero arena cost on `cyd2usb_player`
+  ([EXP-040](../../rnd/reports/EXP-040-player-gate-health-premise.md) §6) and excluded anyway,
+  because the risk was never cost — it is that an *intermittent* failure irrelevant to the subject
+  refuses a release gate, and a passing run says nothing about an intermittent one.
+- **`T_DH_05` (GRAM readback).** Nothing in this gate reads the panel back.
+
+### 9.2 How it is obtained, and what it must not drag in
+
+Via `runner.py --health-phase --health-ids T_DH_01,T_DH_03`. Both flags are TASK-597's; both default
+off. `--health-phase` exists so the HEALTH gate is reachable **without** `--class-order`, which
+TASK-617 holds OFF — adopting the held switch inside one entry point to obtain an unrelated effect
+would pre-empt that ruling. TASK-566 measured this gate as order-blind (both legs 100 % FEATURE, 0
+ids move), so `--class-order` would have been a functional no-op here; that coincidence is exactly
+why it was the wrong route.
+
+`--health-ids` refuses an id outside the HEALTH class rather than narrowing silently, and never
+reorders the class — ADR-064 D4 puts `T_DH_05` before the mutating `T_DH_03`, and selection is not
+an opportunity to relitigate that.
+
+### 9.3 The residual, recorded rather than remembered
+
+`T_DH_03` is `effect="mutating"`: it switches to a neighbour and restores. The neighbour is
+`"Clock" if entry != "Clock" else "Spotify"`, and a Spotify excursion on a `-DDISABLE_SPOTIFY` build
+would be unwelcome in front of an arena-sensitive gate (TASK-442 measured 43 596 B). It does not
+arise, and the reason is structural rather than lucky: **every `runner.py` invocation opens the port,
+and opening the port resets the board**, so a leg's entry app is always the boot default and never
+what a previous leg left. On `cyd2usb_player` that default is Spotify, observed twice, so the
+neighbour is Clock. **If that boot default ever becomes Clock, EXP-040 must be re-run before this
+subset is trusted.**
+
+### 9.4 What is verified, and what is not
+
+Verified: the selection logic (`select_health_ids`, unit-tested); that a narrowed health phase still
+blocks, exits 4 and attributes every id to the health member that failed (`test_class_order.py` —
+BP-068, since this gate was decorative for its whole life); that `_run_runner_leg` asks for the phase
+and the subset (`--selftest`); and the whole path end to end against a board.
+
+**Not verified by any host check: that the runner hands the *selected* set to the gate.** The first
+cut filtered `health_selected` and then passed `health_tests` to `run_suite` — the flag parsed, every
+host gate passed, the selftest grepped the command line and agreed, and the gate ran all four ids. It
+was caught by reading a real run's `── HEALTH class ──` line. A replay-driven test over
+`runner.main()` (TASK-628's engine) is the instrument that would catch it; it does not exist yet.

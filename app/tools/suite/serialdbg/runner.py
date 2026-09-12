@@ -229,6 +229,27 @@ def _setup_fail(reason: str, message: str, tail=None):
     sys.exit(SETUP_FAIL_EXIT)
 
 
+def select_health_ids(health_tests, spec):
+    """The HEALTH ids a run will gate on. Pure, so it can be tested (TASK-597).
+
+    `spec` is `--health-ids`' comma-separated string, or None for the whole
+    class. An id that is not in the HEALTH class is a USAGE ERROR, not a silent
+    narrowing: a run that checked fewer premises than it was told to, and said
+    nothing, is the same shape as the C-4 banner this programme has already
+    fixed once. Order follows `health_tests`, not the spec, so the class's own
+    ordering constraint survives (ADR-064 D4 puts T_DH_05 before the mutating
+    T_DH_03).
+    """
+    if not spec:
+        return list(health_tests)
+    want = [t.strip() for t in spec.split(",") if t.strip()]
+    unknown = [t for t in want if t not in health_tests]
+    if unknown:
+        raise SystemExit(f"--health-ids: not in the HEALTH class: {unknown}. "
+                         f"Available: {list(health_tests)}")
+    return [t for t in health_tests if t in want]
+
+
 def main():
     all_tests = _suite.build_all_tests()
     # §4.5: a SEPARATE registry. Not merged into all_tests (every id would then
@@ -285,6 +306,16 @@ def main():
                         "--class-order already implies this phase, same as "
                         "before; the two combine (health gate, then class "
                         "order) if both are given.")
+    p.add_argument("--health-ids", default=os.environ.get("DUT_HEALTH_IDS") or None,
+                   metavar="IDS",
+                   help="TASK-597/EXP-040: restrict --health-phase to this "
+                        "comma-separated subset of the HEALTH class. A caller "
+                        "asks only for the premises it actually needs: "
+                        "run/player-gate takes T_DH_01,T_DH_03 because it "
+                        "exercises local SD playback and mode switching, and a "
+                        "network premise it never needed could only refuse it. "
+                        "Unknown or non-HEALTH ids are a usage error, not a "
+                        "silent narrowing. Default: the whole class.")
     p.add_argument("--order-diff", action="store_true",
                    help="HOST-ONLY (no port, no DUT, EC-G9): print the "
                         "class-ordered id sequence diffed against today's, the "
@@ -470,7 +501,7 @@ def main():
     _gate_on = args.class_order and not args.dut_health
     _health_on = (args.class_order or args.health_phase) and not args.dut_health
     if _health_on and health_mode != "skip":
-        health_selected = list(health_tests)
+        health_selected = select_health_ids(list(health_tests), args.health_ids)
     print(_health.premise(dut, switch_verdict="pending" if health_selected
                           else "not-run(no-health-phase;TASK-566)"), flush=True)
 
@@ -621,7 +652,11 @@ def main():
     rc = _gate.run_suite(
         selected, all_meta, _dispatch,
         class_order=_gate_on,
-        health_ids=list(health_tests) if _health_on else (),
+        # `health_selected`, NOT `health_tests`: the gate phase must run the
+        # SUBSET --health-ids narrowed to (TASK-597/EXP-040). Passing the full
+        # registry here accepted the flag, passed every host check, and ran all
+        # four ids anyway — caught only by reading a real run's output.
+        health_ids=list(health_selected) if _health_on else (),
         run_health=_run_health if _health_on else None,
         health_mode=health_mode,
         before_summary=_exit_snapshot,
