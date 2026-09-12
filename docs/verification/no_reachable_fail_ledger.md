@@ -33,7 +33,6 @@ bool — the shape `check_defaulted_reads.py` structurally cannot see.
 
 | id | shape | why it is not fixed today | owner | since |
 |---|---|---|---|---|
-| `T084` | 1 | every exit is `flake()` or `pass_()` — the body cannot produce a FAIL. Its own `cls_reason` already records the half of this (WP-C `C-7`: it calls `flake()` while being absent from `flaky.yaml`); R34 names the other half, which is that a CORE id whose worst case is `FLAKY-PASS` cannot block the run it is the premise for | TASK-595 | 2026-09-05 |
 | `T087` | 1 | as `T084`: the `errors` list is collected honestly and then spent on `flake()`. Four real region assertions, none of which can go red | TASK-595 | 2026-09-05 |
 | `T091` | 1 | as `T084`. WP-C `C-6` states the consequence in the id's own declaration: *"its best case is `FLAKY-PASS` — neither a PASS nor a FAIL — and `_gate.py` can never see it set the blocker"* | TASK-595 | 2026-09-05 |
 | `T092` | 1 | as `T084`; a latency bound whose over-budget branch is `flake()`, so the bound is unenforced | TASK-595 | 2026-09-05 |

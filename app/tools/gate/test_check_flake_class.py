@@ -220,16 +220,28 @@ def case_t091_retirement_still_holds():
     assert ("gating-flake", "T091") not in rows, rows
 
 
-def case_the_ledger_was_reopened_for_t084_only():
-    """TASK-595 (C-7 sweep) reopened the file — F1 is still at zero (no
-    `gating-flake` row exists), but F7 now holds exactly one `undeclared-flake-
-    call` row: T084, CORE, whose four flake() call sites cannot be declared
-    (F1) or trivially converted without a DUT run this sweep did not have."""
-    assert os.path.exists(os.path.join(C.ROOT, C.LEDGER_REL)), (
-        f"{C.LEDGER_REL} should exist — TASK-595 reopened it for T084")
+def case_the_ledger_is_retired_again():
+    """TASK-595's sweep reopened this ledger for exactly one row — T084, CORE,
+    an `undeclared-flake-call` that could not be declared (that is an F1) and
+    whose conversion needed hardware the host-only sweep did not have.
+
+    The hardware run happened the same day: T084 PASSed 3/3 against a verified
+    build, and the race its "KNOWN INTERMITTENT" comment blamed was removed at
+    source by running the round-trip inside `_bgpoll_suspended`. Its four
+    `flake()` calls became typed reads plus `fail()`, the F7 finding stopped
+    occurring, and the row went stale — so the file was deleted per its own
+    retirement rule, for the second time (the first was T091/TASK-591).
+
+    This case pins the END state, not the interlude: no ledger file, and T084
+    still CORE with a reachable fail(). If a future sweep reopens the ledger it
+    must do so deliberately and update this case, which is the point."""
+    assert not os.path.exists(os.path.join(C.ROOT, C.LEDGER_REL)), (
+        f"{C.LEDGER_REL} exists again — if that is deliberate, say which row "
+        f"and why here; an exemption kind with no rows is an invitation to "
+        f"open one")
     rows, errors = C.parse_ledger()
     assert not errors, errors
-    assert set(rows) == {("undeclared-flake-call", "T084")}, rows
+    assert rows == {} or set(rows) == set(), rows
     meta = _suite.build_all_meta()
     assert meta["T084"]["cls"] == "CORE", meta["T084"]["cls"]
 
@@ -439,9 +451,9 @@ CASES = [
     ("L9  an empty ledger FILE is a finding",    case_empty_ledger_file_is_a_finding),
     ("D1  GATING derives to RIG/HEALTH/CORE",    case_gating_set_is_the_expected_triple),
     ("P1  T091's 2026-09-04 retirement holds",   case_t091_retirement_still_holds),
-    ("P1b the ledger reopened for T084 only",    case_the_ledger_was_reopened_for_t084_only),
+    ("P1b the ledger is retired again (zero)",   case_the_ledger_is_retired_again),
     ("P2  the live corpus is AT zero",           case_live_registry_state_is_at_zero),
-    ("P3  live run is green with the ledger",    case_live_run_is_green_with_the_ledger),
+    ("P3  live run is green at zero rows",       case_live_run_is_green_with_the_ledger),
     ("F6a declared, no call site",               case_f6_declared_with_no_call_site),
     ("F6b declared, has a call site: fine",      case_f6_declared_with_a_call_site_is_fine),
     ("F6c call_sites=None skips F6 (back-compat)", case_f6_skipped_when_call_sites_none),
@@ -454,7 +466,7 @@ CASES = [
     ("F8c today=None skips F8 (back-compat)",     case_f8_skipped_when_today_none),
     ("F8d sentinel without review_by is exempt",  case_f8_sentinel_without_review_by_is_exempt),
     ("S1  flake_call_sites finds only real Calls", case_flake_call_sites_ignores_prose),
-    ("S2  flake_call_sites matches the live 6",    case_flake_call_sites_matches_live_grep),
+    ("S2  AST call sites == an independent grep", case_flake_call_sites_matches_live_grep),
 ]
 
 

@@ -302,9 +302,14 @@ def t083(dut: Dut):
 
 
 # ── T084 — set/get backoff round-trip ─────────────────────────────────────────
-# KNOWN INTERMITTENT: reconnect race — Spotify poll task may increment
-# consecutiveFailures between the set and get commands, causing unexpected
-# values mid-sequence — first observed 2026-05-25
+# WAS "KNOWN INTERMITTENT" (first observed 2026-05-25): the Spotify poll task
+# could increment consecutiveFailures between the set and the get, so the
+# read-back disagreed with the write for a reason that had nothing to do with
+# the mechanism under test. That was tolerated by calling flake() on all four
+# failure paths. TASK-595 removes the race instead of reporting it: the whole
+# round-trip now runs inside _bgpoll_suspended(), the same custody helper
+# T-BUSY-05 uses, so nothing else is writing the counter while it is measured.
+# With the race gone the failure paths can be honest — see the @meta below.
 
 @meta(scope="spotify-chrome", scope_reason="shell-poll",
       cls="CORE", cls_reason=
@@ -315,33 +320,40 @@ def t083(dut: Dut):
       "every one of them asserts against a value it never wrote and passes or fails "
       "for a reason unrelated to its subject. WP-C is right that read-back of the "
       "same field is a tautology about the FEATURE — that is exactly why it is the "
-      "right premise test for the MECHANISM. Owed with this declaration: its four "
-      "failure paths call `flake()` while T084 is absent from `flaky.yaml`, so a "
-      "real failure blocks the run with an UNDECLARED-flake message about "
-      "bookkeeping rather than about the shell (WP-C C-7).")
+      "right premise test for the MECHANISM. The debt this declaration recorded is "
+      "DISCHARGED (TASK-595, 2026-09-12): its four failure paths called `flake()` "
+      "while T084 was absent from `flaky.yaml`, so a real failure blocked the run "
+      "with an UNDECLARED-flake message about bookkeeping rather than about the "
+      "shell (WP-C C-7). It could not simply be declared — a CORE id carrying a "
+      "`flaky.yaml` entry is an F1 finding, since a retry resolving FLAKY-PASS can "
+      "never set the blocker CORE exists to set. So the race was removed at source "
+      "instead, and the paths now `fail()`.")
 def t084(dut: Dut):
     print("T084  set/get backoff round-trip")
-    # Set to 5
-    r_set = dut.cmd("set backoff 5")
-    if not r_set.get("ok"):
-        flake("T084", f"set failed: {r_set}")
-        return
-    # Read back
-    r_get = dut.cmd("get backoff")
-    cf = r_get.get("consecutiveFailures")
-    if cf != 5:
-        flake("T084", f"consecutiveFailures={cf}, expected 5")
-        return
-    # Reset
-    r_rst = dut.cmd("set backoff 0")
-    if not r_rst.get("ok"):
-        flake("T084", f"reset failed: {r_rst}")
-        return
-    r_get2 = dut.cmd("get backoff")
-    if r_get2.get("consecutiveFailures") != 0:
-        flake("T084", f"reset: consecutiveFailures={r_get2.get('consecutiveFailures')}")
-    else:
-        pass_("T084", "5→0 round-trip consistent")
+    # The counter this id writes is also written by the Spotify poll task, so
+    # the poll is suspended for the measurement (see the note above). `saved`
+    # puts bgPoll back on every exit, including a raise.
+    with _bgpoll_suspended(dut):
+        # Typed throughout (TASK-596/R18): `set_val` raises BadField if the
+        # device refuses the write, `get_int` raises BadField on a missing,
+        # null or non-int field and NoAnswer if nothing answered at all.
+        # lib/dispatch.py maps those to FAIL and UNMET respectively, so a
+        # refused write is a real verdict about the shell and an unanswered
+        # console is NOT laundered into one.
+        dut.set_val("backoff", 5)
+        cf = dut.get_int("backoff", field="consecutiveFailures")
+        if cf != 5:
+            fail("T084", f"`set backoff 5` then `get backoff` read "
+                         f"consecutiveFailures={cf}, expected 5 — the set/get "
+                         f"round-trip every injecting id depends on is broken")
+            return
+        dut.set_val("backoff", 0)
+        cf = dut.get_int("backoff", field="consecutiveFailures")
+        if cf != 0:
+            fail("T084", f"`set backoff 0` then `get backoff` read "
+                         f"consecutiveFailures={cf}, expected 0")
+            return
+    pass_("T084", "5→0 round-trip consistent")
 
 
 # ── T085 — POSBAR tap → NONE when no track loaded ────────────────────────────

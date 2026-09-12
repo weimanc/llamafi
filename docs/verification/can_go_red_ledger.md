@@ -41,7 +41,6 @@ is stale or unhealthy for it — and are printed with a re-record instruction, n
 | id | outcome | why it is not fixed today | owner | since |
 |---|---|---|---|---|
 | `T-BUSY-01b` | RED-WITHOUT-ASSERTION | every non-pass exit is `skip()`; red only via contract/accident. Since TASK-624 the right verdict is `unmet()` — same row as the static ledger | TASK-615 | 2026-09-09 |
-| `T084` | RED-WITHOUT-ASSERTION | red only via `flake()` failing closed (policy 20) and crash arms; the body's own exits are `flake()`/`pass_()` — the runtime confirmation of the static shape-1 row | TASK-595 | 2026-09-09 |
 | `T091` | RED-WITHOUT-ASSERTION | as `T084`, red only via contract/accident | TASK-595 | 2026-09-09 |
 | `T077` | RED-WITHOUT-ASSERTION | red only through a crash arm (accident 7): raw `cmd()` reads, no `fail()` reached under any poison | TASK-676 | 2026-09-09 |
 | `T_CX_05` | RED-WITHOUT-ASSERTION | accident-only (40): the body breaks on a bad reply, never asserts on it | TASK-676 | 2026-09-09 |
