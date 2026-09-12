@@ -1,13 +1,14 @@
-# EXP-040 — what a HEALTH phase actually costs `run/player-gate` (PRE-REGISTERED, no results yet)
+# EXP-040 — what a HEALTH phase actually costs `run/player-gate` → subset `T_DH_01` + `T_DH_03`
 
 > Owner: R&D · registered 2026-09-12 · operator: Opus · instrument: `run/dut-health`, unmodified.
 > Decides the open half of **TASK-597** ([tasks-harness2.md](../../project/tasks-harness2.md)).
 > Governing design doc for the gate: [M-TESTBASE phase 1](../../architecture/designs/M-TESTBASE-phase1-player-gate.md)
 > — which, note, says **nothing** about a health premise; see §5.
 >
-> **This document is registered BEFORE the measurement.** §3 fixes the decision rule and §4 states,
-> per option, the result that would make it wrong. Nothing in §6 is filled in yet. If you are
-> reading §6 and it is still empty, the experiment has not been run.
+> **§1–§5 were registered BEFORE the measurement** (commit `425d44d`), §6–§8 written after it from
+> two runs on 2026-09-12. §3's decision rule and §4's falsifiers are as registered and were not
+> edited once the numbers existed — that is the whole value of the split, and `git log -p` on this
+> file is the check.
 
 ## 1. The question, and why it is open
 
@@ -113,21 +114,67 @@ An experiment that cannot falsify its options is a rationalisation with a table.
    the outcome. Deliberately not edited in advance of evidence. `T_PMT_04` and `T_PLR_17` lost their
    declarations in the same sweep, but neither ever called `flake()`, so neither changes behaviour.
 
-## 6. Results
+## 6. Results — measured 2026-09-12, two runs
 
-**NOT YET RUN.** Fill from one `DUT_ENV=cyd2usb_player ./run/dut-health` against a player-flashed
-board, recording the board id and ELF the run prints, then apply §3's rule and record which row
-matched.
+`./run/flash-player` then `DUT_ENV=cyd2usb_player ./run/dut-health`, twice. Both exit **0**.
 
-| field | value |
-|---|---|
-| date / operator | |
-| board id / elf / build | |
-| `T_DH_01` | |
-| `T_DH_02` | |
-| `T_DH_03` — entry appId → neighbour | |
-| `T_DH_05` | |
-| `freeInt` before → after (Δ) | |
-| `lfbInt` before → after (Δ) | |
-| exit code | |
-| **§3 row matched → premise adopted** | |
+| field | run 1 | run 2 |
+|---|---|---|
+| board id / source | `d48afcc8eed0` / efuse-mac | same |
+| build_env · elf · expected | `cyd2usb_player` · `1f00a52c` · `1f00a52c` | same |
+| generation | 15.1 | 16.1 |
+| `T_DH_01` | PASS (`variant=off playerMode=Spotify`) | PASS |
+| `T_DH_02` | **PASS** — `ip=192.168.1.181 ssid='<home-ssid>'` | PASS |
+| `T_DH_05` | PASS — 25/25 round trips bit-exact | PASS |
+| `T_DH_03` entry → neighbour → exit | **Spotify → Clock → Spotify**, idle at each step | same |
+| `freeInt` before → after | 118832 → 118832 (**Δ 0**) | 118844 → 118844 (**Δ 0**) |
+| `lfbInt` before → after | 73716 → 73716 (**Δ 0**) | 73716 → 73716 (**Δ 0**) |
+
+**§3 rule applied in order.** Row 1 does not match (`T_DH_02` PASSes). Row 2 does not match
+(neighbour was Clock, not Spotify; Δ`lfbInt` = 0 < 4 096). **Row 3 matches** — all four pass and
+Δ`lfbInt` < 4 096.
+
+> **Premise adopted: subset `T_DH_01` + `T_DH_03`.**
+
+Row 4 also matches on the data, and is deliberately ordered second: adopting the network premise
+requires an explicit judgement that it *is* one for local SD playback, and this measurement cannot
+supply that. `T_DH_02` passing costs nothing — but the concern was never cost. It was that
+`T_DH_02` can fail for a reason irrelevant to local playback and then refuse the gate, and a
+passing run says nothing about an intermittent one. The ordering was written for exactly this
+outcome and is honoured rather than re-argued now that the numbers are in.
+
+## 7. What the Q2 answer does and does not settle
+
+**The Spotify excursion did not occur, and is bounded — but was never exercised.** The neighbour is
+`"Clock" if entry != "Clock" else "Spotify"`, and entry was Spotify both times, so the branch that
+worried §1 was not taken. That is not the same as disproving it.
+
+What bounds it: **every `runner.py` invocation opens the port, and opening the port resets the
+board** (the `gen` increment, 15.1 then 16.1, is that reset). So a leg's entry app is always the
+*boot default*, never what a previous leg left behind — and on `cyd2usb_player` the boot default is
+Spotify, observed twice. The hazard therefore requires the boot default itself to become Clock.
+
+**Residual condition, to re-check if it ever changes:** if `cyd2usb_player`'s boot app becomes
+Clock, `T_DH_03`'s neighbour becomes Spotify, and this experiment must be re-run before the subset
+is trusted. Recorded here rather than left to memory.
+
+**The arena answer is unambiguous and stronger than the threshold needed.** Δ`lfbInt` = 0 and
+Δ`freeInt` = 0 on both runs, from fresh `get heap` reads either side of the phase — not a cached
+line. The 4 096 B prior was never approached, so §3's instruction about re-arguing a near-threshold
+result does not apply.
+
+## 8. Next step, and the falsifier that governs it
+
+§4 holds one live falsifier against the adopted option: *"Any subset at all is wrong if
+per-entry-point health selection costs more code than the coupling it removes — if it exceeds ~40
+lines, re-open the question."*
+
+`health_selected = list(health_tests)` is all-or-nothing today (`runner.py`), so the subset needs a
+`--health-ids` selector: an argparse entry, validation against the health registry, the assignment,
+one line in `run/player-gate`, and a test arm. **Size it against the 40-line budget before building
+it.** If it exceeds the budget, the honest move is the full class with `T_DH_02`'s refusal risk
+accepted and written into M-TESTBASE — not a larger mechanism justified after the fact.
+
+Whichever lands, the decision belongs in
+[M-TESTBASE phase 1](../../architecture/designs/M-TESTBASE-phase1-player-gate.md) per BP-065 — the
+document that currently does not mention health at all (§5.1).
