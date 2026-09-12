@@ -77,14 +77,13 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
   — that mistake flashed the wrong board once. Its exports are now `${VAR:-default}`; either use an
   inline `DUT_PORT_PATH=`/`DUT_BY_PATH=`, or `PORT=<by-path>`, which `resolve_port` honours first.
   Confirm the target from the flash log's `Serial port …` line, and the board with `read_mac`.
-  **Rig fault NARROWED (EXP-039, 2026-09-12):** the CYD two-USB variant has two board-side USB
-  connectors, and the cable swaps moved cable and connector together. Every DUT1 `d4:8a…` failure
-  (trips @7, USB drops @≤1) ran through **DUT1's micro-USB connector**; DUT1 through its USB-C
-  connector is clean on two host ports, and DUT2 is clean on the same micro cable. So the fault is in
-  DUT1's micro-USB path — cable or connector, **not yet separated** (cell F: a second known-good micro
-  cable into DUT1). Until then: drive DUT1 through USB-C, and treat anything measured through its
-  micro path (EXP-026/035/036 voltage margins) as a property of that wiring, not of the board or the
-  CYD design.
+  **Rig fault RESOLVED (EXP-039, 2026-09-12): DUT1's micro-USB CONNECTOR.** The CYD two-USB variant
+  has two board-side connectors; every DUT1 `d4:8a…` failure (trips @7, USB drops @≤1) ran through its
+  micro-USB connector, both its clean runs through USB-C, and DUT2 was clean on the same micro cable.
+  The human then observed backlight flicker **responding to finger pressure at the DUT-side micro
+  plug** — a mechanical contact fault, which a cable cannot cause. **DUT1's micro connector is retired:
+  drive DUT1 via USB-C only.** Anything measured through its micro path (EXP-026/035/036 voltage
+  margins) is a property of that wiring, not of the board or the CYD design. DUT2 is unaffected.
 - Debug env `cyd2usb_winamp_debug` (`-DBOD_WATCH -DSERIAL_DEBUG -DSD_BOOT_MOUNT`, CORE_DEBUG_LEVEL=1).
   Production `cyd2usb_winamp`. Bare rig: `~/proj/webradio-bare/` (104-line `main.cpp`, not a git
   repo, `[env:bare]`, `-DWITH_TFT` optional).
@@ -123,7 +122,7 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | X-P2b-1 | display-only rung (TFT init + backlight full, no WiFi), levels 7,5,3,2, 3 boots | Sonnet | F-4, H-1 | ~12 flashes/boots | **DONE 2026-09-11 — 0/3 at level 7, no trip: display alone contributes < one comparator step** ([EXP-036](../reports/EXP-036-display-backlight.md)) |
 | X-P2b-2 | full firmware, WiFi on, level 2: backlight on vs off during WiFi init (`bodmit`), 6 boots each, alternating | Sonnet | F-5 (`bodmit`), H-1 | ~20 reboots + 1 reflash to restore | **DONE 2026-09-11 — 0/6 trip-rate difference (6/6 both arms), no effect at this resolution. First attempt was invalid (driver raced the reboot; fixed `d559856`), corrected re-run 12/12 valid boots** ([EXP-036](../reports/EXP-036-display-backlight.md)) |
 | DUT1 retest (EXP-038) | same board, different port + cable | Opus | — | 9 boots | **DONE 2026-09-12 — the failure does NOT reproduce**: 0/3 trips @7, 0/3 @1, 0 USB drops; supersedes EXP-037's board-defect reading ([EXP-038](../reports/EXP-038-dut1-retest.md)) |
-| board×connector (EXP-039, cells A–E) | 2×2 + new-cable control | Opus + human | — | 18 boots | **NARROWED 2026-09-12 — DUT1's MICRO-USB path**: all DUT1 failures via its micro connector, clean via USB-C on two host ports, DUT2 clean on the same micro cable. Cable vs connector open — cell F owed ([EXP-039](../reports/EXP-039-board-cable-interaction.md)) |
+| board×connector (EXP-039, cells A–E) | 2×2 + new-cable control + mechanical evidence | Opus + human | — | 18 boots | **DONE 2026-09-12 — DUT1's micro-USB CONNECTOR**: all DUT1 failures via it, clean via USB-C on two host ports, DUT2 clean on the same micro cable, and the fault follows finger pressure at the DUT-side plug ([EXP-039](../reports/EXP-039-board-cable-interaction.md)) |
 | X-P3 | supply A/B | **human + Sonnet** | F-1, H-1, cable/hub/meter | ~100 boots | open |
 | X-P4 | UART transfer matrix | Sonnet | F-3, H-1 | none | **DONE 2026-09-11 — link clean both directions**: burst DUT→host 6 cells L=0; sink host→DUT 64 KB L=0 after the `3a30e1c` trailing-LF fix; R=0. Echo cell = RX-overflow instrument limit, re-spec'd as host windowing (`--window 8`, default) — re-run 2026-09-11 hit **2000/2000 echoed, 0 mismatches on the first attempt** ([EXP-033](../reports/EXP-033-f6-staircase-echo.md); original defect analysis in [EXP-029](../reports/EXP-029-uart-matrix.md) §Correction) |
 | X-P5 | 72 h soaks, debug then production | Sonnet (monitoring) | F-1, F-5, **human go for production** | ends window; lifts pin | open |

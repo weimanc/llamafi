@@ -1,4 +1,4 @@
-# EXP-039 — TASK-557 narrowed to DUT1's MICRO-USB path (cable vs connector still open)
+# EXP-039 — TASK-557 root cause: DUT1's micro-USB CONNECTOR (mechanically intermittent)
 
 > Owner: R&D · 2026-09-12 00:30–00:45 · operator: Opus (human swapped the cables between runs and
 > confirmed each step) · instrument rig/bare_bod (F-4) · driver `probe/rig_ladder.py`.
@@ -150,3 +150,32 @@ any notion that the USB-C path is "magic" rather than simply adequate.
 because the swaps moved both. The retirement note stands unchanged — EXP-026/035/036's voltage margins
 describe DUT1-through-its-micro-USB-path, not the board or the design — but the artefact to remove from
 the bench is not yet identified. Do not bin the micro cable until cell F says which it is.
+
+
+## Final — 2026-09-12, human: it is the connector, on physical evidence
+
+Two facts from the bench close this:
+
+1. **Cell C's cable is confirmed USB-C**, so the table's connector reading holds exactly: every DUT1
+   failure ran through its micro-USB connector, both DUT1 passes through its USB-C connector.
+2. **Direct mechanical evidence.** With the original micro cable in DUT1's micro connector, the human
+   sees the **backlight flicker, and the fault responds to finger pressure around the plug on the DUT
+   side**. A cable cannot produce touch-sensitivity at the board end; a loose/cracked connector or a
+   fractured solder joint is exactly what does.
+
+**Cell F (second micro cable) is not runnable — no working micro-USB cable is available — and is no
+longer needed.** Touch-sensitivity at the board-side plug localises the fault to DUT1's micro-USB
+connector and its joints. A marginal cable remains a possible *additional* contributor but cannot be
+the cause of flicker that follows finger pressure on the board.
+
+**Resolution:** DUT1's micro-USB connector is **retired**. DUT1 runs on **USB-C only**, which is how it
+is now reattached. Nothing about the board's regulator, the ESP32, the host sockets or the CYD design
+is implicated, and nothing needs repairing for the rig to be trustworthy — DUT2 is unaffected
+throughout.
+
+**TASK-557 closes here.** Its whole symptom set — the 3V3 sag across the level-7 comparator threshold,
+the USB drops at arm level ≤1, and six weeks of come-and-go "non-stationarity" (a mechanically
+intermittent contact moves with reseating, flex and heat) — is explained by that connector. The
+retirement note stands: EXP-026/035/036's voltage margins describe DUT1 through its micro-USB
+connector, not the board or the CYD design. X-P3 (meter on the rails) stays moot unless a sag appears
+on known-good wiring.

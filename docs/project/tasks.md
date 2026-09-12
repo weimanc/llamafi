@@ -95,12 +95,14 @@ prose on another board. They are here because this file is the index and is read
    2026-09-09** for TASK-671's first recording and PATCH-TLS-2; the board now runs the debug env built
    at `983cd54` (`get sig`, `set now`, the `[tls-verify]` flags line) — HEAD has moved since, so the
    next `run/test*` will refuse `elf-mismatch` until you `run/flash-debug` again.
-2. **TASK-557 is CLOSED (2026-09-12, `5d47cd4`) — it was a faulty USB cable.** DUT1
+2. **TASK-557 is CLOSED (2026-09-12, `5d47cd4`) — DUT1's micro-USB connector.** DUT1
    `d4:8a:fc:c8:ee:d0` tripped the brownout comparator at level 7 on every WiFi boot and lost USB at
-   arm level ≤1 **only through the cable that sat on host port `1-1`**; a new cable on the same board
-   and socket gives 0/9 trips and 0 drops, and DUT2 had tolerated that cable all along
+   arm level ≤1 **only through its own micro-USB connector**; through its USB-C connector it gives 0/9 trips and
+   0 drops on two host ports, DUT2 was clean on the same micro cable, and the fault follows finger
+   pressure at the DUT-side micro plug (backlight flicker) — a mechanical contact fault
    ([EXP-039](../rnd/reports/EXP-039-board-cable-interaction.md), five cells). The cable/hub null test
-   this condition demanded for six weeks is **discharged**; the bad cable is off the bench. M-HARNESS2
+   this condition demanded for six weeks is **discharged**; DUT1's micro connector is retired and DUT1
+   runs on USB-C. M-HARNESS2
    Phase 3 (and Phase 5 through it) and M-TESTARCH's class-order switch no longer wait on it — their
    remaining gate is **Phase 2's remainder** (582, 588, 595, 597). **Do not quote EXP-026/035/036's
    voltage margins as board or CYD-design properties**: they were measured through that cable.
