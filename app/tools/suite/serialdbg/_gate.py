@@ -126,9 +126,18 @@ def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
               before_summary=None, exit_on_finish=True) -> int:
     """Dispatch `selected` and print the summary. Returns the exit code.
 
-    With `class_order=False` this is today's loop, unchanged and unreordered:
-    the health phase does not run, nothing is blocked, and the exit code is
-    print_results()'s own 0/1.
+    With `class_order=False` and no `health_ids`/`run_health` this is today's
+    loop, unchanged and unreordered: the health phase does not run, nothing is
+    blocked, and the exit code is print_results()'s own 0/1.
+
+    TASK-597: the HEALTH phase and class ordering are independently
+    selectable. `health_ids`/`run_health` alone (with `class_order=False`)
+    runs the HEALTH gate — exit 4 and per-id NOT-RUN blocking on a blocking
+    HEALTH verdict — WITHOUT reordering `selected` or turning on the CORE
+    blocking loop below. `class_order=True` still runs the health phase
+    first when health_ids/run_health are given (unchanged from TASK-566): it
+    was never the source of the coupling, the `if class_order:` wrapper
+    around the call was.
     """
     global ORDER_IN_FORCE, EXECUTED_ORDER, HEALTH_MODE_USED
     selected = list(selected)
@@ -137,19 +146,20 @@ def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
     EXECUTED_ORDER = list(selected)
     health_failed = []
 
+    if health_ids and run_health is not None:
+        health_failed, blocking = health_phase(health_ids, run_health,
+                                               health_mode, emit)
+        if blocking:
+            # §4 rule 3: every CORE/APP/FEATURE id is NOT-RUN. Recording it
+            # per id rather than printing one banner is the point — the gate
+            # parsers read RESULTS rows, and a cell with no row at all scores
+            # MISSING, which reads as a regression (TASK-573's defect exactly).
+            for tid in selected:
+                not_run(tid, f"HEALTH/{health_failed[0]}")
+            return print_results(exit_on_finish=exit_on_finish,
+                                 health_fail=health_failed[0])
+
     if class_order:
-        if health_ids and run_health is not None:
-            health_failed, blocking = health_phase(health_ids, run_health,
-                                                   health_mode, emit)
-            if blocking:
-                # §4 rule 3: every CORE/APP/FEATURE id is NOT-RUN. Recording it
-                # per id rather than printing one banner is the point — the gate
-                # parsers read RESULTS rows, and a cell with no row at all scores
-                # MISSING, which reads as a regression (TASK-573's defect exactly).
-                for tid in selected:
-                    not_run(tid, f"HEALTH/{health_failed[0]}")
-                return print_results(exit_on_finish=exit_on_finish,
-                                     health_fail=health_failed[0])
         order = _order.class_order(selected, meta)
         if order != selected:
             emit(f"[order] class-ordered: {len(_order.moves(selected, order))} "

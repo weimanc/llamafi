@@ -100,8 +100,15 @@ def _dispatch_factory(failing=(), unmet=()):
     return dispatch, ran
 
 
-def _run(failing=(), health_failed=(), class_order=True, health_mode="gate",
-         unmet=(), health_unmet=(), health_skip=()):
+def _run(failing=(), health_failed=(), class_order=True, health_phase=None,
+         health_mode="gate", unmet=(), health_unmet=(), health_skip=()):
+    """TASK-597: `health_phase` is independent of `class_order` — same as
+    runner.py's `_health_on` vs `_gate_on`. Defaulting it to `class_order`
+    when unset reproduces every pre-TASK-597 call site's behaviour exactly
+    (health ran iff class_order did); pass it explicitly to exercise the new
+    property (health_phase=True, class_order=False)."""
+    if health_phase is None:
+        health_phase = class_order
     R.reset()
     dispatch, ran = _dispatch_factory(failing, unmet)
     health_calls = []
@@ -125,7 +132,8 @@ def _run(failing=(), health_failed=(), class_order=True, health_mode="gate",
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         rc = _gate.run_suite(SELECTED, META, dispatch, class_order=class_order,
-                             health_ids=["H1"], run_health=run_health,
+                             health_ids=["H1"] if health_phase else (),
+                             run_health=run_health if health_phase else None,
                              health_mode=health_mode, exit_on_finish=False,
                              emit=print)
     return rc, ran, dict(R.RESULTS), buf.getvalue(), health_calls
@@ -265,6 +273,46 @@ def arm_inert():
           f"a CORE failure blocks NOTHING and exits 1 (rc={rc}, ran={ran})")
     check(not any(v.startswith("NOT-RUN") for v in res.values()),
           "no NOT-RUN row is ever produced with the switch off")
+
+
+def arm_health_phase_without_class_order():
+    """TASK-597 — E-13: the HEALTH gate must be reachable WITHOUT adopting
+    class ordering (TASK-617 RULED 2026-09-03 holds --class-order OFF). This
+    is the property runner.py's `--health-phase` flag exists to deliver:
+    `class_order=False` (registry order, no CORE blocking — TASK-566 stays
+    inert) while the HEALTH gate itself still runs, blocks and exits 4."""
+    print("\n── TASK-597 — --health-phase runs HEALTH WITHOUT class ordering ──")
+    rc, ran, res, out, calls = _run(health_failed=("H1",), class_order=False,
+                                     health_phase=True)
+    check(rc == 4, f"exit 4 with class_order=False (got {rc})")
+    check(ran == [], f"no CORE/APP/FEATURE id was dispatched (ran={ran})")
+    check(calls == [["H1"]], f"the health gate ran exactly once: {calls}")
+    blocked = {t: res.get(t, "<missing>") for t in SELECTED}
+    check(all(v.startswith("NOT-RUN: blocked-by=HEALTH/H1")
+              for v in blocked.values()),
+          f"every id is NOT-RUN(blocked-by=HEALTH/H1) with class ordering OFF: "
+          f"{blocked}")
+
+    # A PASSING health gate with class_order=False: the suite runs, but in
+    # REGISTRY order — the reordering stays gated on --class-order alone, not
+    # on the health phase running.
+    rc, ran, res, out, calls = _run(class_order=False, health_phase=True)
+    check(rc == 0 and ran == SELECTED,
+          f"health passes; suite runs in REGISTRY order, unreordered: ran={ran}")
+    check("[order] class-ordered" not in out,
+          "--health-phase alone must not turn on --class-order's reordering")
+
+    # A CORE failure with class_order=False + health_phase=True must NOT block
+    # APP/FEATURE — that blocking is still --class-order's (TASK-566, still
+    # held OFF); only the HEALTH gate itself becomes real.
+    rc, ran, res, out, calls = _run(failing=("C1",), class_order=False,
+                                     health_phase=True)
+    check(rc == 1 and sorted(ran) == sorted(SELECTED),
+          f"a CORE failure blocks nothing with class_order=False "
+          f"(rc={rc}, ran={ran})")
+    check(not any(v.startswith("NOT-RUN") for v in res.values()),
+          "no NOT-RUN row — CORE blocking is still class_order's, not "
+          "health_phase's")
 
 
 def arm_ordering():
@@ -519,6 +567,7 @@ def main():
     arm_core()
     arm_app()
     arm_inert()
+    arm_health_phase_without_class_order()
     arm_ordering()
     arm_health_downgrades()
     arm_unmet_core()

@@ -32,6 +32,19 @@ block and HOLDS the switch itself until TASK-557 closes or signs off, with @VE's
 three preconditions (§18.6) on top. `--order-diff` prints what the switch WOULD
 change, with no port and no DUT (EC-G9).
 
+THE HEALTH PHASE ALONE (TASK-597, E-13) IS A SEPARATE SWITCH, also off by
+default. `--health-phase` (or `DUT_HEALTH_PHASE=1`) runs the same HEALTH gate
+and the same exit-4/NOT-RUN blocking as `--class-order` does, honouring
+`DUT_HEALTH=gate|warn|skip` — WITHOUT reordering ids or turning on CORE-class
+blocking. It exists because `--class-order` is held (TASK-617 RULED
+2026-09-03) and `run/player-gate` needs the HEALTH gate itself to be real
+without pre-empting that hold. **No caller passes it yet** — wiring
+`run/player-gate` is the rest of TASK-597 and is held pending a hardware
+run, because the health phase adds preconditions (network in `T_DH_02`, an
+app-switch excursion in the mutating `T_DH_03`) that a local-playback gate
+did not have before. `--class-order` still implies the
+health phase, unchanged; the two flags combine if both are given.
+
 Passive triage (mode P, TASK-571, M-TESTARCH §14.2/EC-T1) is ALWAYS ON and has
 no flag: every FAIL carries the session health verdict, `last-phase=`, `gen=`
 and the id's own `(cls, scope)`, read from what the session already observed.
@@ -259,6 +272,19 @@ def main():
                         "HEALTH failure. OFF by default: this suite has measured "
                         "order-dependence (TASK-553) and TASK-557 is unresolved. "
                         "Use --order-diff to see what it would change.")
+    p.add_argument("--health-phase", action="store_true",
+                   default=os.environ.get("DUT_HEALTH_PHASE", "") == "1",
+                   help="TASK-597: run the HEALTH class (T_DH_01..03) as a "
+                        "gate before the selected ids, honouring DUT_HEALTH="
+                        "gate|warn|skip, and exit 4 on a blocking HEALTH "
+                        "verdict with every other selected id recorded "
+                        "NOT-RUN(blocked-by=HEALTH/<id>). INDEPENDENT of "
+                        "--class-order (the held TASK-566 switch): this flag "
+                        "does NOT reorder ids or turn on CORE-class blocking, "
+                        "it only makes the HEALTH gate itself real. "
+                        "--class-order already implies this phase, same as "
+                        "before; the two combine (health gate, then class "
+                        "order) if both are given.")
     p.add_argument("--order-diff", action="store_true",
                    help="HOST-ONLY (no port, no DUT, EC-G9): print the "
                         "class-ordered id sequence diffed against today's, the "
@@ -434,8 +460,16 @@ def main():
     # artefact rather than against memory. Read-only, best-effort, ~1 s. The
     # switch verdict is T_DH_03's when the health phase runs and `not-run`
     # otherwise — the unconditional gate that would always run it is TASK-566.
+    #
+    # `_gate_on` controls ONLY class ordering + CORE blocking (TASK-566, still
+    # held OFF by default). `_health_on` controls whether the HEALTH class runs
+    # as a gate (TASK-597): --class-order implies it, same as before, but
+    # --health-phase now gets it WITHOUT adopting class ordering — that
+    # independence is the whole point of this flag (TASK-597, not a TASK-566
+    # widening).
     _gate_on = args.class_order and not args.dut_health
-    if _gate_on and health_mode != "skip":
+    _health_on = (args.class_order or args.health_phase) and not args.dut_health
+    if _health_on and health_mode != "skip":
         health_selected = list(health_tests)
     print(_health.premise(dut, switch_verdict="pending" if health_selected
                           else "not-run(no-health-phase;TASK-566)"), flush=True)
@@ -446,7 +480,7 @@ def main():
     # the case `_triage` has a word for. Leaving `sw` to the branch below made
     # the C-4 banner a NameError in that case instead of an honest verdict.
     sw = "unavailable(no-HEALTH-class;TASK-565)"
-    if health_selected and not _gate_on:
+    if health_selected and not _health_on:
         # Explicitly-named health ids, with no gate phase: run/dut-health reached
         # by another name (§4.5). The gate phase itself lives in _gate.run_suite.
         print(f"\n── HEALTH class ── {health_selected}")
@@ -494,7 +528,7 @@ def main():
         # premise line printed two lines above (`switch={sw}`) would then say
         # `degraded(...)` for the identical run. `sw` is `_triage.health_verdict`
         # for these same ids (always computed above: `health_selected` is
-        # unconditional for --dut-health, so the `not _gate_on` branch always
+        # unconditional for --dut-health, so the `not _health_on` branch always
         # ran), so the banner and the premise can no longer disagree.
         if sw == "ok":
             print("\n[health] PASS — the board answers correct data, knows which "
@@ -576,14 +610,19 @@ def main():
               flush=True)
         return failed
 
-    # TASK-566. With --class-order OFF (the default, and the held state) this is
-    # today's loop byte-for-byte: registry order, no health phase, no blocking,
-    # print_results()'s own 0/1. Everything the switch adds is inside run_suite.
+    # TASK-566/597. With --class-order and --health-phase both OFF (the
+    # default) this is today's loop byte-for-byte: registry order, no health
+    # phase, no blocking, print_results()'s own 0/1. `class_order=_gate_on`
+    # still gates ONLY reordering + CORE blocking inside run_suite (TASK-566,
+    # still held). `health_ids`/`run_health` are now gated on `_health_on`
+    # (TASK-597) instead of `_gate_on`, so --health-phase alone reaches
+    # `_gate.health_phase()` and its exit-4 path without turning class
+    # ordering on.
     rc = _gate.run_suite(
         selected, all_meta, _dispatch,
         class_order=_gate_on,
-        health_ids=list(health_tests) if _gate_on else (),
-        run_health=_run_health if _gate_on else None,
+        health_ids=list(health_tests) if _health_on else (),
+        run_health=_run_health if _health_on else None,
         health_mode=health_mode,
         before_summary=_exit_snapshot,
         exit_on_finish=False,
