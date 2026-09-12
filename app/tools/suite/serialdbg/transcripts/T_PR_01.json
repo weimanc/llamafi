@@ -1,17 +1,16 @@
 {
  "schema": 1,
  "id": "T_PR_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:26:31Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:14:15Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[D][dataTask.teletext] heap free=60k maxBlk=45k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":8,\"name\":\"Teletext\",\"last\":true}"
    ]
   },
@@ -54,11 +53,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 8  heap=64008 maxAlloc=42996 minFree=43268",
+    "[shell] leaving 8  heap=106136 maxAlloc=49140 minFree=43216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=46968 maxAlloc=42996 minFree=43268",
-    "[shell] switch 8->0 suspend=0ms wipe=30ms init=71ms taskbar=26ms total=127ms",
+    "[shell] entered 0  heap=106136 maxAlloc=49140 minFree=43216",
+    "[shell] switch 8->0 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -66,17 +65,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=191ms (worst path so far: shell.switch:127ms)",
-    "[ 85420][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 85433][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 85448][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[D][dataTask.teletext] GET -120 elapsed=369ms",
-    "[D][dataTask.teletext] heap free=60k maxBlk=45k",
-    "[W][dataTask.teletext] http -120 page=101",
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=117ms (worst path so far: shell.switch:85ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -133,14 +122,12 @@
    "cmd": "tap 297 380",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=104384 maxAlloc=42996 minFree=43268",
-    "[ 85795][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 85809][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 85824][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "[shell] entered 9  heap=107176 maxAlloc=47092 minFree=43268",
-    "[shell] switch 0->9 suspend=2ms wipe=33ms init=121ms taskbar=12ms total=168ms",
+    "[shell] leaving 0  heap=106136 maxAlloc=49140 minFree=43216",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.planeradar] heap free=62k maxBlk=47k",
+    "[shell] entered 9  heap=106136 maxAlloc=49140 minFree=43216",
+    "[shell] switch 0->9 suspend=1ms wipe=27ms init=76ms taskbar=28ms total=132ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -148,7 +135,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=185ms (worst path so far: shell.switch:168ms)",
+    "[W][perf] iter=149ms (worst path so far: shell.switch:132ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
    ]
   },
@@ -205,10 +192,10 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[shell] leaving 9  heap=61896 maxAlloc=42996 minFree=43268",
+    "[shell] leaving 9  heap=55864 maxAlloc=40948 minFree=43216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=61656 maxAlloc=42996 minFree=43268",
+    "[shell] entered 0  heap=55944 maxAlloc=40948 minFree=43216",
     "[shell] switch 9->0 suspend=2ms wipe=54ms init=80ms taskbar=26ms total=162ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
@@ -217,7 +204,7 @@
    "cmd": "get appId",
    "nth": 4,
    "lines": [
-    "[W][perf] iter=224ms (worst path so far: shell.switch:168ms)",
+    "[W][perf] iter=223ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

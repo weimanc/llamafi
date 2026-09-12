@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-BGPOLL-01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:15:54Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:47:14Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -39,8 +39,6 @@
    "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
-    "[958025][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -55,6 +53,8 @@
    "cmd": "get shellBusy",
    "nth": 3,
    "lines": [
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=1971ms",
+    "[D][dataTask.stock] chart pre-json heap free=11k maxBlk=5k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -62,6 +62,19 @@
    "cmd": "get shellBusy",
    "nth": 4,
    "lines": [
+    "[D][dataTask.stock] chart post-json heap free=57k maxBlk=41k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=331.70 hi=335.62",
+    "[D][dataTask.stock] heap free=60k maxBlk=41k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[765612][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[765625][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[765640][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -90,6 +103,8 @@
    "cmd": "get shellBusy",
    "nth": 8,
    "lines": [
+    "[767471][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },

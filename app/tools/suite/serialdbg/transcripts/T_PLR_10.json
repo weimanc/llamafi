@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_10",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:57:06Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:32:07Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -60,11 +60,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=90424 maxAlloc=42996 minFree=43184",
-    "SettingsStorage: deferred save landed (TASK-429)",
-    "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] entered 1  heap=90424 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=35ms wipe=26ms init=46ms taskbar=12ms total=119ms",
+    "[shell] leaving 12  heap=97716 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=101396 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -72,7 +70,10 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=133ms (worst path so far: shell.switch:174ms)",
+    "[W][perf] iter=90ms (worst path so far: app.tick:134ms)",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -115,10 +116,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=90424 maxAlloc=42996 minFree=43184",
-    "[I][m3u] loaded /playlists/short5.m3u: 5 entries in 13ms (total 15s)",
-    "[shell] entered 12  heap=82372 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=0ms wipe=27ms init=15ms taskbar=12ms total=54ms",
+    "[shell] leaving 1  heap=101396 maxAlloc=40948 minFree=42976",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 20ms (total 29890s)",
+    "[shell] entered 12  heap=93336 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=1ms wipe=27ms init=21ms taskbar=22ms total=71ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -127,7 +128,12 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=132ms (worst path so far: shell.switch:174ms)",
+    "[W][perf] iter=158ms (worst path so far: app.tick:134ms)",
+    "[927677][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[927690][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[927704][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -142,7 +148,7 @@
    "cmd": "set plLoad /mp3/rel.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /mp3/rel.m3u: 6 entries in 37ms (total 1458s)",
+    "[I][m3u] loaded /mp3/rel.m3u: 6 entries in 39ms (total 1458s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/mp3/rel.m3u\"}"
    ]
   },
@@ -151,8 +157,8 @@
    "nth": 0,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=77ms (worst path so far: shell.switch:174ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/mp3/rel.m3u\",\"count\":6,\"loadMs\":37,\"totalSec\":1458,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+    "[W][perf] iter=81ms (worst path so far: app.tick:134ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/mp3/rel.m3u\",\"count\":6,\"loadMs\":39,\"totalSec\":1458,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":34804,\"last\":true}"
    ]
   },
   {
@@ -182,8 +188,8 @@
    "nth": 1,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=63ms (worst path so far: shell.switch:174ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/relpar.m3u\",\"count\":3,\"loadMs\":12,\"totalSec\":741,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+    "[W][perf] iter=69ms (worst path so far: app.tick:134ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/relpar.m3u\",\"count\":3,\"loadMs\":12,\"totalSec\":741,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":34804,\"last\":true}"
    ]
   },
   {
@@ -197,7 +203,7 @@
    "cmd": "set plLoad /mp3/../playlists/gate100.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 18ms (total 29890s)",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 21ms (total 29890s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/mp3/../playlists/gate100.m3u\"}"
    ]
   },
@@ -206,8 +212,8 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=69ms (worst path so far: shell.switch:174ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":18,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+    "[W][perf] iter=109ms (worst path so far: app.tick:134ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":21,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":1652,\"last\":true}"
    ]
   },
   {

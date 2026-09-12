@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T270",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:26:17Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:14:01Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
@@ -39,9 +39,9 @@
    "cmd": "tap 297 340",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=48892 maxAlloc=42996 minFree=43268",
-    "[shell] entered 8  heap=48892 maxAlloc=42996 minFree=43268",
-    "[shell] switch 0->8 suspend=1ms wipe=27ms init=46ms taskbar=12ms total=86ms",
+    "[shell] leaving 0  heap=106136 maxAlloc=49140 minFree=43216",
+    "[shell] entered 8  heap=106136 maxAlloc=49140 minFree=43216",
+    "[shell] switch 0->8 suspend=1ms wipe=27ms init=45ms taskbar=12ms total=85ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":340,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -49,7 +49,17 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=101ms (worst path so far: shell.switch:86ms)",
+    "[W][perf] iter=98ms (worst path so far: shell.switch:85ms)",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.teletext] heap free=60k maxBlk=47k",
+    "[ 73440][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 73453][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 73467][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[D][dataTask.teletext] GET -120 elapsed=202ms",
+    "[D][dataTask.teletext] heap free=59k maxBlk=47k",
+    "[W][dataTask.teletext] http -120 page=101",
+    "[I][spotify.tls] tls yield \u2014 resumed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":8,\"name\":\"Teletext\",\"last\":true}"
    ]
   },
@@ -99,6 +109,8 @@
    "cmd": "tap 257 182",
    "nth": 0,
    "lines": [
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":257,\"y\":182,\"hit\":\"TELETEXT\",\"action\":\"CONSUMED\",\"skipped\":false}"
    ]
   },
@@ -106,6 +118,7 @@
    "cmd": "get teletextLastAction",
    "nth": 0,
    "lines": [
+    "[D][dataTask.teletext] heap free=60k maxBlk=47k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"teletextLastAction\",\"val\":\"STRIP_SUBDN\",\"last\":true}"
    ]
   },
@@ -127,6 +140,13 @@
    "cmd": "get shellBusy",
    "nth": 3,
    "lines": [
+    "[ 74048][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 74061][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 74076][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[D][dataTask.teletext] GET -120 elapsed=207ms",
+    "[D][dataTask.teletext] heap free=59k maxBlk=47k",
+    "[W][dataTask.teletext] http -120 page=617",
+    "[I][spotify.tls] tls yield \u2014 resumed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -134,7 +154,6 @@
    "cmd": "get shellBusy",
    "nth": 4,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-64) disc=3 heap=47k maxAlloc=41k stack_hwm=12668b uptime=00:01:11 poll=0/2 last=-1 block_max=17150ms loop_max=162ms slow=shell.switch:86ms last_poll_age_ms=0 next_poll_in_ms=8688 last_render_age_ms=3371 build=Sep  9 2026-",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },

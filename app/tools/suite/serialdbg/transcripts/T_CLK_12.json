@@ -1,19 +1,16 @@
 {
  "schema": 1,
  "id": "T_CLK_12",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:25:41Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:13:22Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=53588 maxAlloc=42996 minFree=43268",
-    "[shell] entered 1  heap=53588 maxAlloc=42996 minFree=43268",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -21,43 +18,54 @@
    "cmd": "set clockStyle 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=83ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+    "[I][hb] display=winamp wifi=rssi(-60) disc=1 heap=50k maxAlloc=39k stack_hwm=12620b uptime=00:00:35 poll=0/1 last=-1 block_max=4332ms loop_max=417ms slow=shell.switch:157ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=5030 build=Sep 11 2026-14:",
+    "[ 35216][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 1",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":false}"
+    "[W][perf] iter=76ms (worst path so far: app.tick:2ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 2",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=68ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":false}"
+    "[W][perf] iter=100ms (worst path so far: app.tick:2ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 3",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=62ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+    "[W][perf] iter=95ms (worst path so far: app.tick:2ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":true}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=52ms (worst path so far: shell.switch:163ms)",
-    "[shell] leaving 1  heap=53812 maxAlloc=42996 minFree=43268",
+    "[W][perf] iter=82ms (worst path so far: app.tick:2ms)",
+    "[shell] leaving 1  heap=106168 maxAlloc=49140 minFree=43216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=53812 maxAlloc=42996 minFree=43268",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=37ms taskbar=13ms total=78ms",
+    "[shell] entered 0  heap=106168 maxAlloc=49140 minFree=43216",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -65,8 +73,8 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=106ms (worst path so far: shell.switch:163ms)",
-    "[lib] GET write fail, retrying",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=147ms (worst path so far: shell.switch:79ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

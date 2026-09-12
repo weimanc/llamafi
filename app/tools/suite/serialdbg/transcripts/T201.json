@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T201",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:43:48Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:26:30Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47864 maxAlloc=42996 minFree=43792",
-    "[shell] entered 6  heap=47864 maxAlloc=42996 minFree=43792",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=31ms taskbar=13ms total=72ms",
+    "[shell] leaving 0  heap=51144 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=50852 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=2ms wipe=52ms init=153ms taskbar=25ms total=232ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=76ms (worst path so far: shell.switch:82ms)",
+    "[W][perf] iter=241ms (worst path so far: shell.switch:232ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -43,6 +43,8 @@
    "cmd": "set cooldown 0",
    "nth": 0,
    "lines": [
+    "[D][dataTask.stock] heatmap GET 200 elapsed=2333ms",
+    "[D][dataTask.stock] heatmap doc cap=2560",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -64,6 +66,7 @@
    "cmd": "get stockSubView",
    "nth": 1,
    "lines": [
+    "[W][perf] iter=82ms (worst path so far: shell.switch:232ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
    ]
   },
@@ -78,7 +81,11 @@
    "cmd": "get stockSubView",
    "nth": 2,
    "lines": [
-    "[W][dataTask] queue full \u2014 dropped heatmap quote",
+    "[W][perf] iter=142ms (worst path so far: shell.switch:232ms)",
+    "[D][dataTask.stock] heatmap ok count=20 usage=1843/2560",
+    "[D][dataTask.stock] heap free=58k maxBlk=33k",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[W][perf] iter=103ms (worst path so far: shell.switch:232ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"heatmap\",\"last\":true}"
    ]
   },
@@ -107,6 +114,7 @@
    "cmd": "get stockSubView",
    "nth": 3,
    "lines": [
+    "[W][perf] iter=94ms (worst path so far: shell.switch:232ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
    ]
   },
@@ -114,11 +122,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=47864 maxAlloc=42996 minFree=43792",
+    "[shell] leaving 6  heap=47608 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47864 maxAlloc=42996 minFree=43792",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=46992 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=24ms total=156ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -126,7 +134,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=109ms (worst path so far: shell.switch:82ms)",
+    "[W][perf] iter=209ms (worst path so far: shell.switch:232ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

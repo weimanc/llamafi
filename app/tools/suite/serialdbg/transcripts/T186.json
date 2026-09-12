@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T186",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:41:01Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:25:11Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47672 maxAlloc=42996 minFree=43792",
-    "[shell] entered 6  heap=47672 maxAlloc=42996 minFree=43792",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=44ms taskbar=12ms total=84ms",
+    "[shell] leaving 0  heap=47092 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=46948 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=88ms taskbar=24ms total=168ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=88ms (worst path so far: shell.switch:84ms)",
+    "[W][perf] iter=173ms (worst path so far: shell.switch:168ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -78,7 +78,10 @@
    "cmd": "get stockSubView",
    "nth": 1,
    "lines": [
-    "[D][stock] chart drop stale result sym=NVDA range=0 (want MSFT/0)",
+    "[D][stock] chart drop stale result sym=AAPL range=0 (want MSFT/0)",
+    "[W][perf] iter=65ms (worst path so far: shell.switch:168ms)",
+    "[D][dataTask.stock] spark GET 200 elapsed=2002ms",
+    "[D][dataTask.stock] spark ok aapl=332.27 msft=516.13",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
    ]
   },
@@ -86,6 +89,7 @@
    "cmd": "get stockChartTicker",
    "nth": 0,
    "lines": [
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartTicker\",\"val\":\"MSFT\",\"last\":true}"
    ]
   },
@@ -93,7 +97,8 @@
    "cmd": "get fetchOkCount",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
@@ -107,461 +112,113 @@
    "cmd": "get fetchOkCount",
    "nth": 1,
    "lines": [
-    "[W][dataTask] queue full \u2014 dropped stock chart idx=6 rng=0",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=1867ms",
+    "[D][dataTask.stock] chart pre-json heap free=10k maxBlk=6k",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=33k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=331.70 hi=335.62",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[D][stock] chart drop stale result sym=AAPL range=0 (want MSFT/0)",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":516113,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":506537,\"queueWaiting\":2,\"pendingMask\":0,\"inFlight\":4,\"inFlightMs\":506425,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":499844,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "[D][dataTask.stock] heatmap GET 200 elapsed=2196ms",
+    "[D][dataTask.stock] heatmap doc cap=2560",
+    "[D][dataTask.stock] heatmap ok count=20 usage=1843/2560",
+    "[D][dataTask.stock] heap free=58k maxBlk=33k",
+    "[D][dataTask.stock] chart START sym=MSFT range=1d heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":519176,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":509610,\"queueWaiting\":1,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":509214,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":499844,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 7,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 8,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
+    "[D][dataTask.stock] chart GET sym=MSFT range=1d 200 elapsed=1854ms",
+    "[D][dataTask.stock] chart pre-json heap free=12k maxBlk=6k",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=33k err=Ok",
+    "[D][dataTask.stock] chart ok sym=MSFT len=79 lo=492.98 hi=498.55",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[D][dataTask.stock] chart START sym=MSFT range=1d heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":4,\"last\":true}"
    ]
   },
   {
-   "cmd": "get fetchOkCount",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":522240,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":525303,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":528365,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":531429,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":534493,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 24,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":537558,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 25,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 26,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 27,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":540621,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 28,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 29,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=46k maxAlloc=41k stack_hwm=11936b uptime=00:09:02 poll=0/7 last=-1 block_max=0ms loop_max=88ms slow=shell.switch:84ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=30070 build=Sep  9 2026-11:19:0",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 30,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":543685,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 31,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 32,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 33,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":546750,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 34,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 35,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 36,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":549812,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 37,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 38,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 39,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":552875,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 40,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 41,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 42,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":555937,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 43,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 44,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 45,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":559003,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockChartProgress",
+   "cmd": "get fetchFailed",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartProgress\",\"val\":-1,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchFailed\",\"val\":false,\"last\":true}"
    ]
   },
   {
-   "cmd": "get heap",
+   "cmd": "get fetchErrorCode",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":47704,\"lfbInt\":42996,\"freeDma\":4628,\"lfbDma\":1844,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get backoff",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":560071,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":509325,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+    "{\"ok\":false,\"cmd\":\"get\",\"error\":\"unknown var\",\"var\":\"fetchErrorCode\"}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=47704 maxAlloc=42996 minFree=43792",
+    "[shell] leaving 6  heap=48464 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47704 maxAlloc=42996 minFree=43792",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=12ms total=80ms",
+    "[shell] entered 0  heap=47736 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=25ms total=157ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -569,7 +226,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=107ms (worst path so far: shell.switch:80ms)",
+    "[W][perf] iter=210ms (worst path so far: shell.switch:168ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_09",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:57:04Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:32:05Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -60,9 +60,12 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=50264 maxAlloc=42996 minFree=43184",
-    "[shell] entered 1  heap=50264 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=1ms wipe=28ms init=46ms taskbar=13ms total=88ms",
+    "[shell] leaving 12  heap=45508 maxAlloc=40948 minFree=42976",
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=5364 freeInt=53788). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "[908547][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[shell] entered 1  heap=101376 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=17ms wipe=29ms init=45ms taskbar=12ms total=103ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -70,7 +73,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=103ms (worst path so far: shell.switch:174ms)",
+    "[W][perf] iter=116ms (worst path so far: app.tick:134ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -113,10 +116,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=50264 maxAlloc=42996 minFree=43184",
-    "[W][m3u] index alloc FAILED (3616 B) \u2014 free=48648",
-    "[shell] entered 12  heap=50264 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=1ms wipe=27ms init=2ms taskbar=12ms total=42ms",
+    "[shell] leaving 1  heap=59644 maxAlloc=40948 minFree=42976",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 42ms (total 29890s)",
+    "[shell] entered 12  heap=46888 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=3ms wipe=46ms init=44ms taskbar=23ms total=116ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -125,7 +128,8 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=93ms (worst path so far: shell.switch:174ms)",
+    "[W][perf] iter=204ms (worst path so far: app.tick:134ms)",
+    "[W][perf] iter=74ms (worst path so far: app.tick:134ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -133,20 +137,167 @@
    "cmd": "set plLoad /playlists/gate100.m3u",
    "nth": 0,
    "lines": [
-    "[W][m3u] index alloc FAILED (3616 B) \u2014 free=48648",
-    "{\"ok\":false,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate100.m3u\"}"
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 40ms (total 29890s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate100.m3u\"}"
    ]
   },
   {
    "cmd": "get plCount",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"\",\"count\":0,\"loadMs\":0,\"totalSec\":0,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":1460,\"last\":true}"
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=128ms (worst path so far: app.tick:134ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":1652,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set plPlay 0",
+   "nth": 0,
+   "lines": [
+    "[I][localplayer] play row 0: /mp3/01 - Tomorrow Comes Today.mp3",
+    "[910553][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
+    "[D][spotify.task] stack_hwm=3928B",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[membudget] TASK-267 arena acquire=24576B lfbBefore=34804 OK",
+    "[membudget] arena init base=0x3fff3a24 cap=24576",
+    "[E][audioengine] DMA pool too low for I2S init: lfbDma=10228 \u2014 abort play",
+    "[membudget] TASK-267 arena released",
+    "[W][audioengine] play aborted before engine bring-up \u2014 arena released",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":0}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 1,
+   "lines": [
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[W][perf] iter=1067ms (worst path so far: app.tick:134ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 8,
+   "lines": [
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1987/6144 B)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":40,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":false,\"lfb8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "set bgPoll 1",
    "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 1,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]

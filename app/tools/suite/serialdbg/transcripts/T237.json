@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T237",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:55:03Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:30:27Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -39,10 +39,9 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "SettingsStorage: deferred save landed (TASK-429)",
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=59488 maxAlloc=42996 minFree=43472",
-    "[shell] entered 11  heap=59500 maxAlloc=42996 minFree=43472",
+    "[shell] leaving 0  heap=59396 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=59708 maxAlloc=40948 minFree=42976",
     "[shell] switch 0->11 suspend=2ms wipe=54ms init=0ms taskbar=34ms total=90ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
@@ -53,7 +52,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=328ms (worst path so far: shell.switch:153ms)",
+    "[W][perf] iter=328ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -70,6 +69,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=53ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrAutoSkip\",\"val\":\"1\"}"
    ]
   },
@@ -86,6 +86,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=60ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":4,\"pending\":1,\"last\":true}"
    ]
   },
@@ -105,50 +106,63 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=56ms (worst path so far: shell.switch:153ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":56,\"last\":true}"
+    "[W][perf] iter=68ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":71,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":380,\"last\":true}"
+    "[820251][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":392,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":699,\"last\":true}"
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=4 next=60000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":716,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1018,\"last\":true}"
+    "[820862][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[820875][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[820890][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1035,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1336,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1353,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1654,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1675,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1972,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1995,\"last\":true}"
    ]
   },
   {
@@ -160,43 +174,45 @@
     "[I][webradio] auto-skip 2/4 from idx=1",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=64ms (worst path so far: shell.switch:153ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":289,\"last\":true}"
+    "[W][perf] iter=131ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":312,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 8,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":607,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":632,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 9,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":924,\"last\":true}"
+    "[822783][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":951,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 10,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1242,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1274,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 11,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1560,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1596,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 12,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1878,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1917,\"last\":true}"
    ]
   },
   {
@@ -208,15 +224,30 @@
     "[I][webradio] auto-skip 3/4 from idx=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=67ms (worst path so far: shell.switch:153ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":3,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":197,\"last\":true}"
+    "[W][perf] iter=127ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":3,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":238,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 14,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":3,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1716,\"last\":true}"
+    "[824635][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=4373ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[I][webradio] HEAP post-fetch free=104956 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=62ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":3,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1756,\"last\":true}"
    ]
   },
   {
@@ -255,7 +286,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=67ms (worst path so far: shell.switch:153ms)",
+    "[W][perf] iter=65ms (worst path so far: shell.switch:157ms)",
     "[I][webradio] play idx=0 name=DEAD-0 url=http://127.0.0.1:1/dead",
     "[W][webradio] play idx=0 \u2014 forced connect-fail (debug wrDeadUrls)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrPlay\",\"val\":\"0\"}"
@@ -267,7 +298,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=90ms (worst path so far: shell.switch:153ms)",
+    "[W][perf] iter=78ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":0,\"tried\":0,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":1529,\"last\":true}"
    ]
   },
@@ -347,10 +378,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=50036 maxAlloc=42996 minFree=43472",
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1460 freeInt=50036). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
-    "[shell] entered 1  heap=50036 maxAlloc=42996 minFree=43472",
-    "[shell] switch 11->1 suspend=12ms wipe=28ms init=46ms taskbar=12ms total=98ms",
+    "[shell] leaving 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] entered 1  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->1 suspend=35ms wipe=27ms init=37ms taskbar=12ms total=111ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -358,7 +389,11 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=113ms (worst path so far: shell.switch:153ms)",
+    "[W][perf] iter=125ms (worst path so far: shell.switch:157ms)",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
   },
@@ -394,11 +429,11 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[shell] leaving 1  heap=50036 maxAlloc=42996 minFree=43472",
+    "[shell] leaving 1  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=50036 maxAlloc=42996 minFree=43472",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=41ms taskbar=13ms total=82ms",
+    "[shell] entered 0  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=40ms taskbar=14ms total=82ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -406,7 +441,12 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=120ms (worst path so far: shell.switch:153ms)",
+    "[W][perf] iter=119ms (worst path so far: shell.switch:157ms)",
+    "[828246][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[828259][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[828273][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

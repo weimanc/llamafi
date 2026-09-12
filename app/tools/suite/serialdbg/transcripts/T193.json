@@ -1,31 +1,31 @@
 {
  "schema": 1,
  "id": "T193",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:48:36Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:27:04Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "get heap",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":47840,\"lfbInt\":42996,\"freeDma\":4764,\"lfbDma\":1652,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":59592,\"lfbInt\":40948,\"freeDma\":17220,\"lfbDma\":12276,\"last\":true}"
    ]
   },
   {
    "cmd": "get backoff",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":22,\"nextPollMs\":60000,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":941514,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":877683,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":613249,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":609388,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":611584,\"last\":true}"
    ]
   },
   {
@@ -39,9 +39,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47840 maxAlloc=42996 minFree=43792",
-    "[shell] entered 6  heap=47840 maxAlloc=42996 minFree=43792",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=34ms taskbar=13ms total=75ms",
+    "[shell] leaving 0  heap=59384 maxAlloc=40948 minFree=42976",
+    "[shell] entered 6  heap=54788 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=49ms taskbar=13ms total=118ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -49,7 +49,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=78ms (worst path so far: shell.switch:80ms)",
+    "[W][perf] iter=122ms (worst path so far: shell.switch:118ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -57,19 +57,57 @@
    "cmd": "get stockSubView",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"heatmap\",\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
   {
    "cmd": "set cooldown 0",
    "nth": 0,
    "lines": [
+    "[613754][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 10 7",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=76ms (worst path so far: shell.switch:118ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"heatmap\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
@@ -83,8 +121,9 @@
   },
   {
    "cmd": "get stockSubView",
-   "nth": 1,
+   "nth": 2,
    "lines": [
+    "[W][perf] iter=90ms (worst path so far: shell.switch:118ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
    ]
   },
@@ -92,235 +131,268 @@
    "cmd": "get heatmapCount",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":20,\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
-   "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
+   "cmd": "set cooldown 0",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 220 10",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":220,\"y\":10,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "[W][perf] iter=157ms (worst path so far: shell.switch:118ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"heatmap\",\"last\":true}"
    ]
   },
   {
-   "cmd": "get heap",
+   "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":47840,\"lfbInt\":42996,\"freeDma\":4764,\"lfbDma\":1652,\"last\":true}"
+    "[615604][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
   {
-   "cmd": "get backoff",
-   "nth": 1,
+   "cmd": "set cooldown 0",
+   "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
-   "cmd": "get dataq",
-   "nth": 1,
+   "cmd": "get shellCooldown",
+   "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":954425,\"queueWaiting\":4,\"pendingMask\":4,\"inFlight\":3,\"inFlightMs\":877683,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
   {
-   "cmd": "set triggerHeatmap 1",
+   "cmd": "tap 10 30",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"triggerHeatmap\",\"val\":\"1\"}"
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":30,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
+   "cmd": "get stockSubView",
    "nth": 4,
    "lines": [
-    "[W][dataTask] queue full \u2014 dropped heatmap quote",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=23 next=60000ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.stock] chart START sym=NVDA range=1d heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
-   "nth": 5,
+   "cmd": "get stockChartTicker",
+   "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartTicker\",\"val\":\"NVDA\",\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
-   "nth": 6,
+   "cmd": "get shellBusy",
+   "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
-   "nth": 7,
+   "cmd": "get shellBusy",
+   "nth": 3,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11708b uptime=00:16:02 poll=0/7 last=-1 block_max=0ms loop_max=109ms slow=shell.switch:80ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=21593 build=Sep  9 2026-11:19:",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
-   "nth": 8,
+   "cmd": "get shellBusy",
+   "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "[D][dataTask.stock] chart GET sym=NVDA range=1d 200 elapsed=1853ms",
+    "[D][dataTask.stock] chart pre-json heap free=10k maxBlk=4k",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=33k err=Ok",
+    "[D][dataTask.stock] chart ok sym=NVDA len=79 lo=218.20 hi=221.60",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[618152][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[618165][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[618180][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
-   "nth": 9,
+   "cmd": "get fetchOkCount",
+   "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 17,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=46k maxAlloc=41k stack_hwm=11708b uptime=00:16:32 poll=0/7 last=-1 block_max=0ms loop_max=24ms slow=app.tick:1ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=51593 build=Sep  9 2026-11:19:02",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 19,
-   "lines": [
-    "[998045][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
-    "[D][dataTask.stock] chart GET sym=MSFT range=1d -1 elapsed=120362ms",
-    "[D][dataTask.stock] heap free=57k maxBlk=35k",
-    "[D][dataTask.stock] heap free=57k maxBlk=35k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":19,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
-   "nth": 2,
+   "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":48600,\"lfbInt\":42996,\"freeDma\":5412,\"lfbDma\":4340,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":105356,\"lfbInt\":40948,\"freeDma\":62984,\"lfbDma\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get backoff",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":23,\"nextPollMs\":60000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":618423,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":615772,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":617804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set triggerFetch 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"triggerFetch\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":19,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":19,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 3,
+   "lines": [
+    "[619983][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":19,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1014782,\"queueWaiting\":3,\"pendingMask\":4,\"inFlight\":4,\"inFlightMs\":998059,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":620502,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":5,\"inFlightMs\":618453,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":617804,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":19,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 5,
+   "lines": [
+    "[621744][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=24 next=60000ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.stock] chart START sym=NVDA range=1d heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":19,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":19,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":623570,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":5,\"inFlightMs\":618453,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":621966,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 7,
+   "lines": [
+    "[D][dataTask.stock] chart GET sym=NVDA range=1d 200 elapsed=1853ms",
+    "[D][dataTask.stock] chart pre-json heap free=10k maxBlk=4k",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=33k err=Ok",
+    "[D][dataTask.stock] chart ok sym=NVDA len=79 lo=218.20 hi=221.60",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[624238][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[624251][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[624266][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":20,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockChartTicker",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartTicker\",\"val\":\"NVDA\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get chartLen",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":79,\"last\":true}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=48404 maxAlloc=42996 minFree=43792",
+    "[shell] leaving 6  heap=105356 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=48340 maxAlloc=42996 minFree=43792",
-    "[shell] switch 6->0 suspend=1ms wipe=54ms init=77ms taskbar=26ms total=158ms",
+    "[shell] entered 0  heap=104528 maxAlloc=40948 minFree=42976",
+    "[shell] switch 6->0 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -328,7 +400,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=213ms (worst path so far: shell.switch:158ms)",
+    "[W][perf] iter=108ms (worst path so far: shell.switch:118ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

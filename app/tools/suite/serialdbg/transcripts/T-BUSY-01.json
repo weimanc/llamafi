@@ -1,17 +1,17 @@
 {
  "schema": 1,
  "id": "T-BUSY-01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:09:50Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:42:47Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "get heap",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":67484,\"lfbInt\":42996,\"freeDma\":24408,\"lfbDma\":8180,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":51512,\"lfbInt\":40948,\"freeDma\":9140,\"lfbDma\":8180,\"last\":true}"
    ]
   },
   {
@@ -25,7 +25,7 @@
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":559137,\"queueWaiting\":0,\"pendingMask\":2,\"inFlight\":1,\"inFlightMs\":557337,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":555787,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":494926,\"queueWaiting\":0,\"pendingMask\":2,\"inFlight\":1,\"inFlightMs\":492835,\"wrPhase\":2,\"wrPhaseMs\":108310,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":492846,\"last\":true}"
    ]
   },
   {
@@ -39,9 +39,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] entered 6  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=44ms taskbar=12ms total=84ms",
+    "[shell] leaving 0  heap=51324 maxAlloc=40948 minFree=42780",
+    "[shell] entered 6  heap=51736 maxAlloc=40948 minFree=42780",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=88ms taskbar=24ms total=168ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -49,7 +49,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=88ms (worst path so far: shell.switch:95ms)",
+    "[W][perf] iter=175ms (worst path so far: shell.switch:186ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -71,7 +71,7 @@
    "cmd": "get heap",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":67484,\"lfbInt\":42996,\"freeDma\":24408,\"lfbDma\":8180,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":52628,\"lfbInt\":40948,\"freeDma\":10376,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
@@ -85,7 +85,7 @@
    "cmd": "get dataq",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":559937,\"queueWaiting\":1,\"pendingMask\":6,\"inFlight\":1,\"inFlightMs\":557337,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":555787,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":495827,\"queueWaiting\":1,\"pendingMask\":6,\"inFlight\":1,\"inFlightMs\":492835,\"wrPhase\":2,\"wrPhaseMs\":108310,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":492846,\"last\":true}"
    ]
   },
   {
@@ -106,6 +106,7 @@
    "cmd": "get shellBusy",
    "nth": 0,
    "lines": [
+    "[W][perf] iter=65ms (worst path so far: shell.switch:186ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -127,6 +128,10 @@
    "cmd": "get chartLen",
    "nth": 2,
    "lines": [
+    "[D][dataTask.crypto] GET 200 elapsed=4355ms",
+    "[D][dataTask.crypto] heap free=58k maxBlk=41k",
+    "[D][dataTask.crypto] ok bitcoin=77229.00 ethereum=2524.35 ids=bitcoin ccy=usd",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
    ]
   },
@@ -141,6 +146,10 @@
    "cmd": "get chartLen",
    "nth": 4,
    "lines": [
+    "[D][dataTask.stock] spark GET 200 elapsed=1851ms",
+    "[D][dataTask.stock] spark ok aapl=332.27 msft=516.13",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
+    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=61k maxBlk=41k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
    ]
   },
@@ -148,272 +157,11 @@
    "cmd": "get chartLen",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 20,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=3 heap=63k maxAlloc=41k stack_hwm=11708b uptime=00:09:39 poll=0/16 last=-1 block_max=18645ms loop_max=122ms slow=shell.switch:95ms last_poll_age_ms=0 next_poll_in_ms=11509 last_render_age_ms=21090 build=Sep  9 20",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 24,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 25,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 26,
-   "lines": [
-    "[586093][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-29312) SSL - The connection indicated an EOF",
-    "[586104][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -29312",
-    "[lib] GET connect api.spotify.com:443 failed errno=128 (Socket is not connected)",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: rc=-29312 (-0x7280) SSL_CONN_EOF errstr='SSL - The connection indicated an EOF'",
-    "[D][spotify.poll] backoff: consecutive=4 next=60000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 27,
-   "lines": [
-    "[586459][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[586472][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[586486][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 28,
-   "lines": [
-    "[588032][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 29,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 30,
-   "lines": [
-    "[589567][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=3643ms",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.crypto] heap free=59k maxBlk=39k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 31,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 32,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 33,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 34,
-   "lines": [
-    "[D][dataTask.crypto] GET 200 elapsed=3907ms",
-    "[D][dataTask.crypto] heap free=58k maxBlk=39k",
-    "[D][dataTask.crypto] ok bitcoin=79372.00 ethereum=2501.70 ids=bitcoin ccy=usd",
-    "[D][dataTask.stock] heap free=61k maxBlk=39k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 35,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 36,
-   "lines": [
-    "[D][dataTask.stock] spark GET 200 elapsed=1777ms",
-    "[D][dataTask.stock] spark ok aapl=316.22 msft=505.74",
-    "[D][dataTask.stock] heap free=61k maxBlk=39k",
-    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=61k maxBlk=39k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 37,
-   "lines": [
-    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=1716ms",
-    "[D][dataTask.stock] chart pre-json heap free=13k maxBlk=7k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"chartLen\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get chartLen",
-   "nth": 38,
-   "lines": [
-    "[D][dataTask.stock] chart post-json heap free=59k maxBlk=39k err=Ok",
-    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=315.18 hi=317.52",
-    "[D][dataTask.stock] heap free=61k maxBlk=39k",
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=1819ms",
+    "[D][dataTask.stock] chart pre-json heap free=12k maxBlk=5k",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=41k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=331.70 hi=335.62",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
     "[I][spotify.tls] tls yield \u2014 resumed",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
@@ -432,11 +180,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=106488 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 6  heap=105332 maxAlloc=42996 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=106024 maxAlloc=42996 minFree=43312",
-    "[shell] switch 6->0 suspend=0ms wipe=27ms init=41ms taskbar=14ms total=82ms",
+    "[shell] entered 0  heap=105332 maxAlloc=42996 minFree=42780",
+    "[shell] switch 6->0 suspend=1ms wipe=27ms init=39ms taskbar=14ms total=81ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -444,7 +192,12 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=109ms (worst path so far: shell.switch:82ms)",
+    "[W][perf] iter=107ms (worst path so far: shell.switch:186ms)",
+    "[501396][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[501409][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[501423][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

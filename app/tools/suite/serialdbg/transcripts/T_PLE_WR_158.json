@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLE_WR_158",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:52:42Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:29:04Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -290,7 +290,7 @@
    "cmd": "get wrScroll",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrScroll\",\"offset\":2,\"drag\":1,\"vel\":2.0004,\"accum\":0.0264,\"speedK\":0.1667,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrScroll\",\"offset\":2,\"drag\":1,\"vel\":2.0004,\"accum\":0.0244,\"speedK\":0.1667,\"last\":true}"
    ]
   },
   {

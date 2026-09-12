@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T170",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:36:23Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:24:05Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=46724 maxAlloc=42996 minFree=44012",
-    "[shell] entered 6  heap=46724 maxAlloc=42996 minFree=44012",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=43ms taskbar=12ms total=83ms",
+    "[shell] leaving 0  heap=56632 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=56032 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=88ms taskbar=24ms total=168ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=87ms (worst path so far: shell.switch:83ms)",
+    "[W][perf] iter=173ms (worst path so far: shell.switch:235ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -71,6 +71,11 @@
    "cmd": "get quoteOkCount",
    "nth": 3,
    "lines": [
+    "[D][dataTask.planeradar] GET 200 elapsed=4261ms size=-1",
+    "[D][dataTask.planeradar] ok=1 errorCode=0 count=3 scanned=14 epoch=0",
+    "[D][dataTask.planeradar] roster IGO81Q,18.5,315;TRA8A,9.6,318;RYR67ZT,8.3,183;",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=33k",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
    ]
   },
@@ -78,482 +83,37 @@
    "cmd": "get stockQuoteProgress",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
    ]
   },
   {
    "cmd": "get quoteOkCount",
    "nth": 4,
    "lines": [
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 5,
-   "lines": [
-    "SettingsStorage: deferred save landed (TASK-429)",
-    "SettingsStorage: saved (doc 1986/6144 B)",
-    "[W][perf] iter=94ms (worst path so far: shell.switch:83ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 13,
-   "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=6 next=60000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
+    "[D][dataTask.stock] spark GET 200 elapsed=1921ms",
+    "[D][dataTask.stock] spark ok aapl=332.27 msft=516.13",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
-    "[240243][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[240257][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[240271][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[444156][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[444169][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[444183][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
     "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 14,
-   "lines": [
-    "[241837][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=103k maxAlloc=41k stack_hwm=11936b uptime=00:04:02 poll=0/7 last=-1 block_max=38514ms loop_max=118ms slow=shell.switch:83ms last_poll_age_ms=0 next_poll_in_ms=57628 last_render_age_ms=26244 build=Sep  9 20",
-    "[243397][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 15,
-   "lines": [
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=3760ms",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.planeradar] heap free=61k maxBlk=41k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 16,
-   "lines": [
-    "[D][dataTask.planeradar] GET 200 elapsed=3779ms size=-1",
-    "[D][dataTask.planeradar] ok=1 errorCode=0 count=14 scanned=59 epoch=0",
-    "[D][dataTask.planeradar] roster KLM1124,18.2,256;DAL71,17.1,310;DAL163,9.7,303;TRA34Z,7.1,257;GEC8224,15.8,205;KLM82K,17.6,202;KLM32P,14.4,207;KLM36G,9.9,219;BOH112,7.3,235;KLC1711,13.7,196;TRA9L,3.2,201;KLC70R,10.7,133;ZXP01,10.4,116;RYR75VP,15.7,120;",
-    "[D][dataTask.planeradar] heap free=61k maxBlk=41k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 15,
-   "lines": [
-    "[D][dataTask.planeradar] heap free=61k maxBlk=41k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 18,
-   "lines": [
-    "[D][dataTask.planeradar] GET 200 elapsed=3744ms size=-1",
-    "[W][dataTask.planeradar] parse error at object 0: IncompleteInput",
-    "[D][dataTask.planeradar] parse rc=-92 scanned=0 -> retry",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 21,
-   "lines": [
-    "[D][dataTask.planeradar] GET 200 elapsed=4454ms size=-1",
-    "[W][dataTask.planeradar] parse error at object 2: IncompleteInput",
-    "[D][dataTask.planeradar] retry ok=0 rc=-92 scanned=2",
-    "[D][dataTask.planeradar] retry also failed rc=-92 -> radius-capped retry2 distNm=9.9",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":-1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 23,
-   "lines": [
-    "[D][dataTask.planeradar] GET 200 elapsed=4268ms size=-1",
-    "[W][dataTask.planeradar] parse error at object 1: IncompleteInput",
-    "[D][dataTask.planeradar] retry2 ok=0 rc=-92 scanned=1",
-    "[D][dataTask.planeradar] ok=0 errorCode=-92 count=0 scanned=1 epoch=0",
-    "[D][dataTask.planeradar] heap free=56k maxBlk=35k",
-    "[D][dataTask.stock] heap free=56k maxBlk=35k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 24,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 25,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 24,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 26,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 25,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 27,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 26,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 28,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 27,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 29,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-64) disc=0 heap=45k maxAlloc=41k stack_hwm=11936b uptime=00:04:32 poll=0/7 last=-1 block_max=0ms loop_max=35ms slow=app.tick:3ms last_poll_age_ms=0 next_poll_in_ms=27628 last_render_age_ms=56244 build=Sep  9 2026-11:19:02",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 28,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 30,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 29,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 31,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 30,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 32,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 31,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get quoteOkCount",
-   "nth": 33,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get stockQuoteProgress",
-   "nth": 32,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockQuoteProgress\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"quoteOkCount\",\"val\":1,\"last\":true}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=47212 maxAlloc=42996 minFree=44012",
+    "[shell] leaving 6  heap=60012 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47212 maxAlloc=42996 minFree=44012",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=59852 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -561,7 +121,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=109ms (worst path so far: shell.switch:81ms)",
+    "[W][perf] iter=210ms (worst path so far: shell.switch:235ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

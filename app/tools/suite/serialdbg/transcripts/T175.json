@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T175",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:36:35Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:24:18Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47212 maxAlloc=42996 minFree=44012",
-    "[shell] entered 6  heap=47212 maxAlloc=42996 minFree=44012",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=31ms taskbar=13ms total=72ms",
+    "[shell] leaving 0  heap=49164 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=48724 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=60ms taskbar=26ms total=142ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=75ms (worst path so far: shell.switch:84ms)",
+    "[W][perf] iter=145ms (worst path so far: shell.switch:168ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -85,6 +85,7 @@
    "cmd": "get stockSubView",
    "nth": 1,
    "lines": [
+    "[W][perf] iter=91ms (worst path so far: shell.switch:168ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
    ]
   },
@@ -92,11 +93,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=47212 maxAlloc=42996 minFree=44012",
+    "[shell] leaving 6  heap=50916 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47212 maxAlloc=42996 minFree=44012",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=51284 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=25ms total=157ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -104,7 +105,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=109ms (worst path so far: shell.switch:84ms)",
+    "[W][perf] iter=211ms (worst path so far: shell.switch:168ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PMT_03",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:00:24Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:34:50Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -26,11 +26,11 @@
    "nth": 0,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 12  heap=103776 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 12  heap=102256 maxAlloc=42996 minFree=42908",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=107456 maxAlloc=42996 minFree=43312",
-    "[shell] switch 12->0 suspend=1ms wipe=27ms init=36ms taskbar=12ms total=76ms",
+    "[shell] entered 0  heap=105936 maxAlloc=42996 minFree=42908",
+    "[shell] switch 12->0 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"playerCycle\",\"from\":2,\"to\":0,\"appId\":0,\"last\":true}"
    ]
   },
@@ -38,7 +38,7 @@
    "cmd": "get player",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=147ms (worst path so far: shell.switch:110ms)",
+    "[W][perf] iter=148ms (worst path so far: shell.switch:113ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":0,\"modeName\":\"Spotify\",\"caps\":15,\"srcKind\":1,\"srcName\":\"SpotifyQueue\",\"arenaHeld\":0,\"pending\":0,\"err\":0,\"connecting\":1,\"plCount\":null,\"playHash\":null,\"viewHash\":null,\"note\":\"n/a \u2014 playOrder/viewOrder exist only in LocalPlayer\",\"last\":true}"
    ]
   }

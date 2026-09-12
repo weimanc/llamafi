@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_MA_03",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:06:49Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:41:11Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -39,9 +39,9 @@
    "cmd": "tap 297 180",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=106356 maxAlloc=42996 minFree=43312",
-    "[shell] entered 4  heap=106356 maxAlloc=42996 minFree=43312",
-    "[shell] switch 0->4 suspend=1ms wipe=26ms init=27ms taskbar=12ms total=66ms",
+    "[shell] leaving 0  heap=105764 maxAlloc=42996 minFree=42780",
+    "[shell] entered 4  heap=105764 maxAlloc=42996 minFree=42780",
+    "[shell] switch 0->4 suspend=1ms wipe=27ms init=27ms taskbar=12ms total=67ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":180,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -49,7 +49,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=82ms (worst path so far: shell.switch:80ms)",
+    "[W][perf] iter=81ms (worst path so far: shell.switch:156ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":4,\"name\":\"Matrix\",\"last\":true}"
    ]
   },
@@ -71,11 +71,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 4  heap=60496 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 4  heap=60348 maxAlloc=40948 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=60496 maxAlloc=42996 minFree=43312",
-    "[shell] switch 4->0 suspend=2ms wipe=53ms init=77ms taskbar=26ms total=158ms",
+    "[shell] entered 0  heap=59900 maxAlloc=40948 minFree=42780",
+    "[shell] switch 4->0 suspend=2ms wipe=54ms init=74ms taskbar=26ms total=156ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -83,7 +83,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=223ms (worst path so far: shell.switch:158ms)",
+    "[W][perf] iter=221ms (worst path so far: shell.switch:156ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -91,353 +91,354 @@
    "cmd": "get lastPlaylistDraw",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 7,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 8,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 9,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 10,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 11,
    "lines": [
-    "[414646][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] PUT  header write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 12,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "[403580][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 13,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 14,
    "lines": [
-    "[lib] PUT /v1/me/player/volume?volume_percent=4 failed after retry",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 15,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "[lib] PUT /v1/me/player/play failed after retry",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 16,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 17,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 18,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 19,
    "lines": [
-    "[415168][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[415181][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 20,
    "lines": [
-    "[415201][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "[404094][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[404107][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 21,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "[404121][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 22,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 23,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 24,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 25,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 26,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 27,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 28,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 29,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 30,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 31,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 32,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 33,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 34,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 35,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 36,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 37,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 38,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 39,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 40,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 41,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 42,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 43,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 44,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 45,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 46,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 47,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 48,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":413923}"
+    "[405897][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":402781}"
    ]
   }
  ]

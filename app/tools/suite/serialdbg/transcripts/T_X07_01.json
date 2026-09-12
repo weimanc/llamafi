@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_X07_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:09:10Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:42:40Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -32,9 +32,9 @@
    "cmd": "tap 297 100",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] entered 2  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 0->2 suspend=1ms wipe=27ms init=54ms taskbar=13ms total=95ms",
+    "[shell] leaving 0  heap=105428 maxAlloc=42996 minFree=42780",
+    "[shell] entered 2  heap=105428 maxAlloc=42996 minFree=42780",
+    "[shell] switch 0->2 suspend=1ms wipe=27ms init=52ms taskbar=12ms total=92ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":100,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -42,7 +42,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=109ms (worst path so far: shell.switch:95ms)",
+    "[W][perf] iter=106ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":2,\"name\":\"Weather\",\"last\":true}"
    ]
   },
@@ -64,9 +64,9 @@
    "cmd": "tap 297 140",
    "nth": 0,
    "lines": [
-    "[shell] leaving 2  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] entered 3  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 2->3 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
+    "[shell] leaving 2  heap=105428 maxAlloc=42996 minFree=42780",
+    "[shell] entered 3  heap=105428 maxAlloc=42996 minFree=42780",
+    "[shell] switch 2->3 suspend=1ms wipe=27ms init=37ms taskbar=11ms total=76ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":140,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -74,7 +74,10 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=94ms (worst path so far: shell.switch:95ms)",
+    "[W][perf] iter=89ms (worst path so far: shell.switch:162ms)",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.crypto] heap free=59k maxBlk=41k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":3,\"name\":\"Crypto\",\"last\":true}"
    ]
   },
@@ -96,9 +99,9 @@
    "cmd": "tap 297 100",
    "nth": 1,
    "lines": [
-    "[shell] leaving 3  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] entered 2  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 3->2 suspend=1ms wipe=27ms init=47ms taskbar=13ms total=88ms",
+    "[shell] leaving 3  heap=53488 maxAlloc=40948 minFree=42780",
+    "[shell] entered 2  heap=52292 maxAlloc=40948 minFree=42780",
+    "[shell] switch 3->2 suspend=2ms wipe=54ms init=106ms taskbar=24ms total=186ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":100,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -106,7 +109,7 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=103ms (worst path so far: shell.switch:95ms)",
+    "[W][perf] iter=202ms (worst path so far: shell.switch:186ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":2,\"name\":\"Weather\",\"last\":true}"
    ]
   },
@@ -128,9 +131,9 @@
    "cmd": "tap 297 140",
    "nth": 1,
    "lines": [
-    "[shell] leaving 2  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] entered 3  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 2->3 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
+    "[shell] leaving 2  heap=52492 maxAlloc=40948 minFree=42780",
+    "[shell] entered 3  heap=52144 maxAlloc=40948 minFree=42780",
+    "[shell] switch 2->3 suspend=2ms wipe=54ms init=77ms taskbar=25ms total=158ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":140,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -138,7 +141,7 @@
    "cmd": "get appId",
    "nth": 4,
    "lines": [
-    "[W][perf] iter=94ms (worst path so far: shell.switch:95ms)",
+    "[W][perf] iter=172ms (worst path so far: shell.switch:186ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":3,\"name\":\"Crypto\",\"last\":true}"
    ]
   },
@@ -160,11 +163,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 3  heap=67484 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 3  heap=51572 maxAlloc=40948 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=67484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 3->0 suspend=0ms wipe=28ms init=43ms taskbar=13ms total=84ms",
+    "[shell] entered 0  heap=53540 maxAlloc=40948 minFree=42780",
+    "[shell] switch 3->0 suspend=1ms wipe=54ms init=82ms taskbar=24ms total=161ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -172,7 +175,7 @@
    "cmd": "get appId",
    "nth": 5,
    "lines": [
-    "[W][perf] iter=122ms (worst path so far: shell.switch:95ms)",
+    "[W][perf] iter=227ms (worst path so far: shell.switch:186ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -180,7 +183,7 @@
    "cmd": "info",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"5f5fa62+\",\"elf\":\"66d214c7\",\"build\":\"Sep  9 2026 11:19:00\",\"heap\":67484,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":3}"
+    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"a22a0c6\",\"elf\":\"168bf21d\",\"build\":\"Sep 12 2026 21:29:36\",\"heap\":53340,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":3}"
    ]
   }
  ]

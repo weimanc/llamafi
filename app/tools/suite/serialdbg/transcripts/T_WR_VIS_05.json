@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WR_VIS_05",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:56:33Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:31:25Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -46,9 +46,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] entered 1  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] switch 11->1 suspend=1ms wipe=26ms init=46ms taskbar=12ms total=85ms",
+    "[shell] leaving 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->1 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -56,7 +56,7 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=100ms (worst path so far: shell.switch:85ms)",
+    "[W][perf] iter=91ms (worst path so far: shell.switch:80ms)",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
@@ -93,11 +93,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] leaving 1  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->0 suspend=0ms wipe=27ms init=40ms taskbar=13ms total=80ms",
+    "[shell] entered 0  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -105,7 +105,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=117ms (worst path so far: shell.switch:85ms)",
+    "[W][perf] iter=116ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -113,7 +113,7 @@
    "cmd": "info",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"5f5fa62+\",\"elf\":\"66d214c7\",\"build\":\"Sep  9 2026 11:19:00\",\"heap\":105888,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":7}"
+    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"a22a0c6\",\"elf\":\"168bf21d\",\"build\":\"Sep 12 2026 21:29:36\",\"heap\":104944,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":8}"
    ]
   }
  ]

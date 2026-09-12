@@ -1,19 +1,22 @@
 {
  "schema": 1,
  "id": "T_CLK_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:25:18Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:12:57Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=50468 maxAlloc=42996 minFree=44828",
-    "[shell] entered 1  heap=50428 maxAlloc=42996 minFree=44828",
-    "[shell] switch 11->1 suspend=2ms wipe=54ms init=82ms taskbar=25ms total=163ms",
+    "[shell] leaving 11  heap=106344 maxAlloc=49140 minFree=43216",
+    "[shell] entered 1  heap=106344 maxAlloc=49140 minFree=43216",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[shell] switch 11->1 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -21,7 +24,12 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=170ms (worst path so far: shell.switch:163ms)",
+    "[W][perf] iter=95ms (worst path so far: shell.switch:80ms)",
+    "[ 12750][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 12763][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 12777][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -29,20 +37,20 @@
    "cmd": "set clockStyle 0",
    "nth": 0,
    "lines": [
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=4340 freeInt=49176). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":true}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=97ms (worst path so far: shell.switch:163ms)",
-    "[shell] leaving 1  heap=48092 maxAlloc=42996 minFree=44828",
+    "[W][perf] iter=124ms (worst path so far: shell.switch:80ms)",
+    "[shell] leaving 1  heap=106168 maxAlloc=49140 minFree=43216",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47900 maxAlloc=42996 minFree=44828",
-    "[shell] switch 1->0 suspend=2ms wipe=53ms init=76ms taskbar=26ms total=157ms",
+    "[shell] entered 0  heap=105680 maxAlloc=49140 minFree=43216",
+    "[shell] switch 1->0 suspend=1ms wipe=30ms init=39ms taskbar=21ms total=91ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   }

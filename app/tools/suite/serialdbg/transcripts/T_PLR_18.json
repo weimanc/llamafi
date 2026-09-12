@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_18",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:59:08Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:33:44Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -39,10 +39,10 @@
    "cmd": "tap 297 460",
    "nth": 0,
    "lines": [
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1396 freeInt=48280). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
-    "[shell] leaving 0  heap=48280 maxAlloc=42996 minFree=43184",
-    "[shell] entered 11  heap=48280 maxAlloc=42996 minFree=43184",
-    "[shell] switch 0->11 suspend=10ms wipe=28ms init=0ms taskbar=16ms total=54ms",
+    "SettingsStorage: saved (doc 1985/6144 B)",
+    "[shell] leaving 0  heap=101396 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=101396 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=16ms total=44ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":460,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -50,11 +50,11 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[I][webradio] HEAP post-fetch free=48280 min=43184",
+    "[I][webradio] HEAP post-fetch free=101396 min=42976",
     "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=146ms (worst path so far: app.tick:65ms)",
+    "[W][perf] iter=153ms (worst path so far: app.tick:62ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -62,13 +62,15 @@
    "cmd": "get shufRep",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":1,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":1,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}",
+    "[1007780][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)"
    ]
   },
   {
    "cmd": "set cooldown 0",
    "nth": 1,
    "lines": [
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -85,7 +87,25 @@
    "lines": [
     "[D][touch] dead zone tap \u2192 force poll",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":187,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}",
-    "[lib] GET write fail, retrying"
+    "[1009685][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/repeat?state=context failed after retry",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[1010192][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1010205][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1010220][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[1012100][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[1013980][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client"
    ]
   },
   {
@@ -107,7 +127,8 @@
    "nth": 0,
    "lines": [
     "[D][touch] dead zone tap \u2192 force poll",
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}",
+    "[I][hb] display=winamp wifi=rssi(-59) disc=0 heap=99k maxAlloc=39k stack_hwm=11660b uptime=00:17:02 poll=0/56 last=-1 block_max=5295ms loop_max=153ms slow=app.tick:62ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=16036 build=Sep 11 2026-14:26:"
    ]
   },
   {

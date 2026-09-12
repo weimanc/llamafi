@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T169",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:35:17Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:23:57Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -46,9 +46,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=46724 maxAlloc=42996 minFree=44012",
-    "[shell] entered 6  heap=46724 maxAlloc=42996 minFree=44012",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=43ms taskbar=12ms total=83ms",
+    "[shell] leaving 0  heap=58944 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=60960 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=1ms wipe=37ms init=47ms taskbar=13ms total=98ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -56,7 +56,12 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=87ms (worst path so far: shell.switch:83ms)",
+    "[W][perf] iter=102ms (worst path so far: shell.switch:235ms)",
+    "[D][dataTask.planeradar] GET 200 elapsed=4309ms size=-1",
+    "[D][dataTask.planeradar] ok=1 errorCode=0 count=3 scanned=14 epoch=0",
+    "[D][dataTask.planeradar] roster IGO81Q,18.7,315;TRA8A,9.8,319;RYR67ZT,8.4,186;",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=33k",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=33k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -78,11 +83,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=46724 maxAlloc=42996 minFree=44012",
+    "[shell] leaving 6  heap=56628 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=46724 maxAlloc=42996 minFree=44012",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=39ms taskbar=12ms total=79ms",
+    "[shell] entered 0  heap=56112 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=24ms total=156ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -90,7 +95,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=108ms (worst path so far: shell.switch:83ms)",
+    "[W][perf] iter=209ms (worst path so far: shell.switch:235ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

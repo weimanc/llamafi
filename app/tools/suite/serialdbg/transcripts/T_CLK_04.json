@@ -1,19 +1,25 @@
 {
  "schema": 1,
  "id": "T_CLK_04",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:25:23Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:13:02Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=58648 maxAlloc=42996 minFree=44828",
-    "[shell] entered 1  heap=58648 maxAlloc=42996 minFree=44828",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=40ms taskbar=13ms total=81ms",
+    "[shell] leaving 0  heap=106168 maxAlloc=49140 minFree=43216",
+    "[shell] entered 1  heap=106168 maxAlloc=49140 minFree=43216",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=37ms taskbar=13ms total=78ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -21,8 +27,12 @@
    "cmd": "set clockStyle nixie",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=84ms (worst path so far: shell.switch:163ms)",
-    "SettingsStorage: deferred save landed (TASK-429)",
+    "[W][perf] iter=108ms (worst path so far: shell.switch:157ms)",
+    "[ 17046][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 17060][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 17074][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":true}"
    ]
@@ -31,7 +41,7 @@
    "cmd": "get clockStyle",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=102ms (worst path so far: shell.switch:163ms)",
+    "[W][perf] iter=95ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"nixieTheme\":0,\"vfdTheme\":2,\"dirty\":false,\"last\":true}"
    ]
   },
@@ -47,12 +57,12 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=79ms (worst path so far: shell.switch:163ms)",
-    "[shell] leaving 1  heap=58648 maxAlloc=42996 minFree=44828",
+    "[W][perf] iter=89ms (worst path so far: shell.switch:157ms)",
+    "[shell] leaving 1  heap=60856 maxAlloc=40948 minFree=43216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=58648 maxAlloc=42996 minFree=44828",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=60408 maxAlloc=40948 minFree=43216",
+    "[shell] switch 1->0 suspend=4ms wipe=52ms init=76ms taskbar=24ms total=156ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   }

@@ -1,28 +1,19 @@
 {
  "schema": 1,
  "id": "T-ERR-07",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:16:08Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:47:28Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=105944 maxAlloc=42996 minFree=43232",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=18544ms",
-    "[D][spotify.task] stack_hwm=3924B",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=61k maxBlk=39k",
-    "[W][dataTask.webradio] fetch skipped: maxBlk=39k < 40k (TLS would OOM; playback active?)",
-    "[D][dataTask.webradio] heap free=61k maxBlk=39k",
-    "[D][dataTask.crypto] heap free=59k maxBlk=39k",
-    "[shell] entered 6  heap=103248 maxAlloc=42996 minFree=43232",
-    "[shell] switch 0->6 suspend=1ms wipe=28ms init=36ms taskbar=12ms total=77ms",
+    "[shell] leaving 0  heap=58744 maxAlloc=40948 minFree=42780",
+    "[shell] entered 6  heap=59312 maxAlloc=40948 minFree=42780",
+    "[shell] switch 0->6 suspend=3ms wipe=52ms init=70ms taskbar=24ms total=149ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -30,7 +21,7 @@
    "cmd": "set fetchFailed 1",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=81ms (worst path so far: shell.switch:104ms)",
+    "[W][perf] iter=226ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fetchFailed\",\"val\":\"1\"}"
    ]
   },
@@ -52,6 +43,9 @@
    "cmd": "get activeError",
    "nth": 1,
    "lines": [
+    "[781912][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[I][hb] display=winamp wifi=rssi(-61) disc=0 heap=61k maxAlloc=39k stack_hwm=11612b uptime=00:13:01 poll=0/42 last=-1 block_max=4196ms loop_max=229ms slow=shell.switch:162ms last_poll_age_ms=781922 next_poll_in_ms=916 last_render_age_ms=1851 build=Sep 11",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":false,\"spotifyDegraded\":false,\"spotifyConnecting\":false,\"last\":true}"
    ]
   },
@@ -101,11 +95,13 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=53924 maxAlloc=42996 minFree=43232",
+    "[shell] leaving 6  heap=104592 maxAlloc=42996 minFree=42780",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=4307ms",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=53732 maxAlloc=42996 minFree=43232",
-    "[shell] switch 6->0 suspend=1ms wipe=54ms init=75ms taskbar=26ms total=156ms",
+    "[shell] entered 0  heap=104592 maxAlloc=42996 minFree=42780",
+    "[shell] switch 6->0 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -113,7 +109,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=221ms (worst path so far: shell.switch:156ms)",
+    "[W][perf] iter=113ms (worst path so far: shell.switch:77ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

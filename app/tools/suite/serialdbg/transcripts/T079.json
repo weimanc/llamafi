@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T079",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:00:32Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:34:58Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -18,11 +18,8 @@
    "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
-    "[ 35882][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 35895][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 35910][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[ 28157][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -72,8 +69,19 @@
    "cmd": "get shellBusy",
    "nth": 4,
    "lines": [
-    "[ 37602][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[ 29937][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[ 30463][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 30477][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 30491][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -81,15 +89,7 @@
    "cmd": "get shellBusy",
    "nth": 5,
    "lines": [
-    "[ 39247][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[I][hb] display=winamp wifi=rssi(-67) disc=3 heap=104k maxAlloc=41k stack_hwm=12684b uptime=00:00:39 poll=0/0 last=0 block_max=0ms loop_max=189ms slow=shell.switch:110ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=9399 build=Sep  9 2026-11:",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
+    "[I][hb] display=winamp wifi=rssi(-61) disc=0 heap=58k maxAlloc=39k stack_hwm=12636b uptime=00:00:31 poll=0/1 last=-1 block_max=4119ms loop_max=203ms slow=shell.switch:113ms last_poll_age_ms=0 next_poll_in_ms=8379 last_render_age_ms=9390 build=Sep 11 2026-",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -97,11 +97,8 @@
    "cmd": "get shellBusy",
    "nth": 6,
    "lines": [
-    "[ 39778][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 39791][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 39806][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[ 32248][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },

@@ -90,6 +90,63 @@ now is. That is a new exception path rather than a shorter wait, so §2's deadli
 not cover it — and it lives in `run/stress`, not `run/test`, so the owed run does not exercise it at
 all. Recorded here because nothing else records it.
 
-## 6. Result
+## 6. Result — two runs, 2026-09-12, same commit (`a22a0c6`), board `d48afcc8eed0`
 
-**NOT YET RUN.** Fill with both runs' failure sets, their intersection, and the §4 verdict.
+| | run 1 | run 2 |
+|---|---|---|
+| summary | 139 passed, 18 failed, 34 skipped, 1 flaky-pass, 2 unmet | 143 passed, 19 failed, 30 skipped, 0 flaky-pass, 2 unmet |
+| non-PASS ids | 20 | 21 |
+
+**Deterministic — failed in BOTH runs (16):** `T078`, `T087`, `T092`, `T172`, `T182`, `T_CX_03`,
+`T_DTP_01`(U), `T_DTP_02`(U), `T_GOL_03`, `T_MA_03`, `T_PLR_06`, `T_PLR_12`, `T_PLR_13`, `T_PLR_24`,
+`T_WR_TLS_01`, `T_WX_03`.
+
+**Environmental — one run only (9):** run 1 `T_PLR_14`, `T_PLR_17`, `T_PR_05`, `T_WR_HEAP_01`;
+run 2 `T_CLK_11`, `T_PLR_15`, `T_PLR_16`, `T_PRM_01`, `T_WR_EJECT_01`. Four of these are
+`TimeoutError: no JSON response`, and none repeats — which is what "environmental until shown
+otherwise" (LL-104) is for.
+
+### The verdict: §4's FAIL branch fired. **The criterion is NOT met.**
+
+Two clauses fail, and both are recorded as they read rather than as would be convenient:
+
+1. **`T_PLR_13` fails in both runs with `TimeoutError: no JSON response within 8.0s`** — the exact
+   signature §4 names as FAIL. It is deterministic, not environmental.
+2. **Six deterministic failures have no prior account**: the `lastPlaylistDraw` cluster (`T172`,
+   `T182`, `T_CX_03`, `T_GOL_03`, `T_MA_03`, `T_WX_03`). They are **not** covered by TASK-243:
+   each message argues the opposite in its own text — *"an idle/empty/403 Spotify still advances
+   this clock — a stalled clock is the residue regression, not an idle account"*. Plus `T_PLR_12`
+   (heap −6068 B), `T_PLR_24` (`curRow=-1`), `T_DTP_01`/`02` (UNMET, Stock fetch — not a Spotify
+   account issue), none of which any open row names.
+
+Accounted for, and correctly: `T078` → TASK-662 (open, "a real input regression"); `T087`/`T092` →
+declared in `flaky.yaml`; `T_WR_EJECT_01` → TASK-667, closed by TASK-595's declaration.
+
+### What this does NOT establish
+
+**It does not show that TASK-575 caused any of it**, and §2's audit predicts it did not:
+
+- `TimeoutError: no JSON response within Ns` is raised by `dut.cmd`'s own **monotonic deadline**,
+  not by `ser.timeout`. Per §2 the unmasked assignments only raise sampling density inside
+  unchanged windows, so an expired 8 s command deadline means the device did not answer in 8 s.
+- The `lastPlaylistDraw` cluster has a firmware root cause named in its own failure text.
+
+But that is an argument again — the same kind §2 was written to stop accepting. **The decisive test
+is an A/B**: disable `_TeeSerial.__setattr__` (restoring pre-fix behaviour) and re-run the
+deterministic set. If `T_PLR_13` still fails, TASK-575 is exonerated by measurement rather than by
+reasoning. That A/B is owed and is not done here.
+
+### Two findings this run produced on its own
+
+- **`T087` and `T092` reproduced in BOTH runs.** Policy already makes a reproduced flake a FAIL, and
+  the suite reported them correctly. But an id that fails deterministically across two runs is not
+  flaky — it is broken, and its `flaky.yaml` declaration is now the wrong description. Direct
+  follow-on to TASK-595's sweep.
+- **`T_PLR_17` (run 1 only) failed on a mis-correlated reply**: it sent `set cooldown 0` and read
+  back `{'cmd': 'get', 'error': 'unknown var', 'var': '__TEST_T_PLR_17__'}`. The sentinel name looks
+  like a test-scaffold artifact reaching a live run. Not a timeout; a correlation defect.
+
+### By-product, as planned
+
+`RECORD_DIR` was set on both runs: **194 transcripts refreshed**, which is what `check_can_go_red`'s
+`BASELINE-NOT-PASS` notes were asking for.

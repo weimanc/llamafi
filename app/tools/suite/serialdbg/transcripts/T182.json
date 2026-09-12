@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T182",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:40:04Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:24:52Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -25,9 +25,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47868 maxAlloc=42996 minFree=43792",
-    "[shell] entered 6  heap=47868 maxAlloc=42996 minFree=43792",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=33ms taskbar=12ms total=73ms",
+    "[shell] leaving 0  heap=49288 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=49144 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=60ms taskbar=26ms total=142ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -35,7 +35,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=76ms (worst path so far: shell.switch:81ms)",
+    "[W][perf] iter=146ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -64,27 +64,504 @@
    "cmd": "get stockSubView",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] leaving 6  heap=48556 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47868 maxAlloc=42996 minFree=43792",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=50996 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=52ms init=76ms taskbar=26ms total=156ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=209ms (worst path so far: shell.switch:158ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 200 297 100 10",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=200",
+    "[shell] tb-press slot=5",
+    "[D][serial] inject sample 2/11 sx=297 sy=190",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=180",
+    "[D][serial] inject sample 4/11 sx=297 sy=170",
+    "[D][serial] inject sample 5/11 sx=297 sy=160",
+    "[D][serial] inject sample 6/11 sx=297 sy=150",
+    "[D][serial] inject sample 7/11 sx=297 sy=140",
+    "[D][serial] inject sample 8/11 sx=297 sy=130",
+    "[D][serial] inject sample 9/11 sx=297 sy=120",
+    "[D][serial] inject sample 10/11 sx=297 sy=110",
+    "[D][serial] inject sample 11/11 sx=297 sy=100",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":200,\"x2\":297,\"y2\":100,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":2}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 180",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=56424 maxAlloc=40948 minFree=43560",
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=2086ms",
+    "[D][dataTask.stock] chart pre-json heap free=8k maxBlk=4k",
+    "[shell] entered 6  heap=52476 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=0ms wipe=28ms init=50ms taskbar=23ms total=101ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":180,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
   {
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=108ms (worst path so far: shell.switch:81ms)",
+    "[W][perf] iter=119ms (worst path so far: shell.switch:158ms)",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=33k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=331.70 hi=335.62",
+    "[D][dataTask.stock] heap free=60k maxBlk=33k",
+    "[D][stock] chart drop stale result sym=AAPL range=0 (want NVDA/0)",
+    "[D][dataTask.stock] chart START sym=NVDA range=1d heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "drag 297 100 297 200 10",
+   "nth": 0,
+   "lines": [
+    "[D][serial] inject sample 1/11 sx=297 sy=100",
+    "[shell] tb-press slot=2",
+    "[D][serial] inject sample 2/11 sx=297 sy=110",
+    "[shell] tb-press-cancel",
+    "[D][serial] inject sample 3/11 sx=297 sy=120",
+    "[D][serial] inject sample 4/11 sx=297 sy=130",
+    "[D][serial] inject sample 5/11 sx=297 sy=140",
+    "[D][serial] inject sample 6/11 sx=297 sy=150",
+    "[D][serial] inject sample 7/11 sx=297 sy=160",
+    "[D][serial] inject sample 8/11 sx=297 sy=170",
+    "[D][serial] inject sample 9/11 sx=297 sy=180",
+    "[D][serial] inject sample 10/11 sx=297 sy=190",
+    "[D][serial] inject sample 11/11 sx=297 sy=200",
+    "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":100,\"x2\":297,\"y2\":200,\"steps\":10}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 1,
+   "lines": [
+    "[shell] leaving 6  heap=48284 maxAlloc=40948 minFree=43560",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=48724 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=25ms total=157ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 3,
+   "lines": [
+    "[W][perf] iter=210ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 6,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 8,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 9,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 10,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 11,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 12,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 13,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 14,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 15,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 16,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 17,
+   "lines": [
+    "[D][dataTask.stock] chart GET sym=NVDA range=1d 200 elapsed=2046ms",
+    "[D][dataTask.stock] chart pre-json heap free=10k maxBlk=6k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 18,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 19,
+   "lines": [
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=33k err=Ok",
+    "[D][dataTask.stock] chart ok sym=NVDA len=79 lo=218.20 hi=221.60",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 20,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 21,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 22,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 23,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 24,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 25,
+   "lines": [
+    "[491486][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[491499][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[491514][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 26,
+   "lines": [
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 27,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 28,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 29,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 30,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 31,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 32,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 33,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 34,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 35,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 36,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 37,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 38,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 39,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 40,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 41,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 42,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 43,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 44,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 45,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 46,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 47,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":489645}"
    ]
   }
  ]

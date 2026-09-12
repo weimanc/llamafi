@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:56:36Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:31:28Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -47,13 +47,14 @@
    "nth": 0,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] entered 11  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] leaving 0  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
-    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=18ms total=46ms",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[shell] entered 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->11 suspend=0ms wipe=27ms init=0ms taskbar=38ms total=65ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -61,15 +62,13 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[I][webradio] HEAP post-fetch free=104944 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=192ms (worst path so far: shell.switch:85ms)",
-    "[1493354][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1493367][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1493382][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=189ms",
-    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[W][perf] iter=180ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -84,7 +83,6 @@
    "cmd": "get shellCooldown",
    "nth": 1,
    "lines": [
-    "[1493553][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -92,17 +90,10 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[1493573][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=5364 freeInt=55476). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
-    "[shell] leaving 11  heap=57068 maxAlloc=42996 minFree=43184",
-    "[1493610][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=208ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
-    "[shell] entered 12  heap=105888 maxAlloc=42996 minFree=43184",
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
-    "[shell] switch 11->12 suspend=11ms wipe=37ms init=0ms taskbar=12ms total=60ms",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 12  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->12 suspend=1ms wipe=27ms init=0ms taskbar=12ms total=40ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -111,7 +102,8 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=127ms (worst path so far: shell.switch:85ms)",
+    "[W][perf] iter=127ms (worst path so far: shell.switch:80ms)",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -133,13 +125,12 @@
    "cmd": "tap 297 20",
    "nth": 2,
    "lines": [
-    "SettingsStorage: deferred save landed (TASK-429)",
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 12  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] leaving 12  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->0 suspend=11ms wipe=27ms init=40ms taskbar=12ms total=90ms",
+    "[shell] entered 0  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->0 suspend=1ms wipe=26ms init=40ms taskbar=11ms total=78ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -147,7 +138,7 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=161ms (worst path so far: shell.switch:90ms)",
+    "[W][perf] iter=149ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -170,9 +161,16 @@
    "nth": 3,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] entered 11  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=16ms total=44ms",
+    "[shell] leaving 0  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[shell] switch 0->11 suspend=0ms wipe=27ms init=0ms taskbar=18ms total=45ms",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -180,11 +178,11 @@
    "cmd": "get appId",
    "nth": 4,
    "lines": [
-    "[I][webradio] HEAP post-fetch free=105888 min=43184",
-    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
+    "[I][webradio] HEAP post-fetch free=104944 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=158ms (worst path so far: shell.switch:90ms)",
+    "[W][perf] iter=174ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -235,9 +233,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] entered 1  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] switch 11->1 suspend=1ms wipe=27ms init=45ms taskbar=12ms total=85ms",
+    "[shell] leaving 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->1 suspend=1ms wipe=27ms init=38ms taskbar=11ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -245,7 +243,7 @@
    "cmd": "set playerMode spotify",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=99ms (worst path so far: shell.switch:90ms)",
+    "[W][perf] iter=90ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
   },
@@ -281,11 +279,11 @@
    "cmd": "tap 297 20",
    "nth": 4,
    "lines": [
-    "[shell] leaving 1  heap=105888 maxAlloc=42996 minFree=43184",
+    "[shell] leaving 1  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105888 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->0 suspend=0ms wipe=27ms init=40ms taskbar=12ms total=79ms",
+    "[shell] entered 0  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -293,7 +291,7 @@
    "cmd": "get appId",
    "nth": 6,
    "lines": [
-    "[W][perf] iter=117ms (worst path so far: shell.switch:90ms)",
+    "[W][perf] iter=116ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

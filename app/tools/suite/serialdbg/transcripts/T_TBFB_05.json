@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_TBFB_05",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:15:33Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:46:52Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -51,9 +51,9 @@
     "[D][serial] inject sample 2/3 sx=297 sy=60",
     "[D][serial] inject sample 3/3 sx=297 sy=61",
     "[shell] tb-commit slot=1",
-    "[shell] leaving 0  heap=60992 maxAlloc=42996 minFree=43232",
-    "[shell] entered 1  heap=60912 maxAlloc=42996 minFree=43232",
-    "[shell] switch 0->1 suspend=1ms wipe=54ms init=126ms taskbar=25ms total=206ms",
+    "[shell] leaving 0  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] entered 1  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] switch 0->1 suspend=11ms wipe=27ms init=56ms taskbar=12ms total=106ms",
     "{\"ok\":true,\"cmd\":\"drag\",\"x1\":297,\"y1\":60,\"x2\":297,\"y2\":61,\"steps\":2}"
    ]
   },
@@ -61,8 +61,8 @@
    "cmd": "get shellCooldown",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=236ms (worst path so far: shell.switch:206ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":264,\"last\":true}"
+    "[W][perf] iter=118ms (worst path so far: shell.switch:106ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":277,\"last\":true}"
    ]
   },
   {
@@ -104,14 +104,14 @@
    "cmd": "get shellCooldown",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":184,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":208,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":70,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":96,\"last\":true}"
    ]
   },
   {
@@ -125,11 +125,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=49948 maxAlloc=42996 minFree=43232",
+    "[shell] leaving 1  heap=105132 maxAlloc=42996 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=49948 maxAlloc=42996 minFree=43232",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=41ms taskbar=13ms total=82ms",
+    "[shell] entered 0  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -137,7 +137,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=120ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=115ms (worst path so far: shell.switch:106ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PRI_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:35:15Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:23:56Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -39,6 +39,9 @@
    "cmd": "tap 297 380",
    "nth": 0,
    "lines": [
+    "[shell] leaving 0  heap=54892 maxAlloc=40948 minFree=44016",
+    "[shell] entered 9  heap=53816 maxAlloc=40948 minFree=44016",
+    "[shell] switch 0->9 suspend=1ms wipe=54ms init=154ms taskbar=26ms total=235ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -46,6 +49,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
+    "[W][perf] iter=255ms (worst path so far: shell.switch:235ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
    ]
   },
@@ -53,7 +57,7 @@
    "cmd": "set prRange 25",
    "nth": 0,
    "lines": [
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1268 freeInt=46968). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prRange\",\"val\":\"25\"}"
    ]
   },
@@ -61,7 +65,7 @@
    "cmd": "set prClearInject 1",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=124ms (worst path so far: app.tick:42ms)",
+    "[W][perf] iter=314ms (worst path so far: shell.switch:235ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prClearInject\",\"val\":\"1\"}"
    ]
   },
@@ -76,7 +80,8 @@
    "cmd": "get prInterp",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.00,\"fixAgeMs\":49,\"tracked\":1,\"last\":true}"
+    "[W][perf] iter=76ms (worst path so far: shell.switch:235ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.00,\"fixAgeMs\":79,\"tracked\":1,\"last\":true}"
    ]
   },
   {
@@ -90,28 +95,34 @@
    "cmd": "get prInterp",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":1.96,\"fixAgeMs\":44,\"tracked\":1,\"last\":true}"
+    "[W][perf] iter=71ms (worst path so far: shell.switch:235ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":1.93,\"fixAgeMs\":75,\"tracked\":1,\"last\":true}"
    ]
   },
   {
    "cmd": "get prInterp",
    "nth": 2,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=45k maxAlloc=41k stack_hwm=12668b uptime=00:03:32 poll=0/6 last=-1 block_max=3637ms loop_max=124ms slow=app.tick:42ms last_poll_age_ms=0 next_poll_in_ms=33760 last_render_age_ms=128662 build=Sep  9 2026-11",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.71,\"fixAgeMs\":2062,\"tracked\":1,\"last\":true}"
+    "[D][dataTask.planeradar] GET 200 elapsed=4540ms size=-1",
+    "[D][dataTask.planeradar] ok=1 errorCode=0 count=2 scanned=14 epoch=0",
+    "[D][dataTask.planeradar] roster TRA8A,9.9,320;RYR67ZT,8.5,190;",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=33k",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=33k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.70,\"fixAgeMs\":2097,\"tracked\":1,\"last\":true}"
    ]
   },
   {
    "cmd": "get prInterp",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.26,\"fixAgeMs\":4080,\"tracked\":1,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.26,\"fixAgeMs\":4116,\"tracked\":1,\"last\":true}"
    ]
   },
   {
    "cmd": "set prRange 10",
    "nth": 0,
    "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prRange\",\"val\":\"10\"}"
    ]
   },
@@ -119,7 +130,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=103ms (worst path so far: app.tick:3ms)",
+    "[W][perf] iter=286ms (worst path so far: shell.switch:235ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
    ]
   },
@@ -162,11 +173,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 9  heap=46724 maxAlloc=42996 minFree=44012",
+    "[shell] leaving 9  heap=54936 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=46724 maxAlloc=42996 minFree=44012",
-    "[shell] switch 9->0 suspend=0ms wipe=28ms init=39ms taskbar=13ms total=80ms",
+    "[shell] entered 0  heap=54544 maxAlloc=40948 minFree=43560",
+    "[shell] switch 9->0 suspend=2ms wipe=54ms init=76ms taskbar=24ms total=156ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -174,7 +185,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=118ms (worst path so far: shell.switch:80ms)",
+    "[W][perf] iter=220ms (worst path so far: shell.switch:235ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

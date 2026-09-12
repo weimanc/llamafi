@@ -1,19 +1,19 @@
 {
  "schema": 1,
  "id": "T_CLK_11",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:25:37Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:13:18Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=53588 maxAlloc=42996 minFree=43268",
-    "[shell] entered 1  heap=53588 maxAlloc=42996 minFree=43268",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
+    "[shell] leaving 0  heap=106168 maxAlloc=49140 minFree=43216",
+    "[shell] entered 1  heap=106168 maxAlloc=49140 minFree=43216",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -21,52 +21,65 @@
    "cmd": "info",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=83ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"5f5fa62+\",\"elf\":\"66d214c7\",\"build\":\"Sep  9 2026 11:19:00\",\"heap\":53588,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":0}"
+    "[W][perf] iter=80ms (worst path so far: shell.switch:157ms)",
+    "[ 31416][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 31429][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 31444][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"a22a0c6\",\"elf\":\"168bf21d\",\"build\":\"Sep 12 2026 21:29:36\",\"heap\":106168,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":1}"
    ]
   },
   {
    "cmd": "set clockStyle 0",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 1",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":false}"
+    "[W][perf] iter=76ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 2",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=69ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":false}"
+    "[W][perf] iter=152ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 3",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=62ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+    "[W][perf] iter=220ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 0",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=51ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+    "[W][perf] iter=198ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 1",
    "nth": 1,
    "lines": [
+    "[W][perf] iter=106ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=4340 freeInt=51992). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":1,\"name\":\"flip\",\"saved\":false}"
    ]
   },
@@ -74,50 +87,38 @@
    "cmd": "set clockStyle 2",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=68ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":false}"
+    "[W][perf] iter=88ms (worst path so far: shell.switch:157ms)",
+    "[ 33407][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":2,\"name\":\"nixie\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 3",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=62ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+    "[W][perf] iter=95ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 0",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=51ms (worst path so far: shell.switch:163ms)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
+    "[W][perf] iter=83ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":true}"
    ]
   },
   {
    "cmd": "info",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"5f5fa62+\",\"elf\":\"66d214c7\",\"build\":\"Sep  9 2026 11:19:00\",\"heap\":53588,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":0}"
-   ]
-  },
-  {
-   "cmd": "set clockStyle 0",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":false}"
-   ]
-  },
-  {
-   "cmd": "switchApp 0",
-   "nth": 0,
-   "lines": [
-    "[shell] leaving 1  heap=53588 maxAlloc=42996 minFree=43268",
-    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=53588 maxAlloc=42996 minFree=43268",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=38ms taskbar=12ms total=78ms",
-    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+    "[W][perf] iter=183ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"info\",\"git\":\"a22a0c6\",\"elf\":\"168bf21d\",\"build\":\"Sep 12 2026 21:29:36\",\"heap\":60136,\"isPlaying\":false,\"progressMs\":0,\"durationMs\":0,\"volumePct\":-1,\"shuffle\":false,\"repeat\":2,\"consecutiveFailures\":1}"
    ]
   }
  ]

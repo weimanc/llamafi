@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WR_TLS_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:56:22Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:31:18Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -25,180 +25,90 @@
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1440164,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1438892,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":865927,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":829169,\"wrPhase\":2,\"wrPhaseMs\":832389,\"wrEnqueues\":8,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":864403,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 1,
    "lines": [
-    "[1440856][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[866634][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1442194,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1438892,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":867955,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":829169,\"wrPhase\":2,\"wrPhaseMs\":832389,\"wrEnqueues\":8,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":864403,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 2,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=59k maxAlloc=41k stack_hwm=11708b uptime=00:24:02 poll=0/22 last=-1 block_max=0ms loop_max=136ms slow=shell.switch:121ms last_poll_age_ms=0 next_poll_in_ms=27144 last_render_age_ms=3152 build=Sep  9 2026-1",
-    "[1442461][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[868416][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
     "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
     "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=5 next=60000ms",
-    "[D][spotify.task] dequeued action=FORCE_POLL param=0",
+    "[D][spotify.poll] backoff: consecutive=6 next=60000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
-    "[1442980][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1442993][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1443008][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[868938][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[868951][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[868965][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
     "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1444223,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1442694,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":869984,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":829169,\"wrPhase\":2,\"wrPhaseMs\":832389,\"wrEnqueues\":8,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":868639,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 3,
    "lines": [
-    "[1444613][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[870748][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
-    "[1446212][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1446253,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1442694,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":872013,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":829169,\"wrPhase\":2,\"wrPhaseMs\":832389,\"wrEnqueues\":8,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":868639,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 4,
    "lines": [
+    "[I][hb] display=winamp wifi=rssi(-60) disc=0 heap=51k maxAlloc=39k stack_hwm=11660b uptime=00:14:32 poll=0/43 last=-1 block_max=4225ms loop_max=175ms slow=shell.switch:138ms last_poll_age_ms=0 next_poll_in_ms=56302 last_render_age_ms=7510 build=Sep 11 202",
+    "[872521][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
     "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=6 next=60000ms",
-    "[D][spotify.task] stack_hwm=3916B",
+    "[D][spotify.poll] backoff: consecutive=7 next=60000ms",
     "[D][spotify.task] dequeued action=FORCE_POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
-    "[1446750][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1446763][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1446778][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[873044][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[873058][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[873073][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
     "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1448281,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":874044,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":829169,\"wrPhase\":2,\"wrPhaseMs\":832389,\"wrEnqueues\":8,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":872753,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1450309,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
+    "[874828][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":876074,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":829169,\"wrPhase\":2,\"wrPhaseMs\":832389,\"wrEnqueues\":8,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":872753,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1452336,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1454365,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1456393,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1458420,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1460450,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1462478,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1464507,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1466535,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1468564,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1470592,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 16,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=65k maxAlloc=41k stack_hwm=11708b uptime=00:24:32 poll=0/24 last=-1 block_max=3780ms loop_max=28ms slow=app.tick:5ms last_poll_age_ms=0 next_poll_in_ms=34209 last_render_age_ms=33153 build=Sep  9 2026-11:1",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1472620,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1474650,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1476678,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":1446445,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 19,
-   "lines": [
-    "[1477232][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
-    "[lib] GET connect api.spotify.com:443 failed errno=11 (No more processes)",
+    "[876581][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: rc=-1 (0xFFFF) ? errstr='ERROR - Generic error'",
-    "[D][spotify.poll] backoff: consecutive=7 next=60000ms",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1478706,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1391322,\"wrPhase\":2,\"wrPhaseMs\":1428380,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":0,\"spActMs\":1477265,\"last\":true}"
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=8 next=60000ms",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":878103,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":829169,\"wrPhase\":2,\"wrPhaseMs\":832389,\"wrEnqueues\":8,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":0,\"spActMs\":876804,\"last\":true}"
    ]
   },
   {
@@ -227,13 +137,14 @@
    "nth": 0,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=105888 maxAlloc=42996 minFree=43472",
+    "[shell] leaving 0  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
-    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[shell] entered 11  heap=105888 maxAlloc=42996 minFree=43472",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=48ms total=76ms",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=18ms total=46ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -241,15 +152,13 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[I][webradio] HEAP post-fetch free=104944 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=208ms (worst path so far: app.tick:84ms)",
-    "[1479196][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1479209][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1479224][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=382ms",
-    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[W][perf] iter=167ms (worst path so far: app.tick:67ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -257,33 +166,6 @@
    "cmd": "get wrCount",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1479324,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":7,\"inFlightMs\":1478830,\"wrPhase\":1,\"wrPhaseMs\":1478831,\"wrEnqueues\":7,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":1478831,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 1,
-   "lines": [
-    "[1479735][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1479748][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1479763][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=517ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=61k maxBlk=41k",
-    "[I][webradio] HEAP post-fetch free=105888 min=43184",
-    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=63ms (worst path so far: app.tick:84ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":0,\"last\":true}"
    ]
   },
@@ -298,7 +180,7 @@
    "cmd": "get wrLastHttp",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrLastHttp\",\"http\":-120,\"ok\":0,\"count\":0,\"jsonErr\":\"\",\"tlsInsecure\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrLastHttp\",\"http\":-101,\"ok\":0,\"count\":0,\"jsonErr\":\"\",\"tlsInsecure\":0,\"last\":true}"
    ]
   }
  ]

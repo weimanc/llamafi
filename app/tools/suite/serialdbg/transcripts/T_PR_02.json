@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PR_02",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:27:33Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:14:19Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
@@ -39,11 +39,9 @@
    "cmd": "tap 297 380",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=60932 maxAlloc=42996 minFree=43268",
-    "[ 87575][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[shell] entered 9  heap=63720 maxAlloc=42996 minFree=43268",
-    "[lib] GET write fail, retrying",
-    "[shell] switch 0->9 suspend=1ms wipe=29ms init=87ms taskbar=13ms total=130ms",
+    "[shell] leaving 0  heap=55688 maxAlloc=40948 minFree=43216",
+    "[shell] entered 9  heap=55524 maxAlloc=40948 minFree=43216",
+    "[shell] switch 0->9 suspend=2ms wipe=54ms init=154ms taskbar=26ms total=236ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -51,7 +49,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=144ms (worst path so far: shell.switch:168ms)",
+    "[W][perf] iter=251ms (worst path so far: shell.switch:236ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
    ]
   },
@@ -73,436 +71,11 @@
    "cmd": "get activeError",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 13,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-66) disc=3 heap=50k maxAlloc=41k stack_hwm=11936b uptime=00:01:41 poll=0/3 last=-1 block_max=24004ms loop_max=224ms slow=shell.switch:168ms last_poll_age_ms=0 next_poll_in_ms=22716 last_render_age_ms=14582 build=Sep  9 20",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 16,
-   "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=4 next=60000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 17,
-   "lines": [
-    "[104722][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[104735][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[104750][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 24,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 25,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 26,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 27,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 28,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 29,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 30,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 31,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 32,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 33,
-   "lines": [
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 34,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 35,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 36,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 37,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 38,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 39,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 40,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 41,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 42,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 43,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-66) disc=3 heap=47k maxAlloc=41k stack_hwm=11936b uptime=00:02:11 poll=0/4 last=-1 block_max=18619ms loop_max=24ms slow=app.tick:2ms last_poll_age_ms=0 next_poll_in_ms=32987 last_render_age_ms=44582 build=Sep  9 2026-11:1",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 44,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 45,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 46,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 47,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 48,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 49,
-   "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=33482ms",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.planeradar] heap free=45k maxBlk=31k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 50,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 51,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 52,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 53,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 54,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 55,
-   "lines": [
-    "[D][dataTask.planeradar] GET 200 elapsed=5930ms size=-1",
-    "[W][dataTask.planeradar] parse error at object 3: IncompleteInput",
-    "[D][dataTask.planeradar] parse rc=-92 scanned=3 -> retry",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 56,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 57,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 58,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":true,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get activeError",
-   "nth": 59,
-   "lines": [
-    "[D][dataTask.planeradar] GET 200 elapsed=3721ms size=-1",
-    "[D][dataTask.planeradar] retry ok=1 rc=0 scanned=39",
-    "[D][dataTask.planeradar] ok=1 errorCode=0 count=5 scanned=39 epoch=0",
-    "[D][dataTask.planeradar] roster KLM1421,6.8,291;KLM64A,6.9,240;KLC21A,6.1,324;TRA21Q,3.0,193;ZXP01,2.6,76;",
-    "[D][dataTask.planeradar] heap free=61k maxBlk=31k",
-    "[D][planeradar] fetch rtt=60133ms ok=1 errorCode=0",
-    "[D][dataTask.planeradar] heap free=61k maxBlk=31k",
-    "[W][perf] iter=60ms (worst path so far: app.tick:49ms)",
+    "[D][dataTask.planeradar] GET 200 elapsed=4268ms size=-1",
+    "[D][dataTask.planeradar] ok=1 errorCode=0 count=0 scanned=6 epoch=0",
+    "[D][dataTask.planeradar] roster",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=47k[D][planeradar] fetch rtt=2467ms ok=1 errorCode=0",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=47k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
    ]
   },
@@ -517,12 +90,12 @@
    "cmd": "get prAircraftCount",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prAircraftCount\",\"val\":5,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prAircraftCount\",\"val\":0,\"last\":true}"
    ]
   },
   {
    "cmd": "get activeError",
-   "nth": 60,
+   "nth": 3,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":false,\"spotifyDegraded\":true,\"spotifyConnecting\":true,\"last\":true}"
    ]
@@ -573,10 +146,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 9  heap=55688 maxAlloc=42996 minFree=43268",
+    "[shell] leaving 9  heap=56508 maxAlloc=40948 minFree=43216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=55540 maxAlloc=42996 minFree=43268",
+    "[shell] entered 0  heap=56364 maxAlloc=40948 minFree=43216",
     "[shell] switch 9->0 suspend=2ms wipe=54ms init=80ms taskbar=26ms total=162ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
@@ -585,7 +158,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=227ms (worst path so far: shell.switch:162ms)",
+    "[W][perf] iter=226ms (worst path so far: shell.switch:236ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

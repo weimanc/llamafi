@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T152",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:05:37Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:40:00Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -25,6 +25,8 @@
    "cmd": "get queue",
    "nth": 1,
    "lines": [
+    "[304939][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -32,30 +34,14 @@
    "cmd": "get queue",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get queue",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get queue",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get queue",
-   "nth": 5,
-   "lines": [
-    "[325458][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[325472][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[325486][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[306672][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/seek?position_ms=89032 failed after retry",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[307231][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[307244][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[307258][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
     "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
@@ -63,8 +49,56 @@
   },
   {
    "cmd": "get queue",
+   "nth": 3,
+   "lines": [
+    "[308995][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 4,
+   "lines": [
+    "[310731][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=4059ms",
+    "[D][spotify.task] dequeued action=SEEK param=89032",
+    "[D][spotify.task] seek 89032 ms",
+    "Refresh of the Access token is due, doing that now.",
+    "[311293][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[311306][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[311320][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
+   "nth": 5,
+   "lines": [
+    "[313040][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get queue",
    "nth": 6,
    "lines": [
+    "[314769][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/seek?position_ms=89032 failed after retry",
+    "[D][spotify.task] dequeued action=VOLUME param=4",
+    "[D][spotify.task] setVolume 4%",
+    "Refresh of the Access token is due, doing that now.",
+    "[315332][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[315345][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[315360][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -72,6 +106,8 @@
    "cmd": "get queue",
    "nth": 7,
    "lines": [
+    "[317098][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -79,6 +115,17 @@
    "cmd": "get queue",
    "nth": 8,
    "lines": [
+    "[318814][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/volume?volume_percent=4 failed after retry",
+    "[D][spotify.task] dequeued action=VOLUME param=89",
+    "[D][spotify.task] setVolume 89%",
+    "Refresh of the Access token is due, doing that now.",
+    "[319371][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[319384][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[319399][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -86,6 +133,8 @@
    "cmd": "get queue",
    "nth": 9,
    "lines": [
+    "[321125][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -93,6 +142,9 @@
    "cmd": "get queue",
    "nth": 10,
    "lines": [
+    "[322852][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/volume?volume_percent=89 failed after retry",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -107,7 +159,6 @@
    "cmd": "get queue",
    "nth": 12,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-64) disc=3 heap=50k maxAlloc=41k stack_hwm=11708b uptime=00:05:39 poll=0/11 last=-1 block_max=18483ms loop_max=151ms slow=shell.switch:113ms last_poll_age_ms=0 next_poll_in_ms=35213 last_render_age_ms=26409 build=Sep  9 2",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -122,7 +173,7 @@
    "cmd": "get queue",
    "nth": 14,
    "lines": [
-    "[lib] GET write fail, retrying",
+    "[I][hb] display=winamp wifi=rssi(-59) disc=0 heap=103k maxAlloc=41k stack_hwm=11660b uptime=00:05:31 poll=0/18 last=-1 block_max=0ms loop_max=171ms slow=app.tick:23ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=30026 build=Sep 11 2026-14:26:22",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   }

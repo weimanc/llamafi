@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PMT_00",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:00:09Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:34:35Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -18,7 +18,7 @@
    "cmd": "get player",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":2,\"modeName\":\"Player\",\"caps\":15,\"srcKind\":3,\"srcName\":\"LocalPlaylist\",\"arenaHeld\":0,\"pending\":0,\"err\":0,\"connecting\":0,\"plCount\":20,\"playHash\":3682821331,\"viewHash\":2017146113,\"orderIdentical\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":2,\"modeName\":\"Player\",\"caps\":15,\"srcKind\":3,\"srcName\":\"LocalPlaylist\",\"arenaHeld\":0,\"pending\":0,\"err\":0,\"connecting\":0,\"plCount\":20,\"playHash\":1971161041,\"viewHash\":2017146113,\"orderIdentical\":0,\"last\":true}"
    ]
   },
   {
@@ -26,12 +26,12 @@
    "nth": 0,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 12  heap=100648 maxAlloc=49140 minFree=90060",
+    "[shell] leaving 12  heap=98860 maxAlloc=49140 minFree=88280",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=108704 maxAlloc=49140 minFree=90060",
-    "[shell] switch 12->0 suspend=35ms wipe=27ms init=36ms taskbar=12ms total=110ms",
+    "[shell] entered 0  heap=106908 maxAlloc=49140 minFree=88280",
+    "[shell] switch 12->0 suspend=38ms wipe=26ms init=37ms taskbar=12ms total=113ms",
     "{\"ok\":true,\"cmd\":\"playerCycle\",\"from\":2,\"to\":0,\"appId\":0,\"last\":true}"
    ]
   },
@@ -39,7 +39,7 @@
    "cmd": "get player",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=189ms (worst path so far: shell.switch:110ms)",
+    "[W][perf] iter=197ms (worst path so far: shell.switch:113ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":0,\"modeName\":\"Spotify\",\"caps\":15,\"srcKind\":1,\"srcName\":\"SpotifyQueue\",\"arenaHeld\":0,\"pending\":0,\"err\":0,\"connecting\":1,\"plCount\":null,\"playHash\":null,\"viewHash\":null,\"note\":\"n/a \u2014 playOrder/viewOrder exist only in LocalPlayer\",\"last\":true}"
    ]
   },
@@ -69,15 +69,15 @@
    "nth": 0,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=108436 maxAlloc=49140 minFree=90060",
-    "[I][webradio] HEAP init free=108024 min=90060",
-    "[I][webradio] HEAP pre-fetch free=108024 min=90060",
-    "[shell] entered 11  heap=108024 maxAlloc=49140 minFree=90060",
+    "[shell] leaving 0  heap=106908 maxAlloc=49140 minFree=88280",
+    "[I][webradio] HEAP init free=106504 min=88280",
+    "[I][webradio] HEAP pre-fetch free=106504 min=88280",
+    "[shell] entered 11  heap=106504 maxAlloc=49140 minFree=88280",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=63k maxBlk=47k",
+    "[D][dataTask.webradio] heap free=62k maxBlk=47k",
     "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=28ms total=56ms",
+    "[shell] switch 0->11 suspend=0ms wipe=27ms init=1ms taskbar=28ms total=56ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -87,26 +87,26 @@
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=186ms (worst path so far: shell.switch:110ms)",
-    "[ 15423][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 15436][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 15451][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=428ms",
+    "[W][perf] iter=185ms (worst path so far: shell.switch:113ms)",
+    "[  7601][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[  7614][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[  7628][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=233ms",
     "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
     "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[ 15871][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 15884][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 15899][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=423ms",
+    "[  7944][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[  7957][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[  7972][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=320ms",
     "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
     "[D][dataTask.webradio] heap free=62k maxBlk=41k",
-    "[I][webradio] HEAP post-fetch free=107424 min=44928",
+    "[I][webradio] HEAP post-fetch free=105904 min=42908",
     "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
     "[I][spotify.tls] tls yield \u2014 resumed",
     "[I][spotify.tls] hard reset \u2014 stopping client",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=61ms (worst path so far: shell.switch:110ms)",
+    "[W][perf] iter=60ms (worst path so far: shell.switch:113ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":1,\"modeName\":\"WebRadio\",\"caps\":1,\"srcKind\":2,\"srcName\":\"StationList\",\"arenaHeld\":0,\"pending\":0,\"err\":0,\"connecting\":0,\"plCount\":null,\"playHash\":null,\"viewHash\":null,\"note\":\"n/a \u2014 playOrder/viewOrder exist only in LocalPlayer\",\"last\":true}"
    ]
   }

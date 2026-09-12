@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_CX_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:08:38Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:42:27Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -67,9 +67,12 @@
    "cmd": "tap 297 140",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=60552 maxAlloc=42996 minFree=43312",
-    "[shell] entered 3  heap=60024 maxAlloc=42996 minFree=43312",
-    "[shell] switch 0->3 suspend=2ms wipe=54ms init=66ms taskbar=25ms total=147ms",
+    "[shell] leaving 0  heap=105428 maxAlloc=42996 minFree=42780",
+    "[shell] entered 3  heap=105428 maxAlloc=42996 minFree=42780",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.crypto] heap free=59k maxBlk=41k",
+    "[shell] switch 0->3 suspend=1ms wipe=27ms init=33ms taskbar=13ms total=74ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":140,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -77,7 +80,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=163ms (worst path so far: shell.switch:147ms)",
+    "[W][perf] iter=88ms (worst path so far: shell.switch:79ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":3,\"name\":\"Crypto\",\"last\":true}"
    ]
   },
@@ -134,11 +137,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 3  heap=61376 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 3  heap=53028 maxAlloc=40948 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=62696 maxAlloc=42996 minFree=43312",
-    "[shell] switch 3->0 suspend=1ms wipe=29ms init=48ms taskbar=15ms total=93ms",
+    "[shell] entered 0  heap=52448 maxAlloc=40948 minFree=42780",
+    "[shell] switch 3->0 suspend=2ms wipe=54ms init=80ms taskbar=24ms total=160ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -146,9 +149,7 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=138ms (worst path so far: shell.switch:147ms)",
-    "[526276][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
+    "[W][perf] iter=224ms (worst path so far: shell.switch:160ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

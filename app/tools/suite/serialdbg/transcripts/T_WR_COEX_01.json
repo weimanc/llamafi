@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WR_COEX_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:53:46Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:29:28Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -47,9 +47,9 @@
    "nth": 0,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=59508 maxAlloc=42996 minFree=43472",
-    "[shell] entered 11  heap=59512 maxAlloc=42996 minFree=43472",
-    "[shell] switch 0->11 suspend=2ms wipe=54ms init=0ms taskbar=34ms total=90ms",
+    "[shell] leaving 0  heap=59776 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=59200 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->11 suspend=2ms wipe=54ms init=1ms taskbar=32ms total=89ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -57,11 +57,9 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[I][webradio] HEAP post-fetch free=59960 min=43472",
-    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=319ms (worst path so far: shell.switch:126ms)",
+    "[W][perf] iter=335ms (worst path so far: app.tick:130ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -69,6 +67,39 @@
    "cmd": "get wrCount",
    "nth": 0,
    "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 1,
+   "lines": [
+    "[765765][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrCount",
+   "nth": 2,
+   "lines": [
+    "[767597][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[I][webradio] HEAP post-fetch free=104944 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=57ms (worst path so far: app.tick:130ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":0,\"last\":true}"
    ]
   },

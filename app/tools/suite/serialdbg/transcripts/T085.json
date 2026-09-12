@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T085",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:00:54Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:35:17Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -39,6 +39,7 @@
    "cmd": "tap 140 77",
    "nth": 0,
    "lines": [
+    "[W][spotify.task] queue full \u2014 dropped action=FORCE_POLL param=0",
     "[D][touch] dead zone tap \u2192 force poll",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":140,\"y\":77,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}"
    ]

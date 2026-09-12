@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T184",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:40:08Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:24:56Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47868 maxAlloc=42996 minFree=43792",
-    "[shell] entered 6  heap=47868 maxAlloc=42996 minFree=43792",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=44ms taskbar=12ms total=84ms",
+    "[shell] leaving 0  heap=105368 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=104884 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=46ms taskbar=23ms total=97ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,12 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=88ms (worst path so far: shell.switch:84ms)",
+    "[W][perf] iter=100ms (worst path so far: shell.switch:158ms)",
+    "[495775][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[495788][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[495803][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -92,6 +97,7 @@
    "cmd": "get stockSubView",
    "nth": 1,
    "lines": [
+    "[W][perf] iter=69ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"list\",\"last\":true}"
    ]
   },
@@ -106,11 +112,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=47868 maxAlloc=42996 minFree=43792",
+    "[shell] leaving 6  heap=59324 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47868 maxAlloc=42996 minFree=43792",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=59820 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -118,7 +124,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=108ms (worst path so far: shell.switch:84ms)",
+    "[W][perf] iter=210ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

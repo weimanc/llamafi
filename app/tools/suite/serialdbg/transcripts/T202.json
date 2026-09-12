@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T202",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:45:02Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:26:33Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47864 maxAlloc=42996 minFree=43792",
-    "[shell] entered 6  heap=47864 maxAlloc=42996 minFree=43792",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=33ms taskbar=12ms total=73ms",
+    "[shell] leaving 0  heap=50620 maxAlloc=40948 minFree=43560",
+    "[shell] entered 6  heap=46032 maxAlloc=40948 minFree=43560",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=77ms taskbar=14ms total=147ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,11 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=77ms (worst path so far: shell.switch:82ms)",
+    "[W][perf] iter=149ms (worst path so far: shell.switch:232ms)",
+    "[D][dataTask.stock] spark GET 200 elapsed=2093ms",
+    "[D][dataTask.stock] spark ok aapl=332.27 msft=516.13",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -43,241 +47,90 @@
    "cmd": "get heatmapCount",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":20,\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
+   "cmd": "set cooldown 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 220 10",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":220,\"y\":10,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "[W][perf] iter=159ms (worst path so far: shell.switch:232ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"heatmap\",\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 10 30",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":30,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get stockSubView",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
+    "[W][perf] iter=64ms (worst path so far: shell.switch:232ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockSubView\",\"val\":\"chart\",\"last\":true}"
    ]
   },
   {
-   "cmd": "get heatmapCount",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heap",
+   "cmd": "get stockChartTicker",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":47864,\"lfbInt\":42996,\"freeDma\":4788,\"lfbDma\":2036,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get backoff",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":740846,\"queueWaiting\":4,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":629871,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set triggerHeatmap 1",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"triggerHeatmap\",\"val\":\"1\"}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 4,
-   "lines": [
-    "[W][dataTask] queue full \u2014 dropped heatmap quote",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 8,
-   "lines": [
-    "[750291][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
-    "[D][dataTask.stock] chart GET sym=AAPL range=1d -1 elapsed=120417ms",
-    "[D][dataTask.stock] heap free=57k maxBlk=37k",
-    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=57k maxBlk=37k",
-    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=96k maxAlloc=41k stack_hwm=11708b uptime=00:12:32 poll=0/7 last=-1 block_max=0ms loop_max=111ms slow=shell.switch:82ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=24732 build=Sep  9 2026-11:19:",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 10,
-   "lines": [
-    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=6281ms",
-    "[D][dataTask.stock] chart pre-json heap free=16k maxBlk=5k",
-    "[D][dataTask.stock] chart post-json heap free=59k maxBlk=41k err=Ok",
-    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=315.18 hi=317.52",
-    "[D][dataTask.stock] heap free=62k maxBlk=41k",
-    "[D][dataTask.stock] heap free=62k maxBlk=41k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 18,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=46k maxAlloc=41k stack_hwm=11708b uptime=00:13:02 poll=0/7 last=-1 block_max=0ms loop_max=24ms slow=app.tick:2ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=54732 build=Sep  9 2026-11:19:02",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heatmapCount",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heatmapCount\",\"val\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get heap",
-   "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":47916,\"lfbInt\":42996,\"freeDma\":4840,\"lfbDma\":2036,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get backoff",
-   "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":801187,\"queueWaiting\":2,\"pendingMask\":0,\"inFlight\":4,\"inFlightMs\":757622,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":243620,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"stockChartTicker\",\"val\":\"NVDA\",\"last\":true}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=47916 maxAlloc=42996 minFree=43792",
+    "[shell] leaving 6  heap=51220 maxAlloc=40948 minFree=43560",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=47916 maxAlloc=42996 minFree=43792",
-    "[shell] switch 6->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=51012 maxAlloc=40948 minFree=43560",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -285,7 +138,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=109ms (worst path so far: shell.switch:81ms)",
+    "[W][perf] iter=210ms (worst path so far: shell.switch:232ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

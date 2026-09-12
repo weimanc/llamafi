@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T156",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:13:05Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:44:25Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -25,6 +25,10 @@
    "cmd": "get queue",
    "nth": 1,
    "lines": [
+    "[570082][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[571848][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -32,6 +36,19 @@
    "cmd": "get queue",
    "nth": 2,
    "lines": [
+    "[I][hb] display=winamp wifi=rssi(-59) disc=0 heap=102k maxAlloc=41k stack_hwm=11660b uptime=00:09:31 poll=0/35 last=-1 block_max=4141ms loop_max=46ms slow=app.tick:45ms last_poll_age_ms=0 next_poll_in_ms=56056 last_render_age_ms=20312 build=Sep 11 2026-14",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=7 next=60000ms",
+    "[D][spotify.task] dequeued action=PLAY param=0",
+    "[D][spotify.task] play",
+    "Refresh of the Access token is due, doing that now.",
+    "[572370][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[572383][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[572398][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -39,6 +56,8 @@
    "cmd": "get queue",
    "nth": 3,
    "lines": [
+    "[574178][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -46,6 +65,16 @@
    "cmd": "get queue",
    "nth": 4,
    "lines": [
+    "[575948][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/play failed after retry",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[576457][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[576471][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[576485][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -53,6 +82,8 @@
    "cmd": "get queue",
    "nth": 5,
    "lines": [
+    "[578268][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -60,6 +91,12 @@
    "cmd": "get queue",
    "nth": 6,
    "lines": [
+    "[580046][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=8 next=60000ms",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -109,7 +146,6 @@
    "cmd": "get queue",
    "nth": 13,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-63) disc=3 heap=46k maxAlloc=41k stack_hwm=11660b uptime=00:13:09 poll=0/20 last=-1 block_max=0ms loop_max=26ms slow=vu.tick:2ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=57230 build=Sep  9 2026-11:19:02",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },

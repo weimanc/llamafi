@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T147",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:05:03Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:39:26Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -32,9 +32,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=46484 maxAlloc=42996 minFree=43312",
-    "[shell] entered 1  heap=46484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=46ms taskbar=13ms total=87ms",
+    "[shell] leaving 0  heap=105764 maxAlloc=42996 minFree=42780",
+    "[shell] entered 1  heap=105764 maxAlloc=42996 minFree=42780",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -42,7 +42,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=101ms (worst path so far: shell.switch:87ms)",
+    "[W][perf] iter=90ms (worst path so far: shell.switch:77ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -64,11 +64,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=46484 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 1  heap=105764 maxAlloc=42996 minFree=42780",
     "[D][chrome] drawVolume pct=100 keyframe=4",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=46484 maxAlloc=42996 minFree=43312",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=42ms taskbar=12ms total=82ms",
+    "[shell] entered 0  heap=105764 maxAlloc=42996 minFree=42780",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -76,7 +76,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=121ms (worst path so far: shell.switch:87ms)",
+    "[W][perf] iter=115ms (worst path so far: shell.switch:79ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

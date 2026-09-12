@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WR_HEAP_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:54:32Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:29:56Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -46,9 +46,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] entered 1  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] switch 11->1 suspend=1ms wipe=26ms init=46ms taskbar=12ms total=85ms",
+    "[shell] leaving 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->1 suspend=1ms wipe=27ms init=38ms taskbar=11ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -56,7 +56,10 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=99ms (worst path so far: shell.switch:126ms)",
+    "[W][perf] iter=90ms (worst path so far: shell.switch:77ms)",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
@@ -65,9 +68,6 @@
    "cmd": "get tbScrollOffset",
    "nth": 2,
    "lines": [
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -96,11 +96,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=105216 maxAlloc=42996 minFree=43472",
+    "[shell] leaving 1  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] switch 1->0 suspend=0ms wipe=27ms init=38ms taskbar=12ms total=77ms",
+    "[shell] entered 0  heap=103800 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->0 suspend=1ms wipe=29ms init=40ms taskbar=14ms total=84ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -108,7 +108,12 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=114ms (worst path so far: shell.switch:126ms)",
+    "[W][perf] iter=126ms (worst path so far: shell.switch:84ms)",
+    "[791721][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[791734][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[791749][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -116,11 +121,6 @@
    "cmd": "set bgPoll 0",
    "nth": 0,
    "lines": [
-    "[1348525][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1348539][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1348553][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
    ]
   },
@@ -150,9 +150,9 @@
    "nth": 1,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] entered 11  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=16ms total=44ms",
+    "[shell] leaving 0  heap=65040 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=62408 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->11 suspend=0ms wipe=28ms init=1ms taskbar=29ms total=58ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -162,7 +162,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=153ms (worst path so far: shell.switch:126ms)",
+    "[W][perf] iter=244ms (worst path so far: app.tick:126ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -177,6 +177,8 @@
    "cmd": "get wrCount",
    "nth": 1,
    "lines": [
+    "[793626][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
    ]
   },
@@ -184,72 +186,7 @@
    "cmd": "get wrCount",
    "nth": 2,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-66) disc=0 heap=65k maxAlloc=41k stack_hwm=11708b uptime=00:22:32 poll=0/19 last=-1 block_max=18679ms loop_max=319ms slow=shell.switch:126ms last_poll_age_ms=0 next_poll_in_ms=170 last_render_age_ms=3455 build=Sep  9 2026",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 10,
-   "lines": [
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 11,
-   "lines": [
-    "[1370030][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[795415][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
     "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
@@ -257,26 +194,15 @@
     "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
     "[I][spotify.tls] hard reset \u2014 stopping client",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[1370419][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1370432][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1370446][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=170ms",
-    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[1370620][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1370633][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1370647][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=181ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[I][webradio] HEAP post-fetch free=104952 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
     "[I][spotify.tls] tls yield \u2014 resumed",
-    "[I][webradio] HEAP post-fetch free=105216 min=43472",
-    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=64ms (worst path so far: app.tick:52ms)",
+    "[W][perf] iter=63ms (worst path so far: app.tick:126ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":0,\"last\":true}"
    ]
   },
@@ -291,7 +217,7 @@
    "cmd": "get wrHeap",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrHeap\",\"initFree\":105664,\"initMin\":43792,\"fetchFree\":105216,\"fetchMin\":43472,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrHeap\",\"initFree\":104988,\"initMin\":42976,\"fetchFree\":104952,\"fetchMin\":42976,\"last\":true}"
    ]
   }
  ]

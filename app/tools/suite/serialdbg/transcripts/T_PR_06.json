@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PR_06",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:31:38Z",
- "generation": "48.2",
+ "recorded_at": "2026-09-12T21:16:37Z",
+ "generation": "22.2",
  "preamble": [],
  "exchanges": [
   {
@@ -39,9 +39,9 @@
    "cmd": "tap 297 380",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=56592 maxAlloc=42996 minFree=43996",
-    "[shell] entered 9  heap=56396 maxAlloc=42996 minFree=43996",
-    "[shell] switch 0->9 suspend=2ms wipe=54ms init=153ms taskbar=25ms total=234ms",
+    "[shell] leaving 0  heap=56080 maxAlloc=40948 minFree=45216",
+    "[shell] entered 9  heap=46496 maxAlloc=40948 minFree=45216",
+    "[shell] switch 0->9 suspend=2ms wipe=29ms init=89ms taskbar=15ms total=135ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -49,7 +49,9 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=256ms (worst path so far: shell.switch:234ms)",
+    "[W][perf] iter=155ms (worst path so far: shell.switch:234ms)",
+    "[130829][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
    ]
   },
@@ -64,7 +66,7 @@
    "cmd": "get prAircraftCount",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=100ms (worst path so far: shell.switch:234ms)",
+    "[W][perf] iter=53ms (worst path so far: shell.switch:234ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prAircraftCount\",\"val\":3,\"last\":true}"
    ]
   },
@@ -128,11 +130,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 9  heap=57532 maxAlloc=42996 minFree=43996",
+    "[shell] leaving 9  heap=57256 maxAlloc=40948 minFree=45216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=57236 maxAlloc=42996 minFree=43996",
-    "[shell] switch 9->0 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
+    "[shell] entered 0  heap=59440 maxAlloc=40948 minFree=45216",
+    "[shell] switch 9->0 suspend=2ms wipe=54ms init=73ms taskbar=26ms total=155ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -140,7 +142,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=224ms (worst path so far: shell.switch:234ms)",
+    "[W][perf] iter=218ms (worst path so far: shell.switch:234ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

@@ -1,19 +1,19 @@
 {
  "schema": 1,
  "id": "T-SET-02",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:15:37Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:46:57Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 10",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=49948 maxAlloc=42996 minFree=43232",
-    "[shell] entered 10  heap=49948 maxAlloc=42996 minFree=43232",
-    "[shell] switch 0->10 suspend=1ms wipe=27ms init=35ms taskbar=12ms total=75ms",
+    "[shell] leaving 0  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] entered 10  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] switch 0->10 suspend=1ms wipe=27ms init=34ms taskbar=12ms total=74ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":10}"
    ]
   },
@@ -21,7 +21,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=78ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=76ms (worst path so far: shell.switch:106ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":10,\"name\":\"Settings\",\"last\":true}"
    ]
   },
@@ -36,7 +36,6 @@
    "cmd": "tap 137 41",
    "nth": 0,
    "lines": [
-    "[wifi] wifi_networks.json parse error (NoMemory) -- treating as empty",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":41,\"hit\":\"SETTINGS\",\"action\":\"CONSUMED\",\"skipped\":false}"
    ]
   },
@@ -44,7 +43,7 @@
    "cmd": "get settingsSection",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=89ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=84ms (worst path so far: shell.switch:106ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"settingsSection\",\"section\":0,\"last\":true}"
    ]
   },
@@ -129,7 +128,7 @@
    "cmd": "get settingsSection",
    "nth": 4,
    "lines": [
-    "[W][perf] iter=95ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=132ms (worst path so far: shell.switch:106ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"settingsSection\",\"section\":2,\"last\":true}"
    ]
   },
@@ -172,7 +171,7 @@
    "cmd": "get settingsSection",
    "nth": 6,
    "lines": [
-    "[W][perf] iter=55ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=53ms (worst path so far: shell.switch:106ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"settingsSection\",\"section\":3,\"last\":true}"
    ]
   },
@@ -285,11 +284,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 10  heap=49408 maxAlloc=42996 minFree=43232",
+    "[shell] leaving 10  heap=104592 maxAlloc=42996 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=49408 maxAlloc=42996 minFree=43232",
-    "[shell] switch 10->0 suspend=0ms wipe=28ms init=41ms taskbar=13ms total=82ms",
+    "[shell] entered 0  heap=104592 maxAlloc=42996 minFree=42780",
+    "[shell] switch 10->0 suspend=1ms wipe=27ms init=40ms taskbar=11ms total=79ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -297,7 +296,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=120ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=116ms (worst path so far: shell.switch:106ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_11",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:57:08Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:32:10Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -60,10 +60,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=82372 maxAlloc=42996 minFree=43184",
-    "SettingsStorage: saved (doc 1994/6144 B)",
-    "[shell] entered 1  heap=90424 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=36ms wipe=27ms init=46ms taskbar=12ms total=121ms",
+    "[shell] leaving 12  heap=47668 maxAlloc=40948 minFree=42976",
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=4084 freeInt=55496). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "[shell] entered 1  heap=55336 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=19ms wipe=54ms init=76ms taskbar=24ms total=173ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -71,7 +71,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=135ms (worst path so far: shell.switch:174ms)",
+    "[W][perf] iter=189ms (worst path so far: shell.switch:173ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -114,10 +114,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=90424 maxAlloc=42996 minFree=43184",
-    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 19ms (total 29890s)",
-    "[shell] entered 12  heap=82372 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=0ms wipe=27ms init=21ms taskbar=22ms total=70ms",
+    "[shell] leaving 1  heap=50392 maxAlloc=40948 minFree=42976",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 31ms (total 29890s)",
+    "[shell] entered 12  heap=51236 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=1ms wipe=28ms init=35ms taskbar=14ms total=78ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -126,7 +126,9 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=151ms (worst path so far: shell.switch:174ms)",
+    "[929770][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[W][perf] iter=182ms (worst path so far: shell.switch:173ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -134,7 +136,7 @@
    "cmd": "set plLoad /playlists/bad.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/bad.m3u: 8 entries in 14ms (total 891s)",
+    "[I][m3u] loaded /playlists/bad.m3u: 8 entries in 13ms (total 891s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/bad.m3u\"}"
    ]
   },
@@ -143,8 +145,8 @@
    "nth": 0,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=64ms (worst path so far: shell.switch:174ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/bad.m3u\",\"count\":8,\"loadMs\":14,\"totalSec\":891,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+    "[W][perf] iter=70ms (worst path so far: shell.switch:173ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/bad.m3u\",\"count\":8,\"loadMs\":13,\"totalSec\":891,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":34804,\"last\":true}"
    ]
   },
   {
@@ -207,7 +209,7 @@
    "cmd": "set plLoad /playlists/empty.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/empty.m3u: 0 entries in 13ms (total 0s)",
+    "[I][m3u] loaded /playlists/empty.m3u: 0 entries in 24ms (total 0s)",
     "[W][m3u] no playable entries in /playlists/empty.m3u",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/empty.m3u\"}"
    ]
@@ -217,15 +219,15 @@
    "nth": 1,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=63ms (worst path so far: shell.switch:174ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/empty.m3u\",\"count\":0,\"loadMs\":13,\"totalSec\":0,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+    "[W][perf] iter=121ms (worst path so far: shell.switch:173ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/empty.m3u\",\"count\":0,\"loadMs\":24,\"totalSec\":0,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":4084,\"last\":true}"
    ]
   },
   {
    "cmd": "set plLoad /playlists/utf8.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/utf8.m3u: 9 entries in 13ms (total 1656s)",
+    "[I][m3u] loaded /playlists/utf8.m3u: 9 entries in 28ms (total 1656s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/utf8.m3u\"}"
    ]
   },
@@ -234,8 +236,8 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=63ms (worst path so far: shell.switch:174ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/utf8.m3u\",\"count\":9,\"loadMs\":13,\"totalSec\":1656,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":28660,\"last\":true}"
+    "[W][perf] iter=125ms (worst path so far: shell.switch:173ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/utf8.m3u\",\"count\":9,\"loadMs\":28,\"totalSec\":1656,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":4084,\"last\":true}"
    ]
   },
   {
@@ -256,6 +258,7 @@
    "cmd": "get plRow 2",
    "nth": 1,
    "lines": [
+    "[W][perf] iter=88ms (worst path so far: shell.switch:173ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plRow\",\"idx\":2,\"id\":2,\"text\":\"Antonin Dvorak - Symphony No. 9\",\"durSec\":182,\"path\":\"/mp3/03 - 19-2000.mp3\",\"last\":true}"
    ]
   },
@@ -277,7 +280,7 @@
    "cmd": "get plMem",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plMem\",\"allocated\":true,\"indexBytes\":3616,\"freeHeap\":82376,\"largestBlock\":28660,\"minFreeHeap\":43184,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plMem\",\"allocated\":true,\"indexBytes\":3616,\"freeHeap\":51928,\"largestBlock\":4084,\"minFreeHeap\":42976,\"last\":true}"
    ]
   },
   {

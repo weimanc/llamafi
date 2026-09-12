@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WR_COEX_04",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:54:07Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:29:50Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -18,6 +18,7 @@
    "cmd": "get wrState",
    "nth": 1,
    "lines": [
+    "[I][hb] display=winamp wifi=rssi(-59) disc=0 heap=102k maxAlloc=39k stack_hwm=11660b uptime=00:13:02 poll=0/38 last=-1 block_max=4312ms loop_max=335ms slow=app.tick:130ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=14449 build=Sep 11 2026-14:2",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
    ]
   },
@@ -32,12 +33,6 @@
    "cmd": "get wrState",
    "nth": 3,
    "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":0,\"last\":true}"
    ]
   },
@@ -52,7 +47,7 @@
    "cmd": "get heap",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":105216,\"lfbInt\":42996,\"freeDma\":62140,\"lfbDma\":42996,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":104944,\"lfbInt\":40948,\"freeDma\":62572,\"lfbDma\":34804,\"last\":true}"
    ]
   },
   {
@@ -66,7 +61,7 @@
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1346945,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1323069,\"wrPhase\":2,\"wrPhaseMs\":1323684,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":1346893,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":790571,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":764808,\"wrPhase\":2,\"wrPhaseMs\":767841,\"wrEnqueues\":4,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":790355,\"last\":true}"
    ]
   }
  ]

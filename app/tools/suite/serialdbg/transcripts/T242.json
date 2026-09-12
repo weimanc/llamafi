@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T242",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:15:24Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:46:44Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -129,14 +129,14 @@
    "cmd": "get shellCooldown",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":134,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":18,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":21,\"last\":true}"
    ]
   },
   {
@@ -198,14 +198,14 @@
    "cmd": "get shellCooldown",
    "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":126,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":133,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":12,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":20,\"last\":true}"
    ]
   },
   {
@@ -336,14 +336,14 @@
    "cmd": "get shellCooldown",
    "nth": 10,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":130,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":131,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 11,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":13,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":20,\"last\":true}"
    ]
   },
   {
@@ -405,14 +405,14 @@
    "cmd": "get shellCooldown",
    "nth": 13,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":134,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 14,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":20,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":18,\"last\":true}"
    ]
   },
   {
@@ -474,14 +474,14 @@
    "cmd": "get shellCooldown",
    "nth": 16,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":128,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":135,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 17,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":14,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":22,\"last\":true}"
    ]
   },
   {
@@ -543,14 +543,14 @@
    "cmd": "get shellCooldown",
    "nth": 19,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":129,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":134,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 20,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":15,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":21,\"last\":true}"
    ]
   },
   {
@@ -612,14 +612,14 @@
    "cmd": "get shellCooldown",
    "nth": 22,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":130,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":134,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 23,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":17,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":20,\"last\":true}"
    ]
   },
   {
@@ -681,7 +681,7 @@
    "cmd": "get shellCooldown",
    "nth": 25,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":133,\"last\":true}"
    ]
   },
   {
@@ -750,14 +750,14 @@
    "cmd": "get shellCooldown",
    "nth": 28,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":127,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 29,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":14,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":19,\"last\":true}"
    ]
   },
   {
@@ -819,14 +819,14 @@
    "cmd": "get shellCooldown",
    "nth": 31,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":134,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":135,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 32,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":21,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":22,\"last\":true}"
    ]
   },
   {
@@ -874,7 +874,7 @@
    "cmd": "get shellCooldown",
    "nth": 35,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":54,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":55,\"last\":true}"
    ]
   },
   {
@@ -915,14 +915,14 @@
    "cmd": "get shellCooldown",
    "nth": 37,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":163,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 38,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":49,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":52,\"last\":true}"
    ]
   },
   {
@@ -956,10 +956,6 @@
    "cmd": "set cooldown 0",
    "nth": 15,
    "lines": [
-    "[928440][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
-    "[lib] PUT  connect api.spotify.com:443 failed errno=11 (No more processes)",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -974,7 +970,7 @@
    "cmd": "get shellCooldown",
    "nth": 41,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":50,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":53,\"last\":true}"
    ]
   },
   {
@@ -1015,7 +1011,7 @@
    "cmd": "get shellCooldown",
    "nth": 43,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":167,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
    ]
   },
   {
@@ -1070,14 +1066,14 @@
    "cmd": "get shellCooldown",
    "nth": 46,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":153,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":155,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 47,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":41,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":40,\"last\":true}"
    ]
   },
   {
@@ -1091,9 +1087,9 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=68612 maxAlloc=42996 minFree=43232",
-    "[shell] entered 5  heap=68612 maxAlloc=42996 minFree=43232",
-    "[shell] switch 0->5 suspend=1ms wipe=27ms init=64ms taskbar=13ms total=105ms",
+    "[shell] leaving 0  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] entered 5  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] switch 0->5 suspend=1ms wipe=27ms init=63ms taskbar=11ms total=102ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -1101,7 +1097,7 @@
    "cmd": "get appId",
    "nth": 13,
    "lines": [
-    "[W][perf] iter=133ms (worst path so far: shell.switch:105ms)",
+    "[W][perf] iter=127ms (worst path so far: shell.switch:102ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":5,\"name\":\"Life\",\"last\":true}"
    ]
   },
@@ -1157,14 +1153,14 @@
    "cmd": "get shellCooldown",
    "nth": 50,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":164,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 51,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":51,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":53,\"last\":true}"
    ]
   },
   {
@@ -1180,15 +1176,10 @@
    "lines": [
     "[D][serial] inject sample 1/11 sx=297 sy=110",
     "[shell] tb-press slot=2",
-    "[930075][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed [D]by the trusted CA",
-    "[serial] inject sample 2/11 sx=297 sy=105",
+    "[D][serial] inject sample 2/11 sx=297 sy=105",
     "[shell] tb-press-cancel",
-    "[930094][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or[D] signature check failed",
-    "[serial] inject sample 3/11 sx=297 sy=100",
+    "[D][serial] inject sample 3/11 sx=297 sy=100",
     "[D][serial] inject sample 4/11 sx=297 sy=95",
-    "[930118][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
     "[D][serial] inject sample 5/11 sx=297 sy=90",
     "[D][serial] inject sample 6/11 sx=297 sy=85",
     "[D][serial] inject sample 7/11 sx=297 sy=80",
@@ -1217,7 +1208,7 @@
    "cmd": "get shellCooldown",
    "nth": 54,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":49,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":53,\"last\":true}"
    ]
   },
   {
@@ -1258,14 +1249,14 @@
    "cmd": "get shellCooldown",
    "nth": 56,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":166,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 57,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":44,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":52,\"last\":true}"
    ]
   },
   {
@@ -1306,14 +1297,14 @@
    "cmd": "get shellCooldown",
    "nth": 59,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":165,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":162,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 60,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":52,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":49,\"last\":true}"
    ]
   },
   {
@@ -1361,14 +1352,14 @@
    "cmd": "get shellCooldown",
    "nth": 62,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":154,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":149,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 63,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":40,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":36,\"last\":true}"
    ]
   },
   {
@@ -1382,9 +1373,9 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[shell] leaving 5  heap=68616 maxAlloc=42996 minFree=43232",
-    "[shell] entered 10  heap=68616 maxAlloc=42996 minFree=43232",
-    "[shell] switch 5->10 suspend=0ms wipe=28ms init=35ms taskbar=12ms total=75ms",
+    "[shell] leaving 5  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] entered 10  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] switch 5->10 suspend=1ms wipe=27ms init=34ms taskbar=11ms total=73ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -1392,7 +1383,7 @@
    "cmd": "get appId",
    "nth": 14,
    "lines": [
-    "[W][perf] iter=90ms (worst path so far: shell.switch:105ms)",
+    "[W][perf] iter=86ms (worst path so far: shell.switch:102ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":10,\"name\":\"Settings\",\"last\":true}"
    ]
   },
@@ -1469,7 +1460,7 @@
    "cmd": "get shellCooldown",
    "nth": 66,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":156,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":155,\"last\":true}"
    ]
   },
   {
@@ -1490,11 +1481,11 @@
    "cmd": "tap 297 20",
    "nth": 2,
    "lines": [
-    "[shell] leaving 10  heap=68616 maxAlloc=42996 minFree=43232",
+    "[shell] leaving 10  heap=105132 maxAlloc=42996 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=68616 maxAlloc=42996 minFree=43232",
-    "[shell] switch 10->0 suspend=0ms wipe=28ms init=43ms taskbar=13ms total=84ms",
+    "[shell] entered 0  heap=105132 maxAlloc=42996 minFree=42780",
+    "[shell] switch 10->0 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -1502,7 +1493,7 @@
    "cmd": "get appId",
    "nth": 16,
    "lines": [
-    "[W][perf] iter=122ms (worst path so far: shell.switch:105ms)",
+    "[W][perf] iter=115ms (worst path so far: shell.switch:102ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

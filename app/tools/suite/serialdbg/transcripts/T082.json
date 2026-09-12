@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T082",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:00:49Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:35:15Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -20,7 +20,6 @@
    "lines": [
     "[D][serial] inject sample 1/61 sx=107 sy=63",
     "[D][chrome] drawVolume pct=0 keyframe=0",
-    "[W][spotify.task] queue full \u2014 dropped action=VOLUME param=0",
     "[D][touch] enqueued ACT_VOLUME pct=0",
     "[D][serial] inject sample 2/61 sx=108 sy=63",
     "[D][chrome] drawVolume pct=1 keyframe=0",
@@ -100,10 +99,9 @@
     "[D][chrome] drawVolume pct=62 keyframe=3",
     "[D][serial] inject sample 40/61 sx=150 sy=63",
     "[D][chrome] drawVolume pct=64 keyframe=3",
+    "[D][touch] enqueued ACT_VOLUME pct=64",
     "[D][serial] inject sample 41/61 sx=151 sy=63",
     "[D][chrome] drawVolume pct=65 keyframe=3",
-    "[W][spotify.task] queue full \u2014 dropped action=VOLUME param=65",
-    "[D][touch] enqueued ACT_VOLUME pct=65",
     "[D][serial] inject sample 42/61 sx=152 sy=63",
     "[D][chrome] drawVolume pct=67 keyframe=3",
     "[D][serial] inject sample 43/61 sx=153 sy=63",
@@ -144,7 +142,6 @@
     "[D][chrome] drawVolume pct=97 keyframe=4",
     "[D][serial] inject sample 61/61 sx=174 sy=63",
     "[D][chrome] drawVolume pct=100 keyframe=4",
-    "[W][spotify.task] queue full \u2014 dropped action=VOLUME param=100",
     "[D][chrome] drag-end commit pct=100",
     "{\"ok\":true,\"cmd\":\"drag\",\"x1\":107,\"y1\":63,\"x2\":174,\"y2\":63,\"steps\":60}"
    ]

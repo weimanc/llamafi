@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_07",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:57:00Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:31:45Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -35,7 +35,14 @@
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[I][touch] logo tap \u2192 TLS reset + force poll",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":259,\"y\":100,\"hit\":\"LOGO\",\"action\":\"TLS_RESET\",\"skipped\":false}",
-    "[W][perf] iter=54ms (worst path so far: shell.switch:174ms)"
+    "[W][perf] iter=85ms (worst path so far: shell.switch:88ms)",
+    "[905677][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client"
    ]
   }
  ]

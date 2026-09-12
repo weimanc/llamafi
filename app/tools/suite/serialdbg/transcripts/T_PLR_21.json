@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_21",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:59:39Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:34:14Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -60,10 +60,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=93840 maxAlloc=42996 minFree=43184",
-    "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] entered 1  heap=101888 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=37ms wipe=26ms init=46ms taskbar=12ms total=121ms",
+    "[shell] leaving 12  heap=49712 maxAlloc=40948 minFree=42976",
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=3188 freeInt=53792). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "[shell] entered 1  heap=50048 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=14ms wipe=29ms init=39ms taskbar=15ms total=97ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -71,10 +71,10 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=137ms (worst path so far: shell.switch:146ms)",
-    "[D][spotify.task] dequeued action=FORCE_POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=111ms (worst path so far: shell.switch:151ms)",
+    "[I][hb] display=winamp wifi=rssi(-60) disc=0 heap=49k maxAlloc=39k stack_hwm=11660b uptime=00:17:32 poll=0/57 last=-1 block_max=[1052371][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "4688ms loop_max=236ms slow=shell.switch:151ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=1361 build=Sep 11 2026-14",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -117,10 +117,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=100852 maxAlloc=42996 minFree=43184",
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 15ms (total 4903s)",
-    "[shell] entered 12  heap=51720 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=1ms wipe=39ms init=19ms taskbar=21ms total=80ms",
+    "[shell] leaving 1  heap=101400 maxAlloc=40948 minFree=42976",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
+    "[shell] entered 12  heap=93340 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=1ms wipe=27ms init=16ms taskbar=11ms total=55ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -128,13 +128,8 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[1676563][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1676577][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1676593][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=191ms (worst path so far: shell.switch:146ms)",
+    "[W][perf] iter=136ms (worst path so far: app.tick:68ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -142,7 +137,7 @@
    "cmd": "set plLoad /playlists/gate20.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 30ms (total 4903s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate20.m3u\"}"
    ]
   },
@@ -151,8 +146,8 @@
    "nth": 0,
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=69ms (worst path so far: shell.switch:146ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":14,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":36852,\"last\":true}"
+    "[W][perf] iter=120ms (worst path so far: app.tick:72ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":30,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":4084,\"last\":true}"
    ]
   },
   {
@@ -222,14 +217,6 @@
    "cmd": "get shufRep",
    "nth": 3,
    "lines": [
-    "[1677335][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1677356][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1677370][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] GET connect api.spotify.com:443 failed errno=11 (No more processes)",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: rc=-9984 (-0x2700) X509_CERT_VERIFY_FAILED errstr='X509 - Certificate verification failed, e.g. CRL, CA or signature check failed'",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":2,\"last\":true}"
    ]
   },
@@ -245,6 +232,7 @@
    "nth": 0,
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=159ms (worst path so far: app.tick:154ms)",
     "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":false,\"row\":0,\"reshuffled\":false}"
    ]
   },
@@ -393,6 +381,8 @@
    "cmd": "get shufRep",
    "nth": 10,
    "lines": [
+    "[1054578][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":2,\"last\":true}"
    ]
   },
@@ -407,7 +397,14 @@
    "cmd": "advance next",
    "nth": 2,
    "lines": [
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
     "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=54ms (worst path so far: app.tick:154ms)",
     "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":false,\"row\":0,\"reshuffled\":false}"
    ]
   },
@@ -458,13 +455,15 @@
    "nth": 3,
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":1,\"reshuffled\":true}"
+    "[W][perf] iter=66ms (worst path so far: app.tick:154ms)",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":10,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "set bgPoll 1",
    "nth": 0,
    "lines": [
+    "[1055133][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   }

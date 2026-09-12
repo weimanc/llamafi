@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-BUSY-03",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:11:08Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:43:10Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -32,9 +32,9 @@
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=68380 maxAlloc=42996 minFree=43312",
-    "[shell] entered 1  heap=68380 maxAlloc=42996 minFree=43312",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=39ms taskbar=13ms total=80ms",
+    "[shell] leaving 0  heap=59864 maxAlloc=40948 minFree=42780",
+    "[shell] entered 1  heap=59668 maxAlloc=40948 minFree=42780",
+    "[shell] switch 0->1 suspend=2ms wipe=54ms init=128ms taskbar=24ms total=208ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -42,7 +42,7 @@
    "cmd": "get shellCooldown",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=84ms (worst path so far: shell.switch:80ms)",
+    "[W][perf] iter=213ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -57,7 +57,7 @@
    "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=131ms (worst path so far: shell.switch:80ms)",
+    "[W][perf] iter=67ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -72,6 +72,7 @@
    "cmd": "get shellBusy",
    "nth": 2,
    "lines": [
+    "[521460][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -79,6 +80,7 @@
    "cmd": "get bgPoll",
    "nth": 1,
    "lines": [
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
    ]
   },
@@ -93,10 +95,10 @@
    "cmd": "switchApp 4",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=60692 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 1  heap=105292 maxAlloc=42996 minFree=42780",
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] entered 4  heap=61312 maxAlloc=42996 minFree=43312",
-    "[shell] switch 1->4 suspend=84ms wipe=53ms init=54ms taskbar=25ms total=216ms",
+    "[shell] entered 4  heap=105332 maxAlloc=42996 minFree=42780",
+    "[shell] switch 1->4 suspend=35ms wipe=27ms init=26ms taskbar=12ms total=100ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":4}"
    ]
   },
@@ -104,9 +106,7 @@
    "cmd": "get shellCooldown",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=226ms (worst path so far: shell.switch:216ms)",
-    "[674468][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
+    "[W][perf] iter=105ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -156,9 +156,9 @@
    "cmd": "switchApp 5",
    "nth": 0,
    "lines": [
-    "[shell] leaving 4  heap=106712 maxAlloc=42996 minFree=43312",
-    "[shell] entered 5  heap=106712 maxAlloc=42996 minFree=43312",
-    "[shell] switch 4->5 suspend=0ms wipe=27ms init=64ms taskbar=11ms total=102ms",
+    "[shell] leaving 4  heap=59488 maxAlloc=40948 minFree=42780",
+    "[shell] entered 5  heap=60104 maxAlloc=40948 minFree=42780",
+    "[shell] switch 4->5 suspend=2ms wipe=54ms init=126ms taskbar=24ms total=206ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":5}"
    ]
   },
@@ -166,7 +166,7 @@
    "cmd": "get shellCooldown",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=120ms (worst path so far: shell.switch:216ms)",
+    "[W][perf] iter=239ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -216,10 +216,10 @@
    "cmd": "switchApp 7",
    "nth": 0,
    "lines": [
-    "[shell] leaving 5  heap=68380 maxAlloc=42996 minFree=43312",
-    "[aquarium] init sprite 275x40 8bpp: FAILED  heap=68380 maxAlloc=42996",
-    "[shell] entered 7  heap=68380 maxAlloc=42996 minFree=43312",
-    "[shell] switch 5->7 suspend=1ms wipe=27ms init=1ms taskbar=13ms total=42ms",
+    "[shell] leaving 5  heap=53072 maxAlloc=40948 minFree=42780",
+    "[aquarium] init sprite 275x40 8bpp: FAILED  heap=54612 maxAlloc=40948",
+    "[shell] entered 7  heap=53048 maxAlloc=40948 minFree=42780",
+    "[shell] switch 5->7 suspend=1ms wipe=29ms init=2ms taskbar=14ms total=46ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":7}"
    ]
   },
@@ -227,9 +227,18 @@
    "cmd": "get shellCooldown",
    "nth": 3,
    "lines": [
-    "[aquarium] retry failed  heap=68380 maxAlloc=42996",
-    "[W][perf] iter=89ms (worst path so far: shell.switch:216ms)",
-    "[aquarium] retry failed  heap=68380 maxAlloc=42996",
+    "[aquarium] retry failed  heap=56164 maxAlloc=40948",
+    "[W][perf] iter=86ms (worst path so far: shell.switch:208ms)",
+    "[523394][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[aquarium] retry succeeded  heap=94312",
+    "[W][perf] iter=53ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -237,6 +246,8 @@
    "cmd": "tap 137 120",
    "nth": 3,
    "lines": [
+    "[523883][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():272]: (-32512) SSL - Memory allocation failed",
+    "[W][perf] iter=70ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":120,\"hit\":\"CLOCK\",\"action\":\"NONE\",\"skipped\":false}"
    ]
   },
@@ -244,6 +255,10 @@
    "cmd": "get shellBusy",
    "nth": 7,
    "lines": [
+    "[523906][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -32512",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=119 (Connection already in progress)",
+    "[lib] parseError: no content-length",
+    "[W][perf] iter=64ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -251,6 +266,7 @@
    "cmd": "set bgPoll 1",
    "nth": 3,
    "lines": [
+    "[W][perf] iter=52ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   },
@@ -258,6 +274,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
+    "[W][perf] iter=52ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":7,\"name\":\"Aquarium\",\"last\":true}"
    ]
   },
@@ -265,6 +282,7 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
+    "[W][perf] iter=51ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
   },
@@ -272,6 +290,7 @@
    "cmd": "get tbScrollOffset",
    "nth": 0,
    "lines": [
+    "[W][perf] iter=53ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -279,6 +298,7 @@
    "cmd": "get tbScrollOffset",
    "nth": 1,
    "lines": [
+    "[W][perf] iter=51ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -286,6 +306,7 @@
    "cmd": "set cooldown 0",
    "nth": 0,
    "lines": [
+    "[W][perf] iter=54ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -293,6 +314,14 @@
    "cmd": "get shellCooldown",
    "nth": 4,
    "lines": [
+    "[524417][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():272]: (-32512) SSL - Memory allocation failed",
+    "[524427][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -32512",
+    "[lib] GET connect api.spotify.com:443 failed errno=119 (Connection already in progress)",
+    "[D][spotify.queue] status=-1 elapsed=824ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=74ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -300,11 +329,12 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 7  heap=68380 maxAlloc=42996 minFree=43312",
+    "[W][perf] iter=64ms (worst path so far: shell.switch:208ms)",
+    "[shell] leaving 7  heap=93632 maxAlloc=40948 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=68380 maxAlloc=42996 minFree=43312",
-    "[shell] switch 7->0 suspend=0ms wipe=28ms init=40ms taskbar=13ms total=81ms",
+    "[shell] entered 0  heap=104652 maxAlloc=42996 minFree=42780",
+    "[shell] switch 7->0 suspend=0ms wipe=27ms init=40ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -312,7 +342,13 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=121ms (worst path so far: shell.switch:216ms)",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=162ms (worst path so far: shell.switch:208ms)",
+    "[524756][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[524769][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[524783][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

@@ -44,10 +44,14 @@ is stale or unhealthy for it — and are printed with a re-record instruction, n
 | `T091` | RED-WITHOUT-ASSERTION | as `T084`, red only via contract/accident | TASK-595 | 2026-09-09 |
 | `T077` | RED-WITHOUT-ASSERTION | red only through a crash arm (accident 7): raw `cmd()` reads, no `fail()` reached under any poison | TASK-676 | 2026-09-09 |
 | `T_CX_05` | RED-WITHOUT-ASSERTION | accident-only (40): the body breaks on a bad reply, never asserts on it | TASK-676 | 2026-09-09 |
-| `T_CX_07` | RED-WITHOUT-ASSERTION | contract 1182 / accident 411 over 3201 replays, zero assertions | TASK-676 | 2026-09-09 |
 | `T_WR_HEAP_01` | RED-WITHOUT-ASSERTION | accident-only (52) | TASK-676 | 2026-09-09 |
 | `T_WR_HEAP_02` | RED-WITHOUT-ASSERTION | accident-only (49) | TASK-676 | 2026-09-09 |
 | `T_WX_05` | RED-WITHOUT-ASSERTION | accident-only (60) | TASK-676 | 2026-09-09 |
+| `T170` | RED-WITHOUT-ASSERTION | newly VISIBLE 2026-09-12: TASK-575's run refreshed 194 transcripts, and a healthy recording sweeps where a `BASELINE-NOT-PASS` one was skipped. Not a new defect — newly measurable | TASK-688 | 2026-09-12 |
+| `T176` | RED-WITHOUT-ASSERTION | as `T170` — exposed by the 2026-09-12 transcript refresh, not introduced by it | TASK-688 | 2026-09-12 |
+| `T188` | RED-WITHOUT-ASSERTION | as `T170` | TASK-688 | 2026-09-12 |
+| `T204` | RED-WITHOUT-ASSERTION | as `T170`; `T204`'s 120 s Ytd stall is separately TASK-668 | TASK-688 | 2026-09-12 |
+| `T_CLK_SIG_01` | RED-WITHOUT-ASSERTION | as `T170`; 41 replays over 5 exchanges, zero assertions on its subject. TASK-638 landed the id; the oracle is what is missing | TASK-688 | 2026-09-12 |
 
 **9 rows** (first recording, 2026-09-09).
 

@@ -1,17 +1,17 @@
 {
  "schema": 1,
  "id": "T_PLR_16",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:58:02Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:33:10Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "set bgPoll 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=358ms (worst path so far: app.tick:354ms)",
+    "[W][perf] iter=353ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
    ]
   },
@@ -19,7 +19,7 @@
    "cmd": "set playerMode player",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=362ms (worst path so far: app.tick:359ms)",
+    "[W][perf] iter=354ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
    ]
   },
@@ -27,7 +27,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=363ms (worst path so far: app.tick:359ms)",
+    "[W][perf] iter=357ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -35,7 +35,7 @@
    "cmd": "get tbScrollOffset",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=366ms (worst path so far: app.tick:364ms)",
+    "[W][perf] iter=358ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -43,7 +43,7 @@
    "cmd": "get tbScrollOffset",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=368ms (worst path so far: app.tick:365ms)",
+    "[W][perf] iter=362ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -51,7 +51,7 @@
    "cmd": "set cooldown 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=373ms (worst path so far: app.tick:370ms)",
+    "[W][perf] iter=365ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -59,7 +59,7 @@
    "cmd": "get shellCooldown",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=373ms (worst path so far: app.tick:370ms)",
+    "[W][perf] iter=368ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -67,10 +67,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=377ms (worst path so far: app.tick:375ms)",
-    "[shell] leaving 12  heap=98124 maxAlloc=42996 minFree=43184",
-    "[shell] entered 1  heap=102564 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=1ms wipe=27ms init=45ms taskbar=12ms total=85ms",
+    "[W][perf] iter=370ms (worst path so far: app.tick:426ms)",
+    "[shell] leaving 12  heap=97004 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=101440 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -78,7 +78,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=100ms (worst path so far: app.tick:375ms)",
+    "[W][perf] iter=91ms (worst path so far: app.tick:426ms)",
     "[D][spotify.task] dequeued action=FORCE_POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
@@ -117,6 +117,7 @@
    "cmd": "get shellCooldown",
    "nth": 1,
    "lines": [
+    "[984085][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -124,10 +125,14 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=64228 maxAlloc=42996 minFree=43184",
-    "[I][m3u] loaded /probe200/anchor.m3u: 2 entries in 109ms (total 533s)",
-    "[shell] entered 12  heap=56176 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=1ms wipe=27ms init=111ms taskbar=13ms total=152ms",
+    "[984106][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[shell] leaving 1  heap=60976 maxAlloc=40948 minFree=42976",
+    "[984127][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[I][m3u] loaded /probe200/anchor.m3u: 2 entries in 108ms (total 533s)",
+    "[shell] entered 12  heap=91024 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=12ms wipe=34ms init=109ms taskbar=12ms total=167ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -136,7 +141,7 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=233ms (worst path so far: app.tick:375ms)",
+    "[W][perf] iter=242ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -145,137 +150,16 @@
    "nth": 0,
    "lines": [
     "[I][filebrowser] browsing /probefb/empty/",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probefb/empty\",\"reason\":\"none\",\"free8\":12340,\"largest8\":9716}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 0,
-   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probefb/empty\",\"reason\":\"none\",\"free8\":3312,\"large[984801][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-17040) RSA - The public key operation failed : BIGNUM - Memory allocation failed",
+    "st8\":1588}",
+    "[984825][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -17040",
+    "[lib] GET connect api.spotify.com:443 failed errno=11 (No more processes)",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: rc=-17040 (0xBD70) ? errstr='RSA - The public key operation failed : BIGNUM - Memory allocation failed'",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
     "[I][filebrowser] /probefb/empty/: 0 dirs, 0 files",
-    "[W][perf] iter=91ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/probefb/empty/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":13100,\"largest8\":9716,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set fbOpen /probefb/nested",
-   "nth": 0,
-   "lines": [
-    "[I][filebrowser] browsing /probefb/nested/",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probefb/nested\",\"reason\":\"none\",\"free8\":12340,\"largest8\":9716}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 1,
-   "lines": [
-    "[I][filebrowser] /probefb/nested/: 1 dirs, 0 files",
-    "[W][perf] iter=110ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/probefb/nested/\",\"dirCount\":1,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":2468,\"largest8\":1844,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set fbOpen /probefb/nested",
-   "nth": 1,
-   "lines": [
-    "[1580751][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1580766][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1580781][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "[I][filebrowser] browsing /probefb/nested/",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probefb/nested\",\"reason\":\"none\",\"free8\":50676,\"largest8\":34804}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 2,
-   "lines": [
-    "[I][filebrowser] /probefb/nested/: 1 dirs, 0 files",
-    "[W][perf] iter=115ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/probefb/nested/\",\"dirCount\":1,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":51436,\"largest8\":34804,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set fbSelect 0",
-   "nth": 0,
-   "lines": [
-    "[I][filebrowser] browsing /probefb/nested/deep/",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbSelect\",\"idx\":0}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 3,
-   "lines": [
-    "[I][filebrowser] /probefb/nested/deep/: 0 dirs, 1 files",
-    "[W][perf] iter=90ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/probefb/nested/deep/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":51436,\"largest8\":34804,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set fbOpen /probefb/edge",
-   "nth": 0,
-   "lines": [
-    "[I][filebrowser] browsing /probefb/edge/",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probefb/edge\",\"reason\":\"none\",\"free8\":50676,\"largest8\":34804}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 4,
-   "lines": [
-    "[W][perf] iter=124ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probefb/edge/\",\"dirCount\":0,\"fileCount\":3,\"lastErr\":\"none\",\"free8\":50676,\"largest8\":34804,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 5,
-   "lines": [
-    "[I][filebrowser] /probefb/edge/: 0 dirs, 3 files",
-    "[W][perf] iter=53ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/probefb/edge/\",\"dirCount\":0,\"fileCount\":3,\"lastErr\":\"none\",\"free8\":50620,\"largest8\":34804,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set fbOpen /",
-   "nth": 0,
-   "lines": [
-    "[I][filebrowser] browsing /",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/\",\"reason\":\"none\",\"free8\":12356,\"largest8\":7668}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 6,
-   "lines": [
-    "[W][perf] iter=78ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/\",\"dirCount\":4,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9960,\"largest8\":5364,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 7,
-   "lines": [
-    "[W][perf] iter=56ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/\",\"dirCount\":8,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9960,\"largest8\":5364,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 8,
-   "lines": [
-    "[I][filebrowser] /: 10 dirs, 0 files",
-    "[W][perf] iter=64ms (worst path so far: app.tick:375ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/\",\"dirCount\":10,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":10708,\"largest8\":5364,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set bgPoll 1",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+    "[W][perf] iter=152ms (worst path so far: app.tick:426ms)"
    ]
   }
  ]

@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WR_HEAP_03",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:54:43Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:30:08Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -32,8 +32,7 @@
    "cmd": "get heap",
    "nth": 0,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=102k maxAlloc=41k stack_hwm=11708b uptime=00:23:02 poll=0/21 last=-1 block_max=22338ms loop_max=250ms slow=app.tick:138ms last_poll_age_ms=0 next_poll_in_ms=33807 last_render_age_ms=5729 build=Sep  9 2026-",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":105216,\"lfbInt\":42996,\"freeDma\":62140,\"lfbDma\":42996,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":104944,\"lfbInt\":40948,\"freeDma\":62572,\"lfbDma\":34804,\"last\":true}"
    ]
   },
   {
@@ -47,7 +46,7 @@
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1383094,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1373000,\"wrPhase\":2,\"wrPhaseMs\":1376443,\"wrEnqueues\":5,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":1382955,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":808558,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":798490,\"wrPhase\":2,\"wrPhaseMs\":801905,\"wrEnqueues\":6,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":808416,\"last\":true}"
    ]
   },
   {

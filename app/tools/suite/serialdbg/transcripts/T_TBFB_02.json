@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_TBFB_02",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:15:27Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:46:47Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -80,21 +80,21 @@
    "cmd": "get shellCooldown",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":244,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":247,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":132,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":133,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":18,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":21,\"last\":true}"
    ]
   },
   {

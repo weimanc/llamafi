@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-BUSY-01b",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:11:00Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:43:02Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=68148 maxAlloc=42996 minFree=43312",
-    "[shell] entered 6  heap=68148 maxAlloc=42996 minFree=43312",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=35ms taskbar=13ms total=76ms",
+    "[shell] leaving 0  heap=59488 maxAlloc=40948 minFree=42780",
+    "[shell] entered 6  heap=59868 maxAlloc=40948 minFree=42780",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=70ms taskbar=24ms total=150ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=80ms (worst path so far: shell.switch:82ms)",
+    "[W][perf] iter=157ms (worst path so far: shell.switch:186ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -71,7 +71,7 @@
    "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=89ms (worst path so far: shell.switch:82ms)",
+    "[W][perf] iter=175ms (worst path so far: shell.switch:186ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -107,6 +107,8 @@
    "cmd": "get fetchOkCount",
    "nth": 1,
    "lines": [
+    "[503325][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
    ]
   },
@@ -121,6 +123,14 @@
    "cmd": "get fetchOkCount",
    "nth": 3,
    "lines": [
+    "[505058][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=4 next=60000ms",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
    ]
   },
@@ -128,7 +138,7 @@
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":602814,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":505506,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":503082,\"wrPhase\":2,\"wrPhaseMs\":108310,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":505281,\"last\":true}"
    ]
   },
   {
@@ -142,6 +152,10 @@
    "cmd": "get fetchOkCount",
    "nth": 5,
    "lines": [
+    "[D][dataTask.stock] spark GET 200 elapsed=1858ms",
+    "[D][dataTask.stock] spark ok aapl=332.27 msft=516.13",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
+    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=61k maxBlk=41k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
    ]
   },
@@ -156,369 +170,33 @@
    "cmd": "get dataq",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":605878,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":508579,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":507180,\"wrPhase\":2,\"wrPhaseMs\":108310,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":505281,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
    "nth": 7,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":608941,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 10,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-63) disc=3 heap=64k maxAlloc=41k stack_hwm=11708b uptime=00:10:09 poll=0/17 last=-1 block_max=30316ms loop_max=109ms slow=shell.switch:82ms last_poll_age_ms=0 next_poll_in_ms=36720 last_render_age_ms=10701 build=Sep  9 20",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":612006,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":615070,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":618133,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":621197,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 24,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":624260,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 25,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 26,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 27,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":627322,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 28,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 29,
-   "lines": [
-    "[628817][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -1",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 30,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":630388,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 31,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 32,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 33,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":633451,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 34,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 35,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 36,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":636514,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":598499,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 37,
-   "lines": [
-    "[637302][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 38,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 39,
-   "lines": [
-    "[638838][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=5 next=60000ms",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.stock] heap free=62k maxBlk=39k",
-    "[I][hb] display=winamp wifi=rssi(-62) disc=3 heap=48k maxAlloc=41k stack_hwm=11708b uptime=00:10:39 poll=0/18 last=-1 block_max=40540ms loop_max=24ms slow=app.tick:2ms last_poll_age_ms=0 next_poll_in_ms=59644 last_render_age_ms=40701 build=Sep  9 2026-11:",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":639582,\"queueWaiting\":1,\"pendingMask\":4,\"inFlight\":2,\"inFlightMs\":600401,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":639061,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 40,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 41,
-   "lines": [
-    "[D][dataTask.stock] spark GET 200 elapsed=1724ms",
-    "[D][dataTask.stock] spark ok aapl=316.22 msft=505.74",
-    "[D][dataTask.stock] heap free=61k maxBlk=39k",
-    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=62k maxBlk=39k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 42,
-   "lines": [
-    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=1709ms",
-    "[D][dataTask.stock] chart pre-json heap free=8k maxBlk=3k",
-    "[D][dataTask.stock] chart post-json heap free=59k maxBlk=39k err=Ok",
-    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=315.18 hi=317.52",
-    "[D][dataTask.stock] heap free=61k maxBlk=39k",
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=1839ms",
+    "[D][dataTask.stock] chart pre-json heap free=10k maxBlk=4k",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=41k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=331.70 hi=335.62",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
     "[I][spotify.tls] tls yield \u2014 resumed",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
+    "[509450][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[509463][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[509478][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
-   "nth": 43,
+   "nth": 8,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
    ]
@@ -546,275 +224,89 @@
   },
   {
    "cmd": "get fetchOkCount",
-   "nth": 44,
+   "nth": 9,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
-   "nth": 45,
+   "nth": 10,
    "lines": [
-    "[642938][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[642951][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[642966][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
-   "nth": 46,
+   "nth": 11,
    "lines": [
-    "[644531][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[511176][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":511813,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":509746,\"wrPhase\":2,\"wrPhaseMs\":108310,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":509148,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
+   "nth": 12,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-60) disc=0 heap=58k maxAlloc=39k stack_hwm=11660b uptime=00:08:31 poll=0/25 last=-1 block_max=4210ms loop_max=227ms slow=shell.switch:186ms last_poll_age_ms=0 next_poll_in_ms=53359 last_render_age_ms=10664 build=Sep 11 20",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get fetchOkCount",
    "nth": 13,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":644849,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":642632,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 47,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 48,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 49,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":647915,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":642632,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 50,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 51,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 52,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":650978,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":642632,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 53,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 54,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 55,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":654041,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":642632,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 56,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 57,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 58,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":657105,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":642632,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 59,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 60,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 61,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":660168,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":642632,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 62,
-   "lines": [
+    "[512929][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
     "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
     "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=6 next=60000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 63,
-   "lines": [
-    "[661499][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[661512][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[661527][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 64,
-   "lines": [
-    "[663137][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get dataq",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":663236,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":642632,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 65,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 66,
-   "lines": [
-    "[664687][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=3806ms",
+    "[D][spotify.poll] backoff: consecutive=5 next=60000ms",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.stock] chart START sym=AAPL range=5d heap free=62k maxBlk=39k",
+    "[D][dataTask.stock] chart START sym=AAPL range=5d heap free=61k maxBlk=41k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
-   "nth": 67,
+   "nth": 14,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get dataq",
-   "nth": 20,
+   "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":666307,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":642786,\"wrPhase\":2,\"wrPhaseMs\":29623,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":664899,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":514884,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":3,\"inFlightMs\":509746,\"wrPhase\":2,\"wrPhaseMs\":108310,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":513151,\"last\":true}"
    ]
   },
   {
    "cmd": "get fetchOkCount",
-   "nth": 68,
+   "nth": 15,
    "lines": [
-    "[D][dataTask.stock] chart GET sym=AAPL range=5d 200 elapsed=2185ms",
-    "[D][dataTask.stock] chart pre-json heap free=13k maxBlk=7k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fetchOkCount",
-   "nth": 69,
-   "lines": [
-    "[D][dataTask.stock] chart post-json heap free=59k maxBlk=39k err=Ok",
-    "[D][dataTask.stock] chart ok sym=AAPL len=36 lo=315.67 hi=330.07",
-    "[D][dataTask.stock] heap free=61k maxBlk=39k",
+    "[D][dataTask.stock] chart GET sym=AAPL range=5d 200 elapsed=1868ms",
+    "[D][dataTask.stock] chart pre-json heap free=12k maxBlk=5k",
+    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=41k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=36 lo=311.70 hi=335.57",
+    "[D][dataTask.stock] heap free=61k maxBlk=41k",
     "[I][spotify.tls] tls yield \u2014 resumed",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
+    "[515412][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[515425][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[515440][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fetchOkCount\",\"val\":3,\"last\":true}"
    ]
   },
@@ -829,11 +321,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=105904 maxAlloc=42996 minFree=43312",
+    "[shell] leaving 6  heap=65408 maxAlloc=40948 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=68372 maxAlloc=42996 minFree=43312",
-    "[shell] switch 6->0 suspend=1ms wipe=39ms init=43ms taskbar=13ms total=96ms",
+    "[shell] entered 0  heap=59148 maxAlloc=40948 minFree=42780",
+    "[shell] switch 6->0 suspend=1ms wipe=28ms init=66ms taskbar=24ms total=119ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -841,12 +333,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=124ms (worst path so far: shell.switch:96ms)",
-    "[668649][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[668662][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[668677][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[W][perf] iter=171ms (worst path so far: shell.switch:119ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

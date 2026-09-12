@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_BI_01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:06:09Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:40:32Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -18,18 +18,8 @@
    "cmd": "get queue",
    "nth": 1,
    "lines": [
-    "[347944][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=3770ms",
-    "[D][spotify.task] dequeued action=FORCE_POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
-    "[348456][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[348470][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[348484][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[337475][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -37,17 +27,17 @@
    "cmd": "get queue",
    "nth": 2,
    "lines": [
-    "[350044][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[351604][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[D][spotify.task] dequeued action=SEEK param=89032",
-    "[D][spotify.task] seek 89032 ms",
+    "[339218][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/volume?volume_percent=4 failed after retry",
+    "[D][spotify.task] dequeued action=VOLUME param=89",
+    "[D][spotify.task] setVolume 89%",
     "Refresh of the Access token is due, doing that now.",
+    "[339781][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[339794][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[339808][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -55,12 +45,7 @@
    "cmd": "get queue",
    "nth": 3,
    "lines": [
-    "[352119][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[352132][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[352147][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "[353711][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[341535][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
@@ -69,15 +54,15 @@
    "cmd": "get queue",
    "nth": 4,
    "lines": [
-    "[355284][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[343266][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] PUT  header write fail, retrying",
-    "[lib] PUT /v1/me/player/seek?position_ms=89032 failed after retry",
-    "[D][spotify.task] dequeued action=SEEK param=89032",
-    "[D][spotify.task] seek 89032 ms",
+    "[lib] PUT /v1/me/player/volume?volume_percent=89 failed after retry",
+    "[D][spotify.task] dequeued action=SEEK param=39677",
+    "[D][spotify.task] seek 39677 ms",
     "Refresh of the Access token is due, doing that now.",
-    "[355805][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[355818][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[355832][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[343824][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[343838][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[343852][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
     "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
@@ -87,6 +72,8 @@
    "cmd": "get queue",
    "nth": 5,
    "lines": [
+    "[345596][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -94,6 +81,9 @@
    "cmd": "get queue",
    "nth": 6,
    "lines": [
+    "[347337][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/seek?position_ms=39677 failed after retry",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -108,6 +98,8 @@
    "cmd": "get queue",
    "nth": 8,
    "lines": [
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -115,6 +107,13 @@
    "cmd": "get queue",
    "nth": 9,
    "lines": [
+    "[352882][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[352896][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[352910][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[354668][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -122,6 +121,12 @@
    "cmd": "get queue",
    "nth": 10,
    "lines": [
+    "[356401][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -129,7 +134,6 @@
    "cmd": "get queue",
    "nth": 11,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-63) disc=3 heap=48k maxAlloc=41k stack_hwm=11708b uptime=00:06:09 poll=0/13 last=-1 block_max=29742ms loop_max=92ms slow=app.tick:84ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=22083 build=Sep  9 2026-11:19:",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -144,13 +148,7 @@
    "cmd": "get queue",
    "nth": 13,
    "lines": [
-    "[lib] PUT  header write fail, retrying",
-    "[373763][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] PUT  header write fail, retrying",
-    "[lib] PUT /v1/me/player/seek?position_ms=89032 failed after retry",
-    "[D][spotify.task] dequeued action=VOLUME param=4",
-    "[D][spotify.task] setVolume 4%",
-    "Refresh of the Access token is due, doing that now.",
+    "[I][hb] display=winamp wifi=rssi(-59) disc=0 heap=103k maxAlloc=41k stack_hwm=11660b uptime=00:06:01 poll=0/19 last=-1 block_max=4062ms loop_max=43ms slow=app.tick:39ms last_poll_age_ms=0 next_poll_in_ms=4776 last_render_age_ms=25745 build=Sep 11 2026-14:",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   },
@@ -158,13 +156,6 @@
    "cmd": "get queue",
    "nth": 14,
    "lines": [
-    "[374284][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[374297][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[374311][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "[375872][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"queue\",\"count\":0,\"last\":true}"
    ]
   }

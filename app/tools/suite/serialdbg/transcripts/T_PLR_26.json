@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_26",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:00:03Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:34:29Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -60,9 +60,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=50160 maxAlloc=42996 minFree=43184",
-    "[shell] entered 1  heap=51116 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=1ms wipe=29ms init=46ms taskbar=13ms total=89ms",
+    "[shell] leaving 12  heap=93336 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=101396 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=2ms wipe=27ms init=38ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -70,7 +70,10 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=103ms (worst path so far: shell.switch:89ms)",
+    "[W][perf] iter=90ms (worst path so far: shell.switch:159ms)",
+    "[D][spotify.task] dequeued action=PAUSE param=0",
+    "[D][spotify.task] pause",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -113,10 +116,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=51116 maxAlloc=42996 minFree=43184",
-    "[W][m3u] index alloc FAILED (3616 B) \u2014 free=49500",
-    "[shell] entered 12  heap=51116 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=1ms wipe=27ms init=2ms taskbar=12ms total=42ms",
+    "[shell] leaving 1  heap=100564 maxAlloc=40948 minFree=42976",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 18ms (total 4903s)",
+    "[shell] entered 12  heap=51184 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=1ms wipe=38ms init=21ms taskbar=22ms total=82ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -124,8 +127,13 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
+    "[1064512][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[1064526][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[1064542][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=94ms (worst path so far: shell.switch:89ms)",
+    "[W][perf] iter=158ms (worst path so far: shell.switch:159ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -189,9 +197,9 @@
    "cmd": "tap 297 60",
    "nth": 1,
    "lines": [
-    "[shell] leaving 12  heap=51116 maxAlloc=42996 minFree=43184",
-    "[shell] entered 1  heap=51116 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=1ms wipe=27ms init=46ms taskbar=13ms total=87ms",
+    "[shell] leaving 12  heap=92852 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=62100 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=6ms wipe=33ms init=41ms taskbar=25ms total=105ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -199,7 +207,7 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=101ms (worst path so far: shell.switch:89ms)",
+    "[W][perf] iter=122ms (worst path so far: shell.switch:159ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -208,10 +216,8 @@
    "nth": 0,
    "lines": [
     "{\"ok\":true,\"cmd\":\"reboot\"}",
-    "[wifi-ev] t=1690367 ev=5 STA_DISCONNECTED reason=8",
-    "[wifi-ev] t=1690371 ev=3 STA_STOP",
-    "[1690373][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-78) UNKNOWN ERROR CODE (004E)",
-    "[lib] PUT  header write fail, retrying",
+    "[wifi-ev] t=1065617 ev=5 STA_DISCONNECTED reason=8",
+    "[wifi-ev] t=1065621 ev=3 STA_STOP",
     "ets Jul 29 2019 12:21:46",
     "rst:0xc (SW_CPU_RESET),boot:0x13 (SPI_FAST_FLASH_BOOT)",
     "configsip: 0, SPIWP:0xee",
@@ -223,14 +229,13 @@
     "entry 0x400805e4",
     "[bootphase] 0 reset",
     "[bootreason] 3 SW",
-    "[bod] armed thres=7 regBefore=0x43ffc000 regAfter=0x7bffc000 ena=1 rstEna=0 intEnaBefore=1 intEna=0",
-    "{\"probe\":\"sdmount\",\"tag\":\"boot\",\"maxFiles\":3,\"mounted\":true,\"elapsedMs\":7,\"heapDeltaB\":19436,\"freeIntBefore\":211716,\"freeIntAfter\":192280,\"lfbIntBefore\":110580,\"lfbIntAfter\":110580,\"lfb8Before\":110580,\"lfb8After\":110580}",
-    "[membudget] boot-baseline freeInt=192280 lfbInt=110580 freeDma=149204 lfbDma=110580",
-    "[boot] git=5f5fa62+ elf=66d214c7 build=Sep  9 2026 11:19:00",
+    "[bod] armed thres=7 regBefore=0x43ffc000 regAfter=0x7bffc000 ena=1 rstEna=0 intEnaBefore=1 intEna=1 isr=1",
+    "{\"probe\":\"sdmount\",\"tag\":\"boot\",\"maxFiles\":3,\"mounted\":true,\"elapsedMs\":7,\"heapDeltaB\":19436,\"freeIntBefore\":210252,\"freeIntAfter\":190816,\"lfbIntBefore\":110580,\"lfbIntAfter\":110580,\"lfb8Before\":110580,\"lfb8After\":110580}",
+    "[membudget] boot-baseline freeInt=190816 lfbInt=110580 freeDma=148444 lfbDma=110580",
+    "[boot] git=a22a0c6 elf=168bf21d build=Sep 12 2026 21:29:36",
     "winamp display setup",
     "Initialisation done.",
     "SettingsStorage: loaded",
-    "TouchCalStorage: loaded xMin=223 xMax=3582 yMin=196 yMax=3890",
     "[bootphase] 1 fs",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[bootphase] 2 display",
@@ -239,32 +244,28 @@
     "parsed json",
     "config loaded: clientId=db\u2026e0 (len=32) clientSecret=b9\u202663 (len=32) refreshToken=AQ\u2026ng (len=131)",
     "[bootphase] 3 wifi",
-    "[bodmit] mask=0 bl=0 tx=0 duty=256",
-    "[wifi-ev] t=719 ev=0 EV",
-    "[wifi-ev] t=806 ev=2 STA_START",
-    "[wifi-ev] t=3242 ev=5 STA_DISCONNECTED reason=201",
-    "[wifi-ev] t=5663 ev=5 STA_DISCONNECTED reason=201",
-    "[wifi-ev] t=8085 ev=5 STA_DISCONNECTED reason=201",
-    "[wifi-ev] t=8152 ev=4 STA_CONNECTED",
-    "[wifi-ev] t=9170 ev=7 STA_GOT_IP ip=192.168.1.181",
+    "[bodmit] mask=0 bl=0 tx=0 duty=25",
+    "[wifi-ev] t=805 ev=0 EV",
+    "[wifi-ev] t=879 ev=2 STA_START",
+    "[wifi-ev] t=959 ev=4 STA_CONNECTED",
+    "[wifi-ev] t=1510 ev=7 STA_GOT_IP ip=192.168.1.181",
     "IP address: 192.168.1.181",
-    "[bodmit] inwindow mask=0 t=9224ms duty=256 txdbm=78",
-    "[bod] TRIP tag=wifi-end t=9224ms thres=7 trips=1 det=0",
-    "[membudget] post-wifi freeInt=136488 lfbInt=90100 freeDma=93412 lfbDma=90100",
+    "[bodmit] inwindow mask=0 t=1595ms duty=25 txdbm=78",
+    "[membudget] post-wifi freeInt=134828 lfbInt=90100 freeDma=92456 lfbDma=90100",
     "[bootphase] 4 time",
-    "[time] synced epoch=1788955201 in 0ms",
+    "[time] synced epoch=1789248867 in 0ms",
     "[boot] spotify=idle (playerMode=player) \u2014 refresh deferred, no TLS at boot (TASK-447)",
-    "[I][spotify.task] begin ok \u2014 handle=0x3ffec408 startIdle=1",
-    "[membudget] post-spotifyTask freeInt=124004 lfbInt=77812 freeDma=80928 lfbDma=77812",
-    "[bootphase] 5 services",
-    "[membudget] post-dataTask freeInt=109148 lfbInt=65524 freeDma=66072 lfbDma=65524",
-    "[I][dataTask] task started stack=14336B",
     "[I][spotify.task] task started; pinned core=1 stack=10240B period=5000ms",
+    "[I][spotify.task] begin ok \u2014 handle=0x3ffec72c startIdle=1",
+    "[membudget] post-spotifyTask freeInt=122464 lfbInt=77812 freeDma=80092 lfbDma=77812",
+    "[bootphase] 5 services",
+    "[membudget] post-dataTask freeInt=107608 lfbInt=63476 freeDma=65236 lfbDma=63476",
+    "[I][dataTask] task started stack=14336B",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] leaving 0  heap=109148 maxAlloc=65524 minFree=109012",
-    "[shell] entered 12  heap=109148 maxAlloc=65524 minFree=109012",
-    "[shell] switch 0->12 suspend=1ms wipe=27ms init=0ms taskbar=10ms total=38ms",
-    "[membudget] post-init-idle freeInt=109148 lfbInt=65524 freeDma=66072 lfbDma=65524",
+    "[shell] leaving 0  heap=107608 maxAlloc=63476 minFree=107488",
+    "[shell] entered 12  heap=107608 maxAlloc=63476 minFree=107488",
+    "[shell] switch 0->12 suspend=1ms wipe=27ms init=0ms taskbar=11ms total=39ms",
+    "[membudget] post-init-idle freeInt=107608 lfbInt=63476 freeDma=65236 lfbDma=63476",
     "[bootphase] 6 ready"
    ]
   },
@@ -272,9 +273,9 @@
    "cmd": "get variant",
    "nth": 0,
    "lines": [
-    "y=winamp wifi=rssi(-67) disc=3 heap=106k maxAlloc=63k stack_hwm=16972b uptime=00:00:09 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:38ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=63 build=Sep  9 2026-11:19:02",
+    "y=winamp wifi=rssi(-60) disc=0 heap=105k maxAlloc=61k stack_hwm=16972b uptime=00:00:01 poll=0/0 last=0 block_max=0ms loop_max=0ms slow=shell.switch:39ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=64 build=Sep 11 2026-14:26:22",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=82ms (worst path so far: app.tick:56ms)",
+    "[W][perf] iter=81ms (worst path so far: app.tick:56ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"on\",\"last\":true}"
    ]
   },
@@ -338,9 +339,9 @@
    "cmd": "tap 297 60",
    "nth": 2,
    "lines": [
-    "[shell] leaving 12  heap=109140 maxAlloc=65524 minFree=108884",
-    "[shell] entered 1  heap=109140 maxAlloc=65524 minFree=108884",
-    "[shell] switch 12->1 suspend=1ms wipe=26ms init=46ms taskbar=12ms total=85ms",
+    "[shell] leaving 12  heap=107348 maxAlloc=61428 minFree=104368",
+    "[shell] entered 1  heap=107348 maxAlloc=61428 minFree=104368",
+    "[shell] switch 12->1 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -348,7 +349,7 @@
    "cmd": "get appId",
    "nth": 5,
    "lines": [
-    "[W][perf] iter=99ms (worst path so far: shell.switch:85ms)",
+    "[W][perf] iter=93ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -391,10 +392,10 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[shell] leaving 1  heap=109140 maxAlloc=65524 minFree=108884",
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 13ms (total 4903s)",
-    "[shell] entered 12  heap=101092 maxAlloc=57332 minFree=101020",
-    "[shell] switch 1->12 suspend=0ms wipe=27ms init=15ms taskbar=12ms total=54ms",
+    "[shell] leaving 1  heap=107352 maxAlloc=61428 minFree=104368",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
+    "[shell] entered 12  heap=99304 maxAlloc=55284 minFree=99240",
+    "[shell] switch 1->12 suspend=1ms wipe=27ms init=15ms taskbar=12ms total=55ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -403,7 +404,7 @@
    "nth": 6,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=135ms (worst path so far: shell.switch:85ms)",
+    "[W][perf] iter=136ms (worst path so far: shell.switch:80ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },

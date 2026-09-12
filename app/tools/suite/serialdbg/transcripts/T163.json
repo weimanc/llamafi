@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T163",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:15:11Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:46:31Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -94,7 +94,7 @@
    "cmd": "get shellCooldown",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":244,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":246,\"last\":true}"
    ]
   },
   {
@@ -108,7 +108,7 @@
    "cmd": "get shellCooldown",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":17,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":19,\"last\":true}"
    ]
   },
   {

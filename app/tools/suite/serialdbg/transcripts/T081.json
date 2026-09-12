@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T081",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:00:48Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:35:14Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -18,6 +18,8 @@
    "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
+    "[ 34029][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -67,6 +69,11 @@
    "cmd": "get shellBusy",
    "nth": 8,
    "lines": [
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=4081ms",
+    "[D][spotify.task] dequeued action=VOLUME param=0",
+    "[D][spotify.task] setVolume 0%",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -130,6 +137,8 @@
    "cmd": "get shellBusy",
    "nth": 17,
    "lines": [
+    "[ 34548][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 34562][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -137,6 +146,9 @@
    "cmd": "get shellBusy",
    "nth": 18,
    "lines": [
+    "[ 34582][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -424,13 +436,6 @@
    "cmd": "get shellBusy",
    "nth": 59,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 60,
-   "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -457,6 +462,13 @@
   },
   {
    "cmd": "get shellBusy",
+   "nth": 60,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
    "nth": 61,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
@@ -466,6 +478,7 @@
    "cmd": "get shellBusy",
    "nth": 62,
    "lines": [
+    "[ 36385][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -473,6 +486,7 @@
    "cmd": "get shellBusy",
    "nth": 63,
    "lines": [
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -851,6 +865,8 @@
    "cmd": "get shellBusy",
    "nth": 117,
    "lines": [
+    "[ 38185][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -900,6 +916,10 @@
    "cmd": "get shellBusy",
    "nth": 124,
    "lines": [
+    "[lib] PUT /v1/me/player/volume?volume_percent=0 failed after retry",
+    "[D][spotify.task] dequeued action=VOLUME param=100",
+    "[D][spotify.task] setVolume 100%",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -963,6 +983,8 @@
    "cmd": "get shellBusy",
    "nth": 133,
    "lines": [
+    "[ 38698][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 38711][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -970,6 +992,9 @@
    "cmd": "get shellBusy",
    "nth": 134,
    "lines": [
+    "[ 38732][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -1033,7 +1058,28 @@
    "cmd": "get shellBusy",
    "nth": 143,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 50 97",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":50,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":1,\"action\":\"PLAY\",\"skipped\":false}"
    ]
   },
   {
@@ -1061,28 +1107,7 @@
    "cmd": "get shellBusy",
    "nth": 147,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set cooldown 0",
-   "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 50 97",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":50,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":1,\"action\":\"PLAY\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
   {
@@ -1306,6 +1331,8 @@
    "cmd": "get shellBusy",
    "nth": 179,
    "lines": [
+    "[ 40542][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -1628,13 +1655,36 @@
    "cmd": "get shellBusy",
    "nth": 225,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 73 97",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":73,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":2,\"action\":\"PAUSE\",\"skipped\":false}"
    ]
   },
   {
    "cmd": "get shellBusy",
    "nth": 226,
    "lines": [
+    "[ 42343][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -1663,6 +1713,10 @@
    "cmd": "get shellBusy",
    "nth": 230,
    "lines": [
+    "[lib] PUT /v1/me/player/volume?volume_percent=100 failed after retry",
+    "[D][spotify.task] dequeued action=VOLUME param=49",
+    "[D][spotify.task] setVolume 49%",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -1684,28 +1738,7 @@
    "cmd": "get shellBusy",
    "nth": 233,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set cooldown 0",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 73 97",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":73,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":2,\"action\":\"PAUSE\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
   {
@@ -1747,6 +1780,7 @@
    "cmd": "get shellBusy",
    "nth": 239,
    "lines": [
+    "[ 42858][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -1754,6 +1788,8 @@
    "cmd": "get shellBusy",
    "nth": 240,
    "lines": [
+    "[ 42877][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 42891][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -1761,6 +1797,8 @@
    "cmd": "get shellBusy",
    "nth": 241,
    "lines": [
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -2139,6 +2177,8 @@
    "cmd": "get shellBusy",
    "nth": 295,
    "lines": [
+    "[ 44711][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -2230,7 +2270,28 @@
    "cmd": "get shellBusy",
    "nth": 308,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 96 97",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":96,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":3,\"action\":\"STOP\",\"skipped\":false}"
    ]
   },
   {
@@ -2307,28 +2368,7 @@
    "cmd": "get shellBusy",
    "nth": 319,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set cooldown 0",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 96 97",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":96,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":3,\"action\":\"STOP\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
   {
@@ -2475,6 +2515,7 @@
    "cmd": "get shellBusy",
    "nth": 340,
    "lines": [
+    "[ 46516][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -2482,6 +2523,7 @@
    "cmd": "get shellBusy",
    "nth": 341,
    "lines": [
+    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -2524,6 +2566,10 @@
    "cmd": "get shellBusy",
    "nth": 347,
    "lines": [
+    "[lib] PUT /v1/me/player/volume?volume_percent=49 failed after retry",
+    "[D][spotify.task] dequeued action=PLAY param=0",
+    "[D][spotify.task] play",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -2587,6 +2633,7 @@
    "cmd": "get shellBusy",
    "nth": 356,
    "lines": [
+    "[ 47031][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -2594,6 +2641,10 @@
    "cmd": "get shellBusy",
    "nth": 357,
    "lines": [
+    "[ 47051][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 47065][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -2832,111 +2883,6 @@
    "cmd": "get shellBusy",
    "nth": 391,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 392,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 393,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 394,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 395,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 396,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 397,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 398,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 399,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 400,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 401,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 402,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 403,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 404,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 405,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 406,
-   "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -2958,7 +2904,6 @@
    "cmd": "tap 119 97",
    "nth": 0,
    "lines": [
-    "[W][spotify.task] queue full \u2014 dropped action=NEXT param=0",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":119,\"y\":97,\"hit\":\"TRANSPORT\",\"pressed\":4,\"action\":\"NEXT\",\"skipped\":false}"
    ]
   }

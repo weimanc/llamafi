@@ -1,19 +1,19 @@
 {
  "schema": 1,
  "id": "T_CLK_05",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:25:25Z",
- "generation": "48.1",
+ "recorded_at": "2026-09-12T21:13:05Z",
+ "generation": "22.1",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=58652 maxAlloc=42996 minFree=44308",
-    "[shell] entered 1  heap=58652 maxAlloc=42996 minFree=44308",
-    "[shell] switch 0->1 suspend=1ms wipe=29ms init=39ms taskbar=13ms total=82ms",
+    "[shell] leaving 0  heap=106168 maxAlloc=49140 minFree=43216",
+    "[shell] entered 1  heap=106168 maxAlloc=49140 minFree=43216",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -21,26 +21,16 @@
    "cmd": "set clockStyle vfd",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=86ms (worst path so far: shell.switch:163ms)",
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1588 freeInt=45332). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
-    "[ 19389][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 19403][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 19418][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=1005ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=58k maxBlk=35k",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":false}"
+    "[W][perf] iter=80ms (worst path so far: shell.switch:157ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":true}"
    ]
   },
   {
    "cmd": "get clockStyle",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=93ms (worst path so far: shell.switch:163ms)",
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=195ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"nixieTheme\":0,\"vfdTheme\":2,\"dirty\":false,\"last\":true}"
    ]
   },
@@ -48,7 +38,6 @@
    "cmd": "set clockStyle 0",
    "nth": 0,
    "lines": [
-    "SettingsStorage: deferred save landed (TASK-429)",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":true}"
    ]
@@ -57,17 +46,12 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=82ms (worst path so far: shell.switch:163ms)",
-    "[ 19895][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[ 19909][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[ 19923][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "[shell] leaving 1  heap=105036 maxAlloc=47092 minFree=43268",
+    "[W][perf] iter=182ms (worst path so far: shell.switch:157ms)",
+    "[shell] leaving 1  heap=60140 maxAlloc=40948 minFree=43216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105036 maxAlloc=47092 minFree=43268",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=36ms taskbar=12ms total=76ms",
+    "[shell] entered 0  heap=60508 maxAlloc=40948 minFree=43216",
+    "[shell] switch 1->0 suspend=2ms wipe=54ms init=76ms taskbar=24ms total=156ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   }

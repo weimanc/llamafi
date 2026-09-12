@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_24",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:59:48Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:34:22Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -60,9 +60,11 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=47224 maxAlloc=42996 minFree=43184",
-    "[shell] entered 1  heap=48980 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=1ms wipe=28ms init=47ms taskbar=12ms total=88ms",
+    "[shell] leaving 12  heap=93336 maxAlloc=40948 minFree=42976",
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] entered 1  heap=101396 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=37ms wipe=27ms init=37ms taskbar=12ms total=113ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -70,7 +72,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=103ms (worst path so far: shell.switch:88ms)",
+    "[W][perf] iter=127ms (worst path so far: shell.switch:159ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -113,10 +115,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=57368 maxAlloc=42996 minFree=43184",
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 17ms (total 4903s)",
-    "[shell] entered 12  heap=53292 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=1ms wipe=29ms init=20ms taskbar=14ms total=64ms",
+    "[shell] leaving 1  heap=101396 maxAlloc=40948 minFree=42976",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
+    "[shell] entered 12  heap=93336 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=1ms wipe=27ms init=16ms taskbar=11ms total=55ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -125,7 +127,7 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=119ms (worst path so far: shell.switch:88ms)",
+    "[W][perf] iter=104ms (worst path so far: shell.switch:159ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -133,7 +135,7 @@
    "cmd": "set plLoad /playlists/gate20.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 15ms (total 4903s)",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate20.m3u\"}"
    ]
   },
@@ -142,8 +144,8 @@
    "nth": 0,
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=66ms (worst path so far: shell.switch:88ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":15,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":1460,\"last\":true}"
+    "[W][perf] iter=63ms (worst path so far: shell.switch:159ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":14,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":34804,\"last\":true}"
    ]
   },
   {
@@ -157,7 +159,7 @@
    "cmd": "get plOrder",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,2,7,11,5,3,9,12,4,17,19,0,1,14,6,16,13,8,15,10],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,19,14,18,4,1,17,0,12,10,7,11,5,15,13,2,6,3,8,9],\"last\":true}"
    ]
   },
   {
@@ -165,8 +167,13 @@
    "nth": 0,
    "lines": [
     "[I][localplayer] play row 5: /mp3/06 - DARE.mp3",
-    "[W][spotify.tls] tls try-yield timed out after 1500ms \u2014 ref count rolled back, no yield granted",
-    "[W][audioengine] aeConnectFile: tls try-yield timed out after 1500ms \u2014 play FAILED, not blocking",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[membudget] TASK-267 arena acquire=24576B lfbBefore=34804 OK",
+    "[membudget] arena init base=0x3fff3a24 cap=24576",
+    "[E][audioengine] DMA pool too low for I2S init: lfbDma=10228 \u2014 abort play",
+    "[membudget] TASK-267 arena released",
+    "[W][audioengine] play aborted before engine bring-up \u2014 arena released",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":5}"
    ]
   },
@@ -174,15 +181,16 @@
    "cmd": "get plCursor",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=1565ms (worst path so far: shell.switch:88ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCursor\",\"cursor\":4,\"curRow\":-1,\"shuffle\":true,\"repeat\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCursor\",\"cursor\":12,\"curRow\":-1,\"shuffle\":true,\"repeat\":0,\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,2,7,11,5,3,9,12,4,17,19,0,1,14,6,16,13,8,15,10],\"last\":true}"
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,19,14,18,4,1,17,0,12,10,7,11,5,15,13,2,6,3,8,9],\"last\":true}"
    ]
   },
   {

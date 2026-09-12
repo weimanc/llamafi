@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T276",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:55:40Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:31:04Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -39,9 +39,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=50036 maxAlloc=42996 minFree=43472",
-    "[shell] entered 11  heap=50036 maxAlloc=42996 minFree=43472",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=16ms total=44ms",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 0  heap=59128 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=59288 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->11 suspend=2ms wipe=54ms init=1ms taskbar=32ms total=89ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -51,7 +52,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=124ms (worst path so far: shell.switch:153ms)",
+    "[W][perf] iter=339ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -68,6 +69,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=86ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrAutoSkip\",\"val\":\"1\"}"
    ]
   },
@@ -84,6 +86,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=86ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":3,\"pending\":1,\"last\":true}"
    ]
   },
@@ -103,557 +106,528 @@
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=56ms (worst path so far: shell.switch:153ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":56,\"last\":true}"
+    "[W][perf] iter=84ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":84,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":380,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":411,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":699,\"last\":true}"
+    "[830317][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":729,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1018,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1051,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1335,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1371,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1653,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1694,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1970,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrSkip",
-   "nth": 7,
-   "lines": [
     "[I][webradio] play idx=1 name=DEAD-1 url=http://127.0.0.1:1/dead",
     "[W][webradio] play idx=1 \u2014 forced connect-fail (debug wrDeadUrls)",
     "[I][webradio] auto-skip 2/3 from idx=1",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=64ms (worst path so far: shell.switch:153ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":287,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":16,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrState",
    "nth": 0,
    "lines": [
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=100ms (worst path so far: shell.switch:157ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrState\",\"state\":5,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get wrSkip",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":134,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 8,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":315,\"last\":true}"
+    "[832144][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=5 next=60000ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[I][webradio] HEAP post-fetch free=104944 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=59ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":653,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 9,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":833,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1170,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 10,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1352,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1689,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 11,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":1871,\"last\":true}"
+    "[I][webradio] play idx=2 name=DEAD-2 url=http://127.0.0.1:1/dead",
+    "[W][webradio] play idx=2 \u2014 forced connect-fail (debug wrDeadUrls)",
+    "[W][webradio] auto-skip exhausted \u2014 no playable station",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=64ms (worst path so far: shell.switch:157ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":208,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 12,
    "lines": [
-    "[I][webradio] play idx=2 name=DEAD-2 url=http://127.0.0.1:1/dead",
-    "[W][webradio] play idx=2 \u2014 forced connect-fail (debug wrDeadUrls)",
-    "[W][webradio] auto-skip exhausted \u2014 no playable station",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=65ms (worst path so far: shell.switch:153ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":391,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":725,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 13,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":909,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":1243,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 14,
    "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=4 next=60000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":1442,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":1762,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 15,
    "lines": [
-    "[1409689][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1409702][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1409716][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":1962,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":2280,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 16,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":2484,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":2798,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 17,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":3005,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":3317,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 18,
    "lines": [
-    "[1411364][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":3525,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":3836,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 19,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":4045,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":4354,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 20,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=58k maxAlloc=41k stack_hwm=11708b uptime=00:23:32 poll=0/22 last=-1 block_max=18889ms loop_max=328ms slow=shell.switch:153ms last_poll_age_ms=0 next_poll_in_ms=57143 last_render_age_ms=4210 build=Sep  9 20",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":4565,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":4873,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 21,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":5083,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":5392,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 22,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":5601,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":5910,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 23,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":6120,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":6428,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 24,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":6639,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":6948,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 25,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":7157,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":7466,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 26,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":7676,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":7985,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 27,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":8195,\"last\":true}"
+    "[I][hb] display=winamp wifi=rssi(-59) disc=0 heap=102k maxAlloc=39k stack_hwm=11660b uptime=00:14:02 poll=0/42 last=-1 block_max=4535ms loop_max=339ms slow=shell.switch:157ms last_poll_age_ms=0 next_poll_in_ms=50032 last_render_age_ms=8414 build=Sep 11 20",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":8510,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 28,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":8713,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":9028,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 29,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":9232,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":9546,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 30,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":9750,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":10064,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 31,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":10268,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":10583,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 32,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":10787,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":11101,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 33,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":11305,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":11619,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 34,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":11823,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":12137,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 35,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":12342,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":12656,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 36,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":12860,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":13174,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 37,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":13378,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":13692,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 38,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":13897,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":14211,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 39,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":14415,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":14730,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 40,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":14933,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":15247,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 41,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":15451,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":15765,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 42,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":15969,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":16283,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 43,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":16487,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":16801,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 44,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":17005,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":17319,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 45,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":17524,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":17837,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 46,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":18042,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":18355,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 47,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":18560,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":18873,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 48,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":19079,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":19391,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 49,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":19597,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":19909,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 50,
    "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=18595ms",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":20117,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":20426,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 51,
    "lines": [
-    "[1428132][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1428145][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1428160][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=174ms",
-    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[1428329][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1428343][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1428358][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=173ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[I][webradio] HEAP post-fetch free=105440 min=43472",
-    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=62ms (worst path so far: app.tick:51ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":20635,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":20944,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 52,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":21154,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":21462,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 53,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":21672,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":21980,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 54,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":22190,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":22498,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 55,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":22709,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":23016,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 56,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":23227,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":23534,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 57,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":23744,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":24052,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 58,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":24262,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":24570,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 59,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":24780,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":25089,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 60,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":25298,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":25607,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 61,
    "lines": [
-    "SettingsStorage: deferred save landed (TASK-429)",
-    "SettingsStorage: saved (doc 1986/6144 B)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":25817,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":26126,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 62,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":26336,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":26644,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 63,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":26854,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":27162,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 64,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":27372,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":27680,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 65,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":27890,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":28198,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 66,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":28408,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":28716,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 67,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":28926,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":29235,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 68,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":29444,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":29754,\"last\":true}"
    ]
   },
   {
    "cmd": "get wrSkip",
    "nth": 69,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":2,\"retries\":0,\"settled\":0,\"pending\":0,\"sinceAttemptMs\":29962,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrSkip",
-   "nth": 70,
    "lines": [
     "[I][webradio] terminal retry \u2014 re-arming scan idx=2",
     "[I][webradio] play idx=2 name=DEAD-2 url=http://127.0.0.1:1/dead",
@@ -661,8 +635,8 @@
     "[I][webradio] auto-skip 1/3 from idx=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=64ms (worst path so far: app.tick:63ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":481,\"last\":true}"
+    "[W][perf] iter=62ms (worst path so far: app.tick:61ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrSkip\",\"autoSkip\":1,\"tried\":1,\"retries\":0,\"settled\":0,\"pending\":2,\"sinceAttemptMs\":273,\"last\":true}"
    ]
   },
   {
@@ -734,10 +708,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=105440 maxAlloc=42996 minFree=43472",
+    "[shell] leaving 11  heap=104988 maxAlloc=40948 minFree=42976",
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] entered 1  heap=105440 maxAlloc=42996 minFree=43472",
-    "[shell] switch 11->1 suspend=36ms wipe=27ms init=46ms taskbar=12ms total=121ms",
+    "[shell] entered 1  heap=104988 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->1 suspend=35ms wipe=27ms init=37ms taskbar=12ms total=111ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -745,7 +719,7 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=136ms (worst path so far: shell.switch:121ms)",
+    "[W][perf] iter=124ms (worst path so far: shell.switch:111ms)",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
@@ -785,11 +759,16 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[shell] leaving 1  heap=105440 maxAlloc=42996 minFree=43472",
+    "[shell] leaving 1  heap=62636 maxAlloc=40948 minFree=42976",
+    "[864772][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[864786][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[864802][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105440 maxAlloc=42996 minFree=43472",
-    "[shell] switch 1->0 suspend=0ms wipe=27ms init=40ms taskbar=12ms total=79ms",
+    "[shell] entered 0  heap=104912 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->0 suspend=1ms wipe=48ms init=67ms taskbar=22ms total=138ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -797,12 +776,7 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=120ms (worst path so far: shell.switch:121ms)",
-    "[1439217][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1439231][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1439245][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[W][perf] iter=175ms (worst path so far: shell.switch:138ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

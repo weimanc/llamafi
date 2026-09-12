@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WR_HEAP_02",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:54:37Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:30:01Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -46,9 +46,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] entered 1  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] switch 11->1 suspend=1ms wipe=26ms init=46ms taskbar=12ms total=85ms",
+    "[shell] leaving 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->1 suspend=1ms wipe=27ms init=38ms taskbar=11ms total=77ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -56,7 +56,7 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=100ms (worst path so far: shell.switch:85ms)",
+    "[W][perf] iter=91ms (worst path so far: app.tick:126ms)",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
@@ -96,11 +96,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=105216 maxAlloc=42996 minFree=43472",
+    "[shell] leaving 1  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105216 maxAlloc=42996 minFree=43472",
-    "[shell] switch 1->0 suspend=0ms wipe=27ms init=40ms taskbar=13ms total=80ms",
+    "[shell] entered 0  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -109,10 +109,10 @@
    "nth": 1,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=188ms (worst path so far: app.tick:95ms)",
-    "[1372506][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1372519][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1372533][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[W][perf] iter=187ms (worst path so far: app.tick:126ms)",
+    "[798007][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[798020][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[798035][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
     "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
@@ -137,16 +137,16 @@
    "nth": 1,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=104420 maxAlloc=42996 minFree=43472",
-    "[shell] entered 11  heap=65336 maxAlloc=42996 minFree=43472",
-    "[shell] switch 0->11 suspend=1ms wipe=39ms init=0ms taskbar=20ms total=60ms",
+    "[shell] leaving 0  heap=104116 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=104116 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=16ms total=44ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=250ms (worst path so far: app.tick:138ms)",
-    "[1374210][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[W][perf] iter=177ms (worst path so far: app.tick:126ms)",
+    "[799858][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
-    "[1375806][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[801661][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
     "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
@@ -154,32 +154,20 @@
     "[D][spotify.poll] backoff: consecutive=3 next=40000ms",
     "[I][spotify.tls] hard reset \u2014 stopping client",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[1376200][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1376213][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1376228][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=177ms",
-    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[1376392][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1376405][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1376420][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=168ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[I][webradio] HEAP post-fetch free=105216 min=43472"
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[I][webradio] HEAP post-fetch free=104956 min=42976[I][spotify.tls] tls yield \u2014 resumed"
    ]
   },
   {
    "cmd": "set bgPoll 1",
    "nth": 0,
    "lines": [
-    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
-    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=63ms (worst path so far: app.tick:138ms)",
+    "[W][perf] iter=60ms (worst path so far: app.tick:126ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   }

@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-ERR-02",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:16:02Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:47:22Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -32,7 +32,6 @@
    "cmd": "set bgPoll 0",
    "nth": 0,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-61) disc=3 heap=52k maxAlloc=41k stack_hwm=11660b uptime=00:16:09 poll=0/26 last=-1 block_max=27618ms loop_max=236ms slow=shell.switch:206ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=6163 build=Sep  9 2026-1",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
    ]
   },
@@ -54,9 +53,9 @@
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] entered 1  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=63ms taskbar=13ms total=104ms",
+    "[shell] leaving 0  heap=51756 maxAlloc=40948 minFree=42780",
+    "[shell] entered 1  heap=51820 maxAlloc=40948 minFree=42780",
+    "[shell] switch 0->1 suspend=1ms wipe=29ms init=63ms taskbar=14ms total=107ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -64,7 +63,9 @@
    "cmd": "get activeError",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=108ms (worst path so far: shell.switch:104ms)",
+    "[W][perf] iter=111ms (worst path so far: shell.switch:162ms)",
+    "[775817][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":true,\"spotifyDegraded\":false,\"spotifyConnecting\":true,\"last\":true}"
    ]
   },
@@ -72,11 +73,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=53872 maxAlloc=42996 minFree=43232",
+    "[shell] leaving 1  heap=104592 maxAlloc=42996 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=38ms taskbar=12ms total=78ms",
+    "[shell] entered 0  heap=103280 maxAlloc=42996 minFree=42780",
+    "[shell] switch 1->0 suspend=1ms wipe=29ms init=37ms taskbar=17ms total=84ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -84,7 +85,7 @@
    "cmd": "get activeError",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=107ms (worst path so far: shell.switch:104ms)",
+    "[W][perf] iter=119ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":true,\"connecting\":true,\"spotifyAuthError\":true,\"spotifyDegraded\":false,\"spotifyConnecting\":true,\"last\":true}"
    ]
   },

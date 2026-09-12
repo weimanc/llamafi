@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-UART-01",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:15:48Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:47:08Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,9 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=49408 maxAlloc=42996 minFree=43232",
-    "[shell] entered 6  heap=49408 maxAlloc=42996 minFree=43232",
-    "[shell] switch 0->6 suspend=1ms wipe=27ms init=35ms taskbar=12ms total=75ms",
+    "[shell] leaving 0  heap=50736 maxAlloc=40948 minFree=42780",
+    "[shell] entered 6  heap=49748 maxAlloc=40948 minFree=42780",
+    "[shell] switch 0->6 suspend=2ms wipe=54ms init=70ms taskbar=24ms total=150ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +28,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=111ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=227ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -57,163 +57,151 @@
    "cmd": "get heap",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":52720,\"lfbInt\":40948,\"freeDma\":10348,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":52576,\"lfbInt\":40948,\"freeDma\":10204,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":52464,\"lfbInt\":40948,\"freeDma\":10092,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":51488,\"lfbInt\":40948,\"freeDma\":9116,\"lfbDma\":8692,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":51960,\"lfbInt\":40948,\"freeDma\":9588,\"lfbDma\":8692,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":52048,\"lfbInt\":40948,\"freeDma\":9676,\"lfbDma\":8692,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":51324,\"lfbInt\":40948,\"freeDma\":8952,\"lfbDma\":8180,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 7,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":51256,\"lfbInt\":40948,\"freeDma\":8884,\"lfbDma\":8180,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 8,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":51228,\"lfbInt\":40948,\"freeDma\":8856,\"lfbDma\":8180,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 9,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":49408,\"lfbInt\":42996,\"freeDma\":6332,\"lfbDma\":1332,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":51120,\"lfbInt\":40948,\"freeDma\":8748,\"lfbDma\":8180,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 10,
    "lines": [
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":50484,\"lfbInt\":40948,\"freeDma\":8112,\"lfbDma\":7668,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 11,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":50680,\"lfbInt\":40948,\"freeDma\":8308,\"lfbDma\":7924,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 12,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":50580,\"lfbInt\":40948,\"freeDma\":8208,\"lfbDma\":7924,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 13,
    "lines": [
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=7 next=60000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":55044,\"lfbInt\":40948,\"freeDma\":12672,\"lfbDma\":8692,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 14,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":55044,\"lfbInt\":40948,\"freeDma\":12672,\"lfbDma\":8692,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 15,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":55584,\"lfbInt\":40948,\"freeDma\":13212,\"lfbDma\":8692,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 16,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106076,\"lfbInt\":42996,\"freeDma\":63000,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":55056,\"lfbInt\":40948,\"freeDma\":12684,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 17,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":57300,\"lfbInt\":42996,\"freeDma\":14224,\"lfbDma\":8180,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":55584,\"lfbInt\":40948,\"freeDma\":13212,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 18,
    "lines": [
-    "[956399][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[956412][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[956426][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":54880,\"lfbInt\":40948,\"freeDma\":12508,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
    "cmd": "get heap",
    "nth": 19,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":106172,\"lfbInt\":42996,\"freeDma\":63096,\"lfbDma\":40948,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heap\",\"freeInt\":55328,\"lfbInt\":40948,\"freeDma\":12956,\"lfbDma\":9204,\"last\":true}"
    ]
   },
   {
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=106172 maxAlloc=42996 minFree=43232",
+    "[shell] leaving 6  heap=55240 maxAlloc=40948 minFree=42780",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=106172 maxAlloc=42996 minFree=43232",
-    "[shell] switch 6->0 suspend=0ms wipe=27ms init=40ms taskbar=12ms total=79ms",
+    "[shell] entered 0  heap=55400 maxAlloc=40948 minFree=42780",
+    "[shell] switch 6->0 suspend=2ms wipe=54ms init=82ms taskbar=24ms total=162ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -221,7 +209,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=106ms (worst path so far: shell.switch:206ms)",
+    "[W][perf] iter=215ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

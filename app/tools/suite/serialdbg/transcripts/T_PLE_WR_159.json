@@ -1,17 +1,16 @@
 {
  "schema": 1,
  "id": "T_PLE_WR_159",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:52:44Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:29:05Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "set wrDeadUrls 15",
    "nth": 0,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=103k maxAlloc=41k stack_hwm=11708b uptime=00:21:02 poll=0/17 last=-1 block_max=41207ms loop_max=200ms slow=app.tick:81ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=1447 build=Sep  9 2026-11:19",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"wrDeadUrls\",\"val\":\"15\"}"
    ]
   },

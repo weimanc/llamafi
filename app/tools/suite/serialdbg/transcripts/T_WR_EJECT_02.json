@@ -1,16 +1,17 @@
 {
  "schema": 1,
  "id": "T_WR_EJECT_02",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:53:45Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:29:23Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "get appId",
    "nth": 0,
    "lines": [
+    "[758005][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -18,6 +19,7 @@
    "cmd": "set bgPoll 0",
    "nth": 0,
    "lines": [
+    "[758031][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
    ]
   },
@@ -25,6 +27,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
+    "[758049][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -32,6 +35,8 @@
    "cmd": "set cooldown 0",
    "nth": 0,
    "lines": [
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -46,10 +51,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1460 freeInt=48956). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
-    "[shell] leaving 0  heap=48956 maxAlloc=42996 minFree=43740",
-    "[shell] entered 11  heap=48956 maxAlloc=42996 minFree=43740",
-    "[shell] switch 0->11 suspend=11ms wipe=27ms init=1ms taskbar=16ms total=55ms",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 0  heap=104912 maxAlloc=40948 minFree=42976",
+    "[shell] entered 11  heap=104912 maxAlloc=40948 minFree=42976",
+    "[shell] switch 0->11 suspend=0ms wipe=27ms init=1ms taskbar=16ms total=44ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -59,7 +64,7 @@
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=145ms (worst path so far: shell.switch:85ms)",
+    "[W][perf] iter=152ms (worst path so far: app.tick:60ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -74,6 +79,8 @@
    "cmd": "get wrCount",
    "nth": 1,
    "lines": [
+    "[759891][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
    ]
   },
@@ -81,186 +88,23 @@
    "cmd": "get wrCount",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 3,
-   "lines": [
+    "[761714][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 4,
-   "lines": [
     "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
     "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "[1285196][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1285209][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1285224][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 7,
-   "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=49k maxAlloc=41k stack_hwm=11708b uptime=00:21:32 poll=0/18 last=-1 block_max=18551ms loop_max=150ms slow=shell.switch:85ms last_poll_age_ms=0 next_poll_in_ms=2542 last_render_age_ms=13907 build=Sep  9 202",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 12,
-   "lines": [
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 21,
-   "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=35953ms",
+    "[D][spotify.poll] backoff: consecutive=2 next=20000ms",
     "[I][spotify.tls] hard reset \u2014 stopping client",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get wrCount",
-   "nth": 22,
-   "lines": [
-    "[1320988][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1321001][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1321016][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=276ms",
-    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[1321187][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1321200][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1321214][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=175ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[I][webradio] HEAP post-fetch free=105440 min=43520",
-    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[I][webradio] HEAP post-fetch free=104956 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
     "[I][spotify.tls] tls yield \u2014 resumed",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=61ms (worst path so far: app.tick:49ms)",
-    "[I][hb] display=winamp wifi=rssi(-65) disc=0 heap=102k maxAlloc=41k stack_hwm=11708b uptime=00:22:02 poll=0/18 last=-1 block_max=0ms loop_max=61ms slow=app.tick:49ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=937 build=Sep  9 2026-11:19:02",
+    "[W][perf] iter=63ms (worst path so far: app.tick:60ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"wrCount\",\"count\":0,\"pending\":0,\"last\":true}"
    ]
   },
@@ -289,7 +133,7 @@
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1323019,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":1278224,\"wrPhase\":2,\"wrPhaseMs\":1321237,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":1322757,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":762692,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":758162,\"wrPhase\":2,\"wrPhaseMs\":761958,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":762471,\"last\":true}"
    ]
   },
   {
@@ -320,14 +164,15 @@
    "nth": 4,
    "lines": [
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
-    "[1323415][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1323428][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1323443][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=175ms",
-    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[W][dataTask.webradio] fetch skipped: maxBlk=33k < 40k (TLS would OOM; playback active?)",
+    "[D][dataTask.webradio] heap free=61k maxBlk=33k",
+    "[I][webradio] HEAP post-fetch free=104944 min=42976",
+    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=58ms (worst path so far: app.tick:60ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -335,7 +180,7 @@
    "cmd": "get dataq",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":1323500,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":7,\"inFlightMs\":1323069,\"wrPhase\":1,\"wrPhaseMs\":1323258,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":true,\"spAct\":1,\"spActMs\":1323258,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":763174,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":762743,\"wrPhase\":2,\"wrPhaseMs\":762983,\"wrEnqueues\":3,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":2,\"spActMs\":762996,\"last\":true}"
    ]
   },
   {
@@ -377,19 +222,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=47120 maxAlloc=42996 minFree=43504",
-    "[1323631][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1323644][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1323659][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=193ms",
-    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
-    "[D][dataTask.webradio] heap free=60k maxBlk=41k",
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
-    "[shell] entered 1  heap=105440 maxAlloc=42996 minFree=43472",
-    "[shell] switch 11->1 suspend=2ms wipe=51ms init=61ms taskbar=12ms total=126ms",
+    "[shell] leaving 11  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] entered 1  heap=104944 maxAlloc=40948 minFree=42976",
+    "[shell] switch 11->1 suspend=1ms wipe=27ms init=38ms taskbar=12ms total=78ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -397,8 +232,10 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=142ms (worst path so far: shell.switch:126ms)",
-    "SettingsStorage: deferred save landed (TASK-429)",
+    "[W][perf] iter=90ms (worst path so far: shell.switch:78ms)",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
@@ -407,7 +244,6 @@
    "cmd": "get tbScrollOffset",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=66ms (worst path so far: shell.switch:126ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -422,7 +258,6 @@
    "cmd": "set cooldown 0",
    "nth": 3,
    "lines": [
-    "[1324021][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -430,7 +265,6 @@
    "cmd": "get shellCooldown",
    "nth": 3,
    "lines": [
-    "[1324042][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -438,14 +272,11 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[1324063][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[shell] leaving 1  heap=65048 maxAlloc=42996 minFree=43472",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[shell] leaving 1  heap=104944 maxAlloc=40948 minFree=42976",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=105440 maxAlloc=42996 minFree=43472",
-    "[shell] switch 1->0 suspend=2ms wipe=30ms init=38ms taskbar=12ms total=82ms",
+    "[shell] entered 0  heap=104116 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=40ms taskbar=14ms total=82ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -453,7 +284,12 @@
    "cmd": "get appId",
    "nth": 6,
    "lines": [
-    "[W][perf] iter=120ms (worst path so far: shell.switch:126ms)",
+    "[W][perf] iter=123ms (worst path so far: shell.switch:82ms)",
+    "[763811][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[763824][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[763838][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

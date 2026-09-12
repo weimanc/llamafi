@@ -1,19 +1,19 @@
 {
  "schema": 1,
  "id": "T-ERR-06",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:16:06Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:47:26Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "switchApp 1",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] entered 1  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=64ms taskbar=12ms total=104ms",
+    "[shell] leaving 0  heap=103760 maxAlloc=42996 minFree=42780",
+    "[shell] entered 1  heap=64676 maxAlloc=40948 minFree=42780",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=70ms taskbar=12ms total=110ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
@@ -21,7 +21,7 @@
    "cmd": "get activeError",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=108ms (worst path so far: shell.switch:104ms)",
+    "[W][perf] iter=113ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":false,\"spotifyDegraded\":false,\"spotifyConnecting\":false,\"last\":true}"
    ]
   },
@@ -29,9 +29,9 @@
    "cmd": "switchApp 4",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] entered 4  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] switch 1->4 suspend=1ms wipe=27ms init=27ms taskbar=12ms total=67ms",
+    "[shell] leaving 1  heap=59172 maxAlloc=40948 minFree=42780",
+    "[shell] entered 4  heap=58644 maxAlloc=40948 minFree=42780",
+    "[shell] switch 1->4 suspend=2ms wipe=53ms init=54ms taskbar=24ms total=133ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":4}"
    ]
   },
@@ -39,7 +39,7 @@
    "cmd": "get activeError",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=73ms (worst path so far: shell.switch:104ms)",
+    "[W][perf] iter=143ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"activeError\",\"active\":false,\"connecting\":false,\"spotifyAuthError\":false,\"spotifyDegraded\":false,\"spotifyConnecting\":false,\"last\":true}"
    ]
   },
@@ -89,11 +89,13 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 4  heap=53872 maxAlloc=42996 minFree=43232",
+    "[shell] leaving 4  heap=52072 maxAlloc=40948 minFree=42780",
+    "[780024][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=53872 maxAlloc=42996 minFree=43232",
-    "[shell] switch 4->0 suspend=0ms wipe=28ms init=38ms taskbar=13ms total=79ms",
+    "[shell] entered 0  heap=104560 maxAlloc=42996 minFree=42780",
+    "[shell] switch 4->0 suspend=1ms wipe=34ms init=39ms taskbar=12ms total=86ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -101,7 +103,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=118ms (worst path so far: shell.switch:104ms)",
+    "[W][perf] iter=123ms (worst path so far: shell.switch:162ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

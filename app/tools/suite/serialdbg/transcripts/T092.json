@@ -1,18 +1,26 @@
 {
  "schema": 1,
  "id": "T092",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:01:55Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:36:18Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "reconnect",
    "nth": 0,
    "lines": [
-    "[W][spotify.task] queue full \u2014 dropped action=FORCE_POLL param=0",
-    "{\"ok\":true,\"cmd\":\"reconnect\"}"
+    "fail, retrying",
+    "{\"ok\":true,\"cmd\":\"reconnect\"}",
+    "[112112][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[lib] PUT /v1/me/player/volume?volume_percent=100 failed after retry",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[D][spotify.task] dequeued action=SHUFFLE param=1",
+    "[D][spotify.task] toggleShuffle on",
+    "Refresh of the Access token is due, doing that now.",
+    "[112666][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA"
    ]
   }
  ]

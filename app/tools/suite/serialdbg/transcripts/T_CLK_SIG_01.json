@@ -1,9 +1,9 @@
 {
  "schema": 1,
- "id": "T_CLK_10",
+ "id": "T_CLK_SIG_01",
  "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:13:14Z",
+ "recorded_at": "2026-09-12T21:13:24Z",
  "generation": "22.1",
  "preamble": [],
  "exchanges": [
@@ -13,31 +13,30 @@
    "lines": [
     "[shell] leaving 0  heap=106168 maxAlloc=49140 minFree=43216",
     "[shell] entered 1  heap=106168 maxAlloc=49140 minFree=43216",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=38ms taskbar=11ms total=77ms",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=45ms taskbar=12ms total=85ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":1}"
    ]
   },
   {
-   "cmd": "set clockStyle vfd",
+   "cmd": "get idle",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=80ms (worst path so far: shell.switch:157ms)",
-    "SettingsStorage: saved (doc 1986/6144 B)",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":3,\"name\":\"vfd\",\"saved\":true}"
+    "[W][perf] iter=88ms (worst path so far: shell.switch:85ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"idle\",\"ms\":39027,\"idle\":true,\"shellBusy\":false,\"appOp\":false,\"dataq\":0,\"dataqInFlight\":-1,\"appId\":1,\"appName\":\"Clock\",\"last\":true}"
    ]
   },
   {
-   "cmd": "get appId",
+   "cmd": "get sig 0 0 275 240",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=85ms (worst path so far: shell.switch:157ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"sig\",\"x\":0,\"y\":0,\"w\":275,\"h\":240,\"hash\":\"e92f1199\",\"inkCount\":18234,\"distinctColors\":6,\"saturated\":false,\"bgColor\":34,\"px\":66000,\"last\":true}"
    ]
   },
   {
    "cmd": "set clockStyle 0",
    "nth": 0,
    "lines": [
+    "[W][perf] iter=952ms (worst path so far: shell.switch:85ms)",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"clockStyle\",\"val\":0,\"name\":\"digital\",\"saved\":true}"
    ]
@@ -46,12 +45,12 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=75ms (worst path so far: shell.switch:157ms)",
+    "[W][perf] iter=75ms (worst path so far: shell.switch:85ms)",
     "[shell] leaving 1  heap=106168 maxAlloc=49140 minFree=43216",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[shell] entered 0  heap=106168 maxAlloc=49140 minFree=43216",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=36ms taskbar=12ms total=76ms",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=39ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   }

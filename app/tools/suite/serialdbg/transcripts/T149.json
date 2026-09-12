@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T149",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:05:05Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:39:28Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -50,6 +50,9 @@
    "cmd": "get posbarDragMs",
    "nth": 0,
    "lines": [
+    "[D][spotify.task] dequeued action=SEEK param=89032",
+    "[D][spotify.task] seek 89032 ms",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"posbarDragMs\",\"ms\":89032,\"last\":true}"
    ]
   },

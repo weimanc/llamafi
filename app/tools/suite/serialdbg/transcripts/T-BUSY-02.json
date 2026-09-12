@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-BUSY-02",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T12:11:04Z",
- "generation": "48.4",
+ "recorded_at": "2026-09-12T21:43:05Z",
+ "generation": "22.4",
  "preamble": [],
  "exchanges": [
   {
@@ -33,7 +33,7 @@
    "nth": 0,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=52ms (worst path so far: shell.switch:96ms)",
+    "[W][perf] iter=67ms (worst path so far: shell.switch:119ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -48,7 +48,6 @@
    "cmd": "get shellBusy",
    "nth": 2,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-65) disc=3 heap=66k maxAlloc=41k stack_hwm=11708b uptime=00:11:09 poll=0/19 last=-1 block_max=18438ms loop_max=124ms slow=shell.switch:96ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=27 build=Sep  9 2026-11:1",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -98,6 +97,7 @@
    "cmd": "get shellBusy",
    "nth": 9,
    "lines": [
+    "[517268][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -105,6 +105,7 @@
    "cmd": "get shellBusy",
    "nth": 10,
    "lines": [
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -476,6 +477,7 @@
    "cmd": "get shellBusy",
    "nth": 63,
    "lines": [
+    "[519040][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -483,6 +485,7 @@
    "cmd": "get shellBusy",
    "nth": 64,
    "lines": [
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -525,6 +528,12 @@
    "cmd": "get shellBusy",
    "nth": 70,
    "lines": [
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -532,6 +541,7 @@
    "cmd": "get shellBusy",
    "nth": 71,
    "lines": [
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -595,6 +605,8 @@
    "cmd": "get shellBusy",
    "nth": 80,
    "lines": [
+    "[519585][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[519598][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -602,6 +614,9 @@
    "cmd": "get shellBusy",
    "nth": 81,
    "lines": [
+    "[519618][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -671,20 +686,6 @@
   {
    "cmd": "get shellBusy",
    "nth": 91,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 92,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 93,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]

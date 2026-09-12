@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_15",
- "elf": "66d214c7",
+ "elf": "168bf21d",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-09T11:57:56Z",
- "generation": "48.3",
+ "recorded_at": "2026-09-12T21:32:59Z",
+ "generation": "22.3",
  "preamble": [],
  "exchanges": [
   {
@@ -60,10 +60,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=94540 maxAlloc=42996 minFree=43184",
-    "SettingsStorage: saved (doc 1985/6144 B)",
-    "[shell] entered 1  heap=102596 maxAlloc=42996 minFree=43184",
-    "[shell] switch 12->1 suspend=35ms wipe=27ms init=46ms taskbar=12ms total=120ms",
+    "[shell] leaving 12  heap=48548 maxAlloc=40948 minFree=42976",
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1972 freeInt=50660). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "[shell] entered 1  heap=52224 maxAlloc=40948 minFree=42976",
+    "[shell] switch 12->1 suspend=13ms wipe=29ms init=41ms taskbar=15ms total=98ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -71,15 +71,9 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=134ms (worst path so far: app.tick:370ms)",
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
-    "[1559420][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1559433][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1559448][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[W][perf] iter=112ms (worst path so far: shell.switch:98ms)",
+    "[963145][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -122,10 +116,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=102564 maxAlloc=42996 minFree=43184",
-    "[I][m3u] loaded /probe200/anchor.m3u: 2 entries in 104ms (total 533s)",
-    "[shell] entered 12  heap=94508 maxAlloc=42996 minFree=43184",
-    "[shell] switch 1->12 suspend=1ms wipe=26ms init=106ms taskbar=12ms total=145ms",
+    "[shell] leaving 1  heap=100564 maxAlloc=40948 minFree=42976",
+    "[I][m3u] loaded /probe200/anchor.m3u: 2 entries in 152ms (total 533s)",
+    "[shell] entered 12  heap=45044 maxAlloc=40948 minFree=42976",
+    "[shell] switch 1->12 suspend=2ms wipe=27ms init=156ms taskbar=25ms total=210ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -134,14 +128,7 @@
    "nth": 2,
    "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=221ms (worst path so far: app.tick:370ms)",
-    "[1559985][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-17040) RSA - The public key operation failed : BIGNUM - Memory allocation failed",
-    "[1560000][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -17040",
-    "[lib] GET connect api.spotify.com:443 failed errno=11 (No more processes)",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: rc=-17040 (0xBD70) ? errstr='RSA - The public key operation failed : BIGNUM - Memory allocation failed'",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[W][perf] iter=351ms (worst path so far: shell.switch:210ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -150,535 +137,508 @@
    "nth": 0,
    "lines": [
     "[I][filebrowser] browsing /probe200/",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probe200\",\"reason\":\"none\",\"free8\":50672,\"largest8\":38900}"
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbOpen\",\"path\":\"/probe200\",\"reason\":\"none\",\"free8\":4448,\"largest8\":2676}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=107ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=202ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":4172,\"largest8\":2676,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=81ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=147ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":4172,\"largest8\":2676,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=84ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=155ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":4540,\"largest8\":2676,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=89ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=158ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":2784,\"largest8\":1140,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 4,
    "lines": [
-    "[W][perf] iter=93ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=103ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":2784,\"largest8\":1140,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 5,
    "lines": [
-    "[W][perf] iter=100ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=118ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":4188,\"largest8\":1332,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 6,
    "lines": [
-    "[W][perf] iter=104ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=116ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":5760,\"largest8\":2164,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 7,
    "lines": [
-    "[W][perf] iter=110ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=122ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":5748,\"largest8\":1460,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 8,
    "lines": [
-    "[W][perf] iter=113ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=127ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":8556,\"largest8\":2676,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 9,
    "lines": [
-    "[W][perf] iter=121ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=140ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":8324,\"largest8\":2164,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 10,
    "lines": [
-    "[W][perf] iter=124ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":50672,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=139ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":6680,\"largest8\":1460,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 11,
    "lines": [
-    "[W][perf] iter=128ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[965826][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[W][perf] iter=140ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54568,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 12,
    "lines": [
-    "[W][perf] iter=135ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=137ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54568,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 13,
    "lines": [
-    "[W][perf] iter=142ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[lib] GET failed after retry",
+    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
+    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
+    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
+    "[D][spotify.queue] GET /v1/me/player/queue",
+    "Refresh of the Access token is due, doing that now.",
+    "[W][perf] iter=148ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54600,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 14,
    "lines": [
-    "[W][perf] iter=145ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=163ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":12068,\"largest8\":6132,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 15,
    "lines": [
-    "[W][perf] iter=151ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[966401][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[966415][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[966429][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[W][perf] iter=193ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54600,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 16,
    "lines": [
-    "[W][perf] iter=156ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=159ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 17,
    "lines": [
-    "[W][perf] iter=163ms (worst path so far: app.tick:370ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=168ms (worst path so far: shell.switch:210ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":53736,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 18,
    "lines": [
-    "[I][hb] display=winamp wifi=rssi(-68) disc=0 heap=95k maxAlloc=41k stack_hwm=11708b uptime=00:26:02 poll=0/29 last=-1 block_max=34935ms loop_max=379ms slow=app.tick:370ms last_poll_age_ms=0 next_poll_in_ms=7746 last_render_age_ms=2552 build=Sep  9 2026-11",
-    "[W][perf] iter=188ms (worst path so far: app.tick:151ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=251ms (worst path so far: app.tick:237ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9780,\"largest8\":4852,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 19,
    "lines": [
-    "[W][perf] iter=173ms (worst path so far: app.tick:159ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=334ms (worst path so far: app.tick:316ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":8804,\"largest8\":4852,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 20,
    "lines": [
-    "[W][perf] iter=176ms (worst path so far: app.tick:162ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=339ms (worst path so far: app.tick:320ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":8828,\"largest8\":4852,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 21,
    "lines": [
-    "[W][perf] iter=184ms (worst path so far: app.tick:170ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=357ms (worst path so far: app.tick:338ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9208,\"largest8\":4852,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 22,
    "lines": [
-    "[W][perf] iter=188ms (worst path so far: app.tick:174ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=292ms (worst path so far: app.tick:338ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":5412,\"largest8\":1140,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 23,
    "lines": [
-    "[W][perf] iter=193ms (worst path so far: app.tick:179ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=222ms (worst path so far: app.tick:338ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":10092,\"largest8\":2548,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 24,
    "lines": [
-    "[W][perf] iter=197ms (worst path so far: app.tick:183ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=225ms (worst path so far: app.tick:338ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":4860,\"largest8\":1140,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 25,
    "lines": [
-    "[W][perf] iter=205ms (worst path so far: app.tick:191ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[968964][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[W][perf] iter=221ms (worst path so far: app.tick:338ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54600,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 26,
    "lines": [
-    "[W][perf] iter=208ms (worst path so far: app.tick:194ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=215ms (worst path so far: app.tick:338ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54600,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 27,
    "lines": [
-    "[W][perf] iter=213ms (worst path so far: app.tick:199ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=279ms (worst path so far: app.tick:338ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":5736,\"largest8\":4596,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 28,
    "lines": [
-    "[W][perf] iter=218ms (worst path so far: app.tick:204ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=435ms (worst path so far: app.tick:414ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":9252,\"largest8\":5364,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 29,
    "lines": [
-    "[W][perf] iter=224ms (worst path so far: app.tick:209ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=445ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":8612,\"largest8\":5364,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 30,
    "lines": [
-    "[W][perf] iter=227ms (worst path so far: app.tick:213ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=423ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":4016,\"largest8\":2292,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 31,
    "lines": [
-    "[W][perf] iter=232ms (worst path so far: app.tick:218ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=267ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":6756,\"largest8\":1460,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 32,
    "lines": [
-    "[W][perf] iter=235ms (worst path so far: app.tick:221ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=270ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":5428,\"largest8\":1140,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 33,
    "lines": [
-    "[W][perf] iter=241ms (worst path so far: app.tick:228ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[971496][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[lib] GET failed after retry",
+    "[D][spotify.queue] status=-1 elapsed=5637ms",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[W][perf] iter=258ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 34,
    "lines": [
-    "[W][perf] iter=246ms (worst path so far: app.tick:232ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=253ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 35,
    "lines": [
-    "[W][perf] iter=251ms (worst path so far: app.tick:237ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=256ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 36,
    "lines": [
-    "[W][perf] iter=255ms (worst path so far: app.tick:241ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=261ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 37,
    "lines": [
-    "[W][perf] iter=263ms (worst path so far: app.tick:249ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=268ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 38,
    "lines": [
-    "[W][perf] iter=266ms (worst path so far: app.tick:251ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=272ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 39,
    "lines": [
-    "[W][perf] iter=271ms (worst path so far: app.tick:257ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1985/6144 B)",
+    "[W][perf] iter=312ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 40,
    "lines": [
-    "[W][perf] iter=274ms (worst path so far: app.tick:260ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=281ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 41,
    "lines": [
-    "[W][perf] iter=283ms (worst path so far: app.tick:269ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=289ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 42,
    "lines": [
-    "[W][perf] iter=292ms (worst path so far: app.tick:278ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=301ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 43,
    "lines": [
-    "[W][perf] iter=304ms (worst path so far: app.tick:290ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=311ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 44,
    "lines": [
-    "[W][perf] iter=308ms (worst path so far: app.tick:293ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=315ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 45,
    "lines": [
-    "[W][perf] iter=316ms (worst path so far: app.tick:301ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=323ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 46,
    "lines": [
-    "[W][perf] iter=318ms (worst path so far: app.tick:304ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=327ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 47,
    "lines": [
-    "[W][perf] iter=324ms (worst path so far: app.tick:310ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=331ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 48,
    "lines": [
-    "[W][perf] iter=327ms (worst path so far: app.tick:313ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=336ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 49,
    "lines": [
-    "[W][perf] iter=334ms (worst path so far: app.tick:320ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=341ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 50,
    "lines": [
-    "[W][perf] iter=320ms (worst path so far: app.tick:320ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=330ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 51,
    "lines": [
-    "[W][perf] iter=324ms (worst path so far: app.tick:320ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=332ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 52,
    "lines": [
-    "[W][perf] iter=325ms (worst path so far: app.tick:320ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=335ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54588,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 53,
    "lines": [
-    "[W][perf] iter=329ms (worst path so far: app.tick:320ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=338ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54632,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 54,
    "lines": [
-    "[W][perf] iter=330ms (worst path so far: app.tick:320ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=340ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54632,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 55,
    "lines": [
-    "[W][perf] iter=335ms (worst path so far: app.tick:321ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=342ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54632,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 56,
    "lines": [
-    "[W][perf] iter=336ms (worst path so far: app.tick:322ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=347ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54632,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 57,
    "lines": [
-    "[W][perf] iter=340ms (worst path so far: app.tick:326ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=349ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54632,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "get fbState",
    "nth": 58,
    "lines": [
-    "[W][perf] iter=342ms (worst path so far: app.tick:327ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 59,
-   "lines": [
-    "[W][perf] iter=345ms (worst path so far: app.tick:331ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 60,
-   "lines": [
-    "[W][perf] iter=346ms (worst path so far: app.tick:332ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 61,
-   "lines": [
-    "[W][perf] iter=351ms (worst path so far: app.tick:337ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 62,
-   "lines": [
-    "[W][perf] iter=352ms (worst path so far: app.tick:338ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 63,
-   "lines": [
-    "[W][perf] iter=354ms (worst path so far: app.tick:341ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get fbState",
-   "nth": 64,
-   "lines": [
-    "[W][perf] iter=357ms (worst path so far: app.tick:343ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":55048,\"largest8\":38900,\"last\":true}"
+    "[W][perf] iter=352ms (worst path so far: app.tick:426ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":true,\"dir\":\"/probe200/\",\"dirCount\":0,\"fileCount\":1,\"lastErr\":\"none\",\"free8\":54632,\"largest8\":34804,\"last\":true}"
    ]
   },
   {
    "cmd": "set bgPoll 1",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=362ms (worst path so far: app.tick:348ms)",
+    "[W][perf] iter=354ms (worst path so far: app.tick:426ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   }
