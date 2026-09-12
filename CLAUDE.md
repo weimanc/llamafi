@@ -213,8 +213,10 @@ Other envs (don't use on this board): `cyd` (single-USB CYD, inversion off), `tr
 ```
 
 The **counted gate total is 11 and does not move when a host check is added** — every host-side
-gate on this project lives inside gate 8, `app/tools/smoke_test.sh`, which now runs **21 host
-scripts** — 8 checkers and 13 negative suites, six of the checkers paired with their own suite
+gate on this project lives inside gate 8, `app/tools/smoke_test.sh`, which now runs **49 host
+scripts** (counted 2026-09-12; the "21" this line carried for months was long stale — recount
+with `grep -oE '"\$PYTHON" [^ ]+\.py' app/tools/smoke_test.sh | sort -u | wc -l` rather than
+trusting this number), most checkers paired with their own negative suite
 (BP-068); TASK-677 added `lib/test_rigwatch.py` and `probe/test_burst_check.py`. `check_can_go_red.py` (TASK-671) is the runtime half of R34: it executes recorded bodies
 against poisoned transcripts instead of reading their text — see
 `docs/architecture/designs/M-HARNESS2-runtime-gates.md` for why the four static gates are not widened.
@@ -225,7 +227,7 @@ The three added by M-HARNESS2 Phase 1, each with its negative suite:
 |---|---|---|
 | `gate/check_import_safety.py` | no module under `app/tools/` opens a port, resolves one, hangs or resets the board **at import** — six DUT scripts used to run their whole suite at module level (TASK-609/R48) | at zero |
 | `gate/check_get_keys.py` | `gen/gen_get_keys.py` reads every `dbgGet` body in the tree; its glob and its definition regex between them saw 43 of 111 keys (TASK-600/R7) | at zero |
-| `gate/check_flake_class.py` | no RIG/HEALTH/CORE id carries a `flaky.yaml` declaration — a gating id whose retry resolves `FLAKY-PASS` can never set the blocker its class exists to set (TASK-623/R37) | **at zero** since 2026-09-04: its one ledger row was `T091`, which TASK-591 demoted to FEATURE, so `flake_class_exceptions.md` was deleted per its own retirement rule |
+| `gate/check_flake_class.py` | F1: no RIG/HEALTH/CORE id carries a `flaky.yaml` declaration — a gating id whose retry resolves `FLAKY-PASS` can never set the blocker its class exists to set (TASK-623/R37). **F6/F7/F8 added by TASK-595**: a declaration with no `flake()` call site, a call site for an undeclared id, and an entry past its `review_by` are each findings too | blocking on a **1-row ledger** since 2026-09-12 (`T084`, an `undeclared-flake-call` that cannot be declared without becoming an F1). It was at zero from 2026-09-04, when `T091` was demoted and `flake_class_exceptions.md` deleted per its own retirement rule; TASK-595's both-directions sweep reopened it with a different row |
 
 `gate/check_test_meta.py` (TASK-570) gained an **R35 arm** in Phase 1 (TASK-591): every id whose
 class can block — RIG, HEALTH, CORE — must declare that class with a **written reason** saying why

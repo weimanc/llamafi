@@ -64,7 +64,6 @@ Owner = the task whose row this is, i.e. the one that can decide what the pointe
 | `docs/project/tasks-harness2.md` | `TASK-564` | 742 chars — enumerates the seven per-phase deadlines | TASK-564 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-566` | 2 019 chars — the landed-inert record for the class-order switch | TASK-566 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-567` | 765 chars — the 187-site `skip()` adjudication split, counted in the row | TASK-567 | 2026-09-05 |
-| `docs/project/tasks-harness2.md` | `TASK-573` | 1 199 chars — the live gate defect written up in the row | TASK-573 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-574` | 823 chars — the 74 masked-FAIL `skip()` sites, described inline | TASK-574 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-575` | 1 361 chars — the `_TeeSerial` defect and its fix, in the row | TASK-575 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-576` | 3 129 chars — the stale-monitor-log session narrative | TASK-576 | 2026-09-05 |

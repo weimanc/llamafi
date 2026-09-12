@@ -207,19 +207,28 @@ if ! "$PYTHON" gate/check_get_keys.py; then
     exit 1
 fi
 
-# 4i. flake declarations vs gating classes — TASK-623 / M-HARNESS2 R37.
+# 4i. flake declarations vs gating classes, AND vs their own call sites —
+# TASK-623 / M-HARNESS2 R37 (F1-F5), extended TASK-595 / C-7 (F6-F8).
 # A RIG/HEALTH/CORE id that is also declared flaky gates nothing: its retry
 # resolves FLAKY-PASS, which is neither a PASS nor a FAIL, so it can never set
-# the blocker its class exists to set. Lands BLOCKING with a one-row dated
-# shrink-only ledger (docs/verification/flake_class_exceptions.md, T091) rather
-# than advisory — C3 is this repo's standing demonstration of what advisory
-# does to a finding count.
+# the blocker its class exists to set (F1). Symmetrically (TASK-595): a
+# flaky.yaml entry whose body never calls flake() does nothing (F6, an AST
+# scan for real flake() call sites under suite/serialdbg/), and a real
+# flake() call site for an UNDECLARED id gets silently converted to
+# 'FAIL: UNDECLARED flake' at runtime — a bookkeeping message standing in for
+# the real symptom (F7). F8 enforces flaky.yaml's own rule 3 (an entry past
+# its review_by is a FAIL) at review time rather than only on a DUT run. Lands
+# BLOCKING with a dated, owned, shrink-only ledger
+# (docs/verification/flake_class_exceptions.md: one F7 row, T084 — CORE,
+# genuinely undecidable host-only, see the ledger's own retirement section)
+# rather than advisory — C3 is this repo's standing demonstration of what
+# advisory does to a finding count.
 if ! "$PYTHON" gate/test_check_flake_class.py; then
-    echo "FAIL: test_check_flake_class.py (TASK-623 checker negative suite) FAILED" >&2
+    echo "FAIL: test_check_flake_class.py (TASK-623/595 checker negative suite) FAILED" >&2
     exit 1
 fi
 if ! "$PYTHON" gate/check_flake_class.py; then
-    echo "FAIL: check_flake_class.py (TASK-623 gating-class flake) FAILED" >&2
+    echo "FAIL: check_flake_class.py (TASK-623/595 gating-class + call-site flake) FAILED" >&2
     exit 1
 fi
 

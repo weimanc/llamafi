@@ -18,6 +18,7 @@ Run: python3 app/tools/gate/test_check_flake_class.py
 
 from __future__ import annotations
 
+import datetime
 import os
 import sys
 import tempfile
@@ -207,14 +208,30 @@ def case_empty_ledger_file_is_a_finding():
     one(errors, "holds no rows")
 
 
-def case_the_flake_ledger_is_actually_gone():
-    """The retirement itself, asserted rather than assumed: T091 is no longer a
-    gating class, so the file its only row lived in must not exist."""
-    assert not os.path.exists(os.path.join(C.ROOT, C.LEDGER_REL)), (
-        f"{C.LEDGER_REL} still exists, but its last row was retired")
+def case_t091_retirement_still_holds():
+    """T091's own 2026-09-04 retirement (TASK-591) is untouched by the
+    TASK-595 reopening below — it is still FEATURE, still declared, and still
+    has no `gating-flake` row of its own."""
     meta = _suite.build_all_meta()
     assert meta["T091"]["cls"] == "FEATURE", meta["T091"]["cls"]
     assert meta["T091"]["cls_declared"], "T091 is FEATURE by seed, not by declaration"
+    rows, errors = C.parse_ledger()
+    assert not errors, errors
+    assert ("gating-flake", "T091") not in rows, rows
+
+
+def case_the_ledger_was_reopened_for_t084_only():
+    """TASK-595 (C-7 sweep) reopened the file — F1 is still at zero (no
+    `gating-flake` row exists), but F7 now holds exactly one `undeclared-flake-
+    call` row: T084, CORE, whose four flake() call sites cannot be declared
+    (F1) or trivially converted without a DUT run this sweep did not have."""
+    assert os.path.exists(os.path.join(C.ROOT, C.LEDGER_REL)), (
+        f"{C.LEDGER_REL} should exist — TASK-595 reopened it for T084")
+    rows, errors = C.parse_ledger()
+    assert not errors, errors
+    assert set(rows) == {("undeclared-flake-call", "T084")}, rows
+    meta = _suite.build_all_meta()
+    assert meta["T084"]["cls"] == "CORE", meta["T084"]["cls"]
 
 
 # ── derivation and live state ────────────────────────────────────────────────
@@ -251,11 +268,155 @@ def case_live_registry_state_is_at_zero():
 
 
 def case_live_run_is_green_with_the_ledger():
+    """The full live check, exactly as main() drives it: F1-F8 together, over
+    the real registry, the real ledger, and the real call-site scan."""
     reg, err = _flaky.get_registry()
     assert err is None, err
     ledger, errors = C.parse_ledger()
     assert not errors, errors
-    none(C.evaluate(reg.entries, reg.candidates, _suite.build_all_meta(), ledger))
+    call_sites = C.flake_call_sites()
+    none(C.evaluate(reg.entries, reg.candidates, _suite.build_all_meta(), ledger,
+                    call_sites=call_sites, today=datetime.date.today()))
+
+
+# ── F6: a declaration with no call site (TASK-595 / C-7) ────────────────────
+
+def case_f6_declared_with_no_call_site():
+    """T_PLR_17/T_PMT_04/T_WR_COEX_01's exact shape before TASK-595 removed
+    their declarations: declared, class FEATURE (not gating — F1 must stay
+    silent), zero real flake() call sites."""
+    fs = C.evaluate({"T_X_01": object()}, {}, rec("FEATURE"), call_sites={})
+    one(fs, "F6 T_X_01")
+    assert not [f for f in fs if f.startswith("F1")], fs
+
+
+def case_f6_declared_with_a_call_site_is_fine():
+    fs = C.evaluate({"T_X_01": object()}, {}, rec("FEATURE"),
+                    call_sites={"T_X_01": ["shell.py:1"]})
+    none(fs)
+
+
+def case_f6_skipped_when_call_sites_none():
+    """Back-compat: every pre-TASK-595 fixture call omits call_sites, and must
+    keep behaving exactly as it did before F6 existed."""
+    none(C.evaluate({"T_X_01": object()}, {}, rec("FEATURE")))
+
+
+# ── F7: a real call site for an undeclared id (TASK-595 / C-7) ──────────────
+
+def case_f7_call_site_undeclared():
+    """T084/T092/T_PLR_07/T_WR_EJECT_01's exact shape before TASK-595: a real
+    flake() call site naming an id with no flaky.yaml entry."""
+    fs = C.evaluate({}, {}, rec("FEATURE"), call_sites={"T_X_01": ["shell.py:9"]})
+    one(fs, "F7 T_X_01")
+    one(fs, "shell.py:9")
+
+
+def case_f7_call_site_declared_is_fine():
+    fs = C.evaluate({"T_X_01": object()}, {}, rec("FEATURE"),
+                    call_sites={"T_X_01": ["shell.py:9"]})
+    none(fs)
+
+
+def case_f7_ledger_suppresses_its_key_only():
+    """T084's live shape: CORE, undeclared, ledgered under
+    'undeclared-flake-call' — F7 goes quiet for T084 but a second undeclared
+    CORE id (T_X_02) must still be reported, or the ledger is a wildcard."""
+    meta = {}
+    meta.update(rec("CORE", tid="T_X_01"))
+    meta.update(rec("CORE", tid="T_X_02"))
+    ledger = {("undeclared-flake-call", "T_X_01"): "ledger.md:1"}
+    fs = C.evaluate({}, {}, meta, ledger,
+                    call_sites={"T_X_01": ["a.py:1"], "T_X_02": ["a.py:2"]})
+    assert not [f for f in fs if "T_X_01" in f], fs
+    one(fs, "F7 T_X_02")
+
+
+def case_f7_stale_ledger_row_fails():
+    """The call site is gone (the flake() call was removed or the id was
+    declared) — the row must go with it, exactly like F1's L2."""
+    ledger = {("undeclared-flake-call", "T_X_01"): "ledger.md:3"}
+    fs = C.evaluate({}, {}, rec("CORE"), ledger, call_sites={})
+    one(fs, "F4 ledger.md:3")
+    one(fs, "delete this row")
+
+
+# ── F8: rule 3, an expired declaration (TASK-595 / C-7) ──────────────────────
+
+class _FakeEntry:
+    """Just enough of FlakyEntry's shape for F8: `.is_expired()`, `.review_by`,
+    `.owner`, `.task`. Not a real dataclass — the point is that F8 must work
+    off any object with this shape, the same duck-typing lib/flaky.py itself
+    relies on."""
+    def __init__(self, review_by, owner="@VE", task="TASK-999"):
+        self.review_by = review_by
+        self.owner = owner
+        self.task = task
+
+    def is_expired(self, today):
+        return today > self.review_by
+
+
+def case_f8_expired_entry_fails():
+    entry = _FakeEntry(datetime.date(2026, 1, 1))
+    fs = C.evaluate({"T_X_01": entry}, {}, rec("FEATURE"),
+                    today=datetime.date(2026, 2, 1))
+    one(fs, "F8 T_X_01")
+    one(fs, "31 day")
+
+
+def case_f8_not_expired_is_fine():
+    entry = _FakeEntry(datetime.date(2026, 6, 1))
+    none(C.evaluate({"T_X_01": entry}, {}, rec("FEATURE"),
+                    today=datetime.date(2026, 2, 1)))
+
+
+def case_f8_skipped_when_today_none():
+    """Back-compat: pre-TASK-595 fixtures never pass today= and must not
+    suddenly start needing a `.is_expired()` on their sentinel objects."""
+    none(C.evaluate({"T_X_01": object()}, {}, rec("FEATURE")))
+
+
+def case_f8_sentinel_without_review_by_is_exempt():
+    """A fixture that DOES pass today= but whose declared value is a bare
+    sentinel (no `.is_expired`) must not crash — F8 is opt-in per-entry, not
+    just per-call."""
+    none(C.evaluate({"T_X_01": object()}, {}, rec("FEATURE"),
+                    today=datetime.date(2026, 2, 1)))
+
+
+# ── flake_call_sites() itself ────────────────────────────────────────────────
+
+def case_flake_call_sites_ignores_prose():
+    """A `cls_reason` string that just talks about `flake()` in prose — no
+    literal ast.Call — must never be mistaken for a call site. shell.py's own
+    T084/T091 cls_reason paragraphs are exactly this shape (they say
+    "`flake()`" in a docstring/decorator string, with no arguments)."""
+    with tempfile.TemporaryDirectory() as d:
+        Path(os.path.join(d, "fake.py")).write_text(
+            '"""a module whose docstring mentions flake() and even flake("T_NOPE") '
+            'as prose, never as code."""\n'
+            "# comment: flake(\"T_ALSO_NOPE\") not a call either\n"
+            "def real():\n"
+            "    flake(\"T_REAL\", \"a real reason\")\n",
+            encoding="utf-8")
+        sites = C.flake_call_sites(d)
+    assert set(sites) == {"T_REAL"}, sites
+
+
+def case_flake_call_sites_matches_live_grep():
+    """Cross-check against an independent instrument: a plain-text grep for
+    `flake("...` should name the same id set the AST scan finds, over the real
+    suite tree. If these two disagree, believe neither until it is understood."""
+    import re
+    import subprocess
+    out = subprocess.run(
+        ["grep", "-rhoE", r'flake\("[A-Za-z0-9_-]+"', C.SUITE_DIR_REL],
+        cwd=C.ROOT, capture_output=True, text=True, check=False).stdout
+    grepped = {m.group(1) for m in re.finditer(r'flake\("([A-Za-z0-9_-]+)"', out)}
+    assert grepped, "grep found nothing — the fixture path is wrong"
+    ast_found = set(C.flake_call_sites())
+    assert ast_found == grepped, (ast_found, grepped)
 
 
 CASES = [
@@ -277,9 +438,23 @@ CASES = [
     ("L8  F4 staleness works from zero rows",    case_f4_staleness_still_works_from_zero_rows),
     ("L9  an empty ledger FILE is a finding",    case_empty_ledger_file_is_a_finding),
     ("D1  GATING derives to RIG/HEALTH/CORE",    case_gating_set_is_the_expected_triple),
-    ("P1  the flake ledger is retired",          case_the_flake_ledger_is_actually_gone),
+    ("P1  T091's 2026-09-04 retirement holds",   case_t091_retirement_still_holds),
+    ("P1b the ledger reopened for T084 only",    case_the_ledger_was_reopened_for_t084_only),
     ("P2  the live corpus is AT zero",           case_live_registry_state_is_at_zero),
-    ("P3  live run is green with no ledger",     case_live_run_is_green_with_the_ledger),
+    ("P3  live run is green with the ledger",    case_live_run_is_green_with_the_ledger),
+    ("F6a declared, no call site",               case_f6_declared_with_no_call_site),
+    ("F6b declared, has a call site: fine",      case_f6_declared_with_a_call_site_is_fine),
+    ("F6c call_sites=None skips F6 (back-compat)", case_f6_skipped_when_call_sites_none),
+    ("F7a call site, undeclared",                case_f7_call_site_undeclared),
+    ("F7b call site, declared: fine",             case_f7_call_site_declared_is_fine),
+    ("F7c ledger suppresses one F7 key only",     case_f7_ledger_suppresses_its_key_only),
+    ("F7d stale F7 ledger row fails",             case_f7_stale_ledger_row_fails),
+    ("F8a expired entry fails",                   case_f8_expired_entry_fails),
+    ("F8b not-yet-expired entry is fine",         case_f8_not_expired_is_fine),
+    ("F8c today=None skips F8 (back-compat)",     case_f8_skipped_when_today_none),
+    ("F8d sentinel without review_by is exempt",  case_f8_sentinel_without_review_by_is_exempt),
+    ("S1  flake_call_sites finds only real Calls", case_flake_call_sites_ignores_prose),
+    ("S2  flake_call_sites matches the live 6",    case_flake_call_sites_matches_live_grep),
 ]
 
 

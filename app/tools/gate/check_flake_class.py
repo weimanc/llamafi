@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""check_flake_class.py — a gating-class id may not carry a flake declaration.
-TASK-623 / M-HARNESS2 R37.
+"""check_flake_class.py — a gating-class id may not carry a flake declaration,
+and the registry must agree with its call sites. TASK-623 / M-HARNESS2 R37,
+extended by TASK-595 / R-C7 (F6/F7/F8 below).
 
 THE CONTRADICTION. RIG, HEALTH and CORE exist to stop a run: a failure in one of
 them says nothing above it is trustworthy. The flake policy exists to absorb a
@@ -48,11 +49,40 @@ WHAT IT ASSERTS
   F4  no ledger row is stale. When an exempted id stops producing its finding
       the row must go; that is what makes the list shrink-only.
 
-WHAT IT DELIBERATELY DOES NOT ASSERT. WP-C's finding has a second half — that
-T091's *body* routes every exit through `flake()`, so it can never reach a
-`pass_()`. That is a body-shape question, it is the same AST walk as "no
-reachable `fail()`", and it belongs to TASK-603 / R34. Duplicating half of it
-here would give two gates a shared, drifting notion of what a body contains.
+  F6  every DECLARED flake (`flaky:`, not `candidates:`) has at least one real
+      `flake(<its own id>, ...)` call site somewhere under `suite/serialdbg/`.
+      A declaration with no call site does nothing: the id can only ever go
+      PASS or FAIL, `run_with_flake_retry` is never invoked for it, and the
+      owner/task/`review_by` bookkeeping is dead weight. Reference cases
+      (TASK-595 / C-7): `T_PLR_17`, `T_PMT_04`, `T_WR_COEX_01` were declared
+      while their bodies used a plain `fail()`.
+
+  F7  every real `flake(<id>, ...)` call site names an id that is DECLARED.
+      `lib/results.flake()` already fails closed on this at runtime (`FAIL:
+      UNDECLARED flake — no entry for <id> in flaky.yaml`) — this is that same
+      rule caught at review time instead of on a DUT, host-side, before the
+      real symptom the call site meant to report gets buried behind a
+      bookkeeping message. Reference cases (TASK-595 / C-7, hardware-confirmed
+      on two separate M-TESTQUAL sessions): `T084`, `T092`, `T_PLR_07`,
+      `T_WR_EJECT_01`.
+
+  F8  no DECLARED entry's `review_by` has passed. flaky.yaml's own rule 3: "an
+      entry past its review date is a FAIL until re-justified" — `lib/flaky.py`
+      enforces this at the individual `flake()` call (EXPIRED behaves exactly
+      like UNDECLARED), but nothing previously caught a stale date at review
+      time, before a DUT run was needed to surface it.
+
+WHAT F6/F7 DELIBERATELY DO NOT ASSERT. Presence, not reachability. F6/F7 are a
+literal `ast.Call` scan for `flake("SOME_ID", ...)` across the suite source —
+they answer "does a real call site for this id exist anywhere", not "is every
+exit of this id's body accounted for" or "can this body ever reach a
+`fail()`". The latter is a full reachability/swallowing-fixpoint analysis that
+already exists, over the same kind of AST, in `check_no_reachable_fail.py`
+(TASK-603 / R34) — duplicating it here would give two gates a shared, drifting
+notion of what a body contains. A docstring or a `cls_reason` string that
+merely *mentions* `flake()` in prose is not a call site: F6/F7 only count an
+`ast.Call` node whose callee is literally named `flake`, so comment text can
+never produce a false match.
 
 No DUT, no build, no network. Sub-second.
 
@@ -61,7 +91,9 @@ No DUT, no build, no network. Sub-second.
 
 from __future__ import annotations
 
+import ast
 import datetime
+import glob
 import os
 import re
 import sys
@@ -90,9 +122,49 @@ GATING = tuple(c for c in _meta.CLASSES if c not in _order.CORE_BLOCKS)
 
 LEDGER_REL = "docs/verification/flake_class_exceptions.md"
 
-#: Only F1 is exemptable. F2 and F3 are at zero today, so there is nothing to
-#: grandfather, and an exemption kind with no rows is an invitation.
-EXEMPTABLE = ("gating-flake",)
+#: F1 and F7 are exemptable. F2/F3/F6/F8 are at zero today (F6 fixed outright
+#: by TASK-595's sweep; F8 has no expired entry today), so there is nothing to
+#: grandfather for them, and an exemption kind with no rows is an invitation.
+EXEMPTABLE = ("gating-flake", "undeclared-flake-call")
+
+SUITE_DIR_REL = "app/tools/suite/serialdbg"
+
+
+def flake_call_sites(suite_dir: str = None) -> dict:
+    """-> {tid: ["rel/path.py:line", ...]}, one entry per literal-string id
+    passed as the first argument of a real `flake(...)` call, scanned across
+    every `*.py` under `suite/serialdbg/`.
+
+    AST-based, not text/regex: only an `ast.Call` node whose callee is the bare
+    name `flake` counts, and only when its first argument is a string
+    constant. A `cls_reason` paragraph that writes "the body calls `flake()`"
+    in prose is not a `Call` node and can never match. A file that fails to
+    parse is skipped, not fatal — `check_test_meta.py`/`build_all_meta()` will
+    already have failed loudly on a syntax error elsewhere in `run/check`.
+    """
+    suite_dir = suite_dir or os.path.join(ROOT, SUITE_DIR_REL)
+    sites: dict = {}
+    for path in sorted(glob.glob(os.path.join(suite_dir, "*.py"))):
+        rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+        try:
+            src = open(path, encoding="utf-8").read()
+            tree = ast.parse(src, filename=path)
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = fn.id if isinstance(fn, ast.Name) else None
+            if name != "flake":
+                continue
+            if not node.args:
+                continue
+            arg0 = node.args[0]
+            if not (isinstance(arg0, ast.Constant) and isinstance(arg0.value, str)):
+                continue
+            sites.setdefault(arg0.value, []).append(f"{rel}:{node.lineno}")
+    return sites
 
 _TASK_RE = re.compile(r"^TASK-\d+$")
 _SEP_RE = re.compile(r":?-{2,}:?")
@@ -166,17 +238,41 @@ def parse_ledger(path: str = None) -> tuple:
     return rows, errors
 
 
-def evaluate(declared, candidates, meta, ledger=None) -> list:
+def evaluate(declared, candidates, meta, ledger=None, call_sites=None, today=None) -> list:
     """Pure: the findings, so the negative suite can drive it with fixtures.
 
     `declared` / `candidates` are id -> anything; `meta` is id -> record;
     `ledger` is the parsed `{(kind, id): where}` mapping.
+
+    `call_sites` (id -> [site, ...]) and `today` are both OPT-IN: passing
+    `None` (the default) skips F6/F7/F8 entirely, so every pre-existing
+    fixture that drives `declared`/`candidates` with a bare sentinel (no
+    `review_by`, no call-site fixture) keeps working unmodified — this method
+    was extended in place (TASK-595), not forked. F8 additionally only fires
+    for a `declared` value that actually carries `.review_by` (a real
+    `FlakyEntry`, via `is_expired()`); a fixture sentinel without one is
+    silently exempt from F8, never a crash.
     """
     ledger = dict(ledger or {})
     out: list = []
     used: set = set()
 
     for tid in sorted(declared):
+        entry = declared[tid]
+        if today is not None and hasattr(entry, "is_expired") and entry.is_expired(today):
+            days = (today - entry.review_by).days
+            out.append(
+                f"F8 {tid}: review_by {entry.review_by} passed {days} day(s) ago "
+                f"(owner {entry.owner}, {entry.task}) — rule 3: an entry past its "
+                f"review date is a FAIL until re-justified. Bump review_by with a "
+                f"fresh justification or DELETE the entry")
+        if call_sites is not None and tid not in call_sites:
+            out.append(
+                f"F6 {tid}: declared in flaky.yaml but no `flake({tid!r}, ...)` "
+                f"call site exists anywhere under {SUITE_DIR_REL}/ — the "
+                f"declaration does nothing (run_with_flake_retry is never invoked "
+                f"for it); REMOVE the entry, or make the body call flake() where "
+                f"the claimed symptom actually occurs")
         rec = meta.get(tid)
         if rec is None:
             out.append(f"F3 {tid}: declared flaky but no registry contains it — the "
@@ -208,6 +304,23 @@ def evaluate(declared, candidates, meta, ledger=None) -> list:
                        f"{rec['cls']} — promoting it would create the F1 "
                        f"contradiction; measure it and fix it, or demote it first")
 
+    if call_sites is not None:
+        for tid in sorted(call_sites):
+            if tid in declared:
+                continue
+            key = ("undeclared-flake-call", tid)
+            if key in ledger:
+                used.add(key)
+                continue
+            sites = ", ".join(call_sites[tid])
+            out.append(
+                f"F7 {tid}: flake() called at {sites} for an id not declared in "
+                f"flaky.yaml — lib/results.flake() already converts every one of "
+                f"these calls to 'FAIL: UNDECLARED flake', which reports a "
+                f"bookkeeping problem instead of the real symptom the call site "
+                f"names. ADD a declaration (owner + task + review_by), or stop "
+                f"calling flake() there and let the id fail() properly")
+
     for key, where in sorted(ledger.items()):
         if key not in used:
             out.append(f"F4 {where}: stale exception for {key[1]} ({key[0]}) — the "
@@ -225,26 +338,32 @@ def main(argv) -> int:
         return 1
     meta = _suite.build_all_meta()
     ledger, ledger_errors = parse_ledger()
-    findings = evaluate(reg.entries, reg.candidates, meta, ledger) + ledger_errors
+    call_sites = flake_call_sites()
+    today = datetime.date.today()
+    findings = evaluate(reg.entries, reg.candidates, meta, ledger,
+                        call_sites=call_sites, today=today) + ledger_errors
 
     gating_ids = sorted(t for t, r in meta.items() if r.get("cls") in GATING)
     print(f"check_flake_class: {len(reg.entries)} declared flake(s), "
           f"{len(reg.candidates)} candidate(s), against {len(gating_ids)} gating "
           f"ids ({'/'.join(GATING)}) in a {len(meta)}-id registry; "
-          f"{len(ledger)} ledger row(s)"
+          f"{len(ledger)} ledger row(s); {len(call_sites)} distinct id(s) with a "
+          f"real flake() call site under {SUITE_DIR_REL}/"
           + ("" if os.path.exists(os.path.join(ROOT, LEDGER_REL))
              else f" (no ledger file — retired 2026-09-04, TASK-591)"))
     if verbose:
         for tid in sorted(reg.entries):
             rec = meta.get(tid) or {}
-            print(f"    {tid}: cls={rec.get('cls', '<not registered>')}")
+            print(f"    {tid}: cls={rec.get('cls', '<not registered>')} "
+                  f"call_sites={call_sites.get(tid, [])}")
 
     if findings:
         print(f"\nFAIL: {len(findings)} finding(s)")
         for f in findings:
             print(f"  {f}")
         return 1
-    print("  PASS  no gating-class id is excused by the flake policy")
+    print("  PASS  no gating-class id is excused, and the registry agrees with "
+          "its call sites in both directions, with no expired entry")
     return 0
 
 

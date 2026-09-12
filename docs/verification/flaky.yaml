@@ -69,6 +69,120 @@ flaky:
     task: TASK-545
     review_by: 2026-09-26
 
+  # ADDED 2026-09-12 (TASK-595 / C-7 both-directions sweep). T092's body
+  # (shell.py:t092) has called `flake()` on this exact symptom since it was
+  # written (comment: "KNOWN INTERMITTENT: TLS reset log-line timing... first
+  # observed 2026-05-25") but was never declared here, so every real occurrence
+  # was converted to `FAIL: UNDECLARED flake` — a bookkeeping message instead of
+  # the actual timing symptom (WP-C C-7 / WP-E E-3). TASK-591 (2026-09-04)
+  # already reasoned about this id's class on the same grounds as T091 (its
+  # sibling in the same reconnect-command family) and demoted it CORE->FEATURE
+  # for the identical structural reason: an id whose every flake() exit could
+  # never set a real blocker is not the class it claims. Hardware-confirmed
+  # live on the M-TESTQUAL phase-2 session A run (2026-09-06): FAILed with
+  # exactly `UNDECLARED flake — no entry in flaky.yaml`
+  # (M-TESTQUAL-phase2-session-review.md:388, C-7 row).
+  - id: T092
+    suite: suite/serialdbg/shell
+    since: 2026-09-12
+    evidence: "KNOWN INTERMITTENT since 2026-05-25 (code comment, shell.py) — post-
+      reconnect TLS renegotiation can delay the [spotify.poll] force-poll line
+      past the 2000ms observation window. Hardware-confirmed live on the
+      M-TESTQUAL phase-2 session A run (2026-09-06): the flake() call fired for
+      real and was converted to 'FAIL: UNDECLARED flake' before this
+      declaration existed (M-TESTQUAL-phase2-session-review.md:388). No
+      independent multi-run count has been taken for T092 alone (unlike
+      T087/T091's TASK-480 3-run baseline) — this entry is declared on the
+      code-comment history plus the one confirmed live occurrence, not a
+      measured rate; re-derive a run count before extending review_by again."
+    symptom: "no '[spotify.poll] GET/ok/204' line seen within 2000ms of
+      `reconnect`, or the observed line arrives past that bound"
+    dependency: "[TIMING] [NETWORK] — same reconnect-triggered TLS
+      renegotiation window T091 depends on; this rig runs under a live 403
+      (TASK-243, Premium lapsed) which already degrades this path"
+    suspected: "TLS renegotiation timing, same mechanism class and same
+      first-observed date as T087/T091 — all three trace to the reconnect
+      command family"
+    owner: "@VE"
+    task: TASK-595
+    review_by: 2026-10-12
+
+  # ADDED 2026-09-12 (TASK-595 / C-7 both-directions sweep). T_PLR_07's body
+  # (player.py:t_plr_07) calls `flake()` and was never declared, so a real
+  # occurrence surfaces as bookkeeping instead of the TLS-reset symptom
+  # (WP-C C-7 / WP-E E-3 / E-10). Hardware-confirmed live on the M-TESTQUAL
+  # phase-2 session A run (2026-09-06): FAILed with exactly `UNDECLARED flake`
+  # (M-TESTQUAL-phase2-session-review.md:388).
+  #
+  # NAMED SEPARATELY, NOT FIXED HERE (E-10, M-TESTQUAL-Z-findings-review.md):
+  # the root cause is understood and is a HARNESS bug, not firmware — this body
+  # still uses the old split `dut.cmd(tap)` + manual `readline()` loop that
+  # races `read_json()`'s non-JSON-line discard against spotifyTask's async
+  # "hard reset — stopping client" trace on a different FreeRTOS task, which can
+  # silently eat the very log line being waited for. `_tap_and_wait_log()` was
+  # written to remove exactly this race and is already used 90 lines away in
+  # the same file (`t_plr_06`), and by `t_plr_17` and `t_wr_eject_01`. Rewiring
+  # `t_plr_07` onto it (E-audit-player-review.md E-10: "a two-line change,
+  # T_PLR_06 is the working template") would likely eliminate the need for this
+  # declaration entirely — but that is a suite code change outside a host-only
+  # registry sweep, and is called out as a separate defect below rather than
+  # fixed in passing.
+  - id: T_PLR_07
+    suite: suite/serialdbg/player
+    since: 2026-09-12
+    evidence: "Hardware-confirmed live on the M-TESTQUAL phase-2 session A run
+      (2026-09-06): FAILed with 'UNDECLARED flake — no entry for T_PLR_07 in
+      flaky.yaml', original claim 'hit=LOGO action=TLS_RESET but no TLS-reset
+      log line within 8 s' (M-TESTQUAL-phase2-session-review.md:388, 835;
+      M-TESTQUAL-E-audit-player-review.md E-3/E-10). Root cause is a named,
+      understood harness race (E-10), not a measured firmware intermittency —
+      declared here so a recurrence surfaces the real symptom instead of
+      bookkeeping while E-10's fix is pending; delete this entry once E-10
+      lands and t_plr_07 no longer calls flake() at all."
+    symptom: "hit=LOGO action=TLS_RESET confirmed (real), but no 'hard reset'/
+      'stopping client' log line observed within 8 s"
+    dependency: "[TIMING] — split-read race between the tap-ack JSON parse and
+      spotifyTask's async TLS-reset trace line (a different FreeRTOS task)"
+    suspected: "harness split-read race (E-10), not a firmware defect — the
+      same race class already fixed in t_plr_06/t_plr_17/t_wr_eject_01 via
+      _tap_and_wait_log() but not yet applied to t_plr_07 itself"
+    owner: "@VE"
+    task: TASK-595
+    review_by: 2026-10-12
+
+  # ADDED 2026-09-12 (TASK-595 / C-7 both-directions sweep, TASK-667). Third
+  # instance of the same shape as T_PLR_07 above, but WITHOUT E-10's harness
+  # race: this body (webradio.py:t_wr_eject_01) already uses the race-free
+  # `_tap_and_wait_log()` helper (M-TESTQUAL-F-audit-webradio-review.md:141:
+  # "uses the right instrument"), so its occasional missing log line is a
+  # genuine timing tail, not a known-fixable read bug. Hardware-confirmed live
+  # on the M-TESTQUAL phase-2 session B run (2026-09-07): FAILed with exactly
+  # 'UNDECLARED flake' (M-TESTQUAL-phase2-session-review.md §B.3, lines
+  # 816-838). TASK-667 filed this exact recommendation: "Fold into TASK-595's
+  # sweep or declare it."
+  - id: T_WR_EJECT_01
+    suite: suite/serialdbg/webradio
+    since: 2026-09-12
+    evidence: "Hardware-confirmed live on the M-TESTQUAL phase-2 session B run
+      (2026-09-07): FAILed with 'UNDECLARED flake — no entry for T_WR_EJECT_01
+      in flaky.yaml', original claim 'hit=EJECT action=EJECT, appId stayed
+      Spotify, but no TLS-reset log line within 8 s'
+      (M-TESTQUAL-phase2-session-review.md:816-838, §B.3; TASK-667). Unlike
+      T_PLR_07 this body already uses the correct _tap_and_wait_log() helper,
+      so the occasional missing log line is not attributable to a known
+      harness race — no root cause identified yet, one confirmed live
+      occurrence."
+    symptom: "hit=EJECT action=EJECT confirmed, appId stays Spotify confirmed,
+      but no 'hard reset' log line observed within 8 s of the eject tap"
+    dependency: "[TIMING] — same TLS-reset log-line tail as T_PLR_07/T092,
+      without the split-read race (the read helper here is already correct)"
+    suspected: "TLS-reset log-line emission or serial-read timing tail; not
+      (yet) shown to be a harness defect (helper is already correct) or a
+      firmware defect"
+    owner: "@VE"
+    task: TASK-595
+    review_by: 2026-10-12
+
   # ATTRIBUTION CORRECTED 2026-09-07 (M-TESTQUAL phase-2 hardware session,
   # WP-F F-4). This entry blamed radio-browser.info churn for the wrState=5
   # symptom for about a year. It is not a network symptom at all: wrState=5 is
@@ -96,72 +210,38 @@ flaky:
   # `Dut.injected("wrDeadUrls", 15, clear_to=0)` (BP-073). This declaration is
   # kept, narrowed to what remains genuinely environmental, and should be
   # DELETED outright if the next full-suite run shows no wrState=5.
-  - id: T_WR_COEX_01
-    suite: suite/serialdbg/webradio
-    since: 2026-08-26
-    evidence: "TASK-540 investigated this symptom on 5 fresh DUT runs and closed
-      2026-08-26 as 'could not reproduce as a firmware defect' — but every one
-      of those runs was ISOLATED, and the symptom is suite-order-only. The
-      2026-09-06 hardware session identified the mechanism (see the note above):
-      six upstream T_PLE_WR_* ids leave `set wrDeadUrls` armed, and wrState=5 is
-      the value that flag assigns. TASK-540's other observed outcomes (timeout at
-      wrState=1 CONNECTING, timeout at wrState=0 STOPPED, station list
-      unavailable/SKIP) remain plausibly environmental and are what this
-      declaration now covers."
-    symptom: "timeout at wrState=1/0, or SKIP on an unavailable station list.
-      NOT wrState=5 — that value is the debug flag, never the network, and after
-      the 2026-09-07 custody fix it should not recur; if it does, the fix
-      regressed and this is a suite-order defect to be fixed, not a flake."
-    dependency: "[NETWORK] — radio-browser.info station availability, and (F-0,
-      2026-09-06) nl1/at1.api.radio-browser.info no longer resolving in DNS at
-      all while the firmware mirror list still names them"
-    suspected: "residual station-fetch unavailability. The wrState=5 arm of this
-      entry was a MISATTRIBUTION and has been removed — do not re-derive it."
-    owner: "@VE"
-    task: TASK-540
-    review_by: 2026-09-26
+  # RETIRED 2026-09-12 (TASK-595 / C-7 both-directions sweep). The body
+    # (webradio.py:t_wr_coex_01) has never called flake() — only skip()/fail() —
+    # so this declaration bought nothing at runtime (F6, check_flake_class.py).
+    # It also documented a symptom the note above already calls MISATTRIBUTED:
+    # the 2026-09-07 custody fix (TASK-579) measured `wrState=5` 45 -> 0 and a
+    # follow-up hardware session (M-TESTQUAL-phase2-session-review.md §B.3,
+    # 2026-09-07) confirmed 0 occurrences of wrState=5 in a full run — the id now
+    # SKIPs on a genuine, different, environmental cause (station list
+    # unavailable). Declaration removed rather than re-dated: nothing here is
+    # still true of the live body. Re-open only against a NEW measured symptom,
+    # with a real flake() call site to match.
 
-  # T_WR_VOL_03 was declared flaky here (TASK-540, since 2026-08-26). The id was
-  # RETIRED UNOBSERVABLE on 2026-09-05 (TASK-603) — WP-F F-7: it read no volume at
-  # all, so the "station did not reach PLAYING" symptom below was never its subject.
-  # Declaration removed with the body; see docs/verification/retired_test_ids.md.
-  - id: T_PLR_17
-    suite: suite/serialdbg/player
-    since: 2026-08-17
-    evidence: "1 fail in 3 runs, same build, same session (df21bbd). FAILED in the
-      sequence T_PLR_01,05,17,18,19; PASSED in isolation; PASSED again on the
-      identical five-id sequence."
-    symptom: "no 'dequeued action=SHUFFLE' within 20s — dispatch did not reach spotifyTask"
-    dependency: "[NETWORK] — Spotify action dispatch; this rig runs under a live 403
-      (TASK-243, Premium lapsed), so the poll path is already degraded"
-    suspected: "suite-order dependence — T_PLR_01/05 are mode-cyclers and run
-      immediately before. NOT attributed to the T_PMT work: T_PLR_01/05/17 never
-      call playerCycle, and the new debug surfaces are inert unless invoked."
-    owner: "@VE"
-    task: TASK-520
-    review_by: 2026-09-17
-    # NOT a verdict. One failure in three runs is evidence that this id is
-    # unstable, not proof of a root cause. Re-derive before acting on it.
-
-  - id: T_PMT_04
-    suite: suite/serialdbg/player
-    since: 2026-08-17
-    evidence: "1 fail in 5 fresh-boot runs (TASK-513). On the failing boot all three
-      play attempts left curRow=-1 and acquires never left 0; the built-in retry
-      (3 attempts, 20s apart, after a 100s heap-settle wait) did not clear it
-      within that boot. Runs 2-5 passed with identical arena numbers."
-    symptom: "playback never starts — aeConnectFile() refuses before reaching
-      mb_arena_acquire(); T_PMT_04 hard-FAILs rather than passing vacuously"
-    dependency: "[SD] [AUDIO] — cyd2usb_player only; real MP3 decode from the card"
-    suspected: "PLAYBACK-START flake, NOT an arena-contract flake — the arena numbers
-      never varied across runs (0->1->released, hwm=23216 every time). Boot playerMode
-      was ruled out: run 1 booted Spotify and failed, runs 3-5 booted Spotify and passed."
-    owner: "@VE"
-    task: TASK-513
-    review_by: 2026-09-17
-    # The FAILURE mode here is safe by construction: a run that cannot start
-    # playback fails loudly naming the vacuum, so this id cannot go green without
-    # a real acquire. That is the whole point of TASK-513.
+  # T_PLR_17 and T_PMT_04 were declared flaky here (below, now removed:
+  # RETIRED 2026-09-12, TASK-595 / C-7 both-directions sweep).
+  #
+  # T_PLR_17 (was: since 2026-08-17, TASK-520, "1 fail in 3 runs... no 'dequeued
+  # action=SHUFFLE' within 20s"). Its body (player.py:t_plr_17) uses `fail()`,
+  # never `flake()` — F6, check_flake_class.py. The 1-in-3 failure this entry
+  # documented was the split-read race between the tap-ack JSON parse and
+  # spotifyTask's async dequeue trace; TASK-417 (DONE 2026-08-11) replaced the
+  # split read with `_tap_and_wait_log()` for exactly this id, and the same gate
+  # re-ran 6/6 clean afterward (tasks-archive.md, TASK-417 D13 record). The
+  # declaration outlived the fix it was measuring.
+  #
+  # T_PMT_04 (was: since 2026-08-17, TASK-513, "1 fail in 5 fresh-boot runs").
+  # Its body (player.py:t_pmt_04) also never calls `flake()` — by design: its own
+  # comment says "The FAILURE mode here is safe by construction... this id
+  # cannot go green without a real acquire. That is the whole point of
+  # TASK-513." TASK-513 deliberately chose a hard fail() over an excuse for a
+  # PLAYBACK-START flake, so the declaration never matched the body's actual
+  # policy. Removed rather than re-dated; a body that starts calling flake()
+  # here in future needs its own new declaration, not this one revived.
 
 # ── Candidates, NOT yet declared ────────────────────────────────────────────
 # These are named in project memory and test annotations but have no run-count
