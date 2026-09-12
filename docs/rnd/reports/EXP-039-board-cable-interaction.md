@@ -1,9 +1,12 @@
-# EXP-039 — The fault is a board × cable/port PAIRING: DUT1 fails only on its original cable
+# EXP-039 — TASK-557's root cause: a faulty USB cable (DUT1 failed only through it)
 
 > Owner: R&D · 2026-09-12 00:30–00:45 · operator: Opus (human swapped the cables between runs and
 > confirmed each step) · instrument rig/bare_bod (F-4) · driver `probe/rig_ladder.py`.
-> Closes the question [EXP-038](EXP-038-dut1-retest.md) opened. Together they supersede
+> Closes the question [EXP-038](EXP-038-dut1-retest.md) opened, and supersedes
 > [EXP-037](EXP-037-dut2-replication.md)'s "DUT1-specific board marginality" reading.
+> **Read §Cell E first: cells A–D concluded "board × cable/port pairing"; cell E (new cable, same
+> board and socket) narrowed that to the CABLE and exonerated the socket. The sections below are
+> kept in the order they were measured.**
 
 ## Setup
 
@@ -31,7 +34,7 @@ level1 L1: trips 0/3  drops 3/3  wifi_ip 0/3  ready 0/3  armed [None]   <- no bo
 kernel: 5 × "usb 1-1: new full-speed USB device" during the run
 ```
 
-## Numbers — the 2×2
+## Numbers — cells A–D (superseded by §Cell E's final table)
 
 | cell | board | port+cable | trips @7 | USB drops @1 |
 |---|---|---|---|---|
@@ -40,7 +43,7 @@ kernel: 5 × "usb 1-1: new full-speed USB device" during the run
 | C | DUT1 | other | 0/3 | 0/3 |
 | **D** | **DUT1** | **original** | **3/3** | **3/3** |
 
-## Decision
+## Decision (cells A–D; narrowed by cell E below)
 
 **The fault is the pairing of DUT1 with its original cable/port, and it reproduces on demand.**
 A and D agree (3/3 trips, USB drops at level 1); C removes the cable/port and the fault vanishes on
@@ -77,3 +80,40 @@ reproducible by pairing. Recommended action, in order:
   cable on `1-1` — one extra run each, and step 1 above effectively does the second.
 - `wifi_ip` was 2/3 in both level-7 cells; the third boot reached `ready` without an IP. WiFi
   association is not required for the trip — the sag is at PHY bring-up (EXP-035).
+
+## Cell E — same board, same socket, NEW cable (2026-09-12 01:00): the fault is the CABLE
+
+The human replaced the cable on `1-1`, leaving board and socket unchanged. `read_mac` on that socket
+before the run: `d4:8a:fc:c8:ee:d0` (DUT1).
+
+```
+wifi7  L7: trips 0/3  drops 0  wifi_ip 3/3  ready 3/3  armed [7]
+level1 L7: trips 0/3  drops 0  wifi_ip 3/3  ready 3/3  armed [7]
+level1 L1: trips 0/3  drops 0  wifi_ip 3/3  ready 3/3  armed [1]
+kernel: 1 × "usb 1-1: new full-speed USB device" in 12 min (the identity check's own reset)
+```
+
+| cell | board | socket | cable | trips @7 | USB drops @1 |
+|---|---|---|---|---|---|
+| A / D | DUT1 | `1-1` | **original** | **3/3** | **9/9, 3/3** |
+| B | DUT2 | `1-1` | original | 0/3 | 0/12 |
+| C | DUT1 | `5-1` | other | 0/3 | 0/3 |
+| **E** | **DUT1** | **`1-1`** | **new** | **0/3** | **0/3** |
+
+**Decision, final: the original USB cable was the fault.** E holds board and socket fixed and changes
+only the cable, and the fault disappears — so the socket is exonerated and the "board × cable/port
+interaction" of the earlier decision narrows to **board × cable**. DUT2 tolerating that cable (B) is
+consistent: the cable's series resistance was marginal, not open, so it only mattered for the board
+with the larger WiFi inrush. Every symptom TASK-557 chased for weeks — the 3V3 sag across the level-7
+comparator threshold, the level-≤1 USB drops, the come-and-go "non-stationarity" — is explained by
+that cable, on this evidence.
+
+**What this retires:** EXP-035's B_boot ladder, EXP-036's backlight A/B and EXP-026's steady-state
+trip counts were all measured through the faulty cable and describe that configuration, not the
+board or the CYD design. They are not deleted (the method and the instrument stand) but their
+voltage-margin conclusions must not be quoted as board properties. Re-measuring any of them, if ever
+needed, is now cheap: the rig is clean and the instrument works.
+
+**Action taken / owed:** the bad cable must leave the bench (label or bin it) — it is the one that was
+on `1-1` until 2026-09-12 01:00. X-P3 (supply A/B with a meter) is **moot** for this fault and should
+only be revived if a sag ever reappears on known-good wiring.
