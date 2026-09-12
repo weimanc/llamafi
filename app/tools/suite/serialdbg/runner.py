@@ -441,6 +441,11 @@ def main():
                           else "not-run(no-health-phase;TASK-566)"), flush=True)
 
     health_failed = []
+    # Bound unconditionally: `health_selected` is `list(health_tests)` on the
+    # --dut-health path, and `build_health_tests()` resolving empty is exactly
+    # the case `_triage` has a word for. Leaving `sw` to the branch below made
+    # the C-4 banner a NameError in that case instead of an honest verdict.
+    sw = "unavailable(no-HEALTH-class;TASK-565)"
     if health_selected and not _gate_on:
         # Explicitly-named health ids, with no gate phase: run/dut-health reached
         # by another name (§4.5). The gate phase itself lives in _gate.run_suite.
@@ -484,9 +489,24 @@ def main():
                   f"[VERDICT-INVARIANT] block above. NOT a statement about the "
                   f"board.", flush=True)
             sys.exit(rc)
-        print("\n[health] PASS — the board answers correct data, knows which "
-              "network it is on, and can switch apps. It is fit to test.",
-              flush=True)
+        # C-4: this used to be the same literal PASS sentence unconditionally,
+        # even when a HEALTH id SKIPped (e.g. T_DH_02 under --no-wifi) — the
+        # premise line printed two lines above (`switch={sw}`) would then say
+        # `degraded(...)` for the identical run. `sw` is `_triage.health_verdict`
+        # for these same ids (always computed above: `health_selected` is
+        # unconditional for --dut-health, so the `not _gate_on` branch always
+        # ran), so the banner and the premise can no longer disagree.
+        if sw == "ok":
+            print("\n[health] PASS — the board answers correct data, knows which "
+                  "network it is on, and can switch apps. It is fit to test.",
+                  flush=True)
+        else:
+            print(f"\n[health] {sw} — no HEALTH id FAILed or was UNMET, so this "
+                  f"is not exit 4, but the board was not SHOWN healthy: an id "
+                  f"named in the verdict either did not PASS or did not run, so "
+                  f"its premise was never established. This is NOT the same "
+                  f"claim as '[health] PASS' — see the premise line above and "
+                  f"the row(s) in the results.", flush=True)
         sys.exit(0)
 
     if args.record:

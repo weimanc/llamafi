@@ -35,7 +35,7 @@ from __future__ import annotations
 from lib.results import (BLOCKING, RESULTS, Verdict, begin, not_run,
                          print_results, verdict_of)
 
-from suite.serialdbg import _order
+from suite.serialdbg import _order, _triage
 
 #: TASK-608 / R30. What the run actually did with the order switch, recorded
 #: where runner.py's premise provider can read it without this module having to
@@ -76,17 +76,39 @@ def health_phase(health_ids, run_health, mode="gate", emit=print):
     ids = list(health_ids)
     failed = run_health(ids)
     if not failed:
+        # C-4 / R38: `failed` only holds BLOCKING (FAIL/UNMET) ids — a HEALTH id
+        # that SKIPped is neither, so it reaches here too. Ask `_triage` what it
+        # would tell a FAIL about this same run BEFORE popping anything, so the
+        # banner below cannot assert a premise `health_verdict()` would call
+        # `degraded`. (`health_verdict` reads `RESULTS` by default, the same
+        # store this module writes.)
+        sw = _triage.health_verdict({tid: {"cls": "HEALTH"} for tid in ids})
         # §4.5: a PASSING health gate contributes NO RESULTS row — it is reported
         # in the `[health]` premise line instead. Otherwise every run's pass count
         # inflates by three and §4 rule 7's NOT-RUN bookkeeping stops adding up.
         # A FAILING one keeps its row, so the gate parsers and any archived log
-        # carry the reason.
+        # carry the reason. A SKIPped one also keeps its row — it is not a PASS
+        # and popping it would hide the very thing `sw` is about to name.
         for tid in ids:
             if verdict_of(tid) is Verdict.PASS:
                 RESULTS.pop(tid)
-        emit("[health] PASS — the board answers correct data, knows which "
-             "network it is on, and can switch apps. It is fit to test. "
-             "(No RESULTS row: a passing gate is a premise, not a result.)")
+        if sw == "ok":
+            emit("[health] PASS — the board answers correct data, knows which "
+                 "network it is on, and can switch apps. It is fit to test. "
+                 "(No RESULTS row: a passing gate is a premise, not a result.)")
+        else:
+            # Was: the same literal PASS sentence, unconditionally. C-4: that
+            # laundered a SKIPped HEALTH id into an assertion about the thing
+            # that never ran, while this same run's `_triage.health_verdict`
+            # called it `degraded` in the same output. Not blocking — a SKIP is
+            # still green (R28) — but the banner must say so honestly instead of
+            # claiming a premise nothing established.
+            emit(f"[health] {sw} — no HEALTH id FAILed or was UNMET, so nothing "
+                 f"here blocks the run, but the board was not SHOWN healthy: an "
+                 f"id named in the verdict either did not PASS or did not run, "
+                 f"so its premise was never established. This is NOT the same "
+                 f"claim as '[health] PASS' — read the row(s) above for which "
+                 f"id and why.")
         return ([], False)
     emit(f"\n[HEALTH-FAIL] {','.join(failed)} — this board is NOT a valid test "
          f"subject right now. Every result a suite produced against it would be "

@@ -101,7 +101,7 @@ def _dispatch_factory(failing=(), unmet=()):
 
 
 def _run(failing=(), health_failed=(), class_order=True, health_mode="gate",
-         unmet=(), health_unmet=()):
+         unmet=(), health_unmet=(), health_skip=()):
     R.reset()
     dispatch, ran = _dispatch_factory(failing, unmet)
     health_calls = []
@@ -113,6 +113,8 @@ def _run(failing=(), health_failed=(), class_order=True, health_mode="gate",
                 R.fail(tid, "stubbed health failure")
             elif tid in health_unmet:
                 R.unmet(tid, "stubbed unestablished health premise")
+            elif tid in health_skip:
+                R.skip(tid, "stubbed configuration skip")
             else:
                 R.pass_(tid)
         # DELIBERATELY the production predicate, not `t in health_failed`:
@@ -190,6 +192,30 @@ def arm_health_passes_no_row():
           "run's pass count inflates and §4 rule 7's bookkeeping stops adding up")
     check(rc == 0 and sorted(ran) == sorted(SELECTED),
           f"and the suite then runs normally (rc={rc}, ran={ran})")
+
+
+def arm_health_skip_is_not_pass():
+    """C-4 / TASK-588. A SKIPped HEALTH id is neither FAIL nor UNMET, so it is
+    not in `run_health`'s returned `failed` list and does not block — that part
+    is unchanged and correct (R28: a SKIP is green). What was wrong is the
+    banner: `health_phase` used to print the literal `[health] PASS — ... knows
+    which network it is on ...` sentence unconditionally in this branch, even
+    though `_triage.health_verdict` calls the identical run `degraded(H1)`. The
+    fix makes the banner ask `health_verdict` first."""
+    print("\n── C-4 arm — a SKIPped HEALTH id must not be announced as PASS ──")
+    rc, ran, res, out, calls = _run(health_skip=("H1",))
+    check(rc == 0 and sorted(ran) == sorted(SELECTED),
+          f"a SKIP still gates nothing — the suite runs normally (rc={rc}, ran={ran})")
+    check(res.get("H1", "").startswith("SKIP"),
+          f"the SKIPped health id keeps its RESULTS row — popping it would hide "
+          f"the very thing the banner must now name: {res.get('H1')!r}")
+    check("[health] PASS — the board answers correct data, knows which "
+          "network it is on, and can switch apps." not in out,
+          "the old literal PASS sentence must NOT appear — T_DH_02's network "
+          "claim did not run, so nothing may assert it")
+    check("degraded(H1)" in out,
+          f"the banner must be built from the same verdict `_triage.health_verdict` "
+          f"reports for this run (`degraded(H1)`), not a hardcoded literal: {out!r}")
 
 
 # ── arm 3: CORE ──────────────────────────────────────────────────────────────
@@ -489,6 +515,7 @@ def main():
     arm_rig()
     arm_health()
     arm_health_passes_no_row()
+    arm_health_skip_is_not_pass()
     arm_core()
     arm_app()
     arm_inert()
