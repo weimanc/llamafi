@@ -72,6 +72,11 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
   `run/local.env`; pass `--port <by-path>` to the `probe/rig_*` drivers. Identify a board with
   `esptool --port <by-path> read_mac` (reads the eFuse from the ROM bootloader; firmware and flash
   clones cannot change it). Every report names its board by MAC. `RIGWATCH=1` in `run/local.env`.
+  **Override order (2026-09-12):** `run/lib.sh` sources `run/local.env` AFTER the caller's
+  environment, so a plain `export` in that file beats an inline `DUT_PORT_PATH=… ./run/flash-debug`
+  — that mistake flashed the wrong board once. Its exports are now `${VAR:-default}`; either use an
+  inline `DUT_PORT_PATH=`/`DUT_BY_PATH=`, or `PORT=<by-path>`, which `resolve_port` honours first.
+  Confirm the target from the flash log's `Serial port …` line, and the board with `read_mac`.
 - Debug env `cyd2usb_winamp_debug` (`-DBOD_WATCH -DSERIAL_DEBUG -DSD_BOOT_MOUNT`, CORE_DEBUG_LEVEL=1).
   Production `cyd2usb_winamp`. Bare rig: `~/proj/webradio-bare/` (104-line `main.cpp`, not a git
   repo, `[env:bare]`, `-DWITH_TFT` optional).
@@ -109,6 +114,7 @@ Indicative BOD level → volts (published table, **unverified** on this silicon)
 | X-P2 | load ladder, B_boot per rung | Opus | F-1, F-4, H-1 | ~60 flashes/boots, ends window | **DONE 2026-09-11** — WiFi carries the sag (no WiFi: no trip at 7; any WiFi rung: 3/3 at 7..2); **arm level ≤1 drops USB on every WiFi boot, either instrument** — never sweep below 2 ([EXP-035](../reports/EXP-035-load-ladder.md)) |
 | X-P2b-1 | display-only rung (TFT init + backlight full, no WiFi), levels 7,5,3,2, 3 boots | Sonnet | F-4, H-1 | ~12 flashes/boots | **DONE 2026-09-11 — 0/3 at level 7, no trip: display alone contributes < one comparator step** ([EXP-036](../reports/EXP-036-display-backlight.md)) |
 | X-P2b-2 | full firmware, WiFi on, level 2: backlight on vs off during WiFi init (`bodmit`), 6 boots each, alternating | Sonnet | F-5 (`bodmit`), H-1 | ~20 reboots + 1 reflash to restore | **DONE 2026-09-11 — 0/6 trip-rate difference (6/6 both arms), no effect at this resolution. First attempt was invalid (driver raced the reboot; fixed `d559856`), corrected re-run 12/12 valid boots** ([EXP-036](../reports/EXP-036-display-backlight.md)) |
+| DUT1 retest (EXP-038) | same board, different port + cable | Opus | — | 9 boots | **DONE 2026-09-12 — the failure does NOT reproduce**: 0/3 trips @7, 0/3 @1, 0 USB drops; supersedes EXP-037's board-defect reading ([EXP-038](../reports/EXP-038-dut1-retest.md)) |
 | X-P3 | supply A/B | **human + Sonnet** | F-1, H-1, cable/hub/meter | ~100 boots | open |
 | X-P4 | UART transfer matrix | Sonnet | F-3, H-1 | none | **DONE 2026-09-11 — link clean both directions**: burst DUT→host 6 cells L=0; sink host→DUT 64 KB L=0 after the `3a30e1c` trailing-LF fix; R=0. Echo cell = RX-overflow instrument limit, re-spec'd as host windowing (`--window 8`, default) — re-run 2026-09-11 hit **2000/2000 echoed, 0 mismatches on the first attempt** ([EXP-033](../reports/EXP-033-f6-staircase-echo.md); original defect analysis in [EXP-029](../reports/EXP-029-uart-matrix.md) §Correction) |
 | X-P5 | 72 h soaks, debug then production | Sonnet (monitoring) | F-1, F-5, **human go for production** | ends window; lifts pin | open |
