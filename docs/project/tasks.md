@@ -86,18 +86,25 @@ prose on another board. They are here because this file is the index and is read
 1. **The board is PINNED to the `cyd2usb_winamp_debug` (`-DBOD_WATCH`) build. Do not restore
    production.** Reflashing the *same* debug env is permitted (human, 2026-09-03); restoring
    `ENV_PROD` is not. The restore was deleted from all fourteen entry points by TASK-633, so no
-   `run/` script will do it behind you — but a manual `run/flash` will. Owner: **TASK-557**
-   ([tasks-harness2.md § Rig stability](tasks-harness2.md)). Permitted is not free: **a reflash resets the
+   `run/` script will do it behind you — but a manual `run/flash` will. Owner: **TASK-578** (@Architect ruling), **re-opened by TASK-682**: the production
+   brownout reboots that motivated this pin were measured through the faulty cable (see 2), so the pin
+   itself is now unjustified-until-retested rather than settled — do not lift it without that retest. Permitted is not free: **a reflash resets the
    board and spends the running TASK-557 observation window** (9 h 33 m on 2026-09-07) — check for
    one first and record it if you end it, per
    [dut_workflow.md §5a](../process/dut_workflow.md). **Last window: 39 h 38 m, ended on purpose
    2026-09-09** for TASK-671's first recording and PATCH-TLS-2; the board now runs the debug env built
    at `983cd54` (`get sig`, `set now`, the `[tls-verify]` flags line) — HEAD has moved since, so the
    next `run/test*` will refuse `elf-mismatch` until you `run/flash-debug` again.
-2. **TASK-557 is the project's master blocker and is UNRESOLVED.** Rig instability, measured across
-   four campaigns, non-stationary, no established cause. It gates M-HARNESS2 Phase 3 (and Phase 5
-   through it) and holds M-TESTARCH's class-order switch. **The decisive experiment is a human-run
-   cable/powered-hub null test** — it is not blocked on analysis, it is blocked on a person.
+2. **TASK-557 is CLOSED (2026-09-12, `5d47cd4`) — it was a faulty USB cable.** DUT1
+   `d4:8a:fc:c8:ee:d0` tripped the brownout comparator at level 7 on every WiFi boot and lost USB at
+   arm level ≤1 **only through the cable that sat on host port `1-1`**; a new cable on the same board
+   and socket gives 0/9 trips and 0 drops, and DUT2 had tolerated that cable all along
+   ([EXP-039](../rnd/reports/EXP-039-board-cable-interaction.md), five cells). The cable/hub null test
+   this condition demanded for six weeks is **discharged**; the bad cable is off the bench. M-HARNESS2
+   Phase 3 (and Phase 5 through it) and M-TESTARCH's class-order switch no longer wait on it — their
+   remaining gate is **Phase 2's remainder** (582, 588, 595, 597). **Do not quote EXP-026/035/036's
+   voltage margins as board or CYD-design properties**: they were measured through that cable.
+
 3. **TASK-243 (Spotify Premium lapsed → permanent 403) blocks live-playback verdicts only.** UI,
    nav and app-switch tests run fine. Do not re-auth chasing it; validate on the host first.
    **Since 2026-09-08 there is a second, independent Spotify defect: the pinned root is rotted**
@@ -110,7 +117,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-682** (675 here; 676–681 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth; 680/681 are the boot cascade race + stale git banner fixes). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-683** (675 here; 676–679, 682 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin/TASK-578 retest). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 
