@@ -244,6 +244,14 @@ off by the human* — is **satisfied**.
 micro-USB connector, not rig instability. **Phase 2 is COMPLETE** (2026-09-12, all twelve rows), and
 its stop criterion did not fire. What remains is the third clause alone: **TASK-575's owed full
 `run/test` pass** (§ Rig stability above). Every row below inherits that, and nothing else.
+**ENTERED 2026-09-13 on a HUMAN WAIVER — the third clause is waived, not met.** TASK-575's pass
+was executed twice ([record](../verification/regression_suite/task575-timeout-audit-and-criterion.md)
+§6, §9) and its §4 criterion **still reads FAIL**. The waiver covers exactly two ids and nothing
+else: **`T_PLR_15`** and **`T_WR_TLS_01`**, the clause-2 shortfall at `c7894ef`. Clause 1 (the
+TASK-575 read-timeout signature) is MET, and §8's A/B exonerated the fix. The human accepted the
+recommendation because the criterion's purpose is answered, and TASK-686 places three of the
+remaining in-suite-only failures inside this phase's remit. **The waiver does not account for
+either id.** TASK-693 stays OPEN at P2. A third id failing deterministically is not covered.
 **Exit:** armed device state enumerable and asserted at every test boundary, with the failure
 landing on the test that armed it; per-family shuffled runs produce the canonical verdict set;
 TASK-617's exit criteria met and the switch decision re-put to the human with evidence.
@@ -254,12 +262,12 @@ because it carries a gate's authority.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-635 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; its row predecessor TASK-608 is DONE | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
-| TASK-592 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-636 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
+| TASK-635 | P2 | OPEN — phase entered on waiver 2026-09-13; its row predecessor TASK-608 is DONE | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
+| TASK-592 | P2 | OPEN — phase entered on waiver 2026-09-13; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-636 | P2 | OPEN — phase entered on waiver 2026-09-13; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
 | TASK-594 | P2 | BLOCKED — TASK-636 | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-604 | P2 | BLOCKED — phase entry | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-605 | P2 | BLOCKED — **phase entry — TASK-575's owed `run/test` pass**; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-604 | P2 | OPEN — phase entered on waiver 2026-09-13 | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-605 | P2 | OPEN — phase entered on waiver 2026-09-13; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 
 ---
 
@@ -337,7 +345,7 @@ reading each row's leading status token, not carried forward.
 | 0 — decisions | 6 | 6 | 0 | ~1 | **DISCHARGED 2026-09-04** |
 | 1 — host-only foundation | 27 | 27 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; the wall-clock one regressed to 98.8 s on 2026-09-12 and was restored to **70.0 s of 90** by TASK-684 the same day. `run/check-docs` 1.1 s of 15 |
 | 2 — the 80-minute session | 12 | 12 | 0 | ~6 | **COMPLETE 2026-09-12** — session executed 2026-09-07, stop criterion did not fire; the remainder closed 2026-09-12. **No longer gates Phase 3 or 5** |
-| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | entry now rests on **TASK-575's owed full `run/test` pass** alone — TASK-557 DONE and Phase 2 COMPLETE, both 2026-09-12; shrunk by H-1's refutation |
+| 3 — order and state hygiene | 6 | 0 | 6 | ~7.5 | **ENTERED 2026-09-13 on a human waiver** (TASK-575 §4 clause 2 short by `T_PLR_15`, `T_WR_TLS_01`; TASK-693 open). 594 still blocked on 636; the other five are open. Shrunk by H-1's refutation |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
 | rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 18 | 8 | 10 | — | **557 DONE 2026-09-12 — it gates nothing now**; 564/566/567 are the order-switch chain; **573 CLOSED 2026-09-12 — it was fixed on 2026-09-02 and the row was never reconciled; TASK-566 loses its last named blocker**; 574 is the remaining gate defect; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
 | 5 — ratchets | 18 | 1 | 17 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |

@@ -303,3 +303,13 @@ Phase 3 entry therefore remains a scheduling judgement rather than a measurement
 narrower one than on 09-12: two named ids instead of an unexplained cluster, with the
 TASK-575-specific signature measured absent.
 
+## 10. Disposition, 2026-09-13 — Phase 3 entered on a HUMAN WAIVER
+
+§9's verdict is unchanged: **§4 reads FAIL.** The human was shown the numbers above: clause 1 MET,
+clause 2 short by `T_PLR_15` and `T_WR_TLS_01`, deterministic failures 16 → 8, and non-stationary
+exposure 6.7 %. They chose to enter Phase 3 on a recorded waiver instead of clearing TASK-693 first.
+
+- **Scope of the waiver:** those two ids at `c7894ef`, and nothing else. It is a scheduling
+  decision. It does not account for either failure.
+- **Not waived:** TASK-693 stays OPEN at P2. A deterministic failure not on this list is not covered.
+- **Where recorded:** [tasks-harness2.md](../../project/tasks-harness2.md) § Phase 3 entry.
