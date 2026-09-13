@@ -98,10 +98,10 @@ def case_live_tree_is_clean():
 
 
 def case_header_extraction_matches_design():
-    """The design doc (§2.3) lists 14 initial members; the header's own
+    """The design doc (§2.3) lists 16 members (14 initial + spotifyWedge, bgPollOff); the header's own
     X-macro parse must find exactly that many, independent of ARMED_BY."""
     header = C.injectors_in_header()
-    assert len(header) == 14, f"expected 14 injectors in armedInjectors.h, got {len(header)}: {header}"
+    assert len(header) == 16, f"expected 16 injectors in armedInjectors.h, got {len(header)}: {header}"
 
 
 def case_every_armed_by_value_is_a_real_extracted_key():
@@ -126,7 +126,9 @@ def case_candidate_rows_are_flagged():
     """Any NOT_INJECTORS reason that concedes the three membership clauses
     hold (TASK-635 prompt §5) must carry the CANDIDATE marker so it stays
     visible as a follow-up rather than reading as a normal exclusion."""
-    assert C.NOT_INJECTORS["spotifyWedge"].startswith("CANDIDATE — TASK-635 follow-up:")
+    for key, why in C.NOT_INJECTORS.items():
+        if "satisfies §2.2" in why:
+            assert why.startswith("CANDIDATE — TASK-635 follow-up:"), key
 
 
 CASES = [
@@ -137,7 +139,7 @@ CASES = [
     ("F3  an injector with no ARMED_BY entry",   case_f3_injector_missing_armed_by),
     ("F4  an ARMED_BY entry naming a ghost",     case_f4_armed_by_names_missing_injector),
     ("P1  the live tree is clean",               case_live_tree_is_clean),
-    ("P2  header extraction finds 14",           case_header_extraction_matches_design),
+    ("P2  header extraction finds 16",           case_header_extraction_matches_design),
     ("P3  every ARMED_BY key is real",           case_every_armed_by_value_is_a_real_extracted_key),
     ("P4  no key in both tables",                case_no_key_in_both_tables),
     ("P5  CANDIDATE rows are marked",            case_candidate_rows_are_flagged),

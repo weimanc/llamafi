@@ -260,6 +260,9 @@ uint32_t taskActivityMs();
 // dbg_getFailureCount: thin getter for cmdInfo (avoids parsing dbg_get output).
 bool dbg_get(const char* var, char* buf, int len);
 bool dbg_set(const char* var, const char* val);
+// TASK-635 armed-state predicates (read-only; clear through dbg_set).
+bool dbgArmedWedge();
+bool dbgBgPollOff();
 uint32_t dbg_getFailureCount();
 #endif
 

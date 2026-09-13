@@ -1027,4 +1027,11 @@ uint32_t dbg_getFailureCount() {
 }
 #endif // SERIAL_DEBUG
 
+#ifdef SERIAL_DEBUG
+// TASK-635: `get armed` predicates. bgPoll is armed when OFF — the real path
+// only ever sets it back to 1 (reconnect, ADR-042), so off is always injected.
+bool dbgArmedWedge() { return s_dbgWedgeMs > 0; }
+bool dbgBgPollOff() { return s_bgPollEnabled == 0; }
+#endif
+
 }  // namespace spotifyTask

@@ -32,6 +32,7 @@
 #include "dataTask.h"           // dataTask::debug{Peek,Break,Clear}Cert*,
                                  // debug{Force,Peek}PlaneRadarParseFail,
                                  // dbgGeocodeState/dbgClearGeocodeInject
+#include "spotifyTask.h"       // spotifyTask::dbgArmedWedge()/dbgBgPollOff()
 #include "shell/appTable.h"     // g_WebRadioApp, g_PlaneRadarApp,
                                  // g_TeletextApp, g_backlight
 
@@ -94,6 +95,12 @@ static inline bool dbgArmedGeocode() {
     g_TeletextApp.dbgClearInjectedContent())                                \
   X(ldrRaw,                                                                  \
     g_backlight.injected(),                                                  \
-    g_backlight.injectLdr(-1))
+    g_backlight.injectLdr(-1))                                               \
+  X(spotifyWedge,                                                            \
+    spotifyTask::dbgArmedWedge(),                                            \
+    spotifyTask::dbg_set("spotifyWedge", "0"))                             \
+  X(bgPollOff,                                                               \
+    spotifyTask::dbgBgPollOff(),                                             \
+    spotifyTask::dbg_set("bgPoll", "1"))
 
 #endif  // SERIAL_DEBUG

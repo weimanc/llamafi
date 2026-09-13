@@ -94,6 +94,8 @@ ARMED_BY: dict[str, list[str]] = {
     "prInject":          ["prInjectAircraft"],
     "teletextContent":   ["teletextPageContent"],
     "ldrRaw":            ["ldrRaw"],
+    "spotifyWedge":      ["spotifyWedge"],
+    "bgPollOff":         ["bgPoll"],
 }
 
 # ── NOT_INJECTORS — every other extracted `set` key, with a reason that must
@@ -254,21 +256,6 @@ NOT_INJECTORS: dict[str, str] = {
     # header. Left here (not silently in NOT_INJECTORS without comment) per
     # the TASK-635 prompt's instruction §5 — a real finding, filed as a
     # follow-up rather than blocking this gate.
-    "spotifyWedge": "CANDIDATE — TASK-635 follow-up: satisfies §2.2's three "
-                    "clauses (arms `s_dbgWedgeMs`, persists until the "
-                    "spotify task's next dequeue, and that static is "
-                    "dedicated debug-only state no real path touches) but is "
-                    "NOT in armedInjectors.h. Usually self-clears within one "
-                    "dequeue cycle, which is likely why it was missed, but a "
-                    "test that sets a long wedge and ends before the next "
-                    "dequeue would leak it undetected. Not added here — "
-                    "would need a `get`-side observable predicate "
-                    "(`s_dbgWedgeMs > 0`) exposed from spotifyTaskStorage.cpp, "
-                    "which is a firmware change outside this gate's scope.",
-    "bgPoll":      "control toggle for background poll cadence (skips the "
-                   "self-issued cadence poll while off), not a forced-result "
-                   "override — same operational-control category as "
-                   "wifiPs/beaconWatch, not a verdict-changing injection",
 }
 
 

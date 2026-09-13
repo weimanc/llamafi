@@ -230,6 +230,16 @@ if ! "$PYTHON" gate/check_get_keys.py; then
     echo "FAIL: check_get_keys.py (TASK-600 get-key enumeration) FAILED" >&2
     exit 1
 fi
+# 4h+1. every console `set` key is a declared armed injector or says why not
+# (TASK-635 / M-HARNESS2 R14 design §2.5).
+if ! "$PYTHON" gate/test_check_armed_injectors.py; then
+    echo "FAIL: test_check_armed_injectors.py (TASK-635 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_armed_injectors.py; then
+    echo "FAIL: check_armed_injectors.py (TASK-635 armed-injector completeness) FAILED" >&2
+    exit 1
+fi
 
 # 4i. flake declarations vs gating classes, AND vs their own call sites —
 # TASK-623 / M-HARNESS2 R37 (F1-F5), extended TASK-595 / C-7 (F6-F8).

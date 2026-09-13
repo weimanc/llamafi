@@ -74,6 +74,12 @@ with the reason:
 | `prInject` | `_injected` | the `set prClearInject 1` path |
 | `teletextContent` | `_injectedContent` | `= false` |
 | `ldrRaw` | injected LDR ≠ -1 | `injectLdr(-1)` |
+| `spotifyWedge` | `s_dbgWedgeMs > 0` (unconsumed) | `dbg_set("spotifyWedge","0")` |
+| `bgPollOff` | `s_bgPollEnabled == 0` — the real path only sets it to 1 (reconnect) | `dbg_set("bgPoll","1")` |
+
+The last two rows were added after the completeness gate (§2.5) ran for the first time. It flagged
+`spotifyWedge` as a candidate. `bgPoll` it had classified as an operational toggle, which was wrong:
+B-6 is exactly a leaked `bgPoll 0` starving 94 successors.
 
 ### 2.4 Wire shape (IFC-007, additive)
 
