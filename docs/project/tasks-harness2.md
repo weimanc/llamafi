@@ -262,7 +262,7 @@ because it carries a gate's authority.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-635 | P2 | **DONE 2026-09-13** — host + DUT (§5 of the design): `get armed`/`set injclear 1` verified; one full run, R14 newly fails 4 ids (`T_PRI_01` prInject, `T_PLR_08/19/24` bgPollOff on fail paths) | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
+| TASK-635 | P2 | **DONE 2026-09-13** (`1a9cbfc6`) — host + DUT (§5 of the design): `get armed`/`set injclear 1` verified; one full run, R14 newly fails 4 ids (`T_PRI_01` prInject, `T_PLR_08/19/24` bgPollOff on fail paths) | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
 | TASK-592 | P2 | **DONE 2026-09-13** (`c5d8ebb`) — `readiness` + `unrestored` shapes, own-body scope; 44 new candidates all adjudicated (split with the old 19: EDGE 1 / ORDER-SENSITIVE 25 / VACUITY 2 / DISMISSED 35). Untracked leaks found → TASK-695 | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-636 | P2 | **PARTIAL 2026-09-13** — capability+comparison landed, host-tested; first shuffled DUT pair owed | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
 | TASK-594 | P2 | BLOCKED — TASK-636 | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
