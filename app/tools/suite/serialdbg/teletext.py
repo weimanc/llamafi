@@ -110,43 +110,42 @@ def t270(dut: Dut):
     _wait_shell_not_busy(dut, timeout_s=8.0)
     dut.cmd("set cooldown 0", timeout=2.0)
 
-    # Set subpage navigation targets via debug injection
-    r = dut.cmd("set teletextSubpageNext 617-2", timeout=2.0)
-    if not r.get("ok"):
-        fail(tid, f"set teletextSubpageNext failed: {r}")
-        return
-    dut.cmd("set teletextSubpagePrev 617-1", timeout=2.0)
+    # Set subpage navigation targets via debug injection. Both are write-only
+    # (no per-var read-back — only the combined `get teletextSubpage` exists),
+    # so they go through `injected()` rather than `saved()`. "0" clears
+    # (teletextApp.cpp:239/248), which is the firmware fact `clear_to` states.
+    with dut.injected("teletextSubpageNext", "617-2", clear_to="0", timeout=2.0), \
+         dut.injected("teletextSubpagePrev", "617-1", clear_to="0", timeout=2.0):
+        # Confirm fields propagated
+        r_sp = dut.cmd("get teletextSubpage", timeout=2.0)
+        if not r_sp.get("ok") or r_sp.get("next", 0) != 617 or r_sp.get("nextSub", 0) != 2:
+            fail(tid, f"subpageNext not set as expected: {r_sp}")
+            return
+        print(f"  [T270] subpageNext={r_sp.get('next')}-{r_sp.get('nextSub')} ✓")
 
-    # Confirm fields propagated
-    r_sp = dut.cmd("get teletextSubpage", timeout=2.0)
-    if not r_sp.get("ok") or r_sp.get("next", 0) != 617 or r_sp.get("nextSub", 0) != 2:
-        fail(tid, f"subpageNext not set as expected: {r_sp}")
-        return
-    print(f"  [T270] subpageNext={r_sp.get('next')}-{r_sp.get('nextSub')} ✓")
+        # Wait past app-level 300 ms debounce (inject is not a tap — _lastTapMs unchanged,
+        # but resume() set it to 0 and millis()>300 at this point so first tap is free)
+        time.sleep(0.1)
 
-    # Wait past app-level 300 ms debounce (inject is not a tap — _lastTapMs unchanged,
-    # but resume() set it to 0 and millis()>300 at this point so first tap is free)
-    time.sleep(0.1)
+        # Tap SUBDN zone centre: y = (166 + 199) / 2 = 182
+        dut.cmd(f"tap 257 182", timeout=3.0)
+        time.sleep(0.1)  # let action propagate
 
-    # Tap SUBDN zone centre: y = (166 + 199) / 2 = 182
-    dut.cmd(f"tap 257 182", timeout=3.0)
-    time.sleep(0.1)  # let action propagate
+        r_act = dut.cmd("get teletextLastAction", timeout=2.0)
+        action = r_act.get("val", "") if r_act.get("ok") else "<error>"
+        if action != "STRIP_SUBDN":
+            fail(tid, f"expected STRIP_SUBDN, got '{action}'")
+            return
+        print(f"  [T270] lastAction=STRIP_SUBDN ✓")
 
-    r_act = dut.cmd("get teletextLastAction", timeout=2.0)
-    action = r_act.get("val", "") if r_act.get("ok") else "<error>"
-    if action != "STRIP_SUBDN":
-        fail(tid, f"expected STRIP_SUBDN, got '{action}'")
-        return
-    print(f"  [T270] lastAction=STRIP_SUBDN ✓")
+        r_busy = dut.cmd("get shellBusy", timeout=2.0)
+        if not r_busy.get("ok") or not r_busy.get("busy", False):
+            fail(tid, "shellBusy not true after SUBDN tap — _navigate() not called?")
+            return
+        print(f"  [T270] shellBusy=true ✓ (fetch enqueued for 617-2)")
 
-    r_busy = dut.cmd("get shellBusy", timeout=2.0)
-    if not r_busy.get("ok") or not r_busy.get("busy", False):
-        fail(tid, "shellBusy not true after SUBDN tap — _navigate() not called?")
-        return
-    print(f"  [T270] shellBusy=true ✓ (fetch enqueued for 617-2)")
-
-    _wait_shell_not_busy(dut, timeout_s=8.0)
-    pass_(tid, "STRIP_SUBDN routed correctly; shellBusy=true confirmed (no network required)")
+        _wait_shell_not_busy(dut, timeout_s=8.0)
+        pass_(tid, "STRIP_SUBDN routed correctly; shellBusy=true confirmed (no network required)")
 
 
 # ── T271 — Strip zone 1-px boundary (TASK-197) ───────────────────────────────
