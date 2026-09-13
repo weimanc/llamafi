@@ -79,6 +79,7 @@ from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa
 from lib.results import (print_results,                                  # noqa: E402
                          run_with_flake_retry, set_exchange_provider,
                          set_meta_provider, set_premise_provider)
+import lib.armed as _armed                                                # noqa: E402
 import lib.replay as _replay                                             # noqa: E402
 import lib.dispatch as _dispatch_mod                                     # noqa: E402
 
@@ -337,6 +338,15 @@ def main():
                         "is omitted. Health ids are never recorded. Never "
                         "affects a verdict: a save failure is printed and "
                         "swallowed.")
+    p.add_argument("--no-armed-check", action="store_true",
+                   default=os.environ.get("DUT_ARMED_CHECK", "1") == "0",
+                   help="TASK-635/R14: the armed-state boundary check "
+                        "(`get armed` after every id, FAIL the id that leaked "
+                        "an injector, `set injclear`) is ON by default. This "
+                        "flag (or DUT_ARMED_CHECK=0) turns it off — e.g. to "
+                        "run against firmware from before TASK-635 without "
+                        "the once-per-run 'unsupported' notice, or while "
+                        "diagnosing whether a FAIL came from the check itself.")
     args = p.parse_args()
 
     health_mode = os.environ.get("DUT_HEALTH", "gate").strip().lower() or "gate"
@@ -578,6 +588,59 @@ def main():
         print(f"[record] transcripts -> {args.record}")
     _record_count = [0]
 
+    # TASK-635/R14: the armed-state boundary check (design §3). `_armed_notify`
+    # is a fresh `BoundaryNotifier` per run — its "print once" state must not
+    # leak across runner.py invocations (it doesn't; this is a local, not a
+    # module global). `_read_armed()` is the only place that talks to the
+    # device for this feature, so a TimeoutError (older firmware never answers
+    # a var it doesn't have — some builds just hang up rather than answering
+    # cmdGet.cpp's unknown-var reply) reduces to the same `None` the unknown-var
+    # JSON shape does, via `lib.armed.parse_armed`.
+    _armed_notify = _armed.BoundaryNotifier()
+
+    def _read_armed():
+        try:
+            reply = dut.cmd("get armed", timeout=2.0)
+        except Exception:
+            # A TimeoutError (older firmware that hangs up instead of
+            # answering cmdGet.cpp's unknown-var JSON) must not crash the run
+            # or change a verdict — reduce it to the same `None` the
+            # unknown-var reply shape produces (design §3).
+            reply = None
+        return _armed.parse_armed(reply)
+
+    def _issue_injclear(context: str):
+        try:
+            dut.cmd("set injclear", timeout=2.0)
+        except Exception as e:
+            print(f"[armed] set injclear failed ({context}): "
+                  f"{type(e).__name__}: {e}", flush=True)
+
+    def _boundary_start():
+        armed_list = _read_armed()
+        if armed_list is None:
+            note = _armed_notify.none_notice()
+            if note:
+                print(note, flush=True)
+            return
+        if armed_list:
+            print(_armed.session_start_note(armed_list), flush=True)
+            _issue_injclear("session start")
+
+    def _boundary(tid):
+        armed_list = _read_armed()
+        if armed_list is None:
+            note = _armed_notify.none_notice()
+            if note:
+                print(note, flush=True)
+            return
+        if armed_list:
+            _armed.apply_leak(tid, armed_list)
+            _issue_injclear(f"after {tid}")
+
+    _boundary_fn = None if args.no_armed_check else _boundary
+    _boundary_start_fn = None if args.no_armed_check else _boundary_start
+
     print(f"Connected. Running: {selected}\n")
     print("NOTE: T089 (production ELF check) is a host build test — not here.")
     skip_notice = [t for t in selected if t in _interactive_tests and not args.interactive]
@@ -661,6 +724,8 @@ def main():
         health_mode=health_mode,
         before_summary=_exit_snapshot,
         exit_on_finish=False,
+        boundary=_boundary_fn,
+        boundary_start=_boundary_start_fn,
         emit=lambda *a: print(*a, flush=True))
 
     if args.record:

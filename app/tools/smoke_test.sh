@@ -114,6 +114,17 @@ if ! "$PYTHON" test_class_order.py; then
     exit 1
 fi
 
+# 4f0. TASK-635 (R14) — the armed-state boundary check's inversion/negative
+# suite. `lib/armed.py`'s decision logic (parse `get armed`, FAIL the id that
+# leaked an injector while keeping its original record, tolerate `None` with
+# a once-per-run notice, attribute a session-start leak to nobody) plus
+# `_gate.run_suite`'s `boundary`/`boundary_start` hooks and their inert
+# default, all stubbed — no DUT, no port, no build.
+if ! "$PYTHON" lib/test_armed.py; then
+    echo "FAIL: lib/test_armed.py (TASK-635 R14 armed-state boundary check) FAILED" >&2
+    exit 1
+fi
+
 # 4f1. the run artifact — TASK-608 / ADR-066 D1 / IFC-008 / R29+R30.
 # The artifact is now the SOLE machine interface to a run, so the failure that
 # matters is a consumer reading something and being WRONG about it. The stale

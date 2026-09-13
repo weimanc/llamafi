@@ -123,12 +123,33 @@ def health_phase(health_ids, run_health, mode="gate", emit=print):
 
 def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
               run_health=None, health_mode="gate", emit=print,
-              before_summary=None, exit_on_finish=True) -> int:
+              before_summary=None, exit_on_finish=True,
+              boundary=None, boundary_start=None) -> int:
     """Dispatch `selected` and print the summary. Returns the exit code.
 
     With `class_order=False` and no `health_ids`/`run_health` this is today's
     loop, unchanged and unreordered: the health phase does not run, nothing is
     blocked, and the exit code is print_results()'s own 0/1.
+
+    `boundary`/`boundary_start` (TASK-635, R14, design §3) are the armed-state
+    boundary check. Both default to `None`, and with `None` this function's
+    behaviour is BYTE-FOR-BYTE unchanged (test_class_order.py's inert arm
+    asserts exactly this — the switch must not perturb the class-order landing
+    it sits next to). When given:
+
+      * `boundary_start()` — no args — runs ONCE, before the first id is
+        dispatched (and before the HEALTH phase, so a leak sitting on the
+        board from a previous run is not blamed on this run's HEALTH ids
+        either). Its return value is ignored; all of its bookkeeping (what to
+        print, whether to clear) is the caller's job — this loop only calls
+        it at the right time.
+      * `boundary(tid)` runs immediately after `dispatch(tid)` returns, i.e.
+        after `run_with_flake_retry` has already settled the verdict (that
+        retry lives inside the `dispatch` closure the caller passes in — see
+        runner.py's `_dispatch` — so by the time control returns here the id's
+        FINAL verdict for this run is already recorded). Not called for an id
+        this loop skipped via `not_run()` (CORE-blocked or HEALTH-blocked) —
+        an id that never dispatched has nothing to check a boundary against.
 
     TASK-597: the HEALTH phase and class ordering are independently
     selectable. `health_ids`/`run_health` alone (with `class_order=False`)
@@ -145,6 +166,9 @@ def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
     HEALTH_MODE_USED = health_mode
     EXECUTED_ORDER = list(selected)
     health_failed = []
+
+    if boundary_start is not None:
+        boundary_start()
 
     if health_ids and run_health is not None:
         health_failed, blocking = health_phase(health_ids, run_health,
@@ -175,6 +199,8 @@ def run_suite(selected, meta, dispatch, *, class_order=False, health_ids=(),
             continue
         begin(tid)          # TASK-608 / R30: per-id start + elapsed
         dispatch(tid)
+        if boundary is not None:
+            boundary(tid)
         verdict = verdict_of(tid)
         if class_order and cls == "CORE" and verdict in BLOCKING:
             # TYPED (R31 / IFC-008 I1). This line used to read
