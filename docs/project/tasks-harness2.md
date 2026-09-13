@@ -266,7 +266,7 @@ because it carries a gate's authority.
 | TASK-592 | P2 | OPEN — phase entered on waiver 2026-09-13; its row predecessor TASK-602 is DONE | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-636 | P2 | OPEN — phase entered on waiver 2026-09-13; predecessor TASK-624 is DONE | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md). **Narrowed by TASK-644 / ADR-066 D2a:** emit it from the shuffle job as a comparison over the two runs' artifacts, keyed by id. **MUST NOT** add an 8th `Verdict` member |
 | TASK-594 | P2 | BLOCKED — TASK-636 | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-604 | **DONE 2026-09-13** — host-verified; `@meta(scope=…)` declared on `T_PLR_17`/`T_PLR_18`, `T_WR_VIS_03`/`T_WR_VIS_05`, `T182`. Only 5 of the claimed 6 ids found in F-11/G-13; sixth not established | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-604 | **DONE 2026-09-13** (`5669705`) — host-verified; `@meta(scope=…)` declared on `T_PLR_17`/`T_PLR_18`, `T_WR_VIS_03`/`T_WR_VIS_05`, `T182`. Only 5 of the claimed 6 ids found in F-11/G-13; sixth not established | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-605 | P2 | OPEN — phase entered on waiver 2026-09-13; its row predecessor TASK-634 is DONE | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 
 ---
