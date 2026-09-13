@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_CX_03",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:42:32Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T19:37:58Z",
+ "generation": "77.1",
  "preamble": [],
  "exchanges": [
   {
@@ -39,9 +39,9 @@
    "cmd": "tap 297 140",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=52296 maxAlloc=40948 minFree=42780",
-    "[shell] entered 3  heap=52176 maxAlloc=40948 minFree=42780",
-    "[shell] switch 0->3 suspend=2ms wipe=54ms init=78ms taskbar=26ms total=160ms",
+    "[shell] leaving 0  heap=53972 maxAlloc=40948 minFree=52024",
+    "[shell] entered 3  heap=53548 maxAlloc=40948 minFree=52024",
+    "[shell] switch 0->3 suspend=2ms wipe=54ms init=78ms taskbar=24ms total=158ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":140,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -49,8 +49,15 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=175ms (worst path so far: shell.switch:160ms)",
+    "[W][perf] iter=173ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":3,\"name\":\"Crypto\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get lastPlaylistDraw",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":6993}"
    ]
   },
   {
@@ -71,11 +78,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 3  heap=50524 maxAlloc=40948 minFree=42780",
+    "[shell] leaving 3  heap=51576 maxAlloc=40948 minFree=49036",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=50756 maxAlloc=40948 minFree=42780",
-    "[shell] switch 3->0 suspend=2ms wipe=54ms init=80ms taskbar=26ms total=162ms",
+    "[shell] entered 0  heap=51848 maxAlloc=40948 minFree=49036",
+    "[shell] switch 3->0 suspend=2ms wipe=54ms init=72ms taskbar=26ms total=154ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -83,355 +90,15 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=225ms (worst path so far: shell.switch:162ms)",
+    "[W][perf] iter=219ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
    ]
   },
   {
    "cmd": "get lastPlaylistDraw",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 5,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 9,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 10,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 12,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 13,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 14,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 15,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 16,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 17,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 18,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 19,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 20,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 21,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 22,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 23,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 24,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 25,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 26,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 27,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 28,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 29,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 30,
-   "lines": [
-    "[D][dataTask.crypto] GET 200 elapsed=4502ms",
-    "[D][dataTask.crypto] heap free=58k maxBlk=41k",
-    "[D][dataTask.crypto] ok bitcoin=77229.00 ethereum=2524.35 ids=bitcoin ccy=usd",
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 31,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 32,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 33,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 34,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 35,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 36,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 37,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 38,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 39,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 40,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 41,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 42,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 43,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 44,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 45,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 46,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 47,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
-   ]
-  },
-  {
-   "cmd": "get lastPlaylistDraw",
-   "nth": 48,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":483030}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"lastPlaylistDraw\",\"ms\":8853}"
    ]
   }
  ]

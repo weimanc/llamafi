@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_22",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:34:18Z",
- "generation": "22.3",
+ "recorded_at": "2026-09-13T19:37:00Z",
+ "generation": "74.1",
  "preamble": [],
  "exchanges": [
   {
@@ -39,7 +39,6 @@
    "cmd": "get tbScrollOffset",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=62ms (worst path so far: app.tick:154ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -61,9 +60,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=51748 maxAlloc=40948 minFree=42976",
-    "[shell] entered 1  heap=56152 maxAlloc=40948 minFree=42976",
-    "[shell] switch 12->1 suspend=5ms wipe=54ms init=76ms taskbar=24ms total=159ms",
+    "[shell] leaving 12  heap=97240 maxAlloc=49140 minFree=43352",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] entered 1  heap=58136 maxAlloc=40948 minFree=43352",
+    "[shell] switch 12->1 suspend=50ms wipe=28ms init=52ms taskbar=24ms total=154ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -71,7 +71,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=176ms (worst path so far: shell.switch:159ms)",
+    "[W][perf] iter=172ms (worst path so far: shell.switch:154ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -114,10 +114,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=55648 maxAlloc=40948 minFree=42976",
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 28ms (total 4903s)",
-    "[shell] entered 12  heap=51792 maxAlloc=40948 minFree=42976",
-    "[shell] switch 1->12 suspend=2ms wipe=54ms init=34ms taskbar=24ms total=114ms",
+    "[shell] leaving 1  heap=60140 maxAlloc=40948 minFree=43352",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 27ms (total 4903s)",
+    "[shell] entered 12  heap=52088 maxAlloc=40948 minFree=43352",
+    "[shell] switch 1->12 suspend=2ms wipe=54ms init=30ms taskbar=24ms total=110ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -125,8 +125,8 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=206ms (worst path so far: shell.switch:159ms)",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=269ms (worst path so far: shell.switch:154ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -134,7 +134,7 @@
    "cmd": "set plLoad /playlists/gate20.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 19ms (total 4903s)",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 18ms (total 4903s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate20.m3u\"}"
    ]
   },
@@ -142,9 +142,9 @@
    "cmd": "get plCount",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=78ms (worst path so far: shell.switch:159ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":19,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":1460,\"last\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=80ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":18,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":1460,\"last\":true}"
    ]
   },
   {
@@ -162,10 +162,17 @@
    ]
   },
   {
+   "cmd": "get plCursor",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCursor\",\"cursor\":-1,\"curRow\":-1,\"shuffle\":true,\"repeat\":0,\"last\":true}"
+   ]
+  },
+  {
    "cmd": "get plOrder",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,16,14,6,12,18,8,17,7,3,10,9,2,19,5,1,15,0,11,13],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[12,1,19,18,0,2,7,13,8,17,10,9,6,3,15,14,4,16,11,5],\"last\":true}"
    ]
   },
   {
@@ -179,23 +186,23 @@
    "cmd": "advance next",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=54ms (worst path so far: shell.switch:159ms)",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":4,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=55ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":16,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,17,15,12,1,7,2,5,14,18,19,9,6,8,11,0,3,10,16,13],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,11,10,3,1,12,0,17,19,18,9,13,5,4,15,8,7,2,6,14],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,17,15,12,1,7,2,5,14,18,19,9,6,8,11,0,3,10,16,13],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,11,10,3,1,12,0,17,19,18,9,13,5,4,15,8,7,2,6,14],\"last\":true}"
    ]
   },
   {
@@ -209,22 +216,25 @@
    "cmd": "advance next",
    "nth": 1,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":18,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=54ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":11,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,16,9,15,3,17,12,1,6,13,8,11,19,10,5,2,7,14,4,0],\"last\":true}"
+    "[ 50756][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[11,13,5,7,0,3,16,8,1,15,19,9,4,18,6,10,2,12,17,14],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 4,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,16,9,15,3,17,12,1,6,13,8,11,19,10,5,2,7,14,4,0],\"last\":true}"
+    "[lib] PUT  header write fail, retrying",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[11,13,5,7,0,3,16,8,1,15,19,9,4,18,6,10,2,12,17,14],\"last\":true}"
    ]
   },
   {
@@ -238,22 +248,22 @@
    "cmd": "advance next",
    "nth": 2,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":16,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":13,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 5,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,12,11,13,17,0,6,14,7,9,3,10,8,19,5,18,1,15,2,4],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,17,5,8,7,4,2,11,3,16,9,12,18,6,19,10,1,14,0,15],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,12,11,13,17,0,6,14,7,9,3,10,8,19,5,18,1,15,2,4],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,17,5,8,7,4,2,11,3,16,9,12,18,6,19,10,1,14,0,15],\"last\":true}"
    ]
   },
   {
@@ -267,22 +277,22 @@
    "cmd": "advance next",
    "nth": 3,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":0,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":14,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 7,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[0,3,5,15,7,6,17,14,11,1,4,12,2,8,16,9,10,19,18,13],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[14,3,10,9,6,18,11,7,5,17,12,19,13,4,1,0,8,15,2,16],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 8,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[0,3,5,15,7,6,17,14,11,1,4,12,2,8,16,9,10,19,18,13],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[14,3,10,9,6,18,11,7,5,17,12,19,13,4,1,0,8,15,2,16],\"last\":true}"
    ]
   },
   {
@@ -296,22 +306,24 @@
    "cmd": "advance next",
    "nth": 4,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":8,\"reshuffled\":true}"
+    "[lib] PUT /v1/me/player/seek?position_ms=89032 failed after retry",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":4,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 9,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[8,3,17,2,16,4,19,6,11,10,13,15,0,1,9,5,12,14,18,7],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,17,1,2,15,8,6,12,5,7,10,3,19,14,16,13,0,9,11,18],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 10,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[8,3,17,2,16,4,19,6,11,10,13,15,0,1,9,5,12,14,18,7],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,17,1,2,15,8,6,12,5,7,10,3,19,14,16,13,0,9,11,18],\"last\":true}"
    ]
   },
   {
@@ -325,23 +337,23 @@
    "cmd": "advance next",
    "nth": 5,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=81ms (worst path so far: shell.switch:159ms)",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":16,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=73ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":17,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 11,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,2,19,14,13,6,18,4,11,3,1,12,7,17,5,0,9,10,8,15],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[17,12,4,3,11,2,6,19,1,7,13,18,8,9,5,16,14,10,15,0],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 12,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,2,19,14,13,6,18,4,11,3,1,12,7,17,5,0,9,10,8,15],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[17,12,4,3,11,2,6,19,1,7,13,18,8,9,5,16,14,10,15,0],\"last\":true}"
    ]
   },
   {
@@ -355,22 +367,22 @@
    "cmd": "advance next",
    "nth": 6,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":18,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":11,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 13,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,5,12,7,10,11,16,9,19,15,13,14,0,4,3,2,1,6,8,17],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[11,2,1,7,13,4,14,18,9,19,8,16,15,0,12,17,6,5,3,10],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 14,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,5,12,7,10,11,16,9,19,15,13,14,0,4,3,2,1,6,8,17],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[11,2,1,7,13,4,14,18,9,19,8,16,15,0,12,17,6,5,3,10],\"last\":true}"
    ]
   },
   {
@@ -384,22 +396,22 @@
    "cmd": "advance next",
    "nth": 7,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":7,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":2,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 15,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[7,9,1,4,2,11,19,8,18,12,6,3,13,5,15,10,17,16,14,0],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[2,14,5,6,0,18,13,4,1,11,10,15,17,7,16,9,12,3,8,19],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 16,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[7,9,1,4,2,11,19,8,18,12,6,3,13,5,15,10,17,16,14,0],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[2,14,5,6,0,18,13,4,1,11,10,15,17,7,16,9,12,3,8,19],\"last\":true}"
    ]
   },
   {
@@ -413,22 +425,22 @@
    "cmd": "advance next",
    "nth": 8,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":8,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":18,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 17,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[8,14,5,2,7,0,3,18,13,1,19,11,12,16,6,17,15,4,9,10],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,19,11,3,12,8,0,9,16,14,2,13,6,7,15,4,17,5,1,10],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 18,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[8,14,5,2,7,0,3,18,13,1,19,11,12,16,6,17,15,4,9,10],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,19,11,3,12,8,0,9,16,14,2,13,6,7,15,4,17,5,1,10],\"last\":true}"
    ]
   },
   {
@@ -442,22 +454,22 @@
    "cmd": "advance next",
    "nth": 9,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":18,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":13,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 19,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,6,3,19,12,8,9,1,4,2,0,10,15,16,17,7,13,11,5,14],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,7,19,18,3,11,8,0,16,9,1,2,17,6,5,10,15,12,4,14],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 20,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[18,6,3,19,12,8,9,1,4,2,0,10,15,16,17,7,13,11,5,14],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,7,19,18,3,11,8,0,16,9,1,2,17,6,5,10,15,12,4,14],\"last\":true}"
    ]
   },
   {
@@ -471,22 +483,22 @@
    "cmd": "advance next",
    "nth": 10,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":1,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":13,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 21,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[1,7,5,11,0,2,13,10,16,17,19,8,18,15,3,4,12,6,14,9],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,16,1,12,11,15,3,10,18,6,2,9,17,0,14,19,5,7,4,8],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 22,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[1,7,5,11,0,2,13,10,16,17,19,8,18,15,3,4,12,6,14,9],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,16,1,12,11,15,3,10,18,6,2,9,17,0,14,19,5,7,4,8],\"last\":true}"
    ]
   },
   {
@@ -500,30 +512,28 @@
    "cmd": "advance next",
    "nth": 11,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":5,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":2,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 23,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[5,11,13,1,19,15,0,8,7,2,4,3,6,9,12,16,17,18,14,10],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[2,11,0,16,19,18,3,6,12,9,7,8,14,4,13,10,5,17,15,1],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 24,
    "lines": [
-    "[1058349][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[5,11,13,1,19,15,0,8,7,2,4,3,6,9,12,16,17,18,14,10],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[2,11,0,16,19,18,3,6,12,9,7,8,14,4,13,10,5,17,15,1],\"last\":true}"
    ]
   },
   {
    "cmd": "set plCursor 19",
    "nth": 12,
    "lines": [
-    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plCursor\",\"n\":19}"
    ]
   },
@@ -531,22 +541,22 @@
    "cmd": "advance next",
    "nth": 12,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":17,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":7,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 25,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[17,11,14,16,18,6,15,2,19,1,5,4,7,12,13,8,3,0,9,10],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[7,9,13,15,17,3,0,10,11,5,16,2,6,12,19,4,1,8,14,18],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 26,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[17,11,14,16,18,6,15,2,19,1,5,4,7,12,13,8,3,0,9,10],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[7,9,13,15,17,3,0,10,11,5,16,2,6,12,19,4,1,8,14,18],\"last\":true}"
    ]
   },
   {
@@ -560,22 +570,22 @@
    "cmd": "advance next",
    "nth": 13,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":14,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":12,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 27,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[14,18,17,0,19,6,11,4,9,10,13,2,1,12,16,3,7,8,15,5],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[12,7,15,13,2,16,5,1,8,10,18,0,17,6,3,14,19,9,11,4],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 28,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[14,18,17,0,19,6,11,4,9,10,13,2,1,12,16,3,7,8,15,5],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[12,7,15,13,2,16,5,1,8,10,18,0,17,6,3,14,19,9,11,4],\"last\":true}"
    ]
   },
   {
@@ -589,22 +599,22 @@
    "cmd": "advance next",
    "nth": 14,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":4,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":16,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 29,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,16,14,8,1,17,19,2,18,9,13,0,3,5,10,6,15,11,12,7],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,12,17,5,13,9,8,18,6,10,19,7,15,4,3,2,14,11,0,1],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 30,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,16,14,8,1,17,19,2,18,9,13,0,3,5,10,6,15,11,12,7],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,12,17,5,13,9,8,18,6,10,19,7,15,4,3,2,14,11,0,1],\"last\":true}"
    ]
   },
   {
@@ -618,22 +628,22 @@
    "cmd": "advance next",
    "nth": 15,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":16,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":5,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 31,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,9,14,11,19,5,15,18,4,8,1,6,3,12,13,10,0,7,2,17],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[5,11,2,17,13,7,10,9,0,14,8,15,12,19,18,6,4,3,16,1],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 32,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,9,14,11,19,5,15,18,4,8,1,6,3,12,13,10,0,7,2,17],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[5,11,2,17,13,7,10,9,0,14,8,15,12,19,18,6,4,3,16,1],\"last\":true}"
    ]
   },
   {
@@ -647,22 +657,23 @@
    "cmd": "advance next",
    "nth": 16,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":0,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=68ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":4,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 33,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[0,7,8,9,5,12,4,3,15,10,1,2,18,11,6,19,13,16,14,17],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,15,17,16,11,10,7,6,8,1,2,12,3,13,9,19,5,0,14,18],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 34,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[0,7,8,9,5,12,4,3,15,10,1,2,18,11,6,19,13,16,14,17],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,15,17,16,11,10,7,6,8,1,2,12,3,13,9,19,5,0,14,18],\"last\":true}"
    ]
   },
   {
@@ -676,22 +687,22 @@
    "cmd": "advance next",
    "nth": 17,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":13,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":6,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 35,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,1,4,11,8,7,9,17,10,2,18,15,16,6,0,3,19,12,5,14],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[6,5,1,19,15,4,10,0,14,9,17,18,7,2,11,3,16,12,13,8],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 36,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[13,1,4,11,8,7,9,17,10,2,18,15,16,6,0,3,19,12,5,14],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[6,5,1,19,15,4,10,0,14,9,17,18,7,2,11,3,16,12,13,8],\"last\":true}"
    ]
   },
   {
@@ -705,23 +716,22 @@
    "cmd": "advance next",
    "nth": 18,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=84ms (worst path so far: shell.switch:159ms)",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":3,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":6,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 37,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[3,2,0,9,14,6,10,7,18,8,17,4,13,5,1,15,11,19,12,16],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[6,9,3,16,11,19,15,8,13,0,10,12,2,18,4,5,7,1,14,17],\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 38,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[3,2,0,9,14,6,10,7,18,8,17,4,13,5,1,15,11,19,12,16],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[6,9,3,16,11,19,15,8,13,0,10,12,2,18,4,5,7,1,14,17],\"last\":true}"
    ]
   },
   {
@@ -735,22 +745,29 @@
    "cmd": "advance next",
    "nth": 19,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=84ms (worst path so far: shell.switch:159ms)",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":12,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":10,\"reshuffled\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 39,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[12,9,11,19,15,0,16,4,14,1,10,6,7,3,5,2,17,8,18,13],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[10,16,3,4,2,15,7,9,5,14,12,8,18,1,6,11,17,13,19,0],\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plCursor -1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plCursor\",\"n\":-1}"
    ]
   },
   {
    "cmd": "set bgPoll 1",
    "nth": 0,
    "lines": [
+    "[D][chrome] drawVolume pct=89 keyframe=4",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   }

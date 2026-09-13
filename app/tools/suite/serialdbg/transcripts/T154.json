@@ -1,12 +1,19 @@
 {
  "schema": 1,
  "id": "T154",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:40:01Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T19:54:20Z",
+ "generation": "83.1",
  "preamble": [],
  "exchanges": [
+  {
+   "cmd": "get songDuration",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"songDuration\",\"ms\":0,\"last\":true}"
+   ]
+  },
   {
    "cmd": "set songDuration 60000",
    "nth": 0,
@@ -46,6 +53,7 @@
    "cmd": "tap 180 77",
    "nth": 0,
    "lines": [
+    "[D][spotify.task] dequeued action=SEEK param=39677",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":180,\"y\":77,\"hit\":\"POSBAR\",\"seekMs\":39677,\"action\":\"SEEK\",\"skipped\":false}"
    ]
   },
@@ -53,8 +61,18 @@
    "cmd": "get posbarDragMs",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[D][spotify.task] seek 39677 ms",
+    "Refresh of the Access token is due, doing that now.",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=53ms (worst path so far: app.tick:38ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"posbarDragMs\",\"ms\":39677,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set songDuration 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"songDuration\",\"val\":\"0\"}"
    ]
   }
  ]

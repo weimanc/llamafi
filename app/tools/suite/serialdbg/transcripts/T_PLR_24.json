@@ -1,15 +1,29 @@
 {
  "schema": 1,
  "id": "T_PLR_24",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:34:22Z",
- "generation": "22.3",
+ "recorded_at": "2026-09-13T19:37:03Z",
+ "generation": "74.1",
  "preamble": [],
  "exchanges": [
   {
+   "cmd": "get bgPoll",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
+   ]
+  },
+  {
    "cmd": "set bgPoll 0",
    "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 1,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
    ]
@@ -60,11 +74,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=93336 maxAlloc=40948 minFree=42976",
-    "SettingsStorage: deferred save landed (TASK-429)",
-    "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] entered 1  heap=101396 maxAlloc=40948 minFree=42976",
-    "[shell] switch 12->1 suspend=37ms wipe=27ms init=37ms taskbar=12ms total=113ms",
+    "[shell] leaving 12  heap=98084 maxAlloc=42996 minFree=43352",
+    "[shell] entered 1  heap=106144 maxAlloc=49140 minFree=43352",
+    "[shell] switch 12->1 suspend=3ms wipe=26ms init=38ms taskbar=12ms total=79ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -72,7 +84,10 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=127ms (worst path so far: shell.switch:159ms)",
+    "[W][perf] iter=92ms (worst path so far: shell.switch:154ms)",
+    "[D][spotify.task] dequeued action=VOLUME param=4",
+    "[D][spotify.task] setVolume 4%",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -115,10 +130,13 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=101396 maxAlloc=40948 minFree=42976",
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
-    "[shell] entered 12  heap=93336 maxAlloc=40948 minFree=42976",
-    "[shell] switch 1->12 suspend=1ms wipe=27ms init=16ms taskbar=11ms total=55ms",
+    "[shell] leaving 1  heap=63616 maxAlloc=40948 minFree=43352",
+    "[ 53815][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 53829][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check fai[I][mled",
+    "3u] loaded /playlists/gate20.m3u: 20 entries in 23ms (total 4903s)",
+    "[shell] entered 12  heap=57668 maxAlloc=40948 minFree=43352",
+    "[ 53855][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[shell] switch 1->12 suspend=1ms wipe=49ms init=39ms taskbar=22ms total=111ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -126,8 +144,10 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=104ms (worst path so far: shell.switch:159ms)",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=163ms (worst path so far: shell.switch:154ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -143,9 +163,9 @@
    "cmd": "get plCount",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=63ms (worst path so far: shell.switch:159ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":14,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":34804,\"last\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=78ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":14,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":12276,\"last\":true}"
    ]
   },
   {
@@ -159,7 +179,14 @@
    "cmd": "get plOrder",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,19,14,18,4,1,17,0,12,10,7,11,5,15,13,2,6,3,8,9],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,5,2,9,14,11,13,6,17,0,12,15,7,1,10,3,16,19,18,8],\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCursor",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCursor\",\"cursor\":-1,\"curRow\":-1,\"shuffle\":true,\"repeat\":0,\"last\":true}"
    ]
   },
   {
@@ -167,30 +194,26 @@
    "nth": 0,
    "lines": [
     "[I][localplayer] play row 5: /mp3/06 - DARE.mp3",
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[membudget] TASK-267 arena acquire=24576B lfbBefore=34804 OK",
-    "[membudget] arena init base=0x3fff3a24 cap=24576",
-    "[E][audioengine] DMA pool too low for I2S init: lfbDma=10228 \u2014 abort play",
-    "[membudget] TASK-267 arena released",
-    "[W][audioengine] play aborted before engine bring-up \u2014 arena released",
+    "[ 55514][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] PUT  header write fail, retrying",
+    "[W][spotify.tls] tls try-yield timed out after 1500ms \u2014 ref count rolled back, no yield granted",
+    "[W][audioengine] aeConnectFile: tls try-yield timed out after 1500ms \u2014 play FAILED, not blocking",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":5}"
    ]
   },
   {
    "cmd": "get plCursor",
-   "nth": 0,
+   "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCursor\",\"cursor\":12,\"curRow\":-1,\"shuffle\":true,\"repeat\":0,\"last\":true}"
+    "[W][perf] iter=1580ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCursor\",\"cursor\":1,\"curRow\":-1,\"shuffle\":true,\"repeat\":0,\"last\":true}"
    ]
   },
   {
    "cmd": "get plOrder",
    "nth": 1,
    "lines": [
-    "[I][spotify.tls] tls yield \u2014 resumed",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[16,19,14,18,4,1,17,0,12,10,7,11,5,15,13,2,6,3,8,9],\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plOrder\",\"count\":20,\"order\":[4,5,2,9,14,11,13,6,17,0,12,15,7,1,10,3,16,19,18,8],\"last\":true}"
    ]
   },
   {
@@ -208,8 +231,24 @@
    ]
   },
   {
+   "cmd": "set plCursor -1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plCursor\",\"n\":-1}"
+   ]
+  },
+  {
    "cmd": "set bgPoll 1",
    "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=81ms (worst path so far: shell.switch:154ms)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 1,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]

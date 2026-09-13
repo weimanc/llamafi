@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_WX_01",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:41:21Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T19:49:37Z",
+ "generation": "81.1",
  "preamble": [],
  "exchanges": [
   {
@@ -67,13 +67,13 @@
    "cmd": "tap 297 100",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=105764 maxAlloc=42996 minFree=42780",
-    "[shell] entered 2  heap=105764 maxAlloc=42996 minFree=42780",
+    "[shell] leaving 0  heap=106724 maxAlloc=49140 minFree=44100",
+    "[shell] entered 2  heap=106496 maxAlloc=49140 minFree=44100",
     "[D][dataTask.weather] url=https://api.open-meteo.com/v1/forecast?latitude=51.5083&longitude=-0.1253&current=temperature_2m,relative_humidity_2m,wind_speed_10m",
-    "[shell] switch 0->2 suspend=1ms wipe=27ms init=51ms taskbar=13ms total=92ms",
     "[D][spotify.task] dequeued action=POLL param=0",
     "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.weather] heap free=59k maxBlk=41k",
+    "[shell] switch 0->2 suspend=1ms wipe=27ms init=52ms taskbar=13ms total=93ms",
+    "[D][dataTask.weather] heap free=60k maxBlk=47k",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":100,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -81,7 +81,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=118ms (worst path so far: shell.switch:214ms)",
+    "[W][perf] iter=126ms (worst path so far: shell.switch:93ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":2,\"name\":\"Weather\",\"last\":true}"
    ]
   },
@@ -138,11 +138,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 2  heap=53216 maxAlloc=40948 minFree=42780",
+    "[shell] leaving 2  heap=54252 maxAlloc=40948 minFree=44100",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=53216 maxAlloc=40948 minFree=42780",
-    "[shell] switch 2->0 suspend=2ms wipe=54ms init=74ms taskbar=24ms total=154ms",
+    "[shell] entered 0  heap=54128 maxAlloc=40948 minFree=44100",
+    "[shell] switch 2->0 suspend=2ms wipe=54ms init=76ms taskbar=24ms total=156ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -150,7 +150,7 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[W][perf] iter=218ms (worst path so far: shell.switch:214ms)",
+    "[W][perf] iter=223ms (worst path so far: shell.switch:156ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

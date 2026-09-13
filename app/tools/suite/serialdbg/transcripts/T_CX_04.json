@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_CX_04",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:42:33Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T19:38:00Z",
+ "generation": "77.1",
  "preamble": [],
  "exchanges": [
   {
@@ -46,9 +46,9 @@
    "cmd": "tap 297 140",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=105428 maxAlloc=42996 minFree=42780",
-    "[shell] entered 3  heap=105428 maxAlloc=42996 minFree=42780",
-    "[shell] switch 0->3 suspend=1ms wipe=27ms init=38ms taskbar=11ms total=77ms",
+    "[shell] leaving 0  heap=52400 maxAlloc=40948 minFree=49036",
+    "[shell] entered 3  heap=52860 maxAlloc=40948 minFree=49036",
+    "[shell] switch 0->3 suspend=2ms wipe=54ms init=76ms taskbar=26ms total=158ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":140,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -56,10 +56,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[I][spotify.tls] tls yield \u2014 client stopped",
-    "[D][dataTask.crypto] heap free=59k maxBlk=41k",
-    "[W][perf] iter=145ms (worst path so far: shell.switch:162ms)",
+    "[W][perf] iter=174ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":3,\"name\":\"Crypto\",\"last\":true}"
    ]
   },
@@ -67,7 +64,7 @@
    "cmd": "get cryptoReady",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\",\"ready\":true,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\",\"ready\":false,\"last\":true}"
    ]
   },
   {
@@ -116,11 +113,11 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 3  heap=52764 maxAlloc=40948 minFree=42780",
+    "[shell] leaving 3  heap=57048 maxAlloc=40948 minFree=49036",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=52316 maxAlloc=40948 minFree=42780",
-    "[shell] switch 3->0 suspend=2ms wipe=54ms init=80ms taskbar=24ms total=160ms",
+    "[shell] entered 0  heap=57508 maxAlloc=40948 minFree=49036",
+    "[shell] switch 3->0 suspend=2ms wipe=54ms init=74ms taskbar=24ms total=154ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -128,7 +125,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=224ms (worst path so far: shell.switch:162ms)",
+    "[W][perf] iter=219ms (worst path so far: shell.switch:158ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   }

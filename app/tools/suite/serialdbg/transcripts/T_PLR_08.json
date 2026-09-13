@@ -1,12 +1,21 @@
 {
  "schema": 1,
  "id": "T_PLR_08",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:31:47Z",
- "generation": "22.3",
+ "recorded_at": "2026-09-13T19:36:31Z",
+ "generation": "74.1",
  "preamble": [],
  "exchanges": [
+  {
+   "cmd": "get bgPoll",
+   "nth": 0,
+   "lines": [
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
+   ]
+  },
   {
    "cmd": "set bgPoll 0",
    "nth": 0,
@@ -15,10 +24,16 @@
    ]
   },
   {
+   "cmd": "set bgPoll 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
    "cmd": "set playerMode player",
    "nth": 0,
    "lines": [
-    "SettingsStorage: deferred save landed (TASK-429)",
     "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":2,\"name\":\"Player\"}"
    ]
@@ -62,9 +77,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=101408 maxAlloc=40948 minFree=42976",
-    "[shell] entered 1  heap=101408 maxAlloc=40948 minFree=42976",
-    "[shell] switch 0->1 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
+    "[shell] leaving 0  heap=106144 maxAlloc=49140 minFree=43352",
+    "[shell] entered 1  heap=106144 maxAlloc=49140 minFree=43352",
+    "[shell] switch 0->1 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -72,7 +87,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=90ms (worst path so far: shell.switch:88ms)",
+    "[W][perf] iter=93ms (worst path so far: shell.switch:112ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -115,10 +130,9 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=55564 maxAlloc=40948 minFree=42976",
-    "[I][m3u] loaded /playlists/short5.m3u: 5 entries in 22ms (total 15s)",
-    "[shell] entered 12  heap=47888 maxAlloc=40948 minFree=42976",
-    "[shell] switch 1->12 suspend=2ms wipe=54ms init=27ms taskbar=25ms total=108ms",
+    "[shell] leaving 1  heap=60408 maxAlloc=40948 minFree=43352",
+    "[shell] entered 12  heap=60328 maxAlloc=40948 minFree=43352",
+    "[shell] switch 1->12 suspend=2ms wipe=54ms init=0ms taskbar=24ms total=80ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -126,8 +140,8 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=258ms (worst path so far: app.tick:134ms)",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=213ms (worst path so far: app.tick:118ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -135,7 +149,7 @@
    "cmd": "set plLoad /playlists/gate100.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 38ms (total 29890s)",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 36ms (total 29890s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate100.m3u\"}"
    ]
   },
@@ -143,9 +157,9 @@
    "cmd": "get plCount",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=128ms (worst path so far: app.tick:134ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":38,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":4084,\"last\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=129ms (worst path so far: app.tick:118ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate100.m3u\",\"count\":120,\"loadMs\":36,\"totalSec\":29890,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":8692,\"last\":true}"
    ]
   },
   {
@@ -158,6 +172,13 @@
   {
    "cmd": "set bgPoll 1",
    "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 1,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]

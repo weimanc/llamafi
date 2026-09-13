@@ -1,12 +1,19 @@
 {
  "schema": 1,
  "id": "T153",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:40:01Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T19:36:24Z",
+ "generation": "74.1",
  "preamble": [],
  "exchanges": [
+  {
+   "cmd": "get songDuration",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"songDuration\",\"ms\":0,\"last\":true}"
+   ]
+  },
   {
    "cmd": "set songDuration 120000",
    "nth": 0,
@@ -42,9 +49,6 @@
     "[D][serial] inject sample 1/11 sx=110 sy=63",
     "[D][chrome] drawVolume pct=4 keyframe=0",
     "[D][touch] enqueued ACT_VOLUME pct=4",
-    "[D][spotify.task] dequeued action=VOLUME param=4",
-    "[D][spotify.task] setVolume 4%",
-    "Refresh of the Access token is due, doing that now.",
     "[D][serial] inject sample 2/11 sx=115 sy=64",
     "[D][chrome] drawVolume pct=11 keyframe=0",
     "[D][serial] inject sample 3/11 sx=121 sy=65",
@@ -81,6 +85,13 @@
    "nth": 1,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"posbarDragMs\",\"ms\":89032,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set songDuration 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"songDuration\",\"val\":\"0\"}"
    ]
   }
  ]

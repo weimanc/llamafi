@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-ERR-05",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:47:23Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T19:36:22Z",
+ "generation": "74.1",
  "preamble": [],
  "exchanges": [
   {
@@ -22,6 +22,20 @@
    ]
   },
   {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":0,\"nextPollMs\":5000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set lastHttp 403",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"lastHttp\",\"val\":\"403\"}"
+   ]
+  },
+  {
    "cmd": "get bgPoll",
    "nth": 0,
    "lines": [
@@ -33,13 +47,6 @@
    "nth": 0,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "set lastHttp 403",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"lastHttp\",\"val\":\"403\"}"
    ]
   },
   {
@@ -64,6 +71,13 @@
    ]
   },
   {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+   ]
+  },
+  {
    "cmd": "set lastHttp 200",
    "nth": 0,
    "lines": [
@@ -71,10 +85,10 @@
    ]
   },
   {
-   "cmd": "set bgPoll 1",
-   "nth": 0,
+   "cmd": "set backoff 0",
+   "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"0\"}"
    ]
   }
  ]

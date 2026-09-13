@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_21",
- "elf": "168bf21d",
+ "elf": "fb53f2b7",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:34:14Z",
- "generation": "22.3",
+ "recorded_at": "2026-09-13T19:36:56Z",
+ "generation": "74.1",
  "preamble": [],
  "exchanges": [
   {
@@ -60,10 +60,10 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 12  heap=49712 maxAlloc=40948 minFree=42976",
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=3188 freeInt=53792). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
-    "[shell] entered 1  heap=50048 maxAlloc=40948 minFree=42976",
-    "[shell] switch 12->1 suspend=14ms wipe=29ms init=39ms taskbar=15ms total=97ms",
+    "[shell] leaving 12  heap=102464 maxAlloc=40948 minFree=43352",
+    "SettingsStorage: saved (doc 1987/6144 B)",
+    "[shell] entered 1  heap=106144 maxAlloc=49140 minFree=43352",
+    "[shell] switch 12->1 suspend=36ms wipe=27ms init=40ms taskbar=12ms total=115ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -71,10 +71,10 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=111ms (worst path so far: shell.switch:151ms)",
-    "[I][hb] display=winamp wifi=rssi(-60) disc=0 heap=49k maxAlloc=39k stack_hwm=11660b uptime=00:17:32 poll=0/57 last=-1 block_max=[1052371][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "4688ms loop_max=236ms slow=shell.switch:151ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=1361 build=Sep 11 2026-14",
-    "[lib] GET write fail, retrying",
+    "[W][perf] iter=128ms (worst path so far: shell.switch:115ms)",
+    "[D][spotify.task] dequeued action=SEEK param=89032",
+    "[D][spotify.task] seek 89032 ms",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -117,10 +117,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 1  heap=101400 maxAlloc=40948 minFree=42976",
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
-    "[shell] entered 12  heap=93340 maxAlloc=40948 minFree=42976",
-    "[shell] switch 1->12 suspend=1ms wipe=27ms init=16ms taskbar=11ms total=55ms",
+    "[shell] leaving 1  heap=106144 maxAlloc=49140 minFree=43352",
+    "[I][m3u] loaded /playlists/gate100.m3u: 120 entries in 19ms (total 29890s)",
+    "[shell] entered 12  heap=98080 maxAlloc=49140 minFree=43352",
+    "[shell] switch 1->12 suspend=1ms wipe=27ms init=21ms taskbar=22ms total=71ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -128,8 +128,13 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=136ms (worst path so far: app.tick:68ms)",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=157ms (worst path so far: shell.switch:115ms)",
+    "[ 46716][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[ 46729][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[ 46743][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -137,7 +142,7 @@
    "cmd": "set plLoad /playlists/gate20.m3u",
    "nth": 0,
    "lines": [
-    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 30ms (total 4903s)",
+    "[I][m3u] loaded /playlists/gate20.m3u: 20 entries in 14ms (total 4903s)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/gate20.m3u\"}"
    ]
   },
@@ -145,77 +150,28 @@
    "cmd": "get plCount",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=120ms (worst path so far: app.tick:72ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":30,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":4084,\"last\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=65ms (worst path so far: shell.switch:115ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/gate20.m3u\",\"count\":20,\"loadMs\":14,\"totalSec\":4903,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":49140,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCursor",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCursor\",\"cursor\":-1,\"curRow\":-1,\"shuffle\":false,\"repeat\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get shufRep",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set cooldown 0",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 187 96",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":187,\"y\":96,\"hit\":\"SHUFFLE\",\"row\":-1,\"action\":\"SHUFFLE\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "get shufRep",
    "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "get shufRep",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set cooldown 0",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 3,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 225 96",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"REPEAT\",\"row\":-1,\"action\":\"REPEAT\",\"skipped\":false}"
-   ]
-  },
-  {
-   "cmd": "get shufRep",
-   "nth": 3,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":2,\"last\":true}"
    ]
@@ -231,42 +187,41 @@
    "cmd": "advance next",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=159ms (worst path so far: app.tick:154ms)",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
     "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":false,\"row\":0,\"reshuffled\":false}"
    ]
   },
   {
    "cmd": "get shufRep",
-   "nth": 4,
+   "nth": 2,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "set cooldown 0",
-   "nth": 4,
+   "nth": 2,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
    "cmd": "get shellCooldown",
-   "nth": 4,
+   "nth": 2,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
   {
    "cmd": "tap 225 96",
-   "nth": 1,
+   "nth": 0,
    "lines": [
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"REPEAT\",\"row\":-1,\"action\":\"REPEAT\",\"skipped\":false}"
    ]
   },
   {
    "cmd": "get shufRep",
-   "nth": 5,
+   "nth": 3,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":1,\"last\":true}"
    ]
@@ -282,15 +237,80 @@
    "cmd": "advance next",
    "nth": 1,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=79ms (worst path so far: shell.switch:115ms)",
     "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":0,\"reshuffled\":false}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 187 96",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":187,\"y\":96,\"hit\":\"SHUFFLE\",\"row\":-1,\"action\":\"SHUFFLE\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 5,
+   "lines": [
+    "[W][perf] iter=64ms (worst path so far: shell.switch:115ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
    ]
   },
   {
    "cmd": "get shufRep",
    "nth": 6,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":0,\"lastRepeat\":1,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 225 96",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"REPEAT\",\"row\":-1,\"action\":\"REPEAT\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get shufRep",
+   "nth": 7,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":0,\"last\":true}"
    ]
   },
   {
@@ -308,64 +328,52 @@
    ]
   },
   {
-   "cmd": "tap 187 96",
-   "nth": 1,
+   "cmd": "tap 225 96",
+   "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":187,\"y\":96,\"hit\":\"SHUFFLE\",\"row\":-1,\"action\":\"SHUFFLE\",\"skipped\":false}"
-   ]
-  },
-  {
-   "cmd": "get shufRep",
-   "nth": 7,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"REPEAT\",\"row\":-1,\"action\":\"REPEAT\",\"skipped\":false}"
    ]
   },
   {
    "cmd": "get shufRep",
    "nth": 8,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":2,\"last\":true}"
    ]
   },
   {
-   "cmd": "set cooldown 0",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 6,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 225 96",
+   "cmd": "set plCursor 19",
    "nth": 2,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"REPEAT\",\"row\":-1,\"action\":\"REPEAT\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plCursor\",\"n\":19}"
+   ]
+  },
+  {
+   "cmd": "advance next",
+   "nth": 2,
+   "lines": [
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "[W][perf] iter=79ms (worst path so far: shell.switch:115ms)",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":false,\"row\":0,\"reshuffled\":false}"
    ]
   },
   {
    "cmd": "get shufRep",
    "nth": 9,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":0,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "set cooldown 0",
-   "nth": 7,
+   "nth": 6,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
    "cmd": "get shellCooldown",
-   "nth": 7,
+   "nth": 6,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
@@ -381,65 +389,6 @@
    "cmd": "get shufRep",
    "nth": 10,
    "lines": [
-    "[1054578][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set plCursor 19",
-   "nth": 2,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plCursor\",\"n\":19}"
-   ]
-  },
-  {
-   "cmd": "advance next",
-   "nth": 2,
-   "lines": [
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=54ms (worst path so far: app.tick:154ms)",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":false,\"row\":0,\"reshuffled\":false}"
-   ]
-  },
-  {
-   "cmd": "get shufRep",
-   "nth": 11,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":2,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set cooldown 0",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 8,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 225 96",
-   "nth": 4,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"REPEAT\",\"row\":-1,\"action\":\"REPEAT\",\"skipped\":false}"
-   ]
-  },
-  {
-   "cmd": "get shufRep",
-   "nth": 12,
-   "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":15,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}"
    ]
   },
@@ -454,16 +403,22 @@
    "cmd": "advance next",
    "nth": 3,
    "lines": [
-    "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=66ms (worst path so far: app.tick:154ms)",
-    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":10,\"reshuffled\":true}"
+    "[D][chrome] drawVolume pct=89 keyframe=4",
+    "{\"ok\":true,\"cmd\":\"advance\",\"dir\":\"next\",\"moved\":true,\"row\":17,\"reshuffled\":true}"
+   ]
+  },
+  {
+   "cmd": "set plCursor -1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plCursor\",\"n\":-1}"
    ]
   },
   {
    "cmd": "set bgPoll 1",
    "nth": 0,
    "lines": [
-    "[1055133][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[D][chrome] drawVolume pct=89 keyframe=4",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   }
