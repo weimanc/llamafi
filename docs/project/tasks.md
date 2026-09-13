@@ -121,7 +121,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-689** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-690** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 
@@ -199,10 +199,11 @@ the board to re-derive what is already written down.
 | TASK-666 | P2 | OPEN — @Architect · **a design call, TASK-633's owner** | D-1b: `require_build` **opens the port before the monitor is stopped**, so `run/test` returns a false RIG exit 3 in the rig's normal state. Session A worked around it rather than fixing it, being a lifecycle-ordering decision — [§0 D-1b](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-667 | P3 | OPEN — @VE | `T_WR_EJECT_01` FAILs `UNDECLARED flake — no entry in flaky.yaml`. The third `C-7` case, found on hardware after the other two. Fold into TASK-595's sweep or declare it — [§B.3](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
 | TASK-668 | P3 | OPEN — @VE | `T204`'s **120 s Ytd stall**, re-confirmed on a healthy network, and `G-10`/`G-17`: three failure messages that name a cause the raw log contradicts. `dataTask` knows it got `http=-1`/DNS and the message should say so — [§1.7, §B.2.1](../verification/reviews/M-TESTQUAL-phase2-session-review.md) |
-| TASK-685 | P1 | **OPEN — filed 2026-09-12 from TASK-575's owed run** | Six ids fail DETERMINISTICALLY across two full `run/test` runs: `lastPlaylistDraw` does not advance within 3 s of returning to Spotify (`T172`, `T182`, `T_CX_03`, `T_GOL_03`, `T_MA_03`, `T_WX_03`). **Not TASK-243** — each message argues that itself. Root cause named in the failure text. **Owner:** @Developer. |
-| TASK-686 | P2 | **OPEN — filed 2026-09-12** | Four more deterministic two-run failures with no prior account: `T_PLR_12` (heap −6068 B), `T_PLR_13` (`TimeoutError` 8.0 s), `T_PLR_24` (`curRow=-1`), `T_DTP_01`/`02` (UNMET, Stock fetch). Triage and split. [record](../verification/regression_suite/task575-timeout-audit-and-criterion.md) §6. |
+| TASK-685 | P1 | **OPEN — filed 2026-09-12, aged 2026-09-13** | `lastPlaylistDraw` does not advance within 3 s of returning to Spotify: `T172`, `T182`, `T_CX_03`, `T_GOL_03`, `T_MA_03`, `T_WX_03`. **Not new — also FAIL in the 09-06 and 09-09 artifacts**, unfiled 6 days. TASK-584 (`d95a13c`) converted these from `skip()`. **Owner:** @Developer. |
+| TASK-686 | P2 | **OPEN — filed 2026-09-12, aged 2026-09-13** | Deterministic, unfiled: `T_PLR_12` (heap −6068 B) and `T_PLR_13` (`TimeoutError` 8 s) FAIL in the 09-06, 09-09 and both 09-12 runs. **`T_PLR_24` is a true regression** — PASS 09-06, FAIL 09-09 onward, so the window is 3 days of commits. Plus `T_DTP_01`/`02` UNMET. |
 | TASK-687 | P3 | **OPEN — filed 2026-09-12** | `T087`/`T092` reproduced in BOTH runs — deterministic, not flaky, so their `flaky.yaml` declarations are the wrong description. Also `T_PLR_17`'s mis-correlated reply (`__TEST_T_PLR_17__` sentinel reaching a live run). TASK-595 follow-on. **Owner:** @VE. |
 | TASK-688 | P2 | **OPEN — filed 2026-09-12** | Five ids R34's runtime gate can now see — `T170`, `T176`, `T188`, `T204`, `T_CLK_SIG_01` — go red only via contract/accident, never by asserting on their subject. **Exposed, not caused**, by the 194-transcript refresh. [ledger](../verification/can_go_red_ledger.md). **Owner:** @VE. |
+| TASK-689 | **P1** | **OPEN — filed 2026-09-13** | **Nothing reads one run against the last.** Every run emits an artifact (TASK-608/645); the only consumer is `run/player-gate`, comparing to a hand-kept baseline. No tool diffs two artifacts, so 6 deterministic FAILs sat in `.runs/` unnoticed 09-06 → 09-12. |
 
 ## Open — board currency (filed by @Developer 2026-09-07, from the audit above)
 

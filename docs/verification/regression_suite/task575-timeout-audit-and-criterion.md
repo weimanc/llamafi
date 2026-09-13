@@ -150,3 +150,44 @@ reasoning. That A/B is owed and is not done here.
 
 `RECORD_DIR` was set on both runs: **194 transcripts refreshed**, which is what `check_can_go_red`'s
 `BASELINE-NOT-PASS` notes were asking for.
+
+## 7. Follow-up, 2026-09-13 — "how come we didn't see it before?"
+
+**We did. Three times.** The artifacts prove it, and §6's phrase "no prior account" was accurate
+about the task board and misleading about the evidence — corrected here.
+
+| id | 09-06 | 09-09 | 09-12 run 1 | 09-12 run 2 |
+|---|---|---|---|---|
+| `T172`, `T_CX_03`, `T_GOL_03`, `T_MA_03`, `T_WX_03` | FAIL | FAIL | FAIL | FAIL |
+| `T182` | UNMET | UNMET | FAIL | FAIL |
+| `T_PLR_12`, `T_PLR_13` | FAIL | FAIL | FAIL | FAIL |
+| `T_PLR_24` | **PASS** | **FAIL** | FAIL | FAIL |
+
+All four runs: same board `d48afcc8eed0`, same env, same entry point.
+
+**Why they became visible when they did.** Until 2026-09-04 all six of the `lastPlaylistDraw` ids
+spent this exact regression on `skip()`, excused as *"Spotify not rendering — not playing?"*. A skip
+is a statement about the configuration, so the suite was green. **TASK-584 (`d95a13c`) converted all
+six to `fail()`** after disproving that excuse in firmware — `SpotifyApp::resume()` calls
+`invalidatePlaylist()` with no queue or Premium predicate, and `PleditView::draw()` stamps
+`_lastDrawMs` before it reads `src.count()`, so an empty queue stamps the clock exactly like a full
+one. They failed on the very next full run, 09-06. The conversion worked exactly as designed.
+
+**Why nobody acted.** The verdicts were written to `.runs/` on 09-06 and 09-09 and read by nobody.
+That is not an attention failure, it is a missing consumer: **the only thing in the tree that ever
+reads an artifact back is `run/player-gate`**, and it compares against a hand-kept markdown baseline
+rather than against the previous run. Nothing diffs two artifacts. So six deterministic failures —
+one of them a P1-shaped firmware defect — sat in the run history for six days while the programme
+that built the artifact worked on other rows. Filed as **TASK-689**, and it is the most valuable
+thing this run produced.
+
+**`T_PLR_24` is a genuine regression** with a three-day window: PASS on 09-06, FAIL on 09-09 and
+every run since. That is a bisect range, not a mystery.
+
+**What this does to §6's verdict: nothing.** The criterion still reads FAIL, and TASK-575 is still
+unproven either way — but the balance of evidence moved. Every one of these failures predates the
+09-12 runs and was already present on 09-06, four days after the `_TeeSerial` fix landed and two
+days after the conversion that made them reportable. The artifact history begins 2026-09-05, so
+**no pre-fix full run exists to serve as a control** — which is precisely why the
+`__setattr__`-disabled A/B remains the only way to settle attribution, and why it is still owed.
+
