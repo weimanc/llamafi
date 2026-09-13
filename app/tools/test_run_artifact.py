@@ -645,6 +645,100 @@ with contextlib.redirect_stdout(_buf86):
 check("T_ART_86a", rc86, 0)
 check("T_ART_86b", "C: ORDER-DEPENDENT" in _buf86.getvalue(), True)
 
+# ── G2. TASK-699 — PASS/FLAKY-PASS equivalence, and what stays flagged ──────
+# TASK-636's first player shuffle mislabelled a canonical-PASS/shuffled-
+# FLAKY-PASS pair (`T_PLR_07`) ORDER-DEPENDENT. `run_with_flake_retry` (see
+# lib/results.py) writes FLAKY-PASS only when the mandated retry itself
+# returned PASS, so the two verdicts mean the same thing for this comparison
+# ("did the id's claim hold?"). These rows assert the fix's exact boundary:
+# PASS<->FLAKY-PASS never gets ORDER_DEPENDENT (either bare or unseparated),
+# but it is still REPORTED (not dropped) under its own label, and a genuine
+# PASS<->FAIL or PASS<->SKIP difference keeps the ORDER-DEPENDENT label.
+
+
+def _od_doc2(name, order, shuffle_seed=None):
+    """Like `_od_doc` above, but each `order` entry is `(id, verdict)` or
+    `(id, verdict, reason_code)` — the third slot lets a fixture set
+    `results[].reason.code` (e.g. `flake-reproduced`), which `_od_doc` has no
+    way to express."""
+    ids, results = [], []
+    for entry in order:
+        tid, v = entry[0], entry[1]
+        row = {"id": tid, "verdict": v}
+        if len(entry) > 2 and entry[2] is not None:
+            row["reason"] = {"code": entry[2]}
+        ids.append(tid)
+        results.append(row)
+    return {
+        "schema": {"name": A.SCHEMA_NAME, "version": A.SCHEMA_VERSION},
+        "run": {"run_token": name, "started_at": "2026-01-01T00:00:00Z",
+               "counts": {}},
+        "premise": {"entry_point": "runner.py", "build_env": "envX",
+                   "board": {"id": "board1"}, "class_order": ids,
+                   "shuffle_seed": shuffle_seed},
+        "per_class": {},
+        "results": results,
+    }
+
+
+print("T_ART_93  canonical PASS vs shuffled FLAKY-PASS: reported, but "
+     "flake-involved — never ORDER-DEPENDENT (this is T_PLR_07's exact shape)")
+_c93a = _od_doc2("c93a", [("A", "PASS")])
+_c93b = _od_doc2("c93b", [("A", "PASS")])
+_s93 = _od_doc2("s93", [("A", "FLAKY-PASS")], shuffle_seed="1")
+res93 = A.order_dependence([_c93a, _c93b], _s93)
+check("T_ART_93a", [r["id"] for r in res93["rows"]], ["A"])   # not dropped
+check("T_ART_93b", res93["rows"][0]["label"], A.DIFFERS_FLAKE_INVOLVED)
+check("T_ART_93c", res93["rows"][0]["label"] in
+     (A.ORDER_DEPENDENT, A.ORDER_DEPENDENT_UNSEPARATED), False)
+
+print("T_ART_94  the reverse direction — canonical FLAKY-PASS vs shuffled "
+     "PASS — is the same equivalence, symmetrically, even with a single "
+     "canonical doc (n=1 would normally mean the UNSEPARATED label)")
+_c94 = _od_doc2("c94", [("A", "FLAKY-PASS")])
+_s94 = _od_doc2("s94", [("A", "PASS")], shuffle_seed="2")
+res94 = A.order_dependence(_c94, _s94)   # single doc, not a list
+check("T_ART_94a", res94["rows"][0]["label"], A.DIFFERS_FLAKE_INVOLVED)
+
+print("T_ART_95  a FAIL coded flake-reproduced against a canonical PASS is "
+     "flake-involved too, not a bare ORDER-DEPENDENT")
+_c95 = _od_doc2("c95", [("A", "PASS")])
+_s95 = _od_doc2("s95", [("A", "FAIL", "flake-reproduced")], shuffle_seed="3")
+res95 = A.order_dependence(_c95, _s95)
+check("T_ART_95a", res95["rows"][0]["label"], A.DIFFERS_FLAKE_INVOLVED)
+
+print("T_ART_96  PASS vs SKIP is NOT folded into the equivalence — it stays "
+     "a real ORDER-DEPENDENT difference (config-applicability, not a retry)")
+_c96a = _od_doc2("c96a", [("A", "PASS")])
+_c96b = _od_doc2("c96b", [("A", "PASS")])
+_s96 = _od_doc2("s96", [("A", "SKIP")], shuffle_seed="4")
+res96 = A.order_dependence([_c96a, _c96b], _s96)
+check("T_ART_96a", res96["rows"][0]["label"], A.ORDER_DEPENDENT)
+
+print("T_ART_97  a genuine PASS vs FAIL difference (no flake mechanism "
+     "either side) still gets the bare ORDER-DEPENDENT label")
+_c97a = _od_doc2("c97a", [("A", "PASS")])
+_c97b = _od_doc2("c97b", [("A", "PASS")])
+_s97 = _od_doc2("s97", [("A", "FAIL")], shuffle_seed="5")
+res97 = A.order_dependence([_c97a, _c97b], _s97)
+check("T_ART_97a", res97["rows"][0]["label"], A.ORDER_DEPENDENT)
+
+print("T_ART_98  Verdict stays a seven-member closed enum (ADR-066 D2a) — "
+     "restated here so this file's own TASK-699 row carries the invariant "
+     "it depends on, not just T_ART_80")
+check("T_ART_98a", len(R.Verdict), 7)
+
+print("T_ART_99  format_order_dependence() reports order-dependent and "
+     "flake-involved rows in the same run, and states both counts")
+_c99a = _od_doc2("c99a", [("A", "PASS"), ("B", "PASS")])
+_c99b = _od_doc2("c99b", [("A", "PASS"), ("B", "PASS")])
+_s99 = _od_doc2("s99", [("A", "FLAKY-PASS"), ("B", "FAIL")], shuffle_seed="9")
+res99 = A.order_dependence([_c99a, _c99b], _s99)
+check("T_ART_99a", sorted(r["label"] for r in res99["rows"]),
+     sorted([A.DIFFERS_FLAKE_INVOLVED, A.ORDER_DEPENDENT]))
+_txt99 = A.format_order_dependence(res99)
+check("T_ART_99b", "1 order-dependent, 1 flake-involved" in _txt99, True)
+
 # ── E. R29's acceptance number: zero summary parsers ─────────────────────────
 print("T_ART_50  no consumer parses the human summary text (R29 == 0)")
 _ROOT = _here.parent.parent

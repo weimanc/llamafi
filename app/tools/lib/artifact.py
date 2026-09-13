@@ -468,12 +468,61 @@ def previous_comparable(current_doc: dict, current_path,
 #
 # THIS IS A REPORT, NEVER A GATE (same stance as TASK-689's diff_documents):
 # no exit code anywhere in this module is a function of what it returns.
+#
+# VERDICT EQUIVALENCE FOR THIS COMPARISON (TASK-699). A raw `canon_v != shuf_v`
+# test over-fires: `lib/results.py:run_with_flake_retry` writes `FLAKY-PASS`
+# ONLY when attempt 1 declared a flake and the MANDATED RETRY (attempt 2)
+# returned `Verdict.PASS` — so `FLAKY-PASS` and `PASS` are, for the question
+# this comparison answers ("did the id's claim hold in this run?"), the SAME
+# outcome; they differ only in whether a retry was needed to reach it. TASK-636's
+# first shuffle labelled a canonical-PASS/shuffled-FLAKY-PASS pair (`T_PLR_07`)
+# `ORDER-DEPENDENT` on exactly that non-difference. Note this is a narrower
+# equivalence than `lib.results.GREEN` (`{PASS, SKIP}`): GREEN answers "may a
+# gate treat this as green", a different question, and SKIP is deliberately
+# excluded from it here (see below).
+#
+# WHAT DOES NOT GET FOLDED IN, AND WHY (do not silently widen this):
+#   * PASS/FLAKY-PASS vs SKIP — NOT equivalent, stays a real difference. SKIP
+#     is a statement about the CONFIGURATION ("not applicable"), PASS/
+#     FLAKY-PASS a statement about the ASSERTION ("it held"). A flip between
+#     the two across otherwise-identical premises means execution order
+#     changed whether the id's precondition was even met — that is exactly
+#     the effect this comparison exists to surface, not noise to hide.
+#   * A FAIL whose `reason.code` is `flake-reproduced`
+#     (`results.py:_structured_reason` — attempt 1 declared a flake AND the
+#     retry failed too) against a PASS/FLAKY-PASS on the other side. This
+#     FAIL is not an ordinary failure — the flake mechanism fired either way —
+#     but it is also not proven order-independent noise: it stays FLAGGED,
+#     just under its own label rather than counted as `ORDER-DEPENDENT`.
+#   * Symmetrically, a bare `FLAKY-PASS` vs `FAIL`/`SKIP` pair with no
+#     `flake-reproduced` code: the flake mechanism (a retry happened) is still
+#     evidence the id is not behaving identically run to run, and TASK-699
+#     asks explicitly whether the retry ITSELF might reflect order (attempt 1
+#     flaked in the shuffled run — did the shuffle cause that?). Answer: this
+#     module cannot tell from one pair, so it does not GUESS either way — it
+#     reports the row under the same flake-involved label instead of silently
+#     dropping it (per TASK-699's brief: "report... separately rather than
+#     drop them").
+#
+# So any row where either side's verdict is `FLAKY-PASS` or either side's
+# `reason.code` is `flake-reproduced` is labelled `DIFFERS_FLAKE_INVOLVED`
+# instead of `ORDER-DEPENDENT` — visible, but not counted as order dependence,
+# because the flake mechanism alone is a sufficient alternative explanation.
 
-#: The label vocabulary this comparison prints. Neither string is a `Verdict`
-#: member and neither is ever assigned to `results[].verdict` — see the module
-#: docstring above and ADR-066 D2a.
+#: The label vocabulary this comparison prints. None of these strings is a
+#: `Verdict` member and none is ever assigned to `results[].verdict` — see the
+#: module docstring above and ADR-066 D2a.
 ORDER_DEPENDENT = "ORDER-DEPENDENT"
 ORDER_DEPENDENT_UNSEPARATED = "ORDER-DEPENDENT (single pair — not separated from flake)"
+#: TASK-699: a verdict mismatch that involves the flake-retry mechanism on
+#: either side (a FLAKY-PASS, or a FAIL coded `flake-reproduced`). Reported,
+#: not dropped, but deliberately NOT one of the ORDER_DEPENDENT labels above —
+#: see the comment block this constant sits under for the justification.
+DIFFERS_FLAKE_INVOLVED = "DIFFERS (flake-involved)"
+
+#: `reason.code` values (see `results.py:_structured_reason`) that mark a FAIL
+#: as flake-mechanism-involved rather than an ordinary failure.
+_FLAKE_FAIL_CODES = {"flake-reproduced"}
 
 
 def _comparable_runs(a: dict, b: dict) -> bool:
@@ -489,6 +538,14 @@ def _executed_order(doc: dict) -> list:
     `run_suite()`) despite the field's name predating TASK-636 — it is not
     only populated under `--class-order`. See SCHEMA_MINOR 1.4's note."""
     return list((doc.get("premise") or {}).get("class_order") or [])
+
+
+def _reason_codes(doc: dict) -> dict:
+    """-> {id: reason.code or None}. `reason` is schema 1.0 (always present on
+    a row `build_document` writes); a row with no `reason` at all (a hand-built
+    fixture, e.g. in tests) reads as `None`, same as a row whose code is null."""
+    return {r["id"]: ((r.get("reason") or {}) or {}).get("code")
+            for r in (doc.get("results") or [])}
 
 
 def order_dependence(canonical_docs, shuffled_doc: dict) -> dict:
@@ -521,10 +578,23 @@ def order_dependence(canonical_docs, shuffled_doc: dict) -> dict:
 
     An id enters `rows` only when EVERY supplied canonical doc has it, the
     shuffled doc has it, and all the canonical docs AGREE with each other on
-    its verdict but the shuffled doc's verdict differs. Canonical docs that
-    disagree AMONG THEMSELVES on an id are excluded from `rows` for that id —
-    that disagreement is flake evidence with no shuffled run needed to see it,
-    and reporting it here as order dependence would misattribute it.
+    its verdict but the shuffled doc's verdict differs UNDER THE EQUIVALENCE
+    below. Canonical docs that disagree AMONG THEMSELVES on an id are excluded
+    from `rows` for that id — that disagreement is flake evidence with no
+    shuffled run needed to see it, and reporting it here as order dependence
+    would misattribute it.
+
+    TASK-699 verdict equivalence (see the block comment above `ORDER_DEPENDENT`
+    for the full rationale): PASS and FLAKY-PASS are the SAME outcome for this
+    comparison ("did the id's claim hold in this run?"), so a canon-PASS vs
+    shuffled-FLAKY-PASS pair (or the reverse) never enters `rows` labelled
+    ORDER-DEPENDENT — but it is not dropped either. `row["label"]` is one of:
+      - `ORDER_DEPENDENT` / `ORDER_DEPENDENT_UNSEPARATED` — a genuine verdict
+        difference with no flake-retry mechanism on either side.
+      - `DIFFERS_FLAKE_INVOLVED` — the two sides differ, but a FLAKY-PASS verdict
+        or a FAIL coded `flake-reproduced` appears on at least one side, so the
+        flake-retry mechanism alone is a sufficient explanation and the row is
+        flagged for a human, not counted as order dependence.
     """
     docs = canonical_docs if isinstance(canonical_docs, list) else [canonical_docs]
     if not docs:
@@ -559,6 +629,12 @@ def order_dependence(canonical_docs, shuffled_doc: dict) -> dict:
 
     canonical_order = _executed_order(docs[0])
     shuffled_order = _executed_order(shuffled_doc)
+    # Reason codes come from the first canonical doc, matching the existing
+    # convention for `canonical_order` above — canon_verdicts already forces
+    # every canonical doc to agree on the VERDICT before a row is built, and
+    # the code is only ever consulted to explain a FAIL that verdict names.
+    canon_codes = _reason_codes(docs[0])
+    shuf_codes = _reason_codes(shuffled_doc)
     n = len(docs)
     rows = []
     for tid in sorted(common):
@@ -569,6 +645,17 @@ def order_dependence(canonical_docs, shuffled_doc: dict) -> dict:
         shuf_v = shuf_status[tid]
         if canon_v == shuf_v:
             continue
+        # TASK-699 equivalence: see the block comment above `ORDER_DEPENDENT`.
+        # A flake-mechanism signal on either side (a FLAKY-PASS verdict, or a
+        # FAIL coded `flake-reproduced`) means the flake retry alone explains
+        # the difference — flag it, but not as ORDER-DEPENDENT.
+        flake_involved = (
+            canon_v == "FLAKY-PASS" or shuf_v == "FLAKY-PASS"
+            or canon_codes.get(tid) in _FLAKE_FAIL_CODES
+            or shuf_codes.get(tid) in _FLAKE_FAIL_CODES
+        )
+        label = (DIFFERS_FLAKE_INVOLVED if flake_involved else
+                 (ORDER_DEPENDENT if n >= 2 else ORDER_DEPENDENT_UNSEPARATED))
         rows.append({
             "id": tid,
             "canonical_verdict": canon_v,
@@ -576,7 +663,7 @@ def order_dependence(canonical_docs, shuffled_doc: dict) -> dict:
             "canonical_index": _index(canonical_order, tid),
             "shuffled_index": _index(shuffled_order, tid),
             "n_canonical": n,
-            "label": ORDER_DEPENDENT if n >= 2 else ORDER_DEPENDENT_UNSEPARATED,
+            "label": label,
         })
     return {
         "comparable": True,
@@ -603,8 +690,12 @@ def format_order_dependence(result: dict, max_ids: int = 20) -> str:
                      f"{result['n_canonical']} canonical run(s) vs the "
                      f"shuffled run)")
         return "\n".join(lines)
+    n_flake = sum(1 for r in rows if r["label"] == DIFFERS_FLAKE_INVOLVED)
+    n_od = len(rows) - n_flake
     lines.append(f"  {len(rows)} id(s) differ between canonical and shuffled "
-                 f"order:")
+                 f"order ({n_od} order-dependent, {n_flake} flake-involved — "
+                 f"TASK-699: not counted as order-dependent, see label per "
+                 f"row):")
     for row in rows[:max_ids]:
         lines.append(
             f"    {row['id']}: {row['label']}"

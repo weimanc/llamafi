@@ -27,6 +27,14 @@ moved within the family in the shuffled run.
 `T_PLR_24` and `T_PLR_10` were correctly **not** flagged, because the two canonical runs disagree
 on them. That is the flake guard working.
 
+**TASK-699, resolved 2026-09-13.** `order_dependence()` now treats PASS and FLAKY-PASS as the same
+outcome for this comparison (`lib/results.py`'s `FLAKY-PASS` is only ever written when a mandated
+retry itself returns PASS), so `T_PLR_07`'s row above is no longer labelled `ORDER-DEPENDENT`. It is
+still reported — under `DIFFERS (flake-involved)` — rather than silently dropped, because a retry
+firing in the shuffled run and not the canonical ones is itself a fact worth a human's attention, just
+not proof of order dependence on its own. `T_PLR_12`/`T_PLR_06` above are unaffected: neither verdict
+pair involves the flake-retry mechanism, so both keep the bare `ORDER-DEPENDENT` label.
+
 ## What this does not establish
 
 One shuffled run at ~7 % non-stationary exposure. `T_PLR_12` and `T_PLR_06` are **candidates**,

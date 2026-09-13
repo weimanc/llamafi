@@ -239,6 +239,20 @@ from "just flaky today": supply 2+ **agreeing** canonical artifacts to get the b
 label; with exactly one, a differing row is still reported but labelled `ORDER-DEPENDENT (single pair
 — not separated from flake)`.
 
+**Verdict equivalence in the comparison (TASK-699).** A row is never emitted from a raw
+`canonical != shuffled` check. `PASS` and `FLAKY-PASS` are the SAME outcome for this question ("did
+the id's claim hold in this run?") — `lib/results.py`'s `run_with_flake_retry` only writes
+`FLAKY-PASS` when the mandated retry itself came back `PASS` — so a canonical-PASS/shuffled-FLAKY-PASS
+pair (either direction) is never labelled `ORDER-DEPENDENT`. It is not dropped either: it is reported
+under `DIFFERS (flake-involved)`, alongside any other differing pair where a `FLAKY-PASS` verdict or a
+FAIL coded `flake-reproduced` (`results.py`'s `reason.code`) appears on either side — the flake-retry
+mechanism is a sufficient alternative explanation, so these rows are flagged for a human but not
+counted as order dependence. `PASS`/`FLAKY-PASS` vs `SKIP`, and any pair with no flake-retry signal on
+either side (e.g. a plain `PASS` vs `FAIL`), are NOT folded into this equivalence and keep the bare
+`ORDER-DEPENDENT` label — see the block comment above `ORDER_DEPENDENT` in `lib/artifact.py` for the
+full per-case rationale. `format_order_dependence()`'s summary line states both counts, e.g.
+`3 id(s) differ ... (2 order-dependent, 1 flake-involved ...)`.
+
 ---
 
 ## Script → dut_workflow.md cross-reference
