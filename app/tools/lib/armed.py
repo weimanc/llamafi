@@ -72,6 +72,12 @@ def parse_armed(reply: Optional[dict]) -> Optional[list]:
     return [str(x) for x in armed]
 
 
+#: The console's `set` parser requires `set <var> <val>` and answers `bad args`
+#: to a bare `set injclear` — found on the DUT 2026-09-13, after every host arm
+#: had passed against a stub. The value is ignored by the handler.
+INJCLEAR_CMD = "set injclear 1"
+GET_ARMED_CMD = "get armed"
+
 UNSUPPORTED = "unsupported"
 UNREADABLE = "unreadable"
 

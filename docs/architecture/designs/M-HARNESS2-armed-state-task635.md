@@ -85,10 +85,11 @@ B-6 is exactly a leaked `bgPoll 0` starving 94 successors.
 
 ```
 get armed    → {"ok":true,"cmd":"get","var":"armed","n":2,"armed":["wrDeadUrls","nowFrozen"],"last":true}
-set injclear → {"ok":true,"cmd":"set","var":"injclear","n":2,"cleared":["wrDeadUrls","nowFrozen"]}
+set injclear 1 → {"ok":true,"cmd":"set","var":"injclear","n":2,"cleared":["wrDeadUrls","nowFrozen"]}
 ```
 
-`n` is the list length. The order is table order.
+`n` is the list length. The order is table order. The console parser requires a value, so a bare
+`set injclear` answers `bad args`. The `1` is ignored; this was found on the DUT, not by the host arms.
 
 ### 2.5 The completeness gate
 

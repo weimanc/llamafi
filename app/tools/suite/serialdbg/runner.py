@@ -650,7 +650,7 @@ def main():
 
     def _read_armed():
         try:
-            reply = dut.cmd("get armed", timeout=2.0)
+            reply = dut.cmd(_armed.GET_ARMED_CMD, timeout=2.0)
         except Exception:
             # A TimeoutError (older firmware that hangs up instead of
             # answering cmdGet.cpp's unknown-var JSON) must not crash the run
@@ -661,7 +661,7 @@ def main():
 
     def _issue_injclear(context: str):
         try:
-            dut.cmd("set injclear", timeout=2.0)
+            dut.cmd(_armed.INJCLEAR_CMD, timeout=2.0)
         except Exception as e:
             print(f"[armed] set injclear failed ({context}): "
                   f"{type(e).__name__}: {e}", flush=True)
