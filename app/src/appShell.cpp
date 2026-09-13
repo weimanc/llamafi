@@ -311,5 +311,40 @@ void appTick(AppId id) {
   g_ledFlow.tick();
   g_backlight.tick();   // WIRE2-G5: auto-brightness in every app, not just Settings→Display
   g_keyboard.tick();
-  if (g_apps[(int)id]) g_apps[(int)id]->tick();
+  if (g_apps[(int)id]) {
+    g_apps[(int)id]->tick();
+#ifdef SERIAL_DEBUG
+    // ADR-063 D4 (TASK-637): shell-owned progress, bumped around the
+    // dispatch the shell already owns — see appShell.h for why appRepaints
+    // tracks appTicks 1:1 for now.
+    if ((int)id < (int)AppId::COUNT) {
+      g_appTicks[(int)id]++;
+      g_appRepaints[(int)id]++;
+    }
+#endif
+  }
 }
+
+#ifdef SERIAL_DEBUG
+uint32_t g_appTicks[(int)AppId::COUNT]    = {0};
+uint32_t g_appRepaints[(int)AppId::COUNT] = {0};
+
+namespace {
+const char* dbgAppName(AppId id) {
+#define APP_X(Name, icon, cfg, disp) #Name,
+    static const char* kNames[] = {
+#include "appRegistry.h"
+    };
+#undef APP_X
+    return ((int)id < (int)AppId::COUNT) ? kNames[(int)id] : "Unknown";
+}
+}  // namespace
+
+bool dbgAppIsActive(AppId owner) { return currentAppId == owner; }
+
+void dbgRefuseInactive(const char* cmd, const char* var, AppId owner) {
+  Serial.printf("{\"ok\":false,\"cmd\":\"%s\",\"var\":\"%s\","
+                "\"error\":\"inactiveApp\",\"owner\":\"%s\",\"active\":\"%s\",\"last\":true}\n",
+                cmd, var, dbgAppName(owner), dbgAppName(currentAppId));
+}
+#endif

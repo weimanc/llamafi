@@ -27,6 +27,55 @@ void switchApp(AppId next);
 // toggles in both directions. Implemented in main.cpp. Arg is PlayerMode-as-uint8_t.
 void persistPlayerMode(uint8_t mode);
 
+// ── ADR-063 D3/D4 — shell-side identity guard + tick/repaint counters ─────
+// (TASK-637, "the shell half" — Arch review M-HARNESS2 §1.2/§2.2). Neither
+// needs D1's App::dbgGet virtual nor D2's g_apps[]-only delegation: the
+// guard is applied directly at each per-app key's EXISTING delegation call
+// site in cmdGet.cpp, so D1/D2 are deferred to whichever later per-app
+// commit (TASK-593) actually needs the generalized interface.
+//
+// NOTE — three of the thirteen apps are deliberately NOT gated by this
+// guard: Spotify, WebRadio, LocalPlayer. All three share the taskbar's
+// "player slot" and have an established always-reachable contract for at
+// least part of their key surface (see localPlayerApp's plCount/plMem/
+// plRow/fbState/plOrder/plCursor comment in cmdGet.cpp: "read the app
+// instance directly, not currentAppId... same always-reachable contract as
+// `get wrStation`" — TASK-415/ADR-059 D12). Gating them requires a
+// key-by-key review this shell-half commit does not do; that review is
+// per-app work and belongs to TASK-593.
+#ifdef SERIAL_DEBUG
+// True iff `owner` is the currently active app. A key's handler must call
+// this — and dbgRefuseInactive() on false — before answering, for every key
+// this guard covers. D3: "a per-app key is refused with a named error when
+// its owning app is not the active app," enforced once here rather than as
+// thirteen hand-written app-side observables.
+bool dbgAppIsActive(AppId owner);
+
+// Prints the standard `{"ok":false,...,"error":"inactiveApp",...}` refusal
+// for `cmd` ("get" only, so far — see TASK-637's commit note on `set`) on
+// `var`, owned by `owner`, while a different app is active. The error is
+// named so a host test can tell "wrong app" apart from "key does not
+// exist" (T_APPKEY_01's own requirement). Caller must `return` immediately
+// after calling this.
+void dbgRefuseInactive(const char* cmd, const char* var, AppId owner);
+
+// D4: shell-owned, per-app progress counters — incremented by the shell
+// around its own appTick() dispatch, never by the app itself. A counter the
+// app increments in its own tick is a counter the app can be wrong about in
+// exactly the way A-8 is trying to catch. Exposed read-only via
+// `get appTicks` / `get appRepaints` (cmdGet.cpp).
+//
+// g_appRepaints currently increments in lockstep with g_appTicks: no
+// per-app "did I actually redraw this tick" signal exists yet (adding one
+// would mean changing App::tick()'s return contract across all thirteen
+// overrides — an app-half change, and D6 forbids a sweep in this commit).
+// It is real shell-owned state, not a placeholder, and is expected to
+// diverge from g_appTicks the moment such a signal lands (flagged for
+// Architect/TASK-593 follow-up).
+extern uint32_t g_appTicks[(int)AppId::COUNT];
+extern uint32_t g_appRepaints[(int)AppId::COUNT];
+#endif
+
 // --- Per-app state structs (app-lifecycle.md) ---
 
 // WeatherAppState moved into apps/weatherApp.h (M-SRCLAYOUT Stage E / TASK-471).

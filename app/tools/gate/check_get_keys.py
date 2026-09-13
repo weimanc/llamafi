@@ -53,8 +53,10 @@ from gen_get_keys import collect_with_sites   # noqa: E402
 #: raised to 112 on 2026-09-06 when TASK-645 added `get boardId` (the board
 #: identity the run artifact's premise needs). RAISE this when keys are added; a
 #: drop is a finding, not a reason to lower it.
-MIN_KEYS = 115   # TASK-635 added `get armed` (M-HARNESS2 R14); was 114 after
-                 # TASK-678's `get bod` (F-1, PROP-011-rig-ground-truth.md §3.1)
+MIN_KEYS = 117   # TASK-637 added `get appTicks`/`get appRepaints` (ADR-063 D4,
+                 # M-HARNESS2 shell half); was 115 after TASK-635's `get armed`
+                 # (M-HARNESS2 R14), which was 114 after TASK-678's `get bod`
+                 # (F-1, PROP-011-rig-ground-truth.md §3.1)
 
 #: Extensions the oracle will not open. Everything else under app/src/ is read
 #: as text, INCLUDING extensions the generator's own globs do not list — that is

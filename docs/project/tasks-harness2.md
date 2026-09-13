@@ -291,7 +291,7 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-637 | P2 | OPEN — ADR-063 taken | shell-side identity guard + tick/repaint counters — fixes the class for all thirteen apps — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
+| TASK-637 | P2 | **PARTIAL 2026-09-13** — shell half host-built; DUT verification owed | shell-side identity guard + tick/repaint counters — fixes the class for all thirteen apps — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
 | TASK-638 | P2 | **DONE 2026-09-09** (`983cd54`; DUT: `T_DH_05` 25/25, `T_CLK_SIG_01` ink 7463 / 63 colours; `.dram0.bss` +8 B, headroom 7 976 B) | `get sig` over panel readback with ink/entropy metrics, `set now [freeze]`, readback liveness in HEALTH — [R5](../verification/M-HARNESS2-requirements.md), [ADR-064](../architecture/decisions/ADR-064.md) |
 | TASK-593 | P2 | BLOCKED — TASK-637 | per-app result and entry-state observables, one app per commit, capped per app — [R3](../verification/M-HARNESS2-requirements.md) |
 | TASK-639 | P3 | OPEN — unblocked 2026-09-09 (TASK-638 DONE) | the clock family is rewritten, not migrated — ledger five claims, re-file as new ids — [Dev §8.2](../architecture/designs/M-HARNESS2-DEV-review.md) |

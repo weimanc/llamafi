@@ -323,6 +323,27 @@ void cmdGet(const char *args) {
                   (int)currentAppId, nm);
     return;
   }
+#ifdef SERIAL_DEBUG
+  // ADR-063 D4 (TASK-637): the shell-owned tick/repaint counters, dumped
+  // whole — same "one line, indexed by AppId" shape as `get appId`. See
+  // appShell.h for why appRepaints tracks appTicks 1:1 for now.
+  if (strcmp(args, "appTicks") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"appTicks\",\"counts\":[");
+    for (int i = 0; i < (int)AppId::COUNT; i++) {
+      Serial.printf("%s%lu", i ? "," : "", (unsigned long)g_appTicks[i]);
+    }
+    Serial.printf("],\"last\":true}\n");
+    return;
+  }
+  if (strcmp(args, "appRepaints") == 0) {
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"appRepaints\",\"counts\":[");
+    for (int i = 0; i < (int)AppId::COUNT; i++) {
+      Serial.printf("%s%lu", i ? "," : "", (unsigned long)g_appRepaints[i]);
+    }
+    Serial.printf("],\"last\":true}\n");
+    return;
+  }
+#endif
   if (strcmp(args, "activeError") == 0) {
     // TASK-245 / ADR-046: active app's error + connecting state (drive the
     // red / amber active-bar) + the Spotify sources so VE can assert the
@@ -508,13 +529,29 @@ void cmdGet(const char *args) {
     return;
   }
   if (strcmp(args, "weatherReady") == 0) {
-    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\","
-                  "\"ready\":%s,\"last\":true}\n", g_WeatherApp.dataReady() ? "true" : "false");
+    // ADR-063 D3 (TASK-637): identity-guarded — Weather is one of the two
+    // apps R3(a)'s retired T_WX_02 covered. Single trailing `return` (not an
+    // early one ahead of the g_WeatherApp reference): check_app_conformance
+    // .py's A6 M2 fallback scans from this key's `strcmp` match to the NEXT
+    // `return;` for a `g_WeatherApp` reference — an early return would hide
+    // it and falsely report the key as unresolved (NEW-APP-CHECKLIST item 3).
+    if (dbgAppIsActive(AppId::Weather)) {
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\","
+                    "\"ready\":%s,\"last\":true}\n", g_WeatherApp.dataReady() ? "true" : "false");
+    } else {
+      dbgRefuseInactive("get", "weatherReady", AppId::Weather);
+    }
     return;
   }
   if (strcmp(args, "cryptoReady") == 0) {
-    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\","
-                  "\"ready\":%s,\"last\":true}\n", g_CryptoApp.dataReady() ? "true" : "false");
+    // ADR-063 D3 (TASK-637): identity-guarded (retired T_CX_02's app). Same
+    // single-trailing-return shape as weatherReady above.
+    if (dbgAppIsActive(AppId::Crypto)) {
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\","
+                    "\"ready\":%s,\"last\":true}\n", g_CryptoApp.dataReady() ? "true" : "false");
+    } else {
+      dbgRefuseInactive("get", "cryptoReady", AppId::Crypto);
+    }
     return;
   }
   if (strcmp(args, "cryptoHttpCode") == 0) {
@@ -543,8 +580,14 @@ void cmdGet(const char *args) {
     return;
   }
   if (strcmp(args, "golAlive") == 0) {
-    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"golAlive\","
-                  "\"count\":%d,\"last\":true}\n", g_LifeApp.golAliveCount());
+    // ADR-063 D3 (TASK-637): identity-guarded (retired T_GOL_02's app). Same
+    // single-trailing-return shape as weatherReady above.
+    if (dbgAppIsActive(AppId::Life)) {
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"golAlive\","
+                    "\"count\":%d,\"last\":true}\n", g_LifeApp.golAliveCount());
+    } else {
+      dbgRefuseInactive("get", "golAlive", AppId::Life);
+    }
     return;
   }
   if (strcmp(args, "shellBusy") == 0) {
@@ -582,64 +625,121 @@ void cmdGet(const char *args) {
     }
     return;
   }
+  // ADR-063 D3 (TASK-637): the delegation calls below used to answer even
+  // while the owning app was inactive — A-8. Ten of the thirteen apps are
+  // guarded here; Spotify, WebRadio and LocalPlayer are the deliberate
+  // exceptions (see appShell.h's note by g_appTicks). Each chain call has
+  // already matched `args` against a real key by the time the guard runs,
+  // so `args` itself is reused as the refused var name (`buf` was only
+  // filled with the answer, which the refusal path discards).
   if (settingsDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::Settings)) {
+      dbgRefuseInactive("get", args, AppId::Settings);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
   if (stockDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::Stock)) {
+      dbgRefuseInactive("get", args, AppId::Stock);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
 #ifdef SERIAL_DEBUG
   if (matrixDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::Matrix)) {
+      dbgRefuseInactive("get", args, AppId::Matrix);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
   if (lifeDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::Life)) {
+      dbgRefuseInactive("get", args, AppId::Life);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
   if (cryptoDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::Crypto)) {
+      dbgRefuseInactive("get", args, AppId::Crypto);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
   if (aquariumDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::Aquarium)) {
+      dbgRefuseInactive("get", args, AppId::Aquarium);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
 #endif
   if (teletextDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::Teletext)) {
+      dbgRefuseInactive("get", args, AppId::Teletext);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
   if (planeRadarDbgGet(args, buf, sizeof(buf))) {
+    if (!dbgAppIsActive(AppId::PlaneRadar)) {
+      dbgRefuseInactive("get", args, AppId::PlaneRadar);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
   // TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
+  // NOT identity-guarded (ADR-063 D3, TASK-637): WebRadio shares the player
+  // slot's always-reachable contract — see appShell.h.
   if (webRadioDbgGet(args, buf, sizeof(buf))) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",%s}\n", buf);
     return;
   }
   if (strcmp(args, "clockStyle") == 0) {
-    static const char* kSN[] = {"digital","flip","nixie","vfd"};
-    uint8_t cs = (uint8_t)g_settings.clockStyle % 4;
-    // M-CLOCK-TAP-CYCLE (TASK-346): themes + dirty added — dirty is the
-    // un-flushed-change flag that makes deferred persistence testable
-    // without pulling settings.json (pair with `get settingsSaveCount`).
-    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\","
-                  "\"val\":%d,\"name\":\"%s\",\"nixieTheme\":%d,\"vfdTheme\":%d,"
-                  "\"dirty\":%s,\"last\":true}\n", cs, kSN[cs],
-                  (int)g_settings.nixieTheme, (int)g_settings.vfdTheme,
-                  g_ClockApp.dbgStyleDirty() ? "true" : "false");
+    // ADR-063 D3 (TASK-637): identity-guarded — Clock is one of the four
+    // apps ADR-063 names as having no dbgGet override at all. Single
+    // trailing `return` (not an early one ahead of the g_ClockApp
+    // reference): check_app_conformance.py's A6 M2 fallback scans from this
+    // key's `strcmp` match to the NEXT `return;` for a `g_ClockApp`
+    // reference — an early return would hide it and falsely report the key
+    // as unresolved (NEW-APP-CHECKLIST item 3).
+    if (dbgAppIsActive(AppId::Clock)) {
+      static const char* kSN[] = {"digital","flip","nixie","vfd"};
+      uint8_t cs = (uint8_t)g_settings.clockStyle % 4;
+      // M-CLOCK-TAP-CYCLE (TASK-346): themes + dirty added — dirty is the
+      // un-flushed-change flag that makes deferred persistence testable
+      // without pulling settings.json (pair with `get settingsSaveCount`).
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockStyle\","
+                    "\"val\":%d,\"name\":\"%s\",\"nixieTheme\":%d,\"vfdTheme\":%d,"
+                    "\"dirty\":%s,\"last\":true}\n", cs, kSN[cs],
+                    (int)g_settings.nixieTheme, (int)g_settings.vfdTheme,
+                    g_ClockApp.dbgStyleDirty() ? "true" : "false");
+    } else {
+      dbgRefuseInactive("get", "clockStyle", AppId::Clock);
+    }
     return;
   }
   if (strcmp(args, "clockLastAction") == 0) {
-    // M-CLOCK-TAP-CYCLE (TASK-346): tap-zone outcome observable
-    // (TAP_FACE / TAP_THEME / TAP_THEME_NA / DEBOUNCE) — prLastAction's
-    // role for the clock's two hit boxes.
-    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockLastAction\","
-                  "\"val\":\"%s\",\"last\":true}\n", g_ClockApp.dbgLastAction());
+    // Same single-trailing-return shape as clockStyle above.
+    if (dbgAppIsActive(AppId::Clock)) {
+      // M-CLOCK-TAP-CYCLE (TASK-346): tap-zone outcome observable
+      // (TAP_FACE / TAP_THEME / TAP_THEME_NA / DEBOUNCE) — prLastAction's
+      // role for the clock's two hit boxes.
+      Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"clockLastAction\","
+                    "\"val\":\"%s\",\"last\":true}\n", g_ClockApp.dbgLastAction());
+    } else {
+      dbgRefuseInactive("get", "clockLastAction", AppId::Clock);
+    }
     return;
   }
   // ── M-TESTBASE P2: `get player` — the whole player-slot contract, one line ──
