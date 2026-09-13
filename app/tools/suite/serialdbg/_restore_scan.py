@@ -56,6 +56,11 @@ SELF_REARMING_VARS = frozenset({"cooldown"})
 #: `set <var>` — the var is the second whitespace token of the command string.
 _SET_RE = re.compile(r"^\s*set\s+([A-Za-z_][A-Za-z0-9_]*)\b")
 
+#: `set` keys that CLEAR state and set none (TASK-635's `set injclear`, the
+#: boundary check's own disarm). Wrapping a clear in a restore manager would
+#: re-arm what it just cleared, so a clear is not a mutation to account for.
+CLEARING_KEYS = frozenset({"injclear"})
+
 
 def _leading_text(node: ast.AST):
     """The literal prefix of a string-ish node, or None.
@@ -91,6 +96,8 @@ def _mutation_var(node: ast.AST):
             return (False, None)
         m = _SET_RE.match(text)
         if m:
+            if m.group(1) in CLEARING_KEYS:
+                return (False, None)
             return (True, m.group(1))
         if text.strip().startswith("set ") or text.strip() == "set":
             return (True, None)          # `set` with a dynamic var name

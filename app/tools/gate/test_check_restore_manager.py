@@ -169,6 +169,10 @@ def test_checker():
           n_hits(A8_MANAGER_WRONG_VAR) == 1, C.unrestored_mutations(A8_MANAGER_WRONG_VAR))
     check("A: a write in the `with` item is outside the manager",
           n_hits(A9_WRITE_IN_ITEM) == 1, C.unrestored_mutations(A9_WRITE_IN_ITEM))
+    check("A: `set injclear` is a clear, not a mutation (TASK-635)",
+          n_hits('def t(d):\n    d.cmd("set injclear", timeout=2.0)\n') == 0)
+    check("A: a real key next to it is still counted",
+          n_hits('def t(d):\n    d.cmd("set injclearX 1")\n') == 1)
     check("A: control — non-device calls are untouched", n_hits(A10_CONTROL) == 0,
           C.unrestored_mutations(A10_CONTROL))
     check("A: f-string var is read from the leading literal",
