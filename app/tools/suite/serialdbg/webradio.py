@@ -16,6 +16,7 @@ from lib.dut import Dut
 from lib.results import pass_, fail, skip, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
+from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
     _restore_spotify, _switch_to, _wait_shell_not_busy, _diag_snapshot,
     _tap_and_wait_log, _do_drag, _get_scroll, _vs_drain_until_drag,
@@ -1351,6 +1352,7 @@ def t_wr_vis_02(dut: Dut):
                          f"(>100 threshold)")
 
 
+@meta(scope="Spotify", scope_reason="cross-mode")
 def t_wr_vis_03(dut: Dut):
     """T_WR_VIS_03: Spotify's synthetic VIS_VU path is unaffected (Goal 2
     regression guard — this design change must not touch Spotify's call
@@ -1436,6 +1438,7 @@ def t_wr_vis_04(dut: Dut):
     pass_("T_WR_VIS_04", f"reached visMode=4; wrSpec changed across 1.5s (t0={bars1}, t1={bars2})")
 
 
+@meta(scope="Spotify", scope_reason="cross-mode")
 def t_wr_vis_05(dut: Dut):
     """T_WR_VIS_05: Spotify's tap-cycle never reaches VIS_SPECTRUM (Option B
     regression guard, Goal 4 of M-WEBRADIO-REAL-VIS-SPECTRUM.md) — cycle

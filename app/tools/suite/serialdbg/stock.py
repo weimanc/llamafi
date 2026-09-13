@@ -32,6 +32,7 @@ from lib.dut import Dut, DeviceReadError, NoAnswer
 from lib.results import pass_, fail, skip, unmet  # noqa: F401 — skip used below
 import coords as _c
 from app_ids_gen import APP_SLOT
+from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
     _restore_spotify, _check_residue, _RESIDUE_DISPROOF,
     _diag_snapshot, _wait_shell_not_busy,
@@ -625,6 +626,14 @@ def t181(dut: Dut):
 
 # ── T182 — Canvas isolation (taskbar-driven path) ─────────────────────────────
 
+@meta(scope="taskbar", scope_reason="cross-feature",
+      cls="FEATURE", cls_reason=
+      "TASK-604, 2026-09-13. Re-scoping this id to `taskbar` (G-13/E-5) moves its "
+      "seed from FEATURE to a SEEDED CORE, since taskbar is a gating scope by "
+      "default — but the body cannot actually gate anything: both fail() calls "
+      "are unreachable (WP-G G-13's BROKEN verdict), every real detection path "
+      "exits as skip(). A test whose failure paths never fire cannot make the "
+      "claim CORE requires about the rest of the run.")
 def t182(dut: Dut):
     """T182 (cross): Stock→chart view→switchApp away→taskbar back→list; no residue."""
     print("T182  Stock canvas isolation (taskbar-driven switch)")

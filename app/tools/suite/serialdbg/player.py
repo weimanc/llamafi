@@ -977,6 +977,7 @@ def _drain_serial(dut: Dut, seconds: float = 0.3) -> None:
 # currently-rendered sprite indices, so a test can check what's REACHABLE
 # (mask) and what's actually PAINTED (lastShuffle/lastRepeat) in one call.
 
+@meta(scope="Spotify", scope_reason="cross-mode")
 def t_plr_17(dut: Dut):
     """T_PLR_17: Spotify still advertises all four capabilities — shuffle and
     repeat are still drawn and still hit-tested, dispatching ACT_SHUFFLE/
@@ -1039,6 +1040,7 @@ def t_plr_17(dut: Dut):
                           "dispatch ACT_SHUFFLE/ACT_REPEAT — no delta from pre-TASK-417 behaviour")
 
 
+@meta(scope="WebRadio", scope_reason="cross-mode")
 def t_plr_18(dut: Dut):
     """T_PLR_18: WebRadio advertises CAP_TRANSPORT only. Shuffle/repeat zones
     must be neither drawn (caps bit absent) nor hit-tested (tap there must not
