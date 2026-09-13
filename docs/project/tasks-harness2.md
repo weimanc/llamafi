@@ -1,14 +1,13 @@
 # M-HARNESS2 + WP-Z — test-harness remediation programme
 
 > Owner: **Project Manager**
-> Status **2026-09-12**: **Phases 0 and 1 COMPLETE** (32 rows, all closed); **Phase 2's session is
-> executed** and 4 rows remain (582, 588, 595, 597); **Phase 4: TASK-638 DONE**, 637/639 open;
-> **Phase 5: TASK-671 DONE** (the runtime R34 gate is live on 193 transcripts), 641's taxonomy
-> ruled accepted, 672–674 and 676 filed. **TASK-557 is DONE (2026-09-12) — Phases 3 and 5 no longer
-> wait on it; their remaining gate is Phase 2's three live rows (582, 595, 597), TASK-588 having
-> closed 2026-09-12.** Only Phase 1 was
-> ever *committed* by the programme decision — 2, 4 and 5 have been worked opportunistically where
-> a row was unblocked, which is why closed rows appear in phases that are not committed.
+> Status **2026-09-13**: **Phases 0, 1, 2 COMPLETE. Phase 3 ENTERED on a human waiver** (TASK-575
+> §4 clause 2 short by `T_PLR_15`, `T_WR_TLS_01`) and is **5/6 rows closed** — 604, 592, 605, 635,
+> 636; 594 PARTIAL. **Phase 3 exit is NOT met**: a clean per-family shuffle (first `player` pair
+> left 2 candidates), TASK-617 (ii) (`T_BI_03` needs a human call; `T-CDWN-02` in progress) and
+> §18.6 (a) (the interleaved A/B) are owed; §18.6 (b) closed 2026-09-13. **TASK-697 (P1)** — a
+> post-reboot fetch wedge that costs ~22 Stock ids per full run — pollutes every full-suite
+> measurement and should precede the A/B. **Phase 4: 638 DONE, 637 PARTIAL** (shell half on DUT).
 > **Where to start cold: the Totals table at the foot of this file** — it names the live rows per
 > phase and which of them are blocked by what.
 > Board created: 2026-09-03 (board-reset Step 5).
