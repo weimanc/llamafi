@@ -19,6 +19,7 @@
 static constexpr ShellState kShellInit = {
     false,            // busy
     0,                // busySetMs
+    false,            // busyForced (TASK-617)
     AppId::Spotify,   // previous
     {},               // launched[] — all false
     false,            // inGesture
@@ -52,6 +53,7 @@ static_assert(kShellInit.tbPressedApp == -1,
 static_assert(kShellInit.previous == AppId::Spotify,
               "ShellState initialiser drifted: previous must start at AppId::Spotify");
 static_assert(!kShellInit.busy && kShellInit.busySetMs == 0 &&
+              !kShellInit.busyForced &&
               !kShellInit.inGesture && kShellInit.cooldownMs == 0 &&
               kShellInit.lastTouchX == 0 && kShellInit.lastTouchY == 0,
               "ShellState initialiser drifted: the busy/gesture fields must start zeroed");

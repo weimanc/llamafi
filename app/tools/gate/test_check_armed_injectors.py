@@ -98,10 +98,12 @@ def case_live_tree_is_clean():
 
 
 def case_header_extraction_matches_design():
-    """The design doc (§2.3) lists 16 members (14 initial + spotifyWedge, bgPollOff); the header's own
-    X-macro parse must find exactly that many, independent of ARMED_BY."""
+    """The design doc (§2.3) lists 16 members (14 initial + spotifyWedge, bgPollOff), plus
+    `shellBusy` added by TASK-617 (M-HARNESS2-armed-state-task635.md §2.2 clause 3 — the
+    `busyForced` bit is exactly the one new bool the clause allows); the header's own X-macro
+    parse must find exactly that many, independent of ARMED_BY."""
     header = C.injectors_in_header()
-    assert len(header) == 16, f"expected 16 injectors in armedInjectors.h, got {len(header)}: {header}"
+    assert len(header) == 17, f"expected 17 injectors in armedInjectors.h, got {len(header)}: {header}"
 
 
 def case_every_armed_by_value_is_a_real_extracted_key():
@@ -139,7 +141,7 @@ CASES = [
     ("F3  an injector with no ARMED_BY entry",   case_f3_injector_missing_armed_by),
     ("F4  an ARMED_BY entry naming a ghost",     case_f4_armed_by_names_missing_injector),
     ("P1  the live tree is clean",               case_live_tree_is_clean),
-    ("P2  header extraction finds 16",           case_header_extraction_matches_design),
+    ("P2  header extraction finds 17",           case_header_extraction_matches_design),
     ("P3  every ARMED_BY key is real",           case_every_armed_by_value_is_a_real_extracted_key),
     ("P4  no key in both tables",                case_no_key_in_both_tables),
     ("P5  CANDIDATE rows are marked",            case_candidate_rows_are_flagged),

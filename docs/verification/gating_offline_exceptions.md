@@ -20,14 +20,21 @@ have not been taken.
 
 > **This gate reading zero is an exit criterion of [TASK-617](../project/tasks-harness2.md).** It
 > read **8 ids / 15 findings** when this file was opened. After the human's 2026-09-06 ruling
-> (below) it reads **2 ids / 3 findings**. The criterion is still **NOT MET**, and no row in this
-> file makes it met: a row records the dependence, it does not remove it.
+> it read **2 ids / 3 findings**. The criterion is still **NOT MET** — one row remains
+> (`T_BI_03`) — but it is **no longer a decision**: a row records the dependence, it does not
+> remove it, and this one now needs a suite change, not a ruling.
 >
-> **Update 2026-09-07 (@PM, TASK-634's session).** The count is unchanged, but one of the three is
-> no longer a decision: `T_BI_03`'s open question was answered YES on hardware, so it is now a small
-> suite change, not a ruling. The remaining **two** `T-CDWN-02` findings are the ones that genuinely
-> need TASK-617's demote-or-inject ruling. **`get sig`/`dbgSet`-shaped injection (ADR-063) is the
-> only thing that clears them**, which puts this criterion behind TASK-637, not behind more analysis.
+> **Update 2026-09-07 (@PM, TASK-634's session).** One of the three findings is no longer a
+> decision: `T_BI_03`'s open question was answered YES on hardware, so it is now a small suite
+> change, not a ruling.
+>
+> **Update 2026-09-13 (TASK-617).** The two `T-CDWN-02` rows are gone. `set shellBusy 1`
+> (`armedInjectors.h`'s `shellBusy` entry, M-HARNESS2 R14) raises `shell::state().busy` through
+> the exact field and `busySetMs` stamp a real enqueue uses, with no app fetch anywhere in the
+> id's precondition — the ADR-063-shaped injection this file always said would clear them. The
+> suite change: `T-CDWN-02` arms via `dut.injected("shellBusy", 1, clear_to="0")` instead of
+> `set triggerFetch 1` + a Stock activation, and no longer touches StockApp at all. `check_gating_
+> offline.py` now reads **1 id / 1 finding** (`T_BI_03` only).
 
 ## What the gate looks at
 
@@ -95,20 +102,20 @@ path plus a network dependency**, and the four retained apps drive every path th
 `cls_reason` names Clock, Matrix, Life and Aquarium as the families the claim protects; it now
 matches the body.
 
-### Why `T-CDWN-02` still has two rows, and why they were not made to go away
+### Why `T-CDWN-02` had two rows for so long, and how they were cleared (TASK-617, 2026-09-13)
 
-The disposition expected this ledger to shrink to `T_BI_03` alone. It did not, and the two residual
-rows are reported rather than argued around.
+The disposition expected this ledger to shrink to `T_BI_03` alone. It did not for a while, and the
+two residual rows were reported rather than argued around.
 
-The primary assertion needs the busy gate to be **armed**, and the only way to arm it in StockApp is
+The primary assertion needs the busy gate to be **armed**, and the only way to arm it in StockApp was
 `set triggerFetch 1` (a local write that zeroes cache timestamps) followed by a drill tap (a local
-enqueue on the dataTask). **Neither waits on Yahoo** — `shellBusy` rises at enqueue, and the verdict
-resolves on the shell's own reply — but the checker cannot see that: `triggerFetch` is in
-`NETWORK_KEYS` because it *arms* a live fetch, and `Stock` is in `NETWORK_APPS`. The finding is a
-true statement about the static proxy and a false one about the run, and that is worth having
+enqueue on the dataTask). **Neither waited on Yahoo** — `shellBusy` rises at enqueue, and the verdict
+resolves on the shell's own reply — but the checker could not see that: `triggerFetch` is in
+`NETWORK_KEYS` because it *arms* a live fetch, and `Stock` is in `NETWORK_APPS`. The finding was a
+true statement about the static proxy and a false one about the run, and that was worth having
 written down exactly once rather than smoothed away.
 
-Two things were **not** done, deliberately:
+Two things were **not** done, deliberately, and still were not done in the fix:
 
 * **the id was not re-pointed at Spotify.** A `PLAY` tap raises `shellBusy` the same way
   (`T-BUSY-02` does exactly this) and `Spotify` is not in `NETWORK_APPS` — so the gate would read
@@ -118,10 +125,18 @@ Two things were **not** done, deliberately:
   ids that then wait on the result, and weakening the key for all of them to clear one id is the
   same trade in a different direction.
 
-What would actually clear these two rows is an **injection**: a debug write that puts
-`shell::state().busy` true without an app fetch — the observability-contract shape (ADR-063), not a
-suite change. Until then the rows stand, owned by TASK-617, which is where the "is this residual
-acceptable?" question belongs.
+What actually cleared these two rows is the **injection** this file always said would: `set shellBusy
+1` (`app/src/debug/armedInjectors.h`'s `shellBusy` entry, M-HARNESS2 R14) writes
+`shell::state().busy = true` through the exact same `shell::setBusy()` call and `busySetMs` stamp a
+real enqueue uses — no app fetch, real or forced, anywhere in the path. It needed exactly one new bit
+of firmware state (`ShellState::busyForced`, TASK-635 §2.2 clause 3): a *forced* busy has no real
+`hasPendingAsync()` behind it, so `main.cpp`'s loop()'s primary auto-clear (`!hasPendingAsync() ->
+setBusy(false)`) would otherwise clear it on the very next tick; `busyForced` makes loop() skip that
+one check for a forced busy while leaving the `SHELL_BUSY_TIMEOUT_MS` safety net and `set shellBusy
+0`/`set injclear` untouched. `T-CDWN-02` now arms via `dut.injected("shellBusy", 1, clear_to="0")`
+and no longer switches to Stock or reads any Stock state at all — the id's scope moved from `Stock`
+to `shell` accordingly, since the gate it asserts (`cmdTouch.cpp:47`) reads `shell::state().busy`
+before any app-specific dispatch runs.
 
 ## Ledger
 
@@ -131,8 +146,6 @@ would decide it by attrition. `since` = the date the row was opened.
 
 | id | kind | why it is not resolved today | owner | since |
 |---|---|---|---|---|
-| `T-CDWN-02` | network-key | `set triggerFetch 1` in `_cdwn_stale_chart_list()` arms the fetch whose enqueue raises `shellBusy`. The ARMING is local — the verdict resolves on the shell's reply, not on Yahoo's — but the key is in `NETWORK_KEYS` for the ids that do wait on the result, and weakening it there to clear this one id is the wrong trade. Clearing this row needs an injection that sets `shell::state().busy` with no app fetch (ADR-063 shape), not a suite change. | TASK-617 | 2026-09-05 |
-| `T-CDWN-02` | network-app | Activates Stock via `_switch_to_stock()`, whose `init()` issues the chart fetch. Same reasoning as the row above: the id needs Stock's enqueue, not Stock's response. Re-pointing the id at Spotify would read zero here and be less offline-satisfiable, not more. | TASK-617 | 2026-09-05 |
 | `T_BI_03` | network-helper | `wait_for_queue(min_count=2)` needs a live Spotify queue, which TASK-243's permanent 403 prevents. **Question ANSWERED on hardware 2026-09-07 (TASK-634 session A §1.5): `set queue N` DOES satisfy `wait_for_queue(min_count=2)` — YES, and with no class change.** So this row no longer needs a ruling; it needs the small suite change that points the helper at the injection, after which the row is deleted. It is the one row here that is a work item, not a decision. | TASK-617 | 2026-09-05 |
 
 ## How a row leaves

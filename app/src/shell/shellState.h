@@ -48,6 +48,16 @@ struct ShellState {
     // ── busy gate (M-TOUCH-UX TASK-115b) ──
     bool          busy;
     unsigned long busySetMs;
+    // TASK-617/M-HARNESS2 R14: set only by the debug `set shellBusy 1` path
+    // (armedInjectors.h `shellBusy` entry). A forced busy has no real
+    // hasPendingAsync() behind it, so the primary auto-clear in main.cpp's
+    // loop() (which fires the instant the active app reports no pending
+    // work) would otherwise clear it on the very next tick — this bit is
+    // the one piece of new state clause 3 of the armed-injector membership
+    // rule allows when "forced" and "real" cannot otherwise be told apart.
+    // Still subject to the same SHELL_BUSY_TIMEOUT_MS safety net as a real
+    // busy, and cleared by `set shellBusy 0` / `set injclear`.
+    bool          busyForced;
 
     // ── navigation ──
     AppId         previous;                      // Settings' "back" target

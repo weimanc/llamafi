@@ -468,11 +468,14 @@ EDGE_ADJUDICATION = {
                   "Was: compares against `n = _stock_ok_count(dut)` read "
                   "in-test, a delta and not an edge. TASK-626 (2026-09-06) split "
                   "the fetch-count assertion out to `T-CDWN-04`, so this id now "
-                  "reads no counter at all — DISMISSED a fortiori. It is still "
-                  "CORE and still moves to the front, where its TLS connection "
-                  "is colder; the 'warm connection completed before tap2' exit "
-                  "is therefore LESS likely, and it is now a `fail()` behind a "
-                  "`shellBusy` guard rather than a green skip."),
+                  "reads no counter at all — DISMISSED a fortiori. TASK-617 "
+                  "(2026-09-13) went further: it no longer touches StockApp, "
+                  "TLS or the network AT ALL — the precondition is the "
+                  "`shellBusy` armed injector (`set shellBusy 1`), restored via "
+                  "`Dut.injected()` on every exit path. There is no warm/cold "
+                  "connection state left to share with a predecessor; DISMISSED "
+                  "for a second, independent reason now. Still CORE — the "
+                  "ORACLE is the shell's own tap gate."),
     # @VE ruling 2026-09-04 (TASK-584 sweep). TASK-596's author filed this
     # DISMISSED and asked for confirmation. The DIAGNOSIS is confirmed exactly,
     # mechanically: `edge_shape(T176)` reports one line and only one — the

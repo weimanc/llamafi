@@ -96,6 +96,7 @@ ARMED_BY: dict[str, list[str]] = {
     "ldrRaw":            ["ldrRaw"],
     "spotifyWedge":      ["spotifyWedge"],
     "bgPollOff":         ["bgPoll"],
+    "shellBusy":         ["shellBusy"],
 }
 
 # ── NOT_INJECTORS — every other extracted `set` key, with a reason that must

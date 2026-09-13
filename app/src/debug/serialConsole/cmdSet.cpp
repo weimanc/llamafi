@@ -15,6 +15,8 @@
 #include <esp_heap_caps.h>
 #include <esp_task_wdt.h>
 #include "appShell.h"                     // AppId, currentAppId
+#include "shell/shellDispatch.h"          // shell::setBusy() (TASK-617)
+#include "shell/shellState.h"             // shell::state().busy (TASK-617)
 #include "shell/appTable.h"               // g_apps[]/every g_XApp + *DbgSet(), pulls
                                            // webRadioApp.h/localPlayerApp.h and therefore
                                            // audio/audioEngine.h (mb_arena.h), player/
@@ -517,6 +519,27 @@ void cmdSet(const char *args) {
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
                   (unsigned)heap_caps_get_free_size(kByteCap),
                   (unsigned)heap_caps_get_largest_free_block(kByteCap));
+    return;
+  }
+  // TASK-617 (M-HARNESS2 R36/gating_offline_exceptions.md): raise or clear
+  // the shell's OWN `busy` gate with no app fetch behind it, so `T-CDWN-02`
+  // (the cmdTap g_shellBusy gate) can arm its precondition offline instead
+  // of through StockApp's `set triggerFetch 1` + a real chart-fetch enqueue.
+  // Goes through the exact same field and `busySetMs` stamp a real enqueue
+  // uses (shell::setBusy()), so the real timeout (SHELL_BUSY_TIMEOUT_MS) and
+  // `set injclear`/`set shellBusy 0` clear paths apply unchanged — only the
+  // `forced` bit differs, and that only suppresses loop()'s primary
+  // hasPendingAsync() auto-clear (see shellState.h's `busyForced` comment).
+  // Declared an armed injector in armedInjectors.h (`shellBusy`): it arms via
+  // a console `set`, persists past the command's return (up to
+  // SHELL_BUSY_TIMEOUT_MS), and — the new `busyForced` bit is exactly the one
+  // bit clause 3 of the membership rule allows — is distinguishable from a
+  // real busy without it.
+  if (strcmp(var, "shellBusy") == 0) {
+    bool want = (atoi(val) != 0);
+    shell::setBusy(want, /*forced=*/want);
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"shellBusy\","
+                  "\"busy\":%s}\n", shell::state().busy ? "true" : "false");
     return;
   }
   // TASK-635 (M-HARNESS2 R14): clear every currently-armed injector in

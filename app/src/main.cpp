@@ -210,8 +210,12 @@ static constexpr unsigned long SHELL_BUSY_TIMEOUT_MS = 3000;
 // isPlayerModeApp().
 namespace shell {
 // Sets busy flag and immediately repaints only the active-slot indicator.
-void setBusy(bool busy) {
+// `forced` (TASK-617) is true only for the debug `set shellBusy 1` path;
+// see shellState.h's `busyForced` comment for why loop()'s primary
+// auto-clear must skip it.
+void setBusy(bool busy, bool forced) {
     shell::state().busy = busy;
+    shell::state().busyForced = busy && forced;
     if (busy) shell::state().busySetMs = millis();
     renderActiveIndicator(tft, currentAppId,
                           winampDisplay.tbScrollOffset(), TASKBAR_APP_COUNT,
@@ -338,8 +342,13 @@ void loop()
   { unsigned long _t = millis(); appTick(currentAppId);
     perf::record("app.tick", millis() - _t); }
 
-  // Primary busy clear: app reports work done (TASK-115d).
-  if (shell::state().busy && g_apps[(int)currentAppId] &&
+  // Primary busy clear: app reports work done (TASK-115d). Skipped for a
+  // FORCED busy (TASK-617, `set shellBusy 1`): there is no real pending
+  // async behind it, so this check would otherwise clear it on the very
+  // next tick. A forced busy still falls through to the timeout fallback
+  // below, and to explicit `set shellBusy 0` / `set injclear`.
+  if (shell::state().busy && !shell::state().busyForced &&
+      g_apps[(int)currentAppId] &&
       !g_apps[(int)currentAppId]->hasPendingAsync())
       shell::setBusy(false);
   // Fallback: auto-clear after timeout (safety net).

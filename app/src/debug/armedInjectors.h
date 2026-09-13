@@ -35,6 +35,8 @@
 #include "spotifyTask.h"       // spotifyTask::dbgArmedWedge()/dbgBgPollOff()
 #include "shell/appTable.h"     // g_WebRadioApp, g_PlaneRadarApp,
                                  // g_TeletextApp, g_backlight
+#include "shell/shellState.h"   // shell::state().busyForced (TASK-617)
+#include "shell/shellDispatch.h" // shell::setBusy() (TASK-617)
 
 // TASK-426 A/B cookie pair (boot/boot.cpp, RTC_NOINIT_ATTR) — declared
 // extern here rather than pulling in boot.cpp's setup()-scoped
@@ -101,6 +103,9 @@ static inline bool dbgArmedGeocode() {
     spotifyTask::dbg_set("spotifyWedge", "0"))                             \
   X(bgPollOff,                                                               \
     spotifyTask::dbgBgPollOff(),                                             \
-    spotifyTask::dbg_set("bgPoll", "1"))
+    spotifyTask::dbg_set("bgPoll", "1"))                                    \
+  X(shellBusy,                                                               \
+    shell::state().busyForced,                                              \
+    shell::setBusy(false))
 
 #endif  // SERIAL_DEBUG

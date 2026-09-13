@@ -14,8 +14,12 @@
 namespace shell {
 // Sets busy flag and immediately repaints only the active-slot indicator.
 // Defined once in main.cpp (needs renderActiveIndicator + winampDisplay,
-// both already reachable there).
-void setBusy(bool busy);
+// both already reachable there). `forced` (TASK-617) marks a busy raised by
+// the debug `set shellBusy 1` path rather than a real hasPendingAsync() —
+// see shellState.h's `busyForced` comment. Real call sites never pass it;
+// it defaults to false, which also clears any stale forced flag on a real
+// setBusy() call.
+void setBusy(bool busy, bool forced = false);
 
 // TASK-245 / ADR-046: error state of the currently-active app — drives the red
 // active-bar (precedence error > busy/connecting > idle). Owned by the app

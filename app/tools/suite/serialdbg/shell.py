@@ -2372,19 +2372,26 @@ def t_cdwn_01(dut: Dut):
 # skip-adjudication row 101 recorded — the PRIMARY assertion's own negative
 # outcome was a `skip()`. Fixed here, with the `shellBusy` reading that row named
 # as the precondition of converting it.
+#
+# TASK-617 UPDATE (clears gating_offline_exceptions.md's last two rows):
+# `T-CDWN-02` no longer drives StockApp or calls `_cdwn_stale_chart_list()` at
+# all — its precondition is now the `shellBusy` armed injector
+# (`set shellBusy 1`, armedInjectors.h), which raises `shell::state().busy`
+# with no app fetch, real or forced. `_cdwn_stale_chart_list()` is now
+# `T-CDWN-04`'s alone; its "shared by both ids" framing below is historical.
 
 
 def _cdwn_stale_chart_list(dut: Dut) -> None:
     """In StockApp: return to the list view and force the chart cache stale, so
     the next drill tap enqueues a real chart fetch and `shellBusy` rises.
 
-    Shared by `T-CDWN-02` and `T-CDWN-04` at ONE lexical site on purpose. The
-    `set triggerFetch 1` here cannot go through `Dut.injected()`: the firmware
-    accepts only the literal `1` (`app/src/stock/stockApp.cpp:222`, `strcmp(val,
-    "1") == 0`), so the clear-to write a restore manager performs on exit would
-    be refused and raise — and there is nothing to clear anyway, the command
-    zeroes cache timestamps rather than arming a latch. R17's ratchet counts
-    write SITES, so sharing this one keeps the split count-neutral.
+    TASK-617: used by `T-CDWN-04` only now — `T-CDWN-02` arms `shellBusy`
+    directly instead (see the section header above). The `set triggerFetch 1`
+    here cannot go through `Dut.injected()`: the firmware accepts only the
+    literal `1` (`app/src/stock/stockApp.cpp:222`, `strcmp(val, "1") == 0`), so
+    the clear-to write a restore manager performs on exit would be refused and
+    raise — and there is nothing to clear anyway, the command zeroes cache
+    timestamps rather than arming a latch.
     """
     dut.cmd("tap 10 7", timeout=5.0)
     time.sleep(0.3)
@@ -2393,73 +2400,71 @@ def _cdwn_stale_chart_list(dut: Dut) -> None:
     dut.cmd("set triggerFetch 1", timeout=2.0)
 
 
-@meta(scope="Stock", scope_reason="drives-stock-only",
+@meta(scope_reason="cmdtap-busy-gate",
       cls="CORE", cls_reason=
       "The `cmdTap` `g_shellBusy` gate is what makes an injected tap issued during "
       "an in-flight async action come back `skipped:true` instead of being "
       "delivered. The suite reads that field to know whether its tap landed — T079, "
       "T-BUSY-05 and every `r.get('skipped')` check in the corpus. If the gate stops "
       "dropping, taps double up and `skipped` stops meaning anything, everywhere. "
-      "Scope is declared `Stock` per WP-B B-1 (it drives StockApp exclusively and a "
-      "Stock change must select it); the class is declared CORE anyway because the "
-      "ORACLE is the shell's tap gate, not the chart. TASK-626: the 60 s live-Yahoo "
-      "assertion that made this id network-dependent is now T-CDWN-04 (FEATURE), and "
-      "the gate assertion it left behind is a real `fail()` guarded by a `shellBusy` "
-      "reading, not the `skip()` WP-C C-7 objected to. The residue R36 still reports "
-      "is the ARMING — `set triggerFetch 1` plus a Stock activation — which is a "
-      "local write and a local enqueue; see the ledger row.")
+      "TASK-617 (clearing gating_offline_exceptions.md's last two T-CDWN-02 rows): "
+      "the precondition is now `set shellBusy 1` (armedInjectors.h `shellBusy` "
+      "entry, M-HARNESS2 R14/ADR-063 shape) instead of StockApp's "
+      "`set triggerFetch 1` + a Stock activation. Scope moves from `Stock` to "
+      "`shell` because the id no longer drives StockApp AT ALL — the gate it "
+      "asserts (cmdTouch.cpp:47, `if (shell::state().busy && !navTapBypass)`) reads "
+      "`shell::state().busy` before any app-specific dispatch runs, so it is "
+      "exercised identically no matter which app is active or what raised busy. "
+      "Stock was never load-bearing for the assertion; it only happened to be a "
+      "way to make `busy` true. The ORACLE is still the shell's tap gate, not any "
+      "app or fetch, which is why the class stays CORE.")
 def t_cdwn_02(dut: Dut):
     """T-CDWN-02: a canvas tap issued while shellBusy is true is refused by cmdTap's
     g_shellBusy gate — the reply carries skipped:true.
 
-    One assertion, and it is the gating one. The verdict resolves on the shell's
-    own reply; nothing here waits on a fetch to COMPLETE, only on one to be
-    enqueued. The "exactly one fetch resolved" half is T-CDWN-04.
+    TASK-617: shellBusy is forced directly via the `shellBusy` armed injector
+    (`set shellBusy 1`) rather than armed through a real StockApp fetch enqueue —
+    see gating_offline_exceptions.md's (now-deleted) T-CDWN-02 rows for why that
+    used to make this CORE id read as network-dependent. One assertion, and it is
+    the gating one: the verdict resolves on the shell's own reply, with no fetch —
+    real or forced — anywhere in this body's precondition or its wait.
     """
     print("T-CDWN-02  cmdTap g_shellBusy gate blocks second tap")
-    if not _switch_to_stock(dut):
-        skip("T-CDWN-02", "could not switch to StockApp")
+    if not _restore_spotify(dut):
+        skip("T-CDWN-02", "could not restore Spotify app")
         return
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    with _bgpoll_suspended(dut):
-        _cdwn_stale_chart_list(dut)
-        r_d = dut.cmd("tap 137 36", timeout=5.0)
-        if r_d.get("skipped"):
-            _restore_from_stock(dut)
-            skip("T-CDWN-02", "drill tap skipped — shell still busy after precondition wait")
-            return
+    with dut.injected("shellBusy", 1, clear_to="0"):
         # BP-074 / skip-adjudication row 101. The negative outcome below used to be
         # a skip() for one stated reason: nothing established that the gate was ARMED
-        # when tap2 arrived, so "tap2 was delivered" had a second, innocent
-        # explanation (the fetch had already resolved). Read the gate's own input
-        # first, typed — a silent device raises NoAnswer -> UNMET at the runner, a
-        # device that answers `false` means the premise did not occur, and only with
-        # `true` in hand is a delivered tap2 a defect. That converts the assertion.
+        # when the tap arrived, so "the tap was delivered" had a second, innocent
+        # explanation. Read the gate's own input first, typed — a silent device
+        # raises NoAnswer -> UNMET at the runner, a device that answers `false`
+        # means the premise did not occur, and only with `true` in hand is a
+        # delivered tap a defect.
         armed = dut.get_bool("shellBusy", field="busy", timeout=2.0)
         if not armed:
-            _restore_from_stock(dut)
-            unmet("T-CDWN-02", "shellBusy was false between the drill tap and tap2 — "
+            unmet("T-CDWN-02", "shellBusy was false right after `set shellBusy 1` — "
                                "the busy gate this id is about was never armed, so "
-                               "whatever tap2 returns says nothing about it")
+                               "whatever the tap returns says nothing about it")
             return
-        # Gate armed → tap2 MUST come back skipped.
-        tap2_r = dut.cmd("tap 137 36", timeout=8.0)
-        print(f"  [T-CDWN-02] tap2 response: {tap2_r}", flush=True)
-        _restore_from_stock(dut)
+        # Gate armed → the tap MUST come back skipped.
+        tap_r = dut.cmd("tap 137 36", timeout=8.0)
+        print(f"  [T-CDWN-02] tap response: {tap_r}", flush=True)
     # R18: `skipped` is the field this id exists to read. A reply without it is a
     # changed reply shape, which is a defect to report, not a False to assume.
-    if not isinstance(tap2_r, dict) or "skipped" not in tap2_r:
-        fail("T-CDWN-02", f"the tap2 reply carries no `skipped` field ({tap2_r!r}) — "
+    if not isinstance(tap_r, dict) or "skipped" not in tap_r:
+        fail("T-CDWN-02", f"the tap reply carries no `skipped` field ({tap_r!r}) — "
                           f"cmdTap's reply shape changed under the corpus that reads it")
         return
-    if not tap2_r["skipped"]:
-        fail("T-CDWN-02", f"shellBusy was true when tap2 was issued and cmdTap "
-                          f"delivered it anyway (reply={tap2_r}) — the g_shellBusy "
+    if not tap_r["skipped"]:
+        fail("T-CDWN-02", f"shellBusy was true when the tap was issued and cmdTap "
+                          f"delivered it anyway (reply={tap_r}) — the g_shellBusy "
                           f"gate did not drop the tap, so `skipped` no longer means "
                           f"what T079, T-BUSY-05 and every other `r.get('skipped')` "
                           f"check in the corpus read it as")
         return
-    pass_("T-CDWN-02", "shellBusy=true at tap2; cmdTap returned skipped:true — gate active")
+    pass_("T-CDWN-02", "shellBusy=true at tap; cmdTap returned skipped:true — gate active")
 
 
 # ── T-CDWN-04 — the refused tap did not also enqueue a fetch ─────────────────
@@ -3814,8 +3819,10 @@ def t_uart_01(dut: Dut):
       cls="CORE", cls_reason=
       "`_bgpoll_suspended()` (`_helpers.py:444`) is the context manager the "
       "injection-based ids use to stop a background Spotify poll overwriting the "
-      "state they just wrote — T-ERR-01/02/04/05, T-BUSY-01b/03/05, T-CDWN-02/03 and "
-      "T-BGPOLL-03 all run their assertions inside it. If `set bgPoll 0` does not "
+      "state they just wrote — T-ERR-01/02/04/05, T-BUSY-01b/03/05, T-CDWN-03/04 and "
+      "T-BGPOLL-03 all run their assertions inside it (TASK-617: `T-CDWN-02` no "
+      "longer does — its `shellBusy` armed injector needs no bgPoll suspension, "
+      "since forced busy skips the primary auto-clear regardless). If `set bgPoll 0` does not "
       "actually suspend the poll, those injections are clobbered at a cadence "
       "nobody controls, and the resulting failures read as feature defects rather "
       "than as a lost `set`. Recorded: the behavioural half samples `shellBusy` "
