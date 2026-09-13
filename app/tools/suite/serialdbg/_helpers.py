@@ -682,8 +682,21 @@ def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
 
 
 def _switch_to(dut: Dut, app_name: str, timeout: float = 3.0) -> bool:
-    """Reset scroll to 0, tap the app's taskbar slot, verify appId == app_name."""
+    """Reset scroll to 0, tap the app's taskbar slot, verify appId == app_name.
+
+    TASK-605/E-11/F-6: eject-only apps (WebRadio, LocalPlayer — TASK-242/413,
+    APP_SLOT index >= _TB_N == TASKBAR_APP_COUNT) have NO taskbar slot of their
+    own. Tapping `tap_taskbar_slot(APP_SLOT[name])` for one of them wraps
+    (`appIdx = slot % TASKBAR_APP_COUNT`) onto the player/Spotify slot instead,
+    landing on the intended app only when a predecessor id happened to leave
+    the board in the right player-mode/cycle state — silently, since the
+    caller sees a bool, not why it worked or didn't. Refuse instead: use
+    `_switch_to_webradio_capture_heap` (webradio.py) for WebRadio, or the
+    player-mode cycle helpers for LocalPlayer.
+    """
     if app_name not in APP_SLOT:
+        return False
+    if APP_SLOT[app_name] >= _TB_N:
         return False
     _tb_set_offset(dut, 0)
     dut.set_cooldown_zero()

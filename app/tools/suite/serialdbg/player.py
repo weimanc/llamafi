@@ -1048,7 +1048,14 @@ def t_plr_18(dut: Dut):
     on its own TASK-352 seam, untouched by this task — confirm it still
     hit-tests correctly (TASK-406 was a real WebRadio-volume regression once)."""
     print("T_PLR_18  WebRadio: CAP_TRANSPORT only — shuffle/repeat neither drawn nor hit-tested")
-    if not _switch_to(dut, "WebRadio"):
+    # TASK-605/E-11: _switch_to(dut, "WebRadio") taps taskbar slot 11, which
+    # WebRadio does not have (APP_SLOT["WebRadio"]=11, TASKBAR_APP_COUNT=11 ->
+    # appIdx=0, the player/Spotify slot) — it only reached WebRadio when a
+    # predecessor id left the board on Spotify so resolvePlayerTap() took the
+    # cycle branch. Use the real, order-independent entry path instead (it
+    # restores Spotify itself, then cycles the player slot once).
+    ok, _heap = _switch_to_webradio_capture_heap(dut)
+    if not ok:
         skip("T_PLR_18", "precondition: could not switch to WebRadio")
         return
     errors = []
