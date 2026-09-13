@@ -1586,9 +1586,21 @@ def t_wx_04(dut: Dut):
         fail("T_WX_04", f"get weatherReady failed: {r_pre}")
         return
     if r_pre.get("ready") is True:
-        skip("T_WX_04",
-             "weatherReady already true — Weather fetched data earlier this session; "
-             "pre-fetch state no longer observable")
+        # TASK-594 (B-3): `weatherReady` is a one-way latch (never re-armed —
+        # see weatherApp.h's `_dataReady` comment), and T_WX_01/T_WX_02/T_WX_03
+        # visit Weather immediately before this id in registry order, so this
+        # branch is the ROUTE, not the exception, in a full-suite run. That is
+        # an unestablished precondition, not a configuration this id is
+        # inapplicable to — `unmet()`, not `skip()` (lib/results.py's skip()
+        # docstring: a skip() whose reason is really "the precondition did not
+        # hold" is unmet()). Naming the predecessor, not the network, per the
+        # taxonomy review's own proposal.
+        unmet("T_WX_04",
+              "weatherReady already true — T_WX_01/T_WX_02/T_WX_03 (this "
+              "family's own predecessors) already switched to Weather and let "
+              "it fetch, so the pre-fetch state this id asserts was already "
+              "destroyed before it ran; run T_WX_04 alone (or first in its "
+              "family) to observe it")
         return
     # Switch to Weather; check immediately (before 60s fetch interval).
     _switch_to(dut, "Weather")
@@ -1758,9 +1770,17 @@ def t_cx_04(dut: Dut):
         fail("T_CX_04", f"get cryptoReady failed: {r_pre}")
         return
     if r_pre.get("ready") is True:
-        skip("T_CX_04",
-             "cryptoReady already true — Crypto fetched data earlier this session; "
-             "pre-fetch state no longer observable")
+        # TASK-594 (B-3), same fix as T_WX_04 above: `cryptoReady` is a
+        # one-way latch, and T_CX_01/T_CX_03 (this family's own predecessors)
+        # visit Crypto immediately before this id in registry order, so this
+        # branch is the route, not the exception, in a full-suite run —
+        # unmet(), naming the predecessor, not skip().
+        unmet("T_CX_04",
+              "cryptoReady already true — T_CX_01/T_CX_03 (this family's own "
+              "predecessors) already switched to Crypto and let it fetch, so "
+              "the pre-fetch state this id asserts was already destroyed "
+              "before it ran; run T_CX_04 alone (or first in its family) to "
+              "observe it")
         return
     _switch_to(dut, "Crypto")
     r_imm = dut.cmd("get cryptoReady", timeout=3.0)

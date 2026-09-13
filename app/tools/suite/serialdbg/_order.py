@@ -659,11 +659,22 @@ EDGE_ADJUDICATION = {
                  "`pass_()`es with NO restore call at all — leaves clockStyle=3 "
                  "for whatever runs next."),
     "T_CX_04": ("ORDER-SENSITIVE",
-                "THE OTHER flagship case named in B-3/B-4 alongside T_WX_04: "
-                "`if r_pre.get(\"ready\") is True: skip(...)` (shell.py:1753) "
-                "SKIPs when a predecessor already made `cryptoReady` true — "
-                "cryptoReady is LATCHED and this id can never run twice in one "
-                "boot's full-suite order."),
+                "THE OTHER flagship case named in B-3/B-4 alongside T_WX_04. "
+                "FIXED (TASK-594): the `if r_pre.get(\"ready\") is True: ...` "
+                "branch now calls `unmet(...)` naming its own predecessors "
+                "(T_CX_01/T_CX_03), not `skip(...)` — a full-suite run "
+                "honestly reports UNMET instead of a false-green SKIP. "
+                "cryptoReady is still LATCHED and this id still cannot "
+                "PASS twice in one boot's full-suite order; that is now "
+                "visible instead of hidden. No firmware reset exists for "
+                "this latch (it is a deliberate never-re-armed design per "
+                "cryptoApp.h), so `set cryptoReady 0` was rejected as an "
+                "injector-shaped fake reversal rather than added as a "
+                "NOT_INJECTORS boot-value reset — see "
+                "gate/check_armed_injectors.py. No longer matched by "
+                "`_readiness_hits` (which greps for `skip(` only) since the "
+                "false-green shape B-4(a) targets no longer applies once the "
+                "verdict is UNMET; kept here as the historical record."),
     "T_PLR_06": ("DISMISSED",
                  "`set fbCancel` is a fire-once cancel action "
                  "(cmdSet.cpp:376-378, no persisted field) and the body ends "
@@ -700,10 +711,22 @@ EDGE_ADJUDICATION = {
                                         "and unrestored `wrPlay` as T_WR_HEAP_03 "
                                         "(webradio.py)."),
     "T_WX_04": ("ORDER-SENSITIVE",
-                "THE flagship case B-3/B-4 are written about: `if "
-                "r_pre.get(\"ready\") is True: skip(...)` (shell.py:1588-1592) "
-                "SKIPs when `weatherReady` is already true — latched, so this "
-                "id cannot run twice in a full-suite boot."),
+                "THE flagship case B-3/B-4 are written about. FIXED "
+                "(TASK-594): the `if r_pre.get(\"ready\") is True: ...` "
+                "branch now calls `unmet(...)` naming its own predecessors "
+                "(T_WX_01/T_WX_03), not `skip(...)` — a full-suite run "
+                "honestly reports UNMET instead of a false-green SKIP. "
+                "weatherReady is still LATCHED and this id still cannot "
+                "PASS twice in one boot's full-suite order; that is now "
+                "visible instead of hidden. No firmware reset exists for "
+                "this latch (it is a deliberate never-re-armed design per "
+                "weatherApp.h), so `set weatherReady 0` was rejected as an "
+                "injector-shaped fake reversal rather than added as a "
+                "NOT_INJECTORS boot-value reset — see "
+                "gate/check_armed_injectors.py. No longer matched by "
+                "`_readiness_hits` (which greps for `skip(` only) since the "
+                "false-green shape B-4(a) targets no longer applies once the "
+                "verdict is UNMET; kept here as the historical record."),
 }
 
 
