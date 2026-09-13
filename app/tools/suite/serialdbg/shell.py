@@ -2646,68 +2646,68 @@ def _tc_drag_collect(dut: Dut, cmd: str, markers: list[str],
 @meta(scope="Spotify", scope_reason="winamp-view")
 def t149(dut: Dut):
     print("T149  POSBAR drag: ACT_SEEK committed at correct position")
-    dut.cmd("set songDuration 120000")
-    rg = dut.cmd("get dragState")
-    if rg.get("state") != "D_IDLE":
-        fail("T149", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
-    dut.set_cooldown_zero()
+    with dut.saved("songDuration", field="ms", set_to=120000):
+        rg = dut.cmd("get dragState")
+        if rg.get("state") != "D_IDLE":
+            fail("T149", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+        dut.set_cooldown_zero()
 
-    pbx0, _pbx1, _pby0, _pby1 = _c.posbar_bounds()
-    pby = _c.tap_posbar()[1]
-    x_start = pbx0 + 24   # left quarter, well inside hitbox
-    x_end   = pbx0 + 184  # right half → posbarFromX ≈ 89032 ms of 120000
+        pbx0, _pbx1, _pby0, _pby1 = _c.posbar_bounds()
+        pby = _c.tap_posbar()[1]
+        x_start = pbx0 + 24   # left quarter, well inside hitbox
+        x_end   = pbx0 + 184  # right half → posbarFromX ≈ 89032 ms of 120000
 
-    _, drag_resp = _tc_drag_collect(dut, f"drag {x_start} {pby} {x_end} {pby} 10",
-                                    ["ACT_SEEK", "seek commit"])
-    if drag_resp is None:
-        fail("T149", "no drag response within 15 s"); return
-    if not drag_resp.get("ok"):
-        fail("T149", f"drag ok=false: {drag_resp}"); return
+        _, drag_resp = _tc_drag_collect(dut, f"drag {x_start} {pby} {x_end} {pby} 10",
+                                        ["ACT_SEEK", "seek commit"])
+        if drag_resp is None:
+            fail("T149", "no drag response within 15 s"); return
+        if not drag_resp.get("ok"):
+            fail("T149", f"drag ok=false: {drag_resp}"); return
 
-    rp = dut.cmd("get posbarDragMs")
-    committed_ms = rp.get("ms", -1)
-    if not (50000 <= committed_ms <= 120000):
-        fail("T149", f"posbarDragMs={committed_ms} not in [50000, 120000]"); return
+        rp = dut.cmd("get posbarDragMs")
+        committed_ms = rp.get("ms", -1)
+        if not (50000 <= committed_ms <= 120000):
+            fail("T149", f"posbarDragMs={committed_ms} not in [50000, 120000]"); return
 
-    rs = dut.cmd("get dragState")
-    if rs.get("state") != "D_IDLE":
-        fail("T149", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+        rs = dut.cmd("get dragState")
+        if rs.get("state") != "D_IDLE":
+            fail("T149", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
 
-    pass_("T149", f"posbarDragMs={committed_ms} ms; dragState=D_IDLE")
+        pass_("T149", f"posbarDragMs={committed_ms} ms; dragState=D_IDLE")
 
 
 @meta(scope="Spotify", scope_reason="winamp-view")
 def t150(dut: Dut):
     print("T150  POSBAR capture: Move above groove still updates posbarDragMs")
-    dut.cmd("set songDuration 120000")
-    rg = dut.cmd("get dragState")
-    if rg.get("state") != "D_IDLE":
-        fail("T150", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
-    dut.set_cooldown_zero()
+    with dut.saved("songDuration", field="ms", set_to=120000):
+        rg = dut.cmd("get dragState")
+        if rg.get("state") != "D_IDLE":
+            fail("T150", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+        dut.set_cooldown_zero()
 
-    pbx0, _pbx1, pby0, _pby1 = _c.posbar_bounds()
-    pby = _c.tap_posbar()[1]
-    x_start = pbx0 + 24   # same x profile as T149
-    x_end   = pbx0 + 184  # same endpoint → same expected committed_ms
-    y_end   = pby0 - 22   # above POSBAR hitbox (pby0=72 → y_end=50)
+        pbx0, _pbx1, pby0, _pby1 = _c.posbar_bounds()
+        pby = _c.tap_posbar()[1]
+        x_start = pbx0 + 24   # same x profile as T149
+        x_end   = pbx0 + 184  # same endpoint → same expected committed_ms
+        y_end   = pby0 - 22   # above POSBAR hitbox (pby0=72 → y_end=50)
 
-    _, drag_resp = _tc_drag_collect(dut, f"drag {x_start} {pby} {x_end} {y_end} 10", [])
-    if drag_resp is None:
-        fail("T150", "no drag response within 15 s"); return
-    if not drag_resp.get("ok"):
-        fail("T150", f"drag ok=false: {drag_resp}"); return
+        _, drag_resp = _tc_drag_collect(dut, f"drag {x_start} {pby} {x_end} {y_end} 10", [])
+        if drag_resp is None:
+            fail("T150", "no drag response within 15 s"); return
+        if not drag_resp.get("ok"):
+            fail("T150", f"drag ok=false: {drag_resp}"); return
 
-    rp = dut.cmd("get posbarDragMs")
-    committed_ms = rp.get("ms", -1)
-    if not (50000 <= committed_ms <= 120000):
-        fail("T150", f"posbarDragMs={committed_ms} not in [50000, 120000] "
-                     f"(~0 = capture broken; Move samples dropped after y left groove)"); return
+        rp = dut.cmd("get posbarDragMs")
+        committed_ms = rp.get("ms", -1)
+        if not (50000 <= committed_ms <= 120000):
+            fail("T150", f"posbarDragMs={committed_ms} not in [50000, 120000] "
+                         f"(~0 = capture broken; Move samples dropped after y left groove)"); return
 
-    rs = dut.cmd("get dragState")
-    if rs.get("state") != "D_IDLE":
-        fail("T150", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+        rs = dut.cmd("get dragState")
+        if rs.get("state") != "D_IDLE":
+            fail("T150", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
 
-    pass_("T150", f"posbarDragMs={committed_ms} ms despite y-drift above groove; dragState=D_IDLE")
+        pass_("T150", f"posbarDragMs={committed_ms} ms despite y-drift above groove; dragState=D_IDLE")
 
 
 @meta(scope="Spotify", scope_reason="winamp-view")
@@ -2791,76 +2791,76 @@ def t152(dut: Dut):
 @meta(scope="Spotify", scope_reason="winamp-view")
 def t153(dut: Dut):
     print("T153  Capture exclusivity: VOLUME drift into POSBAR row does not start seek")
-    dut.cmd("set songDuration 120000")
-    rg = dut.cmd("get dragState")
-    if rg.get("state") != "D_IDLE":
-        fail("T153", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+    with dut.saved("songDuration", field="ms", set_to=120000):
+        rg = dut.cmd("get dragState")
+        if rg.get("state") != "D_IDLE":
+            fail("T153", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
 
-    # Snapshot posbarDragMs before the drag — may be non-zero from earlier tests.
-    # The key assertion is that it does NOT change during a VOLUME drag (capture exclusivity).
-    rp_pre = dut.cmd("get posbarDragMs")
-    baseline_ms = rp_pre.get("ms", -1)
+        # Snapshot posbarDragMs before the drag — may be non-zero from earlier tests.
+        # The key assertion is that it does NOT change during a VOLUME drag (capture exclusivity).
+        rp_pre = dut.cmd("get posbarDragMs")
+        baseline_ms = rp_pre.get("ms", -1)
 
-    dut.set_cooldown_zero()
+        dut.set_cooldown_zero()
 
-    vx0, _vx1, _vy0, _vy1 = _c.vol_bounds()
-    vy  = _c.vol_drag_y()   # y inside VOLUME
-    pby = _c.tap_posbar()[1]  # y inside POSBAR — drift target
-    x_start = vx0 + 3    # inside VOLUME x-range
-    x_end   = vx0 + 60   # still inside VOLUME x-range at release
+        vx0, _vx1, _vy0, _vy1 = _c.vol_bounds()
+        vy  = _c.vol_drag_y()   # y inside VOLUME
+        pby = _c.tap_posbar()[1]  # y inside POSBAR — drift target
+        x_start = vx0 + 3    # inside VOLUME x-range
+        x_end   = vx0 + 60   # still inside VOLUME x-range at release
 
-    lines, drag_resp = _tc_drag_collect(
-        dut, f"drag {x_start} {vy} {x_end} {pby} 10",
-        ["ACT_SEEK", "seek commit", "D_POSBAR"])
-    if drag_resp is None:
-        fail("T153", "no drag response within 15 s"); return
-    if not drag_resp.get("ok"):
-        fail("T153", f"drag ok=false: {drag_resp}"); return
+        lines, drag_resp = _tc_drag_collect(
+            dut, f"drag {x_start} {vy} {x_end} {pby} 10",
+            ["ACT_SEEK", "seek commit", "D_POSBAR"])
+        if drag_resp is None:
+            fail("T153", "no drag response within 15 s"); return
+        if not drag_resp.get("ok"):
+            fail("T153", f"drag ok=false: {drag_resp}"); return
 
-    rs = dut.cmd("get dragState")
-    if rs.get("state") != "D_IDLE":
-        fail("T153", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
+        rs = dut.cmd("get dragState")
+        if rs.get("state") != "D_IDLE":
+            fail("T153", f"dragState={rs.get('state')} after drag (expected D_IDLE)"); return
 
-    rp_post = dut.cmd("get posbarDragMs")
-    post_ms = rp_post.get("ms", -1)
-    if post_ms != baseline_ms:
-        fail("T153", f"posbarDragMs changed {baseline_ms}→{post_ms} during VOLUME drag "
-                     f"(Phase 2 POSBAR hit-test fired — capture exclusivity broken)"); return
+        rp_post = dut.cmd("get posbarDragMs")
+        post_ms = rp_post.get("ms", -1)
+        if post_ms != baseline_ms:
+            fail("T153", f"posbarDragMs changed {baseline_ms}→{post_ms} during VOLUME drag "
+                         f"(Phase 2 POSBAR hit-test fired — capture exclusivity broken)"); return
 
-    if lines:
-        fail("T153", f"ACT_SEEK log line seen during VOLUME drag: {lines[0]!r}"); return
+        if lines:
+            fail("T153", f"ACT_SEEK log line seen during VOLUME drag: {lines[0]!r}"); return
 
-    pass_("T153", f"posbarDragMs unchanged at {post_ms} ms; no seek initiated; dragState=D_IDLE")
+        pass_("T153", f"posbarDragMs unchanged at {post_ms} ms; no seek initiated; dragState=D_IDLE")
 
 
 @meta(scope="Spotify", scope_reason="winamp-view")
 def t154(dut: Dut):
     print("T154  POSBAR tap: Press + Release seeks to pressed x position")
-    dut.cmd("set songDuration 60000")
-    rg = dut.cmd("get dragState")
-    if rg.get("state") != "D_IDLE":
-        fail("T154", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
-    dut.set_cooldown_zero()
+    with dut.saved("songDuration", field="ms", set_to=60000):
+        rg = dut.cmd("get dragState")
+        if rg.get("state") != "D_IDLE":
+            fail("T154", f"precondition: dragState={rg.get('state')} not D_IDLE"); return
+        dut.set_cooldown_zero()
 
-    pbx0, _pbx1, _pby0, _pby1 = _c.posbar_bounds()
-    pby  = _c.tap_posbar()[1]
-    # tap_x = pbx0+164 → posbarFromX = 164*60000/248 ≈ 39677 ms — in [35000, 45000]
-    tap_x = pbx0 + 164
+        pbx0, _pbx1, _pby0, _pby1 = _c.posbar_bounds()
+        pby  = _c.tap_posbar()[1]
+        # tap_x = pbx0+164 → posbarFromX = 164*60000/248 ≈ 39677 ms — in [35000, 45000]
+        tap_x = pbx0 + 164
 
-    _poll_shell_busy(dut, False, timeout_ms=2000)
-    r = dut.cmd(f"tap {tap_x} {pby}")
-    if r.get("skipped"):
-        fail("T154", f"tap skipped (cooldown still active?): {r}"); return
-    if r.get("hit") != "POSBAR":
-        fail("T154", f"hit={r.get('hit')!r} (expected POSBAR) — x={tap_x} y={pby}"); return
+        _poll_shell_busy(dut, False, timeout_ms=2000)
+        r = dut.cmd(f"tap {tap_x} {pby}")
+        if r.get("skipped"):
+            fail("T154", f"tap skipped (cooldown still active?): {r}"); return
+        if r.get("hit") != "POSBAR":
+            fail("T154", f"hit={r.get('hit')!r} (expected POSBAR) — x={tap_x} y={pby}"); return
 
-    rp = dut.cmd("get posbarDragMs")
-    seeked_ms = rp.get("ms", -1)
-    if not (35000 <= seeked_ms <= 45000):
-        fail("T154", f"posbarDragMs={seeked_ms} not in [35000, 45000] "
-                     f"(0 = Press-entry init broken; D_POSBAR_DRAG not entered on tap)"); return
+        rp = dut.cmd("get posbarDragMs")
+        seeked_ms = rp.get("ms", -1)
+        if not (35000 <= seeked_ms <= 45000):
+            fail("T154", f"posbarDragMs={seeked_ms} not in [35000, 45000] "
+                         f"(0 = Press-entry init broken; D_POSBAR_DRAG not entered on tap)"); return
 
-    pass_("T154", f"seeked_ms={seeked_ms} ms (expected ≈39677); tap→seek committed correctly")
+        pass_("T154", f"seeked_ms={seeked_ms} ms (expected ≈39677); tap→seek committed correctly")
 
 
 # ── velocity-scroll-001 ────────────────────────────────────────────────────────
@@ -3842,19 +3842,25 @@ def t_bgpoll_01(dut: Dut):
 def t_bgpoll_02(dut: Dut):
     """T-BGPOLL-02: reconnect resets bgPoll to enabled:1 (recovery invariant)."""
     print("T-BGPOLL-02  reconnect resets bgPoll to 1 (ADR-042 E2 invariant)")
-    dut.cmd("set bgPoll 0", timeout=2.0)
-    r = dut.cmd("get bgPoll", timeout=2.0)
-    if r.get("enabled") != 0:
-        fail("T-BGPOLL-02", f"pre-condition failed: bgPoll not suspended (got {r})")
-        return
-    # reconnect should reset s_bgPollEnabled = 1
-    dut.cmd("reconnect", timeout=3.0)
-    time.sleep(1.0)  # allow TLS reset + reconnect to process
-    r2 = dut.cmd("get bgPoll", timeout=2.0)
-    if not r2.get("ok") or r2.get("enabled") != 1:
-        fail("T-BGPOLL-02", f"reconnect did not reset bgPoll: got {r2}")
-    else:
-        pass_("T-BGPOLL-02", "reconnect reset bgPoll to enabled:1 — recovery invariant holds")
+    # TASK-695 / B-6: this used to rely on `reconnect`'s own recovery invariant
+    # to put bgPoll back, which means a FAILURE here (the invariant not
+    # holding) is exactly the case that leaves bgPoll disabled for every id
+    # that runs after it. Wrap in the manager so the snapshot taken before the
+    # test (expected enabled:1) restores on every exit path regardless of what
+    # `reconnect` actually did.
+    with dut.saved("bgPoll", field="enabled", set_to=0, timeout=2.0):
+        r = dut.cmd("get bgPoll", timeout=2.0)
+        if r.get("enabled") != 0:
+            fail("T-BGPOLL-02", f"pre-condition failed: bgPoll not suspended (got {r})")
+            return
+        # reconnect should reset s_bgPollEnabled = 1
+        dut.cmd("reconnect", timeout=3.0)
+        time.sleep(1.0)  # allow TLS reset + reconnect to process
+        r2 = dut.cmd("get bgPoll", timeout=2.0)
+        if not r2.get("ok") or r2.get("enabled") != 1:
+            fail("T-BGPOLL-02", f"reconnect did not reset bgPoll: got {r2}")
+        else:
+            pass_("T-BGPOLL-02", "reconnect reset bgPoll to enabled:1 — recovery invariant holds")
 
 
 @meta(scope="spotify-chrome", scope_reason="shell-poll",
@@ -3988,9 +3994,18 @@ def t_err_04(dut: Dut):
     if not _restore_spotify(dut):
         skip("T-ERR-04", "could not restore Spotify"); return
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    with _bgpoll_suspended(dut):
+    # TASK-695 / B-7: `lastHttp`, `backoff` and `lastOkMs` used to be armed here
+    # and never put back — `backoff` is gettable (`get backoff` field
+    # `consecutiveFailures`), so it goes through `saved()`; `lastHttp` and
+    # `lastOkMs` are write-only injectors, but each has a documented firmware
+    # disarm value (spotifyTaskStorage.cpp: 200/204 clears the latches;
+    # lastOkMs=1 is the "connected" state this test itself ends on), so
+    # `injected()` applies.
+    with dut.saved("backoff", field="consecutiveFailures", set_to=0, timeout=2.0), \
+         dut.injected("lastHttp", 200, clear_to=200, timeout=2.0), \
+         dut.injected("lastOkMs", 0, clear_to=1, timeout=2.0), \
+         _bgpoll_suspended(dut):
         # No error, no successful poll yet → boot/connecting.
-        dut.cmd("set lastHttp 200"); dut.cmd("set backoff 0"); dut.cmd("set lastOkMs 0")
         boot = _get_active_error(dut)
         # Simulate the first successful poll → connected.
         dut.cmd("set lastOkMs 1")
@@ -4017,13 +4032,18 @@ def t_err_05(dut: Dut):
     if not _restore_spotify(dut):
         skip("T-ERR-05", "could not restore Spotify"); return
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    with _bgpoll_suspended(dut):
-        dut.cmd("set lastHttp 403")
+    # TASK-695 / B-7: `backoff 0` used to be left armed with nothing to put it
+    # back — `saved()` restores whatever `consecutiveFailures` actually was.
+    # `lastHttp` already has an explicit restore below; routed through
+    # `injected()` so the gate credits it too (200/204 is the documented
+    # firmware disarm value for the 403 latch this test forces).
+    with dut.saved("backoff", field="consecutiveFailures", timeout=2.0), \
+         dut.injected("lastHttp", 403, clear_to=200, timeout=2.0), \
+         _bgpoll_suspended(dut):
         err = _get_active_error(dut)
         # `set backoff 0` is exactly what a touch does (resetBackoff()).
         dut.cmd("set backoff 0")
         after_reset = _get_active_error(dut)
-        dut.cmd("set lastHttp 200")   # restore
     ok = (err.get("spotifyAuthError") is True
           and after_reset.get("spotifyAuthError") is True)
     if ok:
