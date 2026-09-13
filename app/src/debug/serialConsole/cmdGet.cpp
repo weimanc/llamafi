@@ -527,7 +527,7 @@ void cmdGet(const char *args) {
     // .py's A6 M2 fallback scans from this key's `strcmp` match to the NEXT
     // `return;` for a `g_WeatherApp` reference — an early return would hide
     // it and falsely report the key as unresolved (NEW-APP-CHECKLIST item 3).
-    if (dbgAppIsActive(AppId::Weather)) {
+    if (dbgAppIsActive(AppId::Weather) || dbgKeyReachableInactive("weatherReady")) {
       Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"weatherReady\","
                     "\"ready\":%s,\"last\":true}\n", g_WeatherApp.dataReady() ? "true" : "false");
     } else {
@@ -538,7 +538,7 @@ void cmdGet(const char *args) {
   if (strcmp(args, "cryptoReady") == 0) {
     // ADR-063 D3 (TASK-637): identity-guarded (retired T_CX_02's app). Same
     // single-trailing-return shape as weatherReady above.
-    if (dbgAppIsActive(AppId::Crypto)) {
+    if (dbgAppIsActive(AppId::Crypto) || dbgKeyReachableInactive("cryptoReady")) {
       Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"cryptoReady\","
                     "\"ready\":%s,\"last\":true}\n", g_CryptoApp.dataReady() ? "true" : "false");
     } else {
@@ -683,7 +683,7 @@ void cmdGet(const char *args) {
     return;
   }
   if (planeRadarDbgGet(args, buf, sizeof(buf))) {
-    if (!dbgAppIsActive(AppId::PlaneRadar)) {
+    if (!dbgAppIsActive(AppId::PlaneRadar) && !dbgKeyReachableInactive(args)) {
       dbgRefuseInactive("get", args, AppId::PlaneRadar);
       return;
     }

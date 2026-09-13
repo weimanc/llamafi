@@ -340,6 +340,18 @@ const char* dbgAppName(AppId id) {
 
 bool dbgAppIsActive(AppId owner) { return currentAppId == owner; }
 
+bool dbgKeyReachableInactive(const char* var) {
+  static const char* const kKeys[] = {
+    "weatherReady",  // one-way latch: set on the first good fetch, never re-armed (weatherApp.h)
+    "cryptoReady",   // same latch shape (cryptoApp.h)
+    "prPollSec",     // persisted setting (g_settings), read without entering PlaneRadar (T_PRM_01)
+  };
+  for (const char* k : kKeys) {
+    if (strcmp(var, k) == 0) return true;
+  }
+  return false;
+}
+
 void dbgRefuseInactive(const char* cmd, const char* var, AppId owner) {
   Serial.printf("{\"ok\":false,\"cmd\":\"%s\",\"var\":\"%s\","
                 "\"error\":\"inactiveApp\",\"owner\":\"%s\",\"active\":\"%s\",\"last\":true}\n",

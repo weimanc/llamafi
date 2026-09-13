@@ -58,6 +58,12 @@ bool dbgAppIsActive(AppId owner);
 // exist" (T_APPKEY_01's own requirement). Caller must `return` immediately
 // after calling this.
 void dbgRefuseInactive(const char* cmd, const char* var, AppId owner);
+// Keys that stay answerable while their owner is inactive, because their value
+// is not live app state: a persisted setting, or a one-way latch that records
+// app history. Named one by one with the reason at the definition (appShell.cpp),
+// never by family. Found by the first full DUT run of the guard (2026-09-13),
+// which refused three ids that read these cross-app by design.
+bool dbgKeyReachableInactive(const char* var);
 
 // D4: shell-owned, per-app progress counters — incremented by the shell
 // around its own appTick() dispatch, never by the app itself. A counter the
