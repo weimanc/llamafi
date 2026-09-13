@@ -324,21 +324,13 @@ void cmdGet(const char *args) {
     return;
   }
 #ifdef SERIAL_DEBUG
-  // ADR-063 D4 (TASK-637): the shell-owned tick/repaint counters, dumped
-  // whole — same "one line, indexed by AppId" shape as `get appId`. See
-  // appShell.h for why appRepaints tracks appTicks 1:1 for now.
+  // ADR-063 D4 (TASK-637): the shell-owned tick counter, dumped whole — same
+  // "one line, indexed by AppId" shape as `get appId`. No repaint counter yet;
+  // see appShell.h.
   if (strcmp(args, "appTicks") == 0) {
     Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"appTicks\",\"counts\":[");
     for (int i = 0; i < (int)AppId::COUNT; i++) {
       Serial.printf("%s%lu", i ? "," : "", (unsigned long)g_appTicks[i]);
-    }
-    Serial.printf("],\"last\":true}\n");
-    return;
-  }
-  if (strcmp(args, "appRepaints") == 0) {
-    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"appRepaints\",\"counts\":[");
-    for (int i = 0; i < (int)AppId::COUNT; i++) {
-      Serial.printf("%s%lu", i ? "," : "", (unsigned long)g_appRepaints[i]);
     }
     Serial.printf("],\"last\":true}\n");
     return;

@@ -315,11 +315,10 @@ void appTick(AppId id) {
     g_apps[(int)id]->tick();
 #ifdef SERIAL_DEBUG
     // ADR-063 D4 (TASK-637): shell-owned progress, bumped around the
-    // dispatch the shell already owns — see appShell.h for why appRepaints
-    // tracks appTicks 1:1 for now.
+    // dispatch the shell already owns — see appShell.h for why there is no
+    // repaint counter yet.
     if ((int)id < (int)AppId::COUNT) {
       g_appTicks[(int)id]++;
-      g_appRepaints[(int)id]++;
     }
 #endif
   }
@@ -327,7 +326,6 @@ void appTick(AppId id) {
 
 #ifdef SERIAL_DEBUG
 uint32_t g_appTicks[(int)AppId::COUNT]    = {0};
-uint32_t g_appRepaints[(int)AppId::COUNT] = {0};
 
 namespace {
 const char* dbgAppName(AppId id) {

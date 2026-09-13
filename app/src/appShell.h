@@ -63,17 +63,14 @@ void dbgRefuseInactive(const char* cmd, const char* var, AppId owner);
 // around its own appTick() dispatch, never by the app itself. A counter the
 // app increments in its own tick is a counter the app can be wrong about in
 // exactly the way A-8 is trying to catch. Exposed read-only via
-// `get appTicks` / `get appRepaints` (cmdGet.cpp).
+// `get appTicks` (cmdGet.cpp).
 //
-// g_appRepaints currently increments in lockstep with g_appTicks: no
-// per-app "did I actually redraw this tick" signal exists yet (adding one
-// would mean changing App::tick()'s return contract across all thirteen
-// overrides — an app-half change, and D6 forbids a sweep in this commit).
-// It is real shell-owned state, not a placeholder, and is expected to
-// diverge from g_appTicks the moment such a signal lands (flagged for
-// Architect/TASK-593 follow-up).
+// No repaint counter: the shell has no per-app "did I redraw" signal without
+// changing App::tick()'s return contract across thirteen overrides (a sweep D6
+// forbids). A key named appRepaints that counted ticks would be a lie, and the
+// console is additive-only, so it could never be taken back. It lands when the
+// signal exists (TASK-593).
 extern uint32_t g_appTicks[(int)AppId::COUNT];
-extern uint32_t g_appRepaints[(int)AppId::COUNT];
 #endif
 
 // --- Per-app state structs (app-lifecycle.md) ---
