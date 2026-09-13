@@ -607,7 +607,7 @@ def main():
             # or change a verdict — reduce it to the same `None` the
             # unknown-var reply shape produces (design §3).
             reply = None
-        return _armed.parse_armed(reply)
+        return _armed.parse_armed(reply), reply
 
     def _issue_injclear(context: str):
         try:
@@ -615,25 +615,29 @@ def main():
         except Exception as e:
             print(f"[armed] set injclear failed ({context}): "
                   f"{type(e).__name__}: {e}", flush=True)
+        still, _ = _read_armed()
+        if still:
+            print(_armed.clear_failed_note(context, still), flush=True)
+
+    def _check(context):
+        armed_list, reply = _read_armed()
+        if armed_list is None:
+            if _armed.reply_status(reply) == _armed.UNSUPPORTED:
+                note = _armed_notify.none_notice()
+                if note:
+                    print(note, flush=True)
+            else:
+                print(_armed.unreadable_note(context), flush=True)
+        return armed_list
 
     def _boundary_start():
-        armed_list = _read_armed()
-        if armed_list is None:
-            note = _armed_notify.none_notice()
-            if note:
-                print(note, flush=True)
-            return
+        armed_list = _check("at session start")
         if armed_list:
             print(_armed.session_start_note(armed_list), flush=True)
-            _issue_injclear("session start")
+            _issue_injclear("at session start")
 
     def _boundary(tid):
-        armed_list = _read_armed()
-        if armed_list is None:
-            note = _armed_notify.none_notice()
-            if note:
-                print(note, flush=True)
-            return
+        armed_list = _check(f"after {tid}")
         if armed_list:
             _armed.apply_leak(tid, armed_list)
             _issue_injclear(f"after {tid}")

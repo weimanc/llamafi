@@ -72,6 +72,33 @@ def parse_armed(reply: Optional[dict]) -> Optional[list]:
     return [str(x) for x in armed]
 
 
+UNSUPPORTED = "unsupported"
+UNREADABLE = "unreadable"
+
+
+def reply_status(reply: Optional[dict]):
+    """Why `parse_armed()` returned `None`: `UNSUPPORTED` for the unknown-var
+    shape (older firmware — announce once), `UNREADABLE` for anything else (a
+    timeout or a malformed reply on firmware that HAS the key). The two must not
+    share one once-per-run notice: after the firmware lands, an unreadable read
+    means THIS boundary went unchecked, and that is said every time."""
+    if (isinstance(reply, dict) and reply.get("ok") is False
+            and reply.get("var") == "armed"
+            and "unknown" in str(reply.get("error", ""))):
+        return UNSUPPORTED
+    return UNREADABLE
+
+
+def unreadable_note(context: str) -> str:
+    return (f"[armed] boundary UNCHECKED {context}: `get armed` gave no usable "
+            f"reply — a leak here would go unattributed. No verdict changed.")
+
+
+def clear_failed_note(context: str, still: list) -> str:
+    return (f"[armed] set injclear {context} did NOT clear: {', '.join(still)} "
+            f"— the next id may inherit it and be wrongly blamed.")
+
+
 def leak_reason(tid: str, armed: list) -> str:
     """The FAIL text for a non-empty boundary check after `tid`.
 

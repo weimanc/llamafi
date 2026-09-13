@@ -287,7 +287,24 @@ def integration_inert_without_boundary():
     check("no bare exception reached the summary", "Traceback" not in out)
 
 
+def unit_reply_status():
+    """Unsupported (announce once) and unreadable (say it every time) must not
+    collapse into one notice once the firmware has the key."""
+    old = {"ok": False, "cmd": "get", "error": "unknown var", "var": "armed"}
+    check("unknown-var reply is UNSUPPORTED",
+          A.reply_status(old) == A.UNSUPPORTED)
+    check("timeout (None) is UNREADABLE",
+          A.reply_status(None) == A.UNREADABLE)
+    check("malformed ok reply is UNREADABLE",
+          A.reply_status({"ok": True, "var": "armed"}) == A.UNREADABLE)
+    check("unreadable note names the boundary",
+          "after T1" in A.unreadable_note("after T1"))
+    check("clear-failed note names what stayed armed",
+          "wrDeadUrls" in A.clear_failed_note("after T1", ["wrDeadUrls"]))
+
+
 def main() -> int:
+    unit_reply_status()
     unit_parse_armed()
     unit_leak_reason_and_apply()
     unit_session_start_note_and_notifier()
