@@ -191,3 +191,56 @@ days after the conversion that made them reportable. The artifact history begins
 **no pre-fix full run exists to serve as a control** — which is precisely why the
 `__setattr__`-disabled A/B remains the only way to settle attribution, and why it is still owed.
 
+## 8. The A/B, 2026-09-13 — **TASK-575 is EXONERATED by measurement**
+
+The attribution question §6 and §7 both left open, settled the only way it could be: by disabling the
+fix and re-running.
+
+**Design.** Both arms use the *same* selection (`run/test-targeted`, one id list), because a
+targeted run cold-boots and cannot reproduce a full-suite order — the comparison is between arms,
+not against the full-suite verdict. Same firmware (flashed once, before either arm), same board
+`d48afcc8eed0`, same entry state (`playerMode=WebRadio` on both).
+
+- **Arm T (treatment)** — the code as shipped: `__setattr__` forwards to pyserial.
+- **Arm C (control)** — pre-fix behaviour restored: `__setattr__` always lands on the wrapper, so no
+  assignment reaches pyserial and every read uses the constructor's 3.0 s. Verified before the run:
+  `t.timeout = 0.5` left `t._ser.timeout == 3.0`.
+
+Ids chosen because each failure mode involves a bounded wait — the only class the fix could touch.
+
+| id | arm T (fix ON) | arm C (fix OFF) |
+|---|---|---|
+| `T_PLR_06` | **PASS** | **PASS** |
+| `T_PLR_12` | FAIL — heap −4324 B | FAIL — heap −53312 B |
+| `T_PLR_13` | FAIL — walk still pending after 15.4 s | FAIL — `TimeoutError: no JSON response within 3.0s` |
+| `T_PLR_24` | FAIL — `curRow=-1` | FAIL — `curRow=-1` |
+| `T172` | FAIL — `lastPlaylistDraw` | FAIL — `lastPlaylistDraw` |
+| `T_MA_03` | FAIL — `lastPlaylistDraw` | FAIL — `lastPlaylistDraw` |
+| **totals** | 1 passed, 5 failed | 1 passed, 5 failed |
+
+**The verdict set is identical with the fix and without it.** Disabling TASK-575 makes nothing pass.
+
+**The decisive detail is in arm C.** `TimeoutError: no JSON response within 3.0s` — the exact
+signature §4 named as the TASK-575 FAIL condition — appears in the arm where the fix is **disabled**
+and reads use the old, looser 3.0 s. A timeout that reproduces with the fix off cannot be caused by
+the fix. §2's prediction ("the owed run should produce no new failures attributable to TASK-575")
+is confirmed by measurement rather than by reasoning, which is what §2 said it needed.
+
+**Honest limits.** One run per arm, not three. `T_PLR_13` is unstable in *mode* though not in
+verdict — three different failure texts across four runs (`TimeoutError` at 8.0 s, walk-pending at
+15.4 s, `TimeoutError` at 3.0 s), so it is deterministic in that it always fails and non-deterministic
+in how. `T_PLR_12`'s byte delta swings −4324 / −6068 / −53312, so that id's *measurement* is noisy
+even though its verdict is not. Neither undermines the arm comparison; both are reasons the ids
+belong to TASK-686 rather than here.
+
+**Consequence for TASK-575.** The fix is not the cause of any failure in the deterministic set. §4's
+criterion still reads FAIL — correctly, because it was written to gate on "are there unexplained
+deterministic failures?", and there are — but those failures are now **attributed elsewhere**
+(TASK-685, TASK-686) and predate the fix's visibility window. The `run/test` pass TASK-575 owed has
+been executed and its one open question answered. **What blocks Phase 3 is no longer TASK-575's fix;
+it is whether the programme accepts entry with TASK-685/686 open.** That is a scheduling decision,
+not a measurement, and it belongs to @PM.
+
+The control-arm edit was reverted immediately after the run and verified: `t.timeout = 0.5` again
+reaches pyserial. Nothing from arm C is committed.
+
