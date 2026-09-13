@@ -591,24 +591,6 @@ EDGE_ADJUDICATION = {
                   "`set fetchErrCount` unconditionally resets the counter to 0 "
                   "(stockApp.cpp:234-235) regardless of the value written — "
                   "converges to the one state every later reader expects."),
-    "T-BGPOLL-02": ("ORDER-SENSITIVE",
-                     "The B-6 leak named in the taxonomy review: `set bgPoll 0` "
-                     "(shell.py) then relies on `reconnect` — the mechanism under "
-                     "test — to reset it to 1. If `reconnect` regresses, the "
-                     "assertion this id exists to catch ALSO leaves polling off "
-                     "for every id that follows it."),
-    "T-ERR-04": ("ORDER-SENSITIVE",
-                 "B-7, and already self-declared: this id's OWN `cls_reason` "
-                 "(shell.py:3976-3983) cites WP-B B-7 by name — `lastHttp`, "
-                 "`backoff`, `lastOkMs` are written and none is restored. The "
-                 "scanner catches `lastHttp`/`backoff` (one write each); "
-                 "`lastOkMs` is written TWICE (0 then 1, shell.py:3993-3995) so "
-                 "the paired-write heuristic hides it — it leaks too, per the "
-                 "same declared reason."),
-    "T-ERR-05": ("ORDER-SENSITIVE",
-                 "B-7's other half: `set backoff 0` deliberately left behind "
-                 "(shell.py, see the taxonomy review §5.2 C5); `_restore_spotify` "
-                 "restores appId/playerMode only, never this field."),
     "T091": ("DISMISSED",
              "`set backoff 3` is the seed for the exact mechanism under test — "
              "`reconnect` resetting `consecutiveFailures` — so the passing path "
@@ -645,12 +627,6 @@ EDGE_ADJUDICATION = {
                           "(stock.py:1214-1221)."),
     "T202": ("DISMISSED", "Same self-check shape as T192 (stock.py)."),
     "T203": ("DISMISSED", "Same self-check shape as T192 (stock.py)."),
-    "T270": ("ORDER-SENSITIVE",
-             "NEW, not in B-5/B-6/B-7: no `_restore_spotify`/`_switch_to` call "
-             "anywhere in the body (teletext.py) — it switches to Teletext, "
-             "injects `teletextSubpageNext`/`teletextSubpagePrev`, and returns "
-             "on EVERY exit path still on Teletext with those fields set. "
-             "Reported as a finding, not fixed (TASK-592 scope)."),
     "T272": ("DISMISSED",
              "`triggerTeletextFetch` is the same fire-once action shape "
              "(teletextApp.cpp:229); the `lastPlaylistDraw` guard "
@@ -696,13 +672,6 @@ EDGE_ADJUDICATION = {
                  "`get shellBusy` (player.py:794) reads back whether THIS "
                  "body's own eject tap is still mid-walk — a timing check on "
                  "its own just-taken action, not inherited state."),
-    "T_PLR_21": ("ORDER-SENSITIVE",
-                 "NEW: `set plCursor <n>` (cmdSet.cpp:321-330) moves the REAL "
-                 "play-order cursor, not a fire-once action. `_leave_player` "
-                 "(player.py:364-368) restores only `bgPoll`; the cursor "
-                 "position is left wherever the forced wrap put it."),
-    "T_PLR_22": ("ORDER-SENSITIVE", "Same `plCursor` leak as T_PLR_21 — "
-                                    "`_leave_player` does not touch it."),
     "T_PLR_24": ("ORDER-SENSITIVE",
                  "NEW: `set plPlay <idx>` (cmdSet.cpp:237-246) really calls "
                  "`dbgPlayRow()`. The body taps STOP afterward on the pass "
@@ -735,20 +704,6 @@ EDGE_ADJUDICATION = {
                 "r_pre.get(\"ready\") is True: skip(...)` (shell.py:1588-1592) "
                 "SKIPs when `weatherReady` is already true — latched, so this "
                 "id cannot run twice in a full-suite boot."),
-    "T149": ("ORDER-SENSITIVE",
-             "NEW: `set songDuration 120000` (shell.py) is a synthetic fixture "
-             "for the POSBAR drag math, never restored — a later id reading "
-             "`songDuration` expecting the real now-playing duration gets this "
-             "id's synthetic value instead. Same shape at T150/T153/T154."),
-    "T150": ("ORDER-SENSITIVE", "Same synthetic `songDuration` leak as T149 "
-                                "(shell.py, 120000 ms)."),
-    "T153": ("ORDER-SENSITIVE",
-             "Same synthetic `songDuration` leak as T149 (shell.py, 120000 ms) "
-             "— and its own comment ('may be non-zero from earlier tests') "
-             "already documents the family is order-aware about the ADJACENT "
-             "field `posbarDragMs`, which this scanner does not separately flag."),
-    "T154": ("ORDER-SENSITIVE", "Same shape as T149, with 60000 ms "
-                                "(shell.py)."),
 }
 
 

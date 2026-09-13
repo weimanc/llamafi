@@ -71,15 +71,17 @@ A snapshot that cannot be read raises **before** the body runs — `NoAnswer` �
 |---|---|---|---|
 | `suite/serialdbg/webradio.py` | 46 | TASK-602 | 2026-09-05 |
 | `suite/serialdbg/stock.py` | 40 | TASK-602 | 2026-09-05 |
-| `suite/serialdbg/shell.py` | 36 | TASK-602 | 2026-09-05 |
-| `suite/serialdbg/player.py` | 34 | TASK-602 | 2026-09-05 |
+| `suite/serialdbg/shell.py` | 24 | TASK-695 | 2026-09-13 |
+| `suite/serialdbg/player.py` | 32 | TASK-695 | 2026-09-13 |
 | `suite/serialdbg/planeradar.py` | 24 | TASK-602 | 2026-09-05 |
 | `suite/serialdbg/clock.py` | 12 | TASK-602 | 2026-09-05 |
-| `suite/serialdbg/teletext.py` | 3 | TASK-602 | 2026-09-05 |
+| `suite/serialdbg/teletext.py` | 1 | TASK-695 | 2026-09-13 |
 | `suite/serialdbg/_helpers.py` | 2 | TASK-602 | 2026-09-05 |
 
-**Total: 197** on the day the gate was written. `lib/dut.py` is at **zero** and has no row, and
-cannot acquire one (M5).
+**Total: 197** on the day the gate was written; **181** as of TASK-695 (2026-09-13) — B-taxonomy
+review sites (`teletext.py` T270, `shell.py` T149/T150/T153/T154/T-BGPOLL-02/T-ERR-04/T-ERR-05,
+`player.py` T_PLR_21/T_PLR_22/T_PLR_24 plus the `_bgpoll_backstop` timeout fix) moved to `saved()`/
+`injected()`. `lib/dut.py` is at **zero** and has no row, and cannot acquire one (M5).
 
 **What the remaining 197 cost.** Not uniform, and not blind. The cheap majority are a single
 `set`/restore pair where the variable is in `gen_get_keys.py`'s generated list, so `saved(…,
