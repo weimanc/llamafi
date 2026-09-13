@@ -1,5 +1,6 @@
 # TASK-635 — armed device state, enumerated and asserted at every boundary (R14)
 
+> Status: accepted
 > Owner: @Developer (firmware + harness), reviewed against @Architect's R14/R15 amendments ·
 > written 2026-09-13 · requirement: [R14](../../verification/M-HARNESS2-requirements.md) ·
 > binds under [IFC-007](../interfaces/IFC-007.md) (additive only) and [ADR-066](../decisions/ADR-066.md)
