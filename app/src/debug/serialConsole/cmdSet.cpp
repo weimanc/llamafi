@@ -4,6 +4,7 @@
 // cmdSystem.cpp / cmdMisc.cpp / cmdTouch.cpp / cmdGet.cpp.
 #include "debug/serialConsole/cmdSet.h"
 #include "debug/timeInject.h"             // dbgTimeSet/Thaw (ADR-064 D5)
+#include "debug/armedInjectors.h"         // ARMED_INJECTORS_TABLE (TASK-635, M-HARNESS2 R14)
 
 #ifdef SERIAL_DEBUG
 #include <Arduino.h>
@@ -39,6 +40,13 @@ void persistPlayerMode(uint8_t mode);     // main.cpp — TASK-260/M-PLAYER-STAT
 extern uint32_t g_casRetryCookie;
 extern uint32_t g_casRetryOff;
 static constexpr uint32_t kCasRetryCookie = 0x426AB1FEu;
+
+// TASK-635 (M-HARNESS2 R14 / armedInjectors.h): the one new byte of state
+// this task adds. mb_arena_active() is also true during real playback, so
+// it can't be the `arenaHold` armed predicate on its own — this flag marks
+// only "the console asked for the hold", set/cleared by `set arenaHold`
+// below and read by armedInjectors.h from both cmdGet.cpp and cmdSet.cpp.
+bool s_consoleArenaHold = false;
 
 void cmdSet(const char *args) {
   char var[32], val[128];  // val widened to 128 to accommodate wrUrl (104-byte station URLs)
@@ -496,9 +504,11 @@ void cmdSet(const char *args) {
     bool ok;
     if (want) {
       ok = mb_arena_acquire();
+      if (ok) s_consoleArenaHold = true;   // TASK-635: armed via the console, not real playback
     } else {
       mb_arena_release();
       ok = true;
+      s_consoleArenaHold = false;
     }
     Serial.printf("{\"ok\":%s,\"cmd\":\"set\",\"var\":\"arenaHold\",\"held\":%s,"
                   "\"freeInt\":%u,\"lfbInt\":%u,\"free8\":%u,\"lfb8\":%u}\n",
@@ -507,6 +517,28 @@ void cmdSet(const char *args) {
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
                   (unsigned)heap_caps_get_free_size(kByteCap),
                   (unsigned)heap_caps_get_largest_free_block(kByteCap));
+    return;
+  }
+  // TASK-635 (M-HARNESS2 R14): clear every currently-armed injector in
+  // armedInjectors.h's table (table order), so a leak caught at a test
+  // boundary does not also spoil the id that runs next. Each clearStmt
+  // only runs for a member whose armedExpr was true, so this never
+  // clobbers a real app's own in-flight state (e.g. a real WebRadio
+  // station list) that happens to share a variable name.
+  if (strcmp(var, "injclear") == 0) {
+    char names[256]; names[0] = '\0';
+    int n = 0, off = 0;
+#define X(name, armedExpr, clearStmt)                                        \
+    if (armedExpr) {                                                         \
+      clearStmt;                                                             \
+      off += snprintf(names + off, sizeof(names) - off, "%s\"%s\"",          \
+                       n ? "," : "", #name);                                 \
+      n++;                                                                   \
+    }
+    ARMED_INJECTORS_TABLE(X)
+#undef X
+    Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"injclear\",\"n\":%d,"
+                  "\"cleared\":[%s]}\n", n, names);
     return;
   }
   // TASK-248: runtime log-volume control (for stress soaks). `set logLevel <d|i|w|e>`

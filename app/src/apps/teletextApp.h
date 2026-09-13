@@ -125,6 +125,13 @@ public:
     bool dbgGet(const char* var, char* buf, int len) const;
     bool dbgSet(const char* var, const char* val);
 
+#ifdef SERIAL_DEBUG
+    // TASK-635 (M-HARNESS2 R14): `get armed` predicate + `set injclear`
+    // clear — read/clear the existing _injectedContent flag, no new state.
+    bool dbgArmedInjectedContent() const  { return _injectedContent; }
+    void dbgClearInjectedContent()        { _injectedContent = false; }
+#endif
+
 private:
     // NOS backend lazy heap-allocated on first entry, never freed — embedding
     // the polymorphic source overflows the debug build's .dram0.bss at link

@@ -272,6 +272,12 @@ public:
     bool dbgGet(const char* var, char* buf, int len) const;
     bool dbgSet(const char* var, const char* val);
 
+#ifdef SERIAL_DEBUG
+    // TASK-635 (M-HARNESS2 R14): `get armed` predicate — reads the existing
+    // _injected flag, adds no new state.
+    bool dbgArmedInjected() const { return _injected; }
+#endif
+
 private:
     uint8_t       _presetIdx      = 1;
     bool          _pendingFetch   = false;

@@ -248,6 +248,13 @@ public:
     bool dbgGet(const char* var, char* buf, int len) const;
     bool dbgSet(const char* var, const char* val);
 
+#ifdef SERIAL_DEBUG
+    // TASK-635 (M-HARNESS2 R14): `get armed` predicates — read the existing
+    // injector variable, add no new state.
+    bool dbgArmedWrDeadUrls() const       { return _debugForceConnFail; }
+    bool dbgArmedPosbarSimDrain() const   { return _posbarSimDrainActive; }
+#endif
+
 private:
 
     // ── State ──────────────────────────────────────────────────────────────

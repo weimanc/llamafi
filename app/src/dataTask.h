@@ -296,6 +296,10 @@ void debugInjectGeocode(const GeocodeResult& r);
 // two pollGeocode() would return next (injected wins), else the last result.
 void dbgGeocodeState(bool* parked, bool* hasNew, GeocodeResult* last);
 
+// TASK-635 (M-HARNESS2 R14): `set injclear` clear path — clears the parked
+// flag only, without touching the parked result payload.
+void dbgClearGeocodeInject();
+
 // SERIAL_DEBUG test hook (set prForceParseFail <n>): forces the next n
 // PlaneRadar prFetchOnce() calls — across the fetch/retry/2nd-retry cascade,
 // whichever attempts are still pending when this is set — to report a
@@ -330,6 +334,10 @@ void debugBreakCert(FetchType type);
 // SERIAL_DEBUG peek (get certbreak): -1 if nothing armed, else the
 // FetchType value currently armed (consumed on that type's next attempt).
 int debugPeekCertBreak();
+
+// TASK-635 (M-HARNESS2 R14): `set injclear` clear path — debugBreakCert()
+// can't express -1 itself (FetchType is uint8_t), so this is dedicated.
+void debugClearCertBreak();
 
 void configureStockTickers(const char tickers[8][8]);
 void configureCrypto(const char ids[6][16], const char* ccy);

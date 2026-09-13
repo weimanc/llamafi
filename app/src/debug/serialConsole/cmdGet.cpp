@@ -6,6 +6,7 @@
 #include "debug/serialConsole/cmdMisc.h"   // readbackSignature (ADR-064 D1)
 #include "debug/timeInject.h"             // dbgTimeFrozen (ADR-064 D5)
 #include "debug/bodWatch.h"               // BodSnapshot / bodWatchGetSnapshot() (TASK-678 F-1)
+#include "debug/armedInjectors.h"         // ARMED_INJECTORS_TABLE (TASK-635, M-HARNESS2 R14)
 
 #ifdef SERIAL_DEBUG
 #include <Arduino.h>
@@ -85,6 +86,24 @@ void cmdGet(const char *args) {
                   s.descend ? "true" : "false", (unsigned)s.armedLevel,
                   (unsigned)s.floor, (unsigned long)s.stepsDown,
                   (unsigned long)s.stepsUp, (unsigned long)s.quietMs);
+    return;
+  }
+  // TASK-635 (M-HARNESS2 R14): every debug injector currently armed,
+  // evaluated at query time over armedInjectors.h's table — no stored
+  // bitmask to drift out of sync with the variables it describes.
+  if (strcmp(args, "armed") == 0) {
+    char names[256]; names[0] = '\0';
+    int n = 0, off = 0;
+#define X(name, armedExpr, clearStmt)                                        \
+    if (armedExpr) {                                                         \
+      off += snprintf(names + off, sizeof(names) - off, "%s\"%s\"",          \
+                       n ? "," : "", #name);                                 \
+      n++;                                                                   \
+    }
+    ARMED_INJECTORS_TABLE(X)
+#undef X
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"armed\",\"n\":%d,"
+                  "\"armed\":[%s],\"last\":true}\n", n, names);
     return;
   }
   if (strcmp(args, "variant") == 0) {

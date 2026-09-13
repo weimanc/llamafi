@@ -2017,6 +2017,15 @@ void debugInjectGeocode(const GeocodeResult& r) {
     portEXIT_CRITICAL_SAFE(&s_geocodeMux);
 }
 
+// TASK-635 (M-HARNESS2 R14): `set injclear` clear path — clears the parked
+// flag only, next to debugInjectGeocode() above. Leaves s_geoInjectedResult
+// alone; it is only ever read while s_geoInjected is true.
+void dbgClearGeocodeInject() {
+    portENTER_CRITICAL_SAFE(&s_geocodeMux);
+    s_geoInjected = false;
+    portEXIT_CRITICAL_SAFE(&s_geocodeMux);
+}
+
 void debugForcePlaneRadarParseFail(int n) {
     portENTER_CRITICAL_SAFE(&s_prForceFailMux);
     s_prForceParseFailCount = (n < 0) ? 0 : n;
@@ -2043,6 +2052,15 @@ int debugPeekCertBreak() {
     t = s_certBreakTarget;
     portEXIT_CRITICAL_SAFE(&s_certBreakMux);
     return t;
+}
+
+// TASK-635 (M-HARNESS2 R14): `set injclear` clear path — debugBreakCert()
+// can't express -1 itself (FetchType is uint8_t), so this is the dedicated
+// clear next to the existing setter/peek pair above.
+void debugClearCertBreak() {
+    portENTER_CRITICAL_SAFE(&s_certBreakMux);
+    s_certBreakTarget = -1;
+    portEXIT_CRITICAL_SAFE(&s_certBreakMux);
 }
 
 void dbgGeocodeState(bool* parked, bool* hasNew, GeocodeResult* last) {
