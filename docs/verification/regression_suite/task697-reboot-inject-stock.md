@@ -22,7 +22,7 @@ family. The per-id diagnostics show `dataq` with a fetch in flight since ~2 s af
 | D | `T_PRM_01,T170` | on | PASS |
 | E | `T_PRI_01,T170` | on | PASS |
 | — | `T_PR_04,T_PR_05,T170` | on | PASS |
-| F | `T_PR_04,T_PRI_01,T170` | on | T170 **FAIL** |
+| F | `T_PR_04,T_PRI_01,T170` | on | T170 **FAIL**, then PASS on a second run (with `LOG_FILE`) — **1 of 2** |
 
 Refuted along the way:
 - **the boundary check** — B fails the same as A;

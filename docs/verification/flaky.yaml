@@ -247,17 +247,14 @@ flaky:
 # These are named in project memory and test annotations but have no run-count
 # evidence recorded here yet. They must be measured before they earn an entry
 # above — an undeclared flake and an unmeasured one are the same problem.
-candidates:
-  - id: T169
-    note: "yahoo/network flakiness, long-standing; no run count recorded"
-  - id: T_PR_05
-    note: "annotated [NETWORK]-flaky in the suite itself. STALE as written
-      (corrected 2026-09-07): WP-H's H-5 held that `set prForceParseFail` had no
-      consumer anywhere and that this id had been a permanent SKIP since
-      2026-07-11. On hardware 2026-09-06 it PASSED — 'error code=-92 ->
-      activeError.active=true, responsive, recovered -> activeError.active=false'
-      — so the hook has a consumer and the id reaches a verdict. Keep as a
-      candidate on network grounds only; delete if a run count is ever recorded
-      and it holds."
-  - id: T_WR_TLS_01
-    note: "residual flake after TASK-299; mirror truncation (TASK-284) suspected"
+candidates: []
+# Adjudicated 2026-09-13 (TASK-617 / M-TESTARCH §18.6 b), from the eight full
+# `run/test` artifacts in app/tools/.runs/ (2026-09-06 … 2026-09-13, all
+# cyd2usb_winamp_debug). All three candidates are REMOVED, none promoted:
+#   T169        PASS 8/8. Not flaky on any recorded evidence; the note was folklore.
+#   T_WR_TLS_01 FAIL 8/8. Deterministic, not a flake. Owned by TASK-693.
+#   T_PR_05     P P F S P F F F. Non-stationary, but the four FAILs since 09-12
+#               fall in the boot generation after T_PR_04's reboot, where
+#               TASK-697 wedges fetches. That is an order/timing defect with an
+#               owner; declaring it a flake would retry it into a FLAKY-PASS and
+#               hide TASK-697's clearest symptom.
