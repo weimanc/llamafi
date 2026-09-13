@@ -10,6 +10,7 @@ ADR-059 D9/D12), and player mode transitions / arena ownership
 shell.py alongside the taskbar-gesture tests.
 """
 
+import functools
 import time
 
 from lib.dut import Dut
@@ -20,7 +21,7 @@ from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
     _restore_spotify, _switch_to, _wait_shell_not_busy, _tap_and_wait_log,
     _tb_set_offset, _get_scroll, _do_drag,
-    _poll_shell_busy,
+    _poll_shell_busy, _bgpoll_suspended,
 )
 from suite.serialdbg.webradio import _switch_to_webradio_capture_heap
 
@@ -368,12 +369,31 @@ def _leave_player(dut: Dut) -> None:
     dut.cmd("set bgPoll 1", timeout=3.0)
 
 
+def _bgpoll_backstop(fn):
+    """DUT-observed 2026-09-13 (TASK-635's boundary check, TASK-695 item 7):
+    `T_PLR_08`, `T_PLR_19` and `T_PLR_24` each timed out and left `bgPoll 0`
+    armed — `_enter_player` arms it, but the restore only ever ran through
+    hand-placed `_leave_player()` calls on the paths the author remembered,
+    which a mid-body timeout or exception skips past entirely. This wraps the
+    whole test body in the manager-backed `_bgpoll_suspended` (`_helpers.py`)
+    as a backstop, so bgPoll is put back on EVERY exit path — the existing
+    `_enter_player`/`_leave_player` calls inside the body are unchanged and
+    still run on the paths they always did; this only closes the gap on the
+    paths they don't reach."""
+    @functools.wraps(fn)
+    def wrapper(dut: Dut):
+        with _bgpoll_suspended(dut):
+            return fn(dut)
+    return wrapper
+
+
 def _pl_load(dut: Dut, path: str, timeout: float = 20.0) -> dict:
     """`set plLoad <path>` then `get plCount`. Returns the plCount reply."""
     dut.cmd(f"set plLoad {path}", timeout=timeout)
     return dut.cmd("get plCount", timeout=8.0)
 
 
+@_bgpoll_backstop
 def t_plr_08(dut: Dut):
     """T_PLR_08: a >=100-track M3U loads, count is exact, load time recorded."""
     print("T_PLR_08  >=100-track M3U loads (count exact, load time recorded)")
@@ -1105,6 +1125,7 @@ def t_plr_18(dut: Dut):
                           "leaked to spotifyTask; volume zone still hit-tests correctly")
 
 
+@_bgpoll_backstop
 def t_plr_19(dut: Dut):
     """T_PLR_19: Player advertises all four capabilities. Shuffle/repeat are
     drawn and hit-tested with STATE SOURCED FROM PLAYER, not spotifyTask::
@@ -1298,49 +1319,55 @@ def t_plr_21(dut: Dut):
 
     last_idx = r.get("count", 20) - 1
 
-    def _force_wrap_from_last():
-        # Always set explicitly to the known last index — do NOT infer "am I
-        # already at the end" from a `get plCursor` read first. That reflects
-        # whatever the PREVIOUS cell's advance left behind, not this cell's
-        # precondition, and masks a real firmware bug the same way (a stale
-        # cursor near the start silently reads as "close enough", producing
-        # exactly the kind of drifted-cell failure this test exists to catch).
-        dut.cmd(f"set plCursor {last_idx}", timeout=3.0)
-        return dut.cmd("advance next", timeout=5.0)
+    # `set plCursor` below moves real cursor state (`get plCursor` field
+    # `cursor`, TASK-695 B-taxonomy B-4/item 3) and nothing restored it before —
+    # only `_leave_player`'s bgPoll undo ran on exit. Wrap the whole forced-wrap
+    # sequence so the cursor is put back to wherever it was on entry (freshly
+    # -1 from `_pl_load`'s own reset) on every exit path, exception included.
+    with dut.saved("plCursor", field="cursor", timeout=3.0):
+        def _force_wrap_from_last():
+            # Always set explicitly to the known last index — do NOT infer "am I
+            # already at the end" from a `get plCursor` read first. That reflects
+            # whatever the PREVIOUS cell's advance left behind, not this cell's
+            # precondition, and masks a real firmware bug the same way (a stale
+            # cursor near the start silently reads as "close enough", producing
+            # exactly the kind of drifted-cell failure this test exists to catch).
+            dut.cmd(f"set plCursor {last_idx}", timeout=3.0)
+            return dut.cmd("advance next", timeout=5.0)
 
-    # Cell 1: shuffle off, repeat off -> stop at last row.
-    if not _pl_shuffle(dut, False) or not _pl_repeat(dut, True):
-        errors.append("cell1: could not set shuffle=off repeat=off")
-    else:
-        adv = _force_wrap_from_last()
-        if adv.get("moved") is not False:
-            errors.append(f"cell1 (shuffle off, repeat off): expected moved=false, got {adv}")
+        # Cell 1: shuffle off, repeat off -> stop at last row.
+        if not _pl_shuffle(dut, False) or not _pl_repeat(dut, True):
+            errors.append("cell1: could not set shuffle=off repeat=off")
+        else:
+            adv = _force_wrap_from_last()
+            if adv.get("moved") is not False:
+                errors.append(f"cell1 (shuffle off, repeat off): expected moved=false, got {adv}")
 
-    # Cell 2: shuffle off, repeat all -> wrap to viewOrder[0].
-    if not _pl_repeat(dut, False):
-        errors.append("cell2: could not set repeat=all")
-    else:
-        adv = _force_wrap_from_last()
-        if adv.get("moved") is not True or adv.get("row") != 0 or adv.get("reshuffled"):
-            errors.append(f"cell2 (shuffle off, repeat all): expected moved=true row=0 "
-                          f"reshuffled=false, got {adv}")
+        # Cell 2: shuffle off, repeat all -> wrap to viewOrder[0].
+        if not _pl_repeat(dut, False):
+            errors.append("cell2: could not set repeat=all")
+        else:
+            adv = _force_wrap_from_last()
+            if adv.get("moved") is not True or adv.get("row") != 0 or adv.get("reshuffled"):
+                errors.append(f"cell2 (shuffle off, repeat all): expected moved=true row=0 "
+                              f"reshuffled=false, got {adv}")
 
-    # Cell 3: shuffle on, repeat off -> play each once, then stop.
-    if not _pl_shuffle(dut, True) or not _pl_repeat(dut, True):
-        errors.append("cell3: could not set shuffle=on repeat=off")
-    else:
-        adv = _force_wrap_from_last()
-        if adv.get("moved") is not False:
-            errors.append(f"cell3 (shuffle on, repeat off): expected moved=false, got {adv}")
+        # Cell 3: shuffle on, repeat off -> play each once, then stop.
+        if not _pl_shuffle(dut, True) or not _pl_repeat(dut, True):
+            errors.append("cell3: could not set shuffle=on repeat=off")
+        else:
+            adv = _force_wrap_from_last()
+            if adv.get("moved") is not False:
+                errors.append(f"cell3 (shuffle on, repeat off): expected moved=false, got {adv}")
 
-    # Cell 4: shuffle on, repeat all -> reshuffle and continue.
-    if not _pl_repeat(dut, False):
-        errors.append("cell4: could not set repeat=all")
-    else:
-        adv = _force_wrap_from_last()
-        if adv.get("moved") is not True or not adv.get("reshuffled"):
-            errors.append(f"cell4 (shuffle on, repeat all): expected moved=true "
-                          f"reshuffled=true, got {adv}")
+        # Cell 4: shuffle on, repeat all -> reshuffle and continue.
+        if not _pl_repeat(dut, False):
+            errors.append("cell4: could not set repeat=all")
+        else:
+            adv = _force_wrap_from_last()
+            if adv.get("moved") is not True or not adv.get("reshuffled"):
+                errors.append(f"cell4 (shuffle on, repeat all): expected moved=true "
+                              f"reshuffled=true, got {adv}")
 
     _leave_player(dut)
     if errors:
@@ -1367,22 +1394,25 @@ def t_plr_22(dut: Dut):
         fail("T_PLR_22", "could not set shuffle=on repeat=all")
         return
 
+    # `set plCursor` moves real cursor state (TASK-695 B-4/item 3) — restore it
+    # on every exit path, not just the fall-through at the bottom of the loop.
     collisions = 0
-    for i in range(20):
-        before = dut.cmd("get plOrder", timeout=5.0).get("order", [])
-        if len(before) != 20:
-            errors.append(f"wrap {i}: plOrder count={len(before)} (expected 20)")
-            break
-        last_id = before[19]
-        dut.cmd("set plCursor 19", timeout=3.0)
-        adv = dut.cmd("advance next", timeout=5.0)
-        if not adv.get("moved") or not adv.get("reshuffled"):
-            errors.append(f"wrap {i}: expected moved=true reshuffled=true, got {adv}")
-            continue
-        after = dut.cmd("get plOrder", timeout=5.0).get("order", [])
-        if len(after) == 20 and after[0] == last_id:
-            collisions += 1
-            errors.append(f"wrap {i}: reshuffle re-opened with the just-finished id {last_id}")
+    with dut.saved("plCursor", field="cursor", timeout=3.0):
+        for i in range(20):
+            before = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+            if len(before) != 20:
+                errors.append(f"wrap {i}: plOrder count={len(before)} (expected 20)")
+                break
+            last_id = before[19]
+            dut.cmd("set plCursor 19", timeout=3.0)
+            adv = dut.cmd("advance next", timeout=5.0)
+            if not adv.get("moved") or not adv.get("reshuffled"):
+                errors.append(f"wrap {i}: expected moved=true reshuffled=true, got {adv}")
+                continue
+            after = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+            if len(after) == 20 and after[0] == last_id:
+                collisions += 1
+                errors.append(f"wrap {i}: reshuffle re-opened with the just-finished id {last_id}")
 
     _leave_player(dut)
     if errors:
@@ -1447,6 +1477,7 @@ def t_plr_23(dut: Dut):
                           f"plOrder unchanged (no reroll)")
 
 
+@_bgpoll_backstop
 def t_plr_24(dut: Dut):
     """T_PLR_24: tap-to-play under shuffle moves the bag cursor to that
     entry's position — it does not reshuffle. Uses `set plPlay` (dbgPlayRow,
@@ -1471,23 +1502,29 @@ def t_plr_24(dut: Dut):
     if target_row >= len(order_before) or target_row not in order_before:
         errors.append(f"row {target_row} not present in plOrder {order_before}")
     else:
-        expected_pos = order_before.index(target_row)
-        pick = dut.cmd(f"set plPlay {target_row}", timeout=8.0)
-        if not pick.get("ok"):
-            errors.append(f"set plPlay {target_row} failed: {pick}")
-        cur = dut.cmd("get plCursor", timeout=5.0)
-        if cur.get("cursor") != expected_pos:
-            errors.append(f"cursor={cur.get('cursor')} (expected bag position "
-                          f"{expected_pos} of row {target_row})")
-        if cur.get("curRow") != target_row:
-            errors.append(f"curRow={cur.get('curRow')} (expected {target_row})")
-        order_after = dut.cmd("get plOrder", timeout=5.0).get("order", [])
-        if order_before != order_after:
-            errors.append(f"plOrder changed by tap-to-play: before={order_before} "
-                          f"after={order_after}")
-        # Leave playback stopped — this test never means to leave audio running.
-        if pick.get("ok"):
-            dut.cmd(f"tap {_c.tap_button('STOP')[0]} {_c.tap_button('STOP')[1]}", timeout=5.0)
+        # `set plPlay` (dbgPlayRow) has no read-back of its own — `plCursor` is
+        # the gettable state it actually moves (TASK-695 B-4/item 3), so that's
+        # what gets restored on every exit path here. `plPlay` itself stays a
+        # one-shot fire, same as before; the STOP tap below is the (still
+        # best-effort, not exception-safe) undo for the playback it starts.
+        with dut.saved("plCursor", field="cursor", timeout=5.0):
+            expected_pos = order_before.index(target_row)
+            pick = dut.cmd(f"set plPlay {target_row}", timeout=8.0)
+            if not pick.get("ok"):
+                errors.append(f"set plPlay {target_row} failed: {pick}")
+            cur = dut.cmd("get plCursor", timeout=5.0)
+            if cur.get("cursor") != expected_pos:
+                errors.append(f"cursor={cur.get('cursor')} (expected bag position "
+                              f"{expected_pos} of row {target_row})")
+            if cur.get("curRow") != target_row:
+                errors.append(f"curRow={cur.get('curRow')} (expected {target_row})")
+            order_after = dut.cmd("get plOrder", timeout=5.0).get("order", [])
+            if order_before != order_after:
+                errors.append(f"plOrder changed by tap-to-play: before={order_before} "
+                              f"after={order_after}")
+            # Leave playback stopped — this test never means to leave audio running.
+            if pick.get("ok"):
+                dut.cmd(f"tap {_c.tap_button('STOP')[0]} {_c.tap_button('STOP')[1]}", timeout=5.0)
 
     _leave_player(dut)
     if errors:
