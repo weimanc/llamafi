@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-BUSY-02",
- "elf": "168bf21d",
+ "elf": "cfff76ab",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:43:05Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T21:01:36Z",
+ "generation": "106.1",
  "preamble": [],
  "exchanges": [
   {
@@ -32,8 +32,6 @@
    "cmd": "get shellBusy",
    "nth": 0,
    "lines": [
-    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=67ms (worst path so far: shell.switch:119ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -97,7 +95,6 @@
    "cmd": "get shellBusy",
    "nth": 9,
    "lines": [
-    "[517268][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -105,7 +102,6 @@
    "cmd": "get shellBusy",
    "nth": 10,
    "lines": [
-    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -428,6 +424,8 @@
    "cmd": "get shellBusy",
    "nth": 56,
    "lines": [
+    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=2052ms",
+    "[D][dataTask.stock] chart pre-json heap free=12k maxBlk=5k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -442,6 +440,9 @@
    "cmd": "get shellBusy",
    "nth": 58,
    "lines": [
+    "[D][dataTask.stock] chart post-json heap free=59k maxBlk=33k err=Ok",
+    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=331.70 hi=335.62",
+    "[D][dataTask.stock] heap free=61k maxBlk=33k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -449,6 +450,10 @@
    "cmd": "get shellBusy",
    "nth": 59,
    "lines": [
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -477,7 +482,6 @@
    "cmd": "get shellBusy",
    "nth": 63,
    "lines": [
-    "[519040][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -485,7 +489,6 @@
    "cmd": "get shellBusy",
    "nth": 64,
    "lines": [
-    "[lib] GET write fail, retrying",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -528,12 +531,8 @@
    "cmd": "get shellBusy",
    "nth": 70,
    "lines": [
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[D][spotify.task] dequeued action=POLL param=0",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
+    "[134851][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[134864][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -541,7 +540,9 @@
    "cmd": "get shellBusy",
    "nth": 71,
    "lines": [
-    "Refresh of the Access token is due, doing that now.",
+    "[134884][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -605,8 +606,6 @@
    "cmd": "get shellBusy",
    "nth": 80,
    "lines": [
-    "[519585][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[519598][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -614,9 +613,6 @@
    "cmd": "get shellBusy",
    "nth": 81,
    "lines": [
-    "[519618][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
@@ -686,6 +682,13 @@
   {
    "cmd": "get shellBusy",
    "nth": 91,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 92,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]

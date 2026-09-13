@@ -1,35 +1,17 @@
 {
  "schema": 1,
  "id": "T-CDWN-02",
- "elf": "168bf21d",
+ "elf": "cfff76ab",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:43:18Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T21:01:30Z",
+ "generation": "106.1",
  "preamble": [],
  "exchanges": [
-  {
-   "cmd": "set stockMode 0",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "switchApp 6",
-   "nth": 0,
-   "lines": [
-    "[shell] leaving 0  heap=47268 maxAlloc=40948 minFree=42780",
-    "[shell] entered 6  heap=46944 maxAlloc=40948 minFree=42780",
-    "[shell] switch 0->6 suspend=2ms wipe=54ms init=60ms taskbar=25ms total=141ms",
-    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
-   ]
-  },
   {
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=145ms (worst path so far: shell.switch:208ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
   {
@@ -40,113 +22,38 @@
    ]
   },
   {
-   "cmd": "get bgPoll",
+   "cmd": "set shellBusy 1",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set bgPoll 0",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 10 7",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"shellBusy\",\"busy\":true}"
    ]
   },
   {
    "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=175ms (worst path so far: shell.switch:208ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set triggerFetch 1",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"triggerFetch\",\"val\":\"1\"}"
-   ]
-  },
-  {
-   "cmd": "get shellCooldown",
-   "nth": 1,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "tap 137 36",
-   "nth": 0,
-   "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":36,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
-   ]
-  },
-  {
-   "cmd": "get shellBusy",
-   "nth": 2,
-   "lines": [
-    "[W][perf] iter=65ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":true,\"last\":true}"
    ]
   },
   {
    "cmd": "get shellCooldown",
-   "nth": 2,
+   "nth": 0,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
   {
    "cmd": "tap 137 36",
-   "nth": 1,
+   "nth": 0,
    "lines": [
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":137,\"y\":36,\"hit\":\"CANVAS\",\"action\":\"NONE\",\"skipped\":true}"
    ]
   },
   {
-   "cmd": "switchApp 0",
+   "cmd": "set shellBusy 0",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=50516 maxAlloc=40948 minFree=42780",
-    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=50308 maxAlloc=40948 minFree=42780",
-    "[shell] switch 6->0 suspend=2ms wipe=54ms init=74ms taskbar=26ms total=156ms",
-    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
-   ]
-  },
-  {
-   "cmd": "get appId",
-   "nth": 1,
-   "lines": [
-    "[W][perf] iter=208ms (worst path so far: shell.switch:208ms)",
-    "[D][dataTask.stock] chart GET sym=AAPL range=1d 200 elapsed=2152ms",
-    "[D][dataTask.stock] chart pre-json heap free=11k maxBlk=4k",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
-   ]
-  },
-  {
-   "cmd": "set bgPoll 1",
-   "nth": 0,
-   "lines": [
-    "[D][dataTask.stock] chart post-json heap free=58k maxBlk=41k err=Ok",
-    "[D][dataTask.stock] chart ok sym=AAPL len=79 lo=331.70 hi=335.62",
-    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"shellBusy\",\"busy\":false}"
    ]
   }
  ]

@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T-CDWN-03",
- "elf": "168bf21d",
+ "elf": "cfff76ab",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:43:21Z",
- "generation": "22.4",
+ "recorded_at": "2026-09-13T21:01:33Z",
+ "generation": "106.1",
  "preamble": [],
  "exchanges": [
   {
@@ -18,9 +18,12 @@
    "cmd": "switchApp 6",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=47556 maxAlloc=40948 minFree=42780",
-    "[shell] entered 6  heap=47076 maxAlloc=40948 minFree=42780",
-    "[shell] switch 0->6 suspend=1ms wipe=54ms init=60ms taskbar=26ms total=141ms",
+    "[shell] leaving 0  heap=106712 maxAlloc=49140 minFree=44508",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[D][dataTask.stock] heap free=62k maxBlk=47k",
+    "[shell] entered 6  heap=104000 maxAlloc=49140 minFree=44508",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=45ms taskbar=14ms total=87ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
    ]
   },
@@ -28,7 +31,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=215ms (worst path so far: shell.switch:208ms)",
+    "[W][perf] iter=91ms (worst path so far: shell.switch:87ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
    ]
   },
@@ -64,14 +67,13 @@
    "cmd": "tap 10 7",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"CONSUMED\",\"skipped\":false}"
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":10,\"y\":7,\"hit\":\"STOCK\",\"action\":\"NONE\",\"skipped\":false}"
    ]
   },
   {
    "cmd": "get shellBusy",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=91ms (worst path so far: shell.switch:208ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -100,7 +102,7 @@
    "cmd": "get shellCooldown",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=65ms (worst path so far: shell.switch:208ms)",
+    "[W][perf] iter=67ms (worst path so far: shell.switch:87ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
   },
@@ -108,9 +110,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 6  heap=50376 maxAlloc=40948 minFree=42780",
-    "[shell] entered 1  heap=50612 maxAlloc=40948 minFree=42780",
-    "[shell] switch 6->1 suspend=2ms wipe=54ms init=114ms taskbar=24ms total=194ms",
+    "[shell] leaving 6  heap=48640 maxAlloc=40948 minFree=44508",
+    "[shell] entered 1  heap=48004 maxAlloc=40948 minFree=44508",
+    "[shell] switch 6->1 suspend=2ms wipe=54ms init=88ms taskbar=24ms total=168ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -118,8 +120,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=212ms (worst path so far: shell.switch:208ms)",
-    "[D][dataTask.stock] spark GET 200 elapsed=2099ms",
+    "[W][perf] iter=184ms (worst path so far: shell.switch:168ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -127,7 +128,6 @@
    "cmd": "get shellBusy",
    "nth": 2,
    "lines": [
-    "[D][dataTask.stock] spark ok aapl=332.27 msft=516.13",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
    ]
   },
@@ -135,13 +135,11 @@
    "cmd": "switchApp 0",
    "nth": 0,
    "lines": [
-    "[D][dataTask.stock] heap free=60k maxBlk=41k",
-    "[shell] leaving 1  heap=104652 maxAlloc=42996 minFree=42780",
-    "[D][dataTask.stock] chart START sym=AAPL range=1d heap free=60k maxBlk=41k",
+    "[shell] leaving 1  heap=52052 maxAlloc=40948 minFree=44508",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=100032 maxAlloc=42996 minFree=42780",
-    "[shell] switch 1->0 suspend=1ms wipe=31ms init=47ms taskbar=22ms total=101ms",
+    "[shell] entered 0  heap=52052 maxAlloc=40948 minFree=44508",
+    "[shell] switch 1->0 suspend=2ms wipe=54ms init=70ms taskbar=24ms total=150ms",
     "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
    ]
   },
@@ -149,7 +147,7 @@
    "cmd": "set bgPoll 1",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=133ms (worst path so far: shell.switch:208ms)",
+    "[W][perf] iter=203ms (worst path so far: shell.switch:168ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   }

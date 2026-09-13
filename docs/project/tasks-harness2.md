@@ -4,7 +4,7 @@
 > Status **2026-09-13**: **Phases 0, 1, 2 COMPLETE. Phase 3 ENTERED on a human waiver** (TASK-575
 > §4 clause 2 short by `T_PLR_15`, `T_WR_TLS_01`) and is **5/6 rows closed** — 604, 592, 605, 635,
 > 636; 594 PARTIAL. **Phase 3 exit is NOT met**: a clean per-family shuffle (first `player` pair
-> left 2 candidates), TASK-617 (ii) (`T_BI_03` needs a human call; `T-CDWN-02` in progress) and
+> left 2 candidates), TASK-617 (ii) (**only `T_BI_03` left** — needs a human call; `T-CDWN-02` cleared by `set shellBusy`, DUT-verified) and
 > §18.6 (a) (the interleaved A/B) are owed; §18.6 (b) closed 2026-09-13. **TASK-697 (P1)** — a
 > post-reboot fetch wedge that costs ~22 Stock ids per full run — pollutes every full-suite
 > measurement and should precede the A/B. **Phase 4: 638 DONE, 637 PARTIAL** (shell half on DUT).
