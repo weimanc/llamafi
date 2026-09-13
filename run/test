@@ -117,7 +117,26 @@ _RECORD_ARGS=()
 if [ -n "${RECORD_DIR:-}" ]; then
   _RECORD_ARGS=(--record "$(realpath -m "$RECORD_DIR")")
 fi
-(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_LOG_ARGS[@]}" "${_RECORD_ARGS[@]}") \
+_RUNNER_OUT="$(mktemp)"
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_LOG_ARGS[@]}" "${_RECORD_ARGS[@]}" | tee "$_RUNNER_OUT") \
   || _TEST_RC=$?
+
+# TASK-689: REPORT ONLY, never a gate. Diffs this run's artifact against the
+# most recent COMPARABLE prior one under app/tools/.runs/ (same entry_point +
+# build_env + board — lib/artifact.py's previous_comparable()) and prints the
+# delta. This step MUST NOT touch $_TEST_RC: nothing diffed two artifacts
+# before TASK-689 (six deterministic FAILs sat unread for six days, TASK-685),
+# but that gap is a REPORTING gap, not a gating one — a diff against this
+# suite's ~7% non-stationary flake exposure (TASK-566) cannot block without a
+# baseline discipline this project doesn't have, and the board's own rule is
+# that a gate lands blocking-at-zero or with a ledger, neither of which this
+# is. Best-effort: a diff failure (e.g. no prior comparable run yet) prints
+# its own message and never fails the run.
+_ARTIFACT_PATH=$(grep -oE '^\[artifact\] [^[:space:]]+' "$_RUNNER_OUT" | tail -1 | awk '{print $2}')
+if [ -n "$_ARTIFACT_PATH" ]; then
+  echo ""
+  ( cd "$PIO_DIR/tools" && "$VENV_PY" -m lib.artifact "$_ARTIFACT_PATH" --diff-auto ) || true
+fi
+rm -f "$_RUNNER_OUT"
 
 # EXIT trap fires here: steps 5 and 6 run unconditionally

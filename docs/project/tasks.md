@@ -121,7 +121,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-690** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-691** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 
@@ -203,7 +203,8 @@ the board to re-derive what is already written down.
 | TASK-686 | P2 | **OPEN — filed 2026-09-12, aged 2026-09-13** | Deterministic, unfiled: `T_PLR_12` (heap −6068 B) and `T_PLR_13` (`TimeoutError` 8 s) FAIL in the 09-06, 09-09 and both 09-12 runs. **`T_PLR_24` is a true regression** — PASS 09-06, FAIL 09-09 onward, so the window is 3 days of commits. Plus `T_DTP_01`/`02` UNMET. |
 | TASK-687 | P3 | **OPEN — filed 2026-09-12** | `T087`/`T092` reproduced in BOTH runs — deterministic, not flaky, so their `flaky.yaml` declarations are the wrong description. Also `T_PLR_17`'s mis-correlated reply (`__TEST_T_PLR_17__` sentinel reaching a live run). TASK-595 follow-on. **Owner:** @VE. |
 | TASK-688 | P2 | **OPEN — filed 2026-09-12** | Five ids R34's runtime gate can now see — `T170`, `T176`, `T188`, `T204`, `T_CLK_SIG_01` — go red only via contract/accident, never by asserting on their subject. **Exposed, not caused**, by the 194-transcript refresh. [ledger](../verification/can_go_red_ledger.md). **Owner:** @VE. |
-| TASK-689 | **P1** | **OPEN — filed 2026-09-13** | **Nothing reads one run against the last.** Every run emits an artifact (TASK-608/645); the only consumer is `run/player-gate`, comparing to a hand-kept baseline. No tool diffs two artifacts, so 6 deterministic FAILs sat in `.runs/` unnoticed 09-06 → 09-12. |
+| TASK-689 | **P1** | **DONE 2026-09-13** | `lib/artifact.py` gains `diff_documents` + `previous_comparable`; `run/test`/`test-targeted` print the delta against the last comparable run. **Report, never a gate** — it cannot touch an exit code. Includes `still_failing`, because a delta hides persistence and persistence is what lost TASK-685. |
+| TASK-690 | P3 | **OPEN — filed 2026-09-13** | `app/tools/.runs/` is polluted by host-only suites: every `./run/check` leaves ~5 artifacts with no `build_env`, because `print_results()` without `RESULTS_JSON` falls through to the real L1 default path. Harmless to correctness (the diff filters them) but `.runs/` growth is unbounded. |
 
 ## Open — board currency (filed by @Developer 2026-09-07, from the audit above)
 

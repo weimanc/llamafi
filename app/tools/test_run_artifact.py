@@ -355,6 +355,158 @@ check("T_ART_42b",
 # And the per-id row shape the archives depend on is untouched.
 check("T_ART_42c", "\n  A: PASS\n" in out, True)
 
+# ── F. TASK-689 — the artifact diff ──────────────────────────────────────────
+# Pure-function fixtures: no files, no DUT. `diff_documents` takes two loaded
+# documents and returns a delta; `previous_comparable`/`format_diff` are the
+# only arms that touch the filesystem, and only inside TMP.
+print("T_ART_60  diff_documents distinguishes every delta category")
+
+
+def _doc(ids_verdicts):
+    return {"results": [{"id": tid, "verdict": v}
+                        for tid, v in ids_verdicts.items()]}
+
+
+_old60 = _doc({"A": "PASS", "B": "FAIL", "C": "PASS", "D": "SKIP",
+              "E": "FAIL", "F": "UNMET", "G": "PASS"})
+_new60 = _doc({"A": "PASS",            # unchanged
+              "B": "FAIL",            # unchanged
+              "C": "FAIL",            # newly failing (PASS -> FAIL)
+              "D": "UNMET",           # newly failing (SKIP -> UNMET)
+              "E": "PASS",            # newly passing (FAIL -> PASS)
+              "F": "FAIL",            # verdict changed, both non-green
+              "G": "SKIP"})           # verdict changed, both green
+delta60 = A.diff_documents(_old60, _new60)
+check("T_ART_60a", {r["id"] for r in delta60["newly_failing"]}, {"C", "D"})
+check("T_ART_60b", {r["id"] for r in delta60["newly_passing"]}, {"E"})
+check("T_ART_60c", {r["id"] for r in delta60["verdict_changed"]}, {"F", "G"})
+check("T_ART_60d", delta60["only_in_old"], [])
+check("T_ART_60e", delta60["only_in_new"], [])
+_row = next(r for r in delta60["newly_failing"] if r["id"] == "C")
+check("T_ART_60f", _row, {"id": "C", "old": "PASS", "new": "FAIL"})
+
+print("T_ART_61  diff_documents: unchanged ids produce no row at all")
+_same = _doc({"A": "PASS", "B": "FAIL"})
+delta61 = A.diff_documents(_same, _same)
+check("T_ART_61a", delta61["newly_failing"], [])
+check("T_ART_61b", delta61["newly_passing"], [])
+check("T_ART_61c", delta61["verdict_changed"], [])
+# ...but "no row in any change list" must NOT mean "invisible". B is FAIL in
+# both runs, so it moved nothing and yet is not green.
+check("T_ART_61d", [r["id"] for r in delta61["still_failing"]], ["B"])
+
+print("T_ART_70  A DELTA HIDES PERSISTENCE — the TASK-685 shape, pinned")
+# The defect this whole tool exists for: six ids were FAIL on 2026-09-06 and
+# FAIL on 2026-09-09, so a pure delta over that pair reports them NOWHERE and
+# prints "no change" — which is how a P1 firmware defect stayed unread for six
+# days. still_failing is the half that catches it, and the rendered text must
+# refuse to call that state "no change".
+_p685 = _doc({"OK": "PASS", "T172": "FAIL", "T_CX_03": "FAIL", "T182": "UNMET"})
+delta70 = A.diff_documents(_p685, _p685)
+check("T_ART_70a", delta70["newly_failing"], [])
+check("T_ART_70b", [r["id"] for r in delta70["still_failing"]],
+      ["T172", "T182", "T_CX_03"])
+_txt70 = A.format_diff("old.json", "new.json", delta70)
+check("T_ART_70c", "STILL failing" in _txt70, True)
+check("T_ART_70d", "'No change' is not 'no problem'" in _txt70, True)
+# and the bare "no change" line must NOT be emitted while anything is failing
+check("T_ART_70e", "  no change vs previous comparable run" in _txt70, False)
+# the genuinely clean case still reads as clean
+_clean = _doc({"OK": "PASS", "OK2": "SKIP"})
+_txt70f = A.format_diff("o.json", "n.json", A.diff_documents(_clean, _clean))
+check("T_ART_70f", "no change vs previous comparable run" in _txt70f, True)
+check("T_ART_70g", "STILL failing" in _txt70f, False)
+
+print("T_ART_62  diff_documents: ids present in only one run")
+_old62 = _doc({"A": "PASS", "ONLY_OLD": "FAIL"})
+_new62 = _doc({"A": "PASS", "ONLY_NEW": "PASS"})
+delta62 = A.diff_documents(_old62, _new62)
+check("T_ART_62a", delta62["only_in_old"], ["ONLY_OLD"])
+check("T_ART_62b", delta62["only_in_new"], ["ONLY_NEW"])
+check("T_ART_62c", delta62["newly_failing"], [])
+check("T_ART_62d", delta62["newly_passing"], [])
+
+print("T_ART_63  format_diff always names both input files")
+out63 = A.format_diff("/path/OLD.json", "/path/NEW.json", delta62)
+check("T_ART_63a", "/path/OLD.json" in out63, True)
+check("T_ART_63b", "/path/NEW.json" in out63, True)
+
+print("T_ART_64  format_diff flags a large id-set mismatch instead of a wall "
+      "of text (targeted vs full run)")
+_big_old = _doc({f"T{i}": "PASS" for i in range(200)})
+_small_new = _doc({"T0": "PASS", "T1": "PASS"})
+delta64 = A.diff_documents(_big_old, _small_new)
+out64 = A.format_diff("full.json", "targeted.json", delta64, max_ids=10)
+check("T_ART_64a", "large id-set mismatch" in out64, True)
+check("T_ART_64b", "... and" in out64, True)
+# Never claims a mass regression: nothing in the two runs' COMMON ids changed.
+check("T_ART_64c", delta64["newly_failing"], [])
+check("T_ART_64d", "newly failing" in out64.splitlines()[2], True)
+check("T_ART_64e", out64.splitlines()[2].strip(), "newly failing (was PASS/SKIP): 0")
+
+print("T_ART_65  previous_comparable requires entry_point AND build_env AND "
+      "board.id to match, and an earlier started_at")
+_TMP65 = TMP / "diff65"
+_TMP65.mkdir()
+
+
+def _mk65(name, entry_point, build_env, board_id, started_at, ids=("X",)):
+    doc = {
+        "schema": {"name": A.SCHEMA_NAME, "version": A.SCHEMA_VERSION},
+        "run": {"run_token": name, "started_at": started_at, "counts": {}},
+        "premise": {"entry_point": entry_point, "build_env": build_env,
+                    "board": {"id": board_id}},
+        "per_class": {},
+        "results": [{"id": i, "verdict": "PASS"} for i in ids],
+    }
+    return A.write(_TMP65 / f"run-{name}.json", doc)
+
+
+_p_a = _mk65("a", "runner.py", "envX", "board1", "2026-01-01T00:00:00Z")
+_p_b_wrong_env = _mk65("b", "runner.py", "envY", "board1", "2026-01-02T00:00:00Z")
+_p_c_wrong_board = _mk65("c", "runner.py", "envX", "board2", "2026-01-02T00:00:00Z")
+_p_d_later = _mk65("d", "runner.py", "envX", "board1", "2026-01-05T00:00:00Z")
+_p_e_current = _mk65("e", "runner.py", "envX", "board1", "2026-01-03T00:00:00Z")
+_doc_e = json.loads(_p_e_current.read_text())
+got65 = A.previous_comparable(_doc_e, _p_e_current, runs_dir=_TMP65)
+check("T_ART_65a", got65, _p_a)  # not b (env), not c (board), not d (later)
+
+print("T_ART_66  previous_comparable: no candidates at all -> None")
+_TMP66 = TMP / "diff66"
+_TMP66.mkdir()
+_p_only = _mk65("only", "runner.py", "envZ", "board9", "2026-01-01T00:00:00Z")
+_doc_only = json.loads(_p_only.read_text())
+_p_only2 = A.write(_TMP66 / "run-only.json", _doc_only)
+check("T_ART_66a", A.previous_comparable(_doc_only, _p_only2, runs_dir=_TMP66),
+      None)
+
+print("T_ART_67  previous_comparable: unstated premise (entry_point/build_env "
+      "None) never matches anything, including itself")
+_doc67 = {"schema": {"name": A.SCHEMA_NAME, "version": A.SCHEMA_VERSION},
+         "run": {"run_token": "z", "started_at": "2026-01-01T00:00:00Z",
+                 "counts": {}},
+         "premise": {"entry_point": None, "build_env": None, "board": None},
+         "per_class": {}, "results": []}
+_p67 = A.write(_TMP65 / "run-noise.json", _doc67)
+check("T_ART_67a", A.previous_comparable(_doc67, _p67, runs_dir=_TMP65), None)
+
+print("T_ART_68  main() --diff-auto with no comparable run exits 0 and prints "
+      "a plain statement, not an error")
+_buf68 = io.StringIO()
+with contextlib.redirect_stdout(_buf68):
+    rc68 = A.main([str(_p_only2), "--diff-auto"])
+check("T_ART_68a", rc68, 0)
+check("T_ART_68b", "no previous comparable run" in _buf68.getvalue(), True)
+
+print("T_ART_69  main() --diff prints both filenames and the delta")
+_buf69 = io.StringIO()
+with contextlib.redirect_stdout(_buf69):
+    rc69 = A.main([str(_p_e_current), "--diff", str(_p_a)])
+check("T_ART_69a", rc69, 0)
+out69 = _buf69.getvalue()
+check("T_ART_69b", str(_p_a) in out69, True)
+check("T_ART_69c", str(_p_e_current) in out69, True)
+
 # ── E. R29's acceptance number: zero summary parsers ─────────────────────────
 print("T_ART_50  no consumer parses the human summary text (R29 == 0)")
 _ROOT = _here.parent.parent

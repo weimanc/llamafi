@@ -220,6 +220,217 @@ def exit_code(doc: dict):
     return (doc.get("run") or {}).get("exit_code")
 
 
+# ── diff (TASK-689) ──────────────────────────────────────────────────────────
+#
+# The gap this closes: an artifact is written every run (TASK-608/645) and
+# NOTHING in the tree diffs two of them — `run/player-gate` is the only reader
+# and it compares against a hand-kept markdown baseline, never the previous
+# run. Six deterministic FAILs sat in the 2026-09-06 and 2026-09-09 artifacts,
+# unread, until 2026-09-12 (TASK-685). This is a REPORT, not a gate — see the
+# wiring in `run/test`/`run/test-targeted` for why it must never touch an exit
+# code.
+#
+# Verdict polarity is duplicated here (not imported from `lib.results`) on
+# purpose: `results.py` already imports THIS module (deferred, to avoid a
+# cycle — see `write_artifact`'s docstring); making the dependency mutual at
+# module-import time is exactly the kind of layering violation this project's
+# "lib/ never imports a suite, levels depend downward only" rule exists to
+# forbid one layer up. The values themselves are the closed vocabulary in
+# `lib.results.Verdict` and move only if that enum does.
+
+#: R28's "may a gate treat it as green?" set, mirrored from `lib.results.GREEN`.
+GREEN_VERDICTS = frozenset({"PASS", "SKIP"})
+
+
+def diff_documents(old: dict, new: dict) -> dict:
+    """Pure diff between two loaded artifact documents. No files touched.
+
+    Returns:
+      {
+        "newly_failing":  [{"id","old","new"}, ...],  # GREEN -> not GREEN
+        "newly_passing":  [{"id","old","new"}, ...],  # not GREEN -> GREEN
+        "verdict_changed":[{"id","old","new"}, ...],  # changed, neither of the
+                                                       # above (e.g. two
+                                                       # non-PASS verdicts, or
+                                                       # PASS<->SKIP)
+        "only_in_old":    [id, ...],   # ran before, absent now
+        "only_in_new":    [id, ...],   # absent before, ran now
+        "still_failing":  [{"id","verdict"}, ...],  # not GREEN in BOTH runs
+      }
+
+    `still_failing` exists because a DELTA HIDES PERSISTENCE, and persistence is
+    what this tool was built to stop losing. The six `lastPlaylistDraw` ids of
+    TASK-685 were FAIL on 2026-09-06 and FAIL on 2026-09-09, so they are not in
+    any of the three change lists above: a pure delta over that pair reports
+    them nowhere, and prints "no change". That is precisely the false
+    confidence that let a P1 firmware defect sit unread for six days. A tool
+    that answered "what changed?" and stopped there would have institutionalised
+    it.
+
+    Ordering within each list is sorted by id, so output is deterministic and
+    diffable itself. Unit-testable with hand-built `{"results": [...]}` dicts —
+    no file I/O anywhere in this function.
+    """
+    old_status = id_status(old)
+    new_status = id_status(new)
+    old_ids = set(old_status)
+    new_ids = set(new_status)
+    newly_failing, newly_passing, verdict_changed = [], [], []
+    still_failing = [
+        {"id": t, "verdict": new_status[t]}
+        for t in sorted(old_ids & new_ids)
+        if new_status[t] not in GREEN_VERDICTS
+        and old_status[t] not in GREEN_VERDICTS
+    ]
+    for tid in sorted(old_ids & new_ids):
+        ov, nv = old_status[tid], new_status[tid]
+        if ov == nv:
+            continue
+        row = {"id": tid, "old": ov, "new": nv}
+        ov_green = ov in GREEN_VERDICTS
+        nv_green = nv in GREEN_VERDICTS
+        if ov_green and not nv_green:
+            newly_failing.append(row)
+        elif not ov_green and nv_green:
+            newly_passing.append(row)
+        else:
+            verdict_changed.append(row)
+    return {
+        "newly_failing": newly_failing,
+        "newly_passing": newly_passing,
+        "verdict_changed": verdict_changed,
+        "only_in_old": sorted(old_ids - new_ids),
+        "only_in_new": sorted(new_ids - old_ids),
+        "still_failing": still_failing,
+    }
+
+
+def _premise_key(doc: dict):
+    """(entry_point, build_env, board_id) — what makes two runs comparable."""
+    prem = doc.get("premise") or {}
+    board = prem.get("board")
+    board_id = board.get("id") if isinstance(board, dict) else board
+    return (prem.get("entry_point"), prem.get("build_env"), board_id)
+
+
+def previous_comparable(current_doc: dict, current_path,
+                        runs_dir=None) -> "pathlib.Path | None":
+    """Scan `runs_dir` (default L1's `.runs/`) for the most recent artifact
+    comparable to `current_doc` — same `premise.entry_point`, same
+    `premise.build_env`, and same `premise.board.id` — with an earlier
+    `run.started_at`. -> its path, or None if there is no candidate.
+
+    Deliberately a SCAN, every call, never a cache or an index file. L1 (this
+    module's own docstring) forbids a `latest.json`/symlink on the writing
+    side precisely so a hurried consumer can't read a stale stable name
+    without noticing; a stable *index* on the reading side would be the same
+    defect wearing a different hat. `.runs/` holds on the order of hundreds of
+    files (TASK-608's estimate: ~40 kB/run, ungitignored growth), so a linear
+    scan costs milliseconds, not a design tradeoff.
+
+    A run with no `build_env` (a host-only test script, `entry_point` like
+    `test_class_order.py` or `-c`) never matches anything, itself included —
+    there is no meaningful "previous run" for those, and matching on
+    `entry_point is None` alone would pair up unrelated host invocations.
+    """
+    key = _premise_key(current_doc)
+    if key[0] is None or key[1] is None:
+        return None
+    runs_dir = pathlib.Path(runs_dir) if runs_dir else DEFAULT_DIR
+    cur_path = pathlib.Path(current_path).resolve()
+    cur_started = (current_doc.get("run") or {}).get("started_at") or ""
+    best = None  # (started_at, path)
+    if not runs_dir.is_dir():
+        return None
+    for p in sorted(runs_dir.glob("run-*.json")):
+        try:
+            if p.resolve() == cur_path:
+                continue
+        except OSError:
+            continue
+        try:
+            doc = load(p)
+        except ArtifactError:
+            continue  # unreadable / stale-schema artifact: not a candidate
+        if _premise_key(doc) != key:
+            continue
+        started = (doc.get("run") or {}).get("started_at") or ""
+        if not started or started >= cur_started:
+            continue
+        if best is None or started > best[0]:
+            best = (started, p)
+    return best[1] if best else None
+
+
+def format_diff(old_path, new_path, delta: dict, max_ids: int = 10) -> str:
+    """Human summary of `delta` (from `diff_documents`). ALWAYS names both
+    input files — a delta whose inputs are invisible is the same class of
+    defect as the artifact nobody read (TASK-689's own brief).
+
+    Caps long id lists at `max_ids` and says so, rather than dumping a wall of
+    text — the case that matters in practice is a targeted run (a handful of
+    ids) diffed against a full run (hundreds): every id the full run has and
+    the targeted one doesn't would otherwise print as "only_in_old", looking
+    exactly like a mass regression when it is a selection difference.
+    """
+    lines = []
+    lines.append(f"[artifact-diff] old: {old_path}")
+    lines.append(f"[artifact-diff] new: {new_path}")
+
+    def _fmt_rows(label, rows):
+        lines.append(f"  {label}: {len(rows)}")
+        for row in rows[:max_ids]:
+            lines.append(f"    {row['id']}: {row['old']} -> {row['new']}")
+        if len(rows) > max_ids:
+            lines.append(f"    ... and {len(rows) - max_ids} more")
+
+    def _fmt_ids(label, ids):
+        lines.append(f"  {label}: {len(ids)}")
+        for tid in ids[:max_ids]:
+            lines.append(f"    {tid}")
+        if len(ids) > max_ids:
+            lines.append(f"    ... and {len(ids) - max_ids} more")
+
+    only_old, only_new = delta["only_in_old"], delta["only_in_new"]
+    _fmt_rows("newly failing (was PASS/SKIP)", delta["newly_failing"])
+    _fmt_rows("newly passing (was FAIL/UNMET/etc)", delta["newly_passing"])
+    _fmt_rows("verdict changed", delta["verdict_changed"])
+    # A large only_in_* set is very likely a targeted-vs-full selection
+    # mismatch, not a run that lost/gained hundreds of ids outright — flag it
+    # instead of printing (or implying) "everything is newly missing".
+    if only_old or only_new:
+        note = ""
+        if len(only_old) + len(only_new) > 20:
+            note = ("  (large id-set mismatch — this usually means the two "
+                    "runs selected DIFFERENT test sets, e.g. a targeted run "
+                    "vs a full one, not that this many ids vanished)")
+        lines.append(f"  id-set mismatch{note}")
+        _fmt_ids("  only in old run", only_old)
+        _fmt_ids("  only in new run", only_new)
+    # ALWAYS state persistence, changed or not. A delta answers "what moved?",
+    # and an id broken in both runs moved nothing — so a tool that printed only
+    # the delta would have said "no change" over a pair in which six ids were
+    # failing, which is how TASK-685 stayed unread for six days. The standing
+    # count is the half that would have caught it.
+    still = delta.get("still_failing") or []
+    if still:
+        lines.append(f"  STILL failing (unchanged, NOT a regression — but not "
+                     f"green either): {len(still)}")
+        for row in still[:max_ids]:
+            lines.append(f"    {row['id']}: {row['verdict']}")
+        if len(still) > max_ids:
+            lines.append(f"    ... and {len(still) - max_ids} more")
+    if not (delta["newly_failing"] or delta["newly_passing"] or
+            delta["verdict_changed"] or only_old or only_new):
+        if still:
+            lines.append(f"  nothing CHANGED vs the previous comparable run — "
+                         f"{len(still)} id(s) are failing in both. 'No change' "
+                         f"is not 'no problem'.")
+        else:
+            lines.append("  no change vs previous comparable run")
+    return "\n".join(lines)
+
+
 # ── CLI: the shape `run/player-gate` consumes ────────────────────────────────
 
 def main(argv) -> int:
@@ -234,6 +445,18 @@ def main(argv) -> int:
                     help="print `<id> <VERDICT>` per line — run/player-gate's "
                          "input format, replacing its sed parser")
     ap.add_argument("--exit-code", action="store_true")
+    ap.add_argument("--diff", metavar="OTHER", default=None,
+                    help="TASK-689: diff this artifact (treated as the NEWER "
+                         "run) against OTHER (the OLDER run); prints a human "
+                         "summary and both filenames. REPORT ONLY — exit code "
+                         "is unaffected by the diff's content, see main().")
+    ap.add_argument("--diff-auto", action="store_true",
+                    help="TASK-689: same as --diff, but OTHER is found by "
+                         "scanning .runs/ for the most recent run comparable "
+                         "to this one (same entry_point/build_env/board). "
+                         "Prints nothing and exits 0 if no comparable run "
+                         "exists — that is a normal state (first run of its "
+                         "kind), not an error.")
     a = ap.parse_args(argv)
     try:
         doc = load(a.path, expect_token=a.token)
@@ -245,6 +468,24 @@ def main(argv) -> int:
         return 1
     if a.exit_code:
         print(exit_code(doc))
+        return 0
+    if a.diff is not None or a.diff_auto:
+        if a.diff is not None:
+            old_path = a.diff
+        else:
+            old_path = previous_comparable(doc, a.path)
+            if old_path is None:
+                print("[artifact-diff] no previous comparable run in "
+                      f"{DEFAULT_DIR} (same entry_point/build_env/board) — "
+                      "nothing to diff against yet.")
+                return 0
+        try:
+            old_doc = load(old_path)
+        except ArtifactError as e:
+            print(f"ERROR [artifact]: {e}", file=__import__("sys").stderr)
+            return 1
+        delta = diff_documents(old_doc, doc)
+        print(format_diff(old_path, a.path, delta))
         return 0
     if a.ids_status or True:
         for tid, verdict in id_status(doc).items():

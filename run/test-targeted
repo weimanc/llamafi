@@ -87,5 +87,19 @@ _RECORD_ARGS=()
 if [ -n "${RECORD_DIR:-}" ]; then
   _RECORD_ARGS=(--record "$(realpath -m "$RECORD_DIR")")
 fi
-(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_SEL_ARGS[@]}" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}" "${_RECORD_ARGS[@]}") \
+_RUNNER_OUT="$(mktemp)"
+(cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_SEL_ARGS[@]}" "${_LOG_ARGS[@]}" "${_WIFI_ARGS[@]}" "${_RECORD_ARGS[@]}" | tee "$_RUNNER_OUT") \
   || _TEST_RC=$?
+
+# TASK-689: REPORT ONLY, never a gate — see run/test's copy of this comment
+# for the full reasoning. Diffs this run's artifact against the most recent
+# COMPARABLE prior one (same entry_point + build_env + board) and prints the
+# delta; a targeted run's smaller id set vs a full run's is expected and is
+# called out by lib.artifact.format_diff, not misread as a mass regression.
+# Never touches $_TEST_RC.
+_ARTIFACT_PATH=$(grep -oE '^\[artifact\] [^[:space:]]+' "$_RUNNER_OUT" | tail -1 | awk '{print $2}')
+if [ -n "$_ARTIFACT_PATH" ]; then
+  echo ""
+  ( cd "$PIO_DIR/tools" && "$VENV_PY" -m lib.artifact "$_ARTIFACT_PATH" --diff-auto ) || true
+fi
+rm -f "$_RUNNER_OUT"
