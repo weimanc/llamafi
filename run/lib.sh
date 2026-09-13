@@ -259,9 +259,32 @@ _self_ancestors() {
   done
 }
 
+# OWNERSHIP (2026-09-13). pgrep matches EVERY `pio device monitor` on the host,
+# including ones for unrelated projects on other ports — the user's LoRa monitor
+# on /dev/ttyACM0 was killed by every run/flash* and run/test* until this filter
+# existed. A monitor is ours only if it was started for a cyd2usb* env (every
+# monitor this repo starts passes `-e $ENV_PROD`) or its working directory is
+# inside this repo. Anything else is never signalled and never judged stale.
+_is_our_monitor() {
+  local pid="$1" cmd cwd
+  cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null) || return 1
+  case "$cmd" in *" -e cyd2usb"*|*" --environment cyd2usb"*) return 0 ;; esac
+  cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || return 1
+  case "$cwd/" in "$PROJ_ROOT"/*) return 0 ;; esac
+  return 1
+}
+
+_our_monitor_pids() {
+  local pid
+  for pid in $(pgrep -f '[p]io device monitor' 2>/dev/null); do
+    _is_our_monitor "$pid" && echo "$pid"
+  done
+  return 0
+}
+
 reap_orphan_monitors() {
   local pids pid n=0 alive mine
-  pids=$(pgrep -f '[p]io device monitor' 2>/dev/null) || pids=""
+  pids=$(_our_monitor_pids)
   [ -n "$pids" ] || return 0
   mine=" $(_self_ancestors | tr '\n' ' ') "
 
@@ -274,11 +297,11 @@ reap_orphan_monitors() {
   # Short grace for TERM, then SIGKILL only whatever is still there.
   local i
   for i in 1 2 3 4 5 6; do
-    alive=$(pgrep -f '[p]io device monitor' 2>/dev/null) || alive=""
+    alive=$(_our_monitor_pids)
     [ -n "$alive" ] || break
     sleep 0.25
   done
-  alive=$(pgrep -f '[p]io device monitor' 2>/dev/null) || alive=""
+  alive=$(_our_monitor_pids)
   for pid in $alive; do
     case "$mine" in *" $pid "*) continue ;; esac
     kill -9 "$pid" 2>/dev/null || true
@@ -303,7 +326,7 @@ reap_orphan_monitors() {
 # process fail with EACCES and are simply skipped.
 monitor_fd_stale() {
   local pids pid line target base cur cur_base
-  pids=$(pgrep -f '[p]io device monitor' 2>/dev/null) || pids=""
+  pids=$(_our_monitor_pids)
   [ -n "$pids" ] || return 1
 
   cur=$(_scan_ch340_port 2>/dev/null) || cur=""
