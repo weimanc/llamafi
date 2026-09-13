@@ -327,12 +327,66 @@ def _premise_key(doc: dict):
     return (prem.get("entry_point"), prem.get("build_env"), board_id)
 
 
+#: TASK-694. `previous_comparable`'s premise key (entry_point, build_env,
+#: board) is necessary but not sufficient: `entry_point` is the literal string
+#: `"suite/serialdbg/runner.py"` for EVERY invocation of that file, whether it
+#: ran the default ~194-id full selection or a one-id `--tests T80`. A run/test
+#: full run was observed picking a same-premise, earlier, one-id targeted run
+#: as its "previous comparable" — `format_diff`'s large-id-set-mismatch note
+#: already stopped that pairing from being read as a mass regression, but a
+#: report whose DEFAULT baseline is usually the wrong shape of run gets ignored
+#: on principle, caveat or not. This is the second, SELECTION-aware half of
+#: comparability: the two id sets must actually overlap enough that a diff
+#: between them answers "what changed", not "what did I not select this time".
+#:
+#: THE THRESHOLD: Jaccard similarity (|intersection| / |union|) of the two
+#: artifacts' id sets, required to be >= 0.5. Jaccard rather than a one-sided
+#: containment ratio because the failure mode is symmetric — a small run can
+#: be "the current one" just as easily as "the candidate" (a targeted rerun
+#: diffed against an earlier full run has the same shape problem in the other
+#: direction) — and Jaccard penalises BOTH "candidate has far more ids than
+#: current" and "current has far more ids than candidate" the same way, where
+#: a containment ratio only catches one direction. 0.5 rather than something
+#: looser: it is the natural "majority of what a diff would show is shared"
+#: line — a targeted rerun of the SAME scope (identical or near-identical id
+#: sets across runs, the common real case) clears it at ~1.0, while the
+#: observed defect (1 id vs 194) scores ~0.005 and is correctly refused. See
+#: `test_run_artifact.py` T_ART_9x for both the acceptance and refusal cases,
+#: and the worked-example comment on `MIN_ID_OVERLAP` below for why 0.3 or
+#: 0.7 were considered and rejected.
+#:
+#:   0.3 was rejected: a 60-id run vs a 20-id run that shares only those 20
+#:   ids (a strict subset) scores 20/60 = 0.33 — that pairing is FINE (the
+#:   smaller run's every id is explained by the bigger one) but 0.3 also lets
+#:   through a 194-vs-60 pairing sharing just 58 ids (0.3), which starts
+#:   looking like the observed defect's shape again, just less extreme.
+#:   0.7 was rejected: it refuses the ordinary "a couple of scope's ids were
+#:   added or retired between two full runs" case (e.g. 190/200 shared =
+#:   0.905... survives; but 170/220 = 0.77 survives, 150/250 = 0.6 does NOT,
+#:   and that gap sits inside normal registry churn between two full runs a
+#:   week apart) — too eager to call a legitimate baseline "not comparable".
+#:   0.5 sits between: it refuses anything where the two id sets are mostly
+#:   disjoint, and accepts anything where a MAJORITY of what would be diffed
+#:   is actually shared.
+MIN_ID_OVERLAP = 0.5
+
+
+def _id_overlap_ratio(a: set, b: set) -> float:
+    """Jaccard similarity of two id sets. 0.0 if either is empty (there is
+    nothing to overlap, so nothing clears any positive threshold)."""
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
 def previous_comparable(current_doc: dict, current_path,
-                        runs_dir=None) -> "pathlib.Path | None":
+                        runs_dir=None,
+                        min_overlap: float = MIN_ID_OVERLAP) -> "pathlib.Path | None":
     """Scan `runs_dir` (default L1's `.runs/`) for the most recent artifact
     comparable to `current_doc` — same `premise.entry_point`, same
-    `premise.build_env`, and same `premise.board.id` — with an earlier
-    `run.started_at`. -> its path, or None if there is no candidate.
+    `premise.build_env`, same `premise.board.id`, an earlier `run.started_at`,
+    AND (TASK-694) an id-set Jaccard overlap >= `min_overlap` with
+    `current_doc`'s own id set. -> its path, or None if there is no candidate.
 
     Deliberately a SCAN, every call, never a cache or an index file. L1 (this
     module's own docstring) forbids a `latest.json`/symlink on the writing
@@ -346,10 +400,21 @@ def previous_comparable(current_doc: dict, current_path,
     `test_class_order.py` or `-c`) never matches anything, itself included —
     there is no meaningful "previous run" for those, and matching on
     `entry_point is None` alone would pair up unrelated host invocations.
+
+    THE OVERLAP REQUIREMENT (TASK-694) is a SELECTION filter, layered on top
+    of the premise-key filter, not a replacement for it: two runs can share
+    every id and still be incomparable (different board), and two runs can
+    share a premise key and still be the wrong baseline for each other (a
+    194-id full run and a 1-id targeted run both invoke
+    `suite/serialdbg/runner.py` against the same build/board). A candidate
+    failing the overlap check is skipped exactly like a wrong-board one — the
+    scan keeps looking for an earlier candidate that clears both filters,
+    rather than falling back to the closest-but-too-different one.
     """
     key = _premise_key(current_doc)
     if key[0] is None or key[1] is None:
         return None
+    cur_ids = set(id_status(current_doc))
     runs_dir = pathlib.Path(runs_dir) if runs_dir else DEFAULT_DIR
     cur_path = pathlib.Path(current_path).resolve()
     cur_started = (current_doc.get("run") or {}).get("started_at") or ""
@@ -371,6 +436,8 @@ def previous_comparable(current_doc: dict, current_path,
         started = (doc.get("run") or {}).get("started_at") or ""
         if not started or started >= cur_started:
             continue
+        if _id_overlap_ratio(cur_ids, set(id_status(doc))) < min_overlap:
+            continue  # TASK-694: same premise, wrong shape of baseline
         if best is None or started > best[0]:
             best = (started, p)
     return best[1] if best else None
@@ -659,8 +726,9 @@ def main(argv) -> int:
                          "main() below. Supply 2+ canonical paths (from "
                          "agreeing runs) to get the unqualified "
                          "ORDER-DEPENDENT label; with exactly one, rows carry "
-                         "a flake-caveat label instead (TASK-566: ~7% "
-                         "non-stationary). ADR-066 D2a: this is a comparison "
+                         "a flake-caveat label instead (TASK-566: roughly "
+                         "one in fourteen ids is non-stationary). ADR-066 "
+                         "D2a: this is a comparison "
                          "outcome over artifacts, never an eighth verdict.")
     a = ap.parse_args(argv)
     try:

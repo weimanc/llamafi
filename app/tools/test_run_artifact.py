@@ -507,6 +507,57 @@ out69 = _buf69.getvalue()
 check("T_ART_69b", str(_p_a) in out69, True)
 check("T_ART_69c", str(_p_e_current) in out69, True)
 
+# ── F2. TASK-694 — previous_comparable() also requires id-set overlap ───────
+# The premise key alone (entry_point/build_env/board) is not sufficient:
+# `entry_point` is the literal string "suite/serialdbg/runner.py" for every
+# invocation of that file, targeted or full, so a 194-id run/test run and a
+# 1-id run/test-targeted run share a premise key. See MIN_ID_OVERLAP's comment
+# in lib/artifact.py for the threshold's derivation (0.5, Jaccard).
+print("T_ART_90  the Jaccard helper itself")
+check("T_ART_90a", round(A._id_overlap_ratio({"A", "B"}, {"A", "B"}), 3), 1.0)
+check("T_ART_90b", round(A._id_overlap_ratio({"A", "B", "C"}, {"C"}), 3),
+     round(1 / 3, 3))
+check("T_ART_90c", A._id_overlap_ratio(set(), {"A"}), 0.0)
+check("T_ART_90d", A._id_overlap_ratio({"A"}, set()), 0.0)
+
+print("T_ART_91  previous_comparable refuses a same-premise candidate whose "
+     "id set barely overlaps, and prefers an earlier, well-overlapping one — "
+     "the TASK-694 defect shape (a big run matched to a tiny one), scaled down")
+_TMP91 = TMP / "diff91"
+_TMP91.mkdir()
+
+
+def _mk91(name, started_at, ids):
+    doc = {
+        "schema": {"name": A.SCHEMA_NAME, "version": A.SCHEMA_VERSION},
+        "run": {"run_token": name, "started_at": started_at, "counts": {}},
+        "premise": {"entry_point": "runner.py", "build_env": "envX",
+                   "board": {"id": "board1"}},
+        "per_class": {},
+        "results": [{"id": i, "verdict": "PASS"} for i in ids],
+    }
+    return A.write(_TMP91 / f"run-{name}.json", doc)
+
+
+_ids91 = tuple(f"T{i}" for i in range(1, 11))          # 10 ids: the "full run"
+_p91_cur = _mk91("cur", "2026-02-02T00:00:00Z", _ids91)
+_doc91_cur = json.loads(_p91_cur.read_text())
+# same premise, EARLIER, but shares only 1 of 10+1 ids -> Jaccard 1/10 = 0.1
+_p91_bad = _mk91("bad", "2026-02-01T00:00:00Z", ("T1",))
+# same premise, EARLIER STILL, shares 9 of 10 ids -> Jaccard 0.9
+_p91_good = _mk91("good", "2026-01-30T00:00:00Z", _ids91[:9])
+got91 = A.previous_comparable(_doc91_cur, _p91_cur, runs_dir=_TMP91)
+check("T_ART_91a", got91, _p91_good)   # not `bad`, despite `bad` being more recent
+
+print("T_ART_92  min_overlap is a real parameter: loosening it admits the "
+     "otherwise-refused candidate, and 'most recent among ELIGIBLE "
+     "candidates' still applies")
+got92 = A.previous_comparable(_doc91_cur, _p91_cur, runs_dir=_TMP91,
+                              min_overlap=0.05)
+check("T_ART_92a", got92, _p91_bad)   # now eligible, and more recent than `good`
+
+shutil.rmtree(_TMP91, ignore_errors=True)
+
 # ── G. TASK-636 — the order-dependence comparison (R20/R21, ADR-066 D2a) ────
 print("T_ART_80  order_dependence: verdict enum stays at seven (D2a)")
 check("T_ART_80a", len(R.Verdict), 7)
