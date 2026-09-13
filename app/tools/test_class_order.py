@@ -384,6 +384,117 @@ def arm_ordering():
           "inverted_pairs enumerates exactly the flipped pairs")
 
 
+def _syn_readiness_leak(dut):
+    """A synthetic body shaped exactly like T_WX_04: reads a field, SKIPs on
+    it, and never writes it — the readiness shape must fire on this."""
+    r_pre = dut.cmd("get weatherReady", timeout=3.0)
+    if r_pre.get("ready") is True:
+        skip("SYN", "weatherReady already true")
+        return
+    pass_("SYN", "ok")
+
+
+def _syn_readiness_dismissed_self_written(dut):
+    """Same guard, but the body ALSO writes the field it reads — B-4(a)'s own
+    exclusion ('a field the test does not itself write'). Must NOT fire."""
+    dut.cmd("set weatherReady 0", timeout=3.0)
+    r_pre = dut.cmd("get weatherReady", timeout=3.0)
+    if r_pre.get("ready") is True:
+        skip("SYN", "weatherReady already true")
+        return
+    pass_("SYN", "ok")
+
+
+def _syn_readiness_no_skip(dut):
+    """Same guard, but FAILs instead of SKIPping — not this shape (B-4(a) is
+    specifically about a SKIP swallowing the result)."""
+    r_pre = dut.cmd("get weatherReady", timeout=3.0)
+    if r_pre.get("ready") is True:
+        fail("SYN", "weatherReady already true")
+        return
+    pass_("SYN", "ok")
+
+
+def _syn_unrestored_leak(dut):
+    """A bare `set`, no manager, no second write, no reboot — must fire."""
+    dut.cmd("set stockMode 0", timeout=3.0)
+    pass_("SYN", "ok")
+
+
+def _syn_unrestored_managed(dut):
+    """The SAME mutation, through `dut.saved(...)` — must NOT fire (this is
+    exactly what `_restore_scan.unrestored_mutations` already credits)."""
+    with dut.saved("stockMode", set_to=0):
+        pass_("SYN", "ok")
+
+
+def _syn_unrestored_paired(dut):
+    """Written twice in the same body — the local-compensation heuristic
+    this scanner adds on top of the raw `unrestored_mutations` sites. Must
+    NOT fire."""
+    dut.cmd("set bgPoll 0", timeout=3.0)
+    pass_("SYN", "ok")
+    dut.cmd("set bgPoll 1", timeout=3.0)
+
+
+def _syn_unrestored_rebooted(dut):
+    """A reboot anywhere in the body clears the mutation earlier in it —
+    must NOT fire."""
+    dut.cmd("set stockMode 0", timeout=3.0)
+    dut.cmd("reboot", timeout=3.0)
+    pass_("SYN", "ok")
+
+
+def _syn_unrestored_injector(dut):
+    """A TASK-635 armed-injector field — caught at runtime by `get armed`
+    regardless of suite order, so this scanner must NOT re-report it."""
+    dut.cmd("set wrDeadUrls 3", timeout=3.0)
+    pass_("SYN", "ok")
+
+
+def arm_edge_shapes_task592():
+    print("\n── TASK-592 (WP-B B-4(a)/(b)) — readiness + unrestored shapes ──")
+    leak = _order.edge_shape(_syn_readiness_leak)
+    check(any("weatherReady" in h for h in leak["readiness"]),
+          f"a SKIP guarded on an unwritten device field fires: {leak['readiness']}")
+    dismissed = _order.edge_shape(_syn_readiness_dismissed_self_written)
+    check(dismissed["readiness"] == [],
+          f"the SAME guard does NOT fire once the body writes the field itself: "
+          f"{dismissed['readiness']}")
+    no_skip = _order.edge_shape(_syn_readiness_no_skip)
+    check(no_skip["readiness"] == [],
+          f"the same guard on a FAIL (not a SKIP) does not fire: {no_skip['readiness']}")
+
+    leak2 = _order.edge_shape(_syn_unrestored_leak)
+    check(any("stockMode" in h for h in leak2["unrestored"]),
+          f"a bare unmanaged `set` fires: {leak2['unrestored']}")
+    managed = _order.edge_shape(_syn_unrestored_managed)
+    check(managed["unrestored"] == [],
+          f"the same mutation through `dut.saved(...)` does not fire: "
+          f"{managed['unrestored']}")
+    paired = _order.edge_shape(_syn_unrestored_paired)
+    check(paired["unrestored"] == [],
+          f"a field written twice in one body (local compensation) does not "
+          f"fire: {paired['unrestored']}")
+    rebooted = _order.edge_shape(_syn_unrestored_rebooted)
+    check(rebooted["unrestored"] == [],
+          f"a mutation ahead of a reboot in the same body does not fire "
+          f"(nothing survives the reboot to leak): {rebooted['unrestored']}")
+    injected = _order.edge_shape(_syn_unrestored_injector)
+    check(injected["unrestored"] == [],
+          f"a TASK-635 armed-injector field does not fire — caught at runtime "
+          f"by `get armed` instead: {injected['unrestored']}")
+
+    # And the readiness shape participates in edge_candidates()/EDGE_SHAPES
+    # the same way delta/absolute already do (a clean function with NEITHER
+    # shape must not appear at all).
+    cand = _order.edge_candidates({"SYN_LEAK": _syn_readiness_leak,
+                                    "SYN_CLEAN": _syn_readiness_no_skip})
+    check(set(cand) == {"SYN_LEAK"},
+          f"edge_candidates() picks up the readiness hit and excludes the "
+          f"function with neither shape: {sorted(cand)}")
+
+
 def arm_health_downgrades():
     print("\n── DUT_HEALTH=warn|skip — the suite runs, the premise is stamped ──")
     rc, ran, res, out, calls = _run(health_failed=("H1",), health_mode="warn")
@@ -626,6 +737,7 @@ def main():
     arm_health_subset_still_blocks()
     arm_health_id_selection()
     arm_ordering()
+    arm_edge_shapes_task592()
     arm_health_downgrades()
     arm_unmet_core()
     arm_unmet_health()

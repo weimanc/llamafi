@@ -63,143 +63,23 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.dirname(HERE)
 ROOT = os.path.dirname(os.path.dirname(TOOLS))
 
+sys.path.insert(0, TOOLS)
+
+# TASK-592: the pure AST analysis moved to suite/serialdbg/_restore_scan.py so
+# `_order.py`'s edge enumeration could reuse it without `gate/` (a LEAF —
+# nothing may import from it) being imported by `suite/`. Every name below is
+# unchanged in behaviour; see that module's docstring for why it moved.
+from suite.serialdbg._restore_scan import (      # noqa: E402
+    MANAGER_METHODS, DELEGATING_MANAGERS, WIRE_METHODS, MECHANISM_FUNCS,
+    MECHANISM_MODULE, SELF_REARMING_VARS, unrestored_mutations,
+)
+
 LEDGER_REL = "docs/verification/unrestored_mutations_ratchet.md"
-
-#: The managers. Nothing else is credited, by design — see the module docstring.
-MANAGER_METHODS = frozenset({"saved", "injected"})
-
-#: Suite-level context managers that DELEGATE to a manager above, mapped to the
-#: variables they cover. Each entry is verified by M6 against the helper's own
-#: source, so it cannot outlive the delegation it claims.
-DELEGATING_MANAGERS = {
-    "_bgpoll_suspended": frozenset({"bgPoll"}),
-}
-
-#: Methods that put a command on the wire.
-WIRE_METHODS = frozenset({"cmd", "send", "read_reply"})
-
-#: The manager's OWN implementation, in `lib/dut.py`. These functions write device
-#: state because writing it back is what they are; counting them would make the
-#: mechanism its own violation. Named exactly, not by prefix, and applied only to
-#: `lib/dut.py` — a helper elsewhere called `_restore` gets no credit from this.
-MECHANISM_FUNCS = frozenset({"saved", "injected", "_restore", "set_val"})
-MECHANISM_MODULE = "lib/dut.py"
-
-#: Variables the FIRMWARE re-arms on its own, so there is no state for a test to
-#: leak and nothing a restore could put back. One entry, with its evidence:
-#:   `cooldown` — `shell::state().cooldownMs` is an absolute millis() deadline the
-#:   shell rewrites on every consumed tap (`app/src/appShell.cpp:272,296,305`).
-#:   `set cooldown 0` clears a deadline that the next tap unconditionally re-arms.
-#: This is a claim about firmware, so it is checkable and dated, not a taste
-#: judgement. Adding an entry requires the same: a line of firmware that rewrites
-#: the variable unconditionally, cited.
-SELF_REARMING_VARS = frozenset({"cooldown"})
 
 SCAN_ROOTS = ("suite", "lib")
 
 _TASK_RE = re.compile(r"^TASK-\d+$")
 _SEP_RE = re.compile(r":?-{2,}:?")
-#: `set <var>` — the var is the second whitespace token of the command string.
-_SET_RE = re.compile(r"^\s*set\s+([A-Za-z_][A-Za-z0-9_]*)\b")
-
-
-def _leading_text(node: ast.AST):
-    """The literal prefix of a string-ish node, or None.
-
-    An f-string is its own case and it matters: `f"set {v} 1"` names no variable
-    statically, while `f"set prRange {n}"` names one perfectly well. Reading only
-    the LEADING literal gets the second right and leaves the first unnamed
-    (`None`), which is the honest answer — a dynamic var cannot be matched
-    against a manager's declared cover set.
-    """
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node.value
-    if isinstance(node, ast.JoinedStr):
-        if node.values and isinstance(node.values[0], ast.Constant) \
-                and isinstance(node.values[0].value, str):
-            return node.values[0].value
-    return None
-
-
-def _mutation_var(node: ast.AST):
-    """-> (True, var|None) if this Call writes device state, else (False, None)."""
-    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
-        return (False, None)
-    attr = node.func.attr
-    if attr == "set_val":
-        if node.args:
-            v = _leading_text(node.args[0])
-            return (True, v if v and v.isidentifier() else None)
-        return (True, None)
-    if attr in WIRE_METHODS and node.args:
-        text = _leading_text(node.args[0])
-        if text is None:
-            return (False, None)
-        m = _SET_RE.match(text)
-        if m:
-            return (True, m.group(1))
-        if text.strip().startswith("set ") or text.strip() == "set":
-            return (True, None)          # `set` with a dynamic var name
-    return (False, None)
-
-
-def _covered_vars(with_node: ast.With) -> tuple:
-    """-> (named_vars, saw_any_manager) for one `with` statement."""
-    named: set = set()
-    any_mgr = False
-    for item in with_node.items:
-        call = item.context_expr
-        if not isinstance(call, ast.Call):
-            continue
-        fn = call.func
-        if isinstance(fn, ast.Attribute) and fn.attr in MANAGER_METHODS:
-            any_mgr = True
-            for a in call.args:
-                t = _leading_text(a)
-                if t:
-                    named.add(t)
-        elif isinstance(fn, ast.Name) and fn.id in DELEGATING_MANAGERS:
-            any_mgr = True
-            named |= set(DELEGATING_MANAGERS[fn.id])
-    return (named, any_mgr)
-
-
-def unrestored_mutations(src: str, mechanism_funcs=frozenset()) -> list:
-    """-> [(lineno, var_or_None)] for every device write outside a manager.
-
-    Pure and string-in, so the negative suite drives it with fixtures.
-    """
-    tree = ast.parse(src)
-    hits: dict = {}
-
-    def collect(node, stack):
-        for child in ast.iter_child_nodes(node):
-            if isinstance(child, ast.With):
-                covered, any_mgr = _covered_vars(child)
-                # Only the BODY is inside the manager: the `with` items
-                # themselves are evaluated before it is armed.
-                for item in child.items:
-                    collect(item, stack)
-                for stmt in child.body:
-                    collect(stmt, stack + [(covered, any_mgr)])
-                continue
-            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) \
-                    and child.name in mechanism_funcs:
-                continue
-            is_mut, var = _mutation_var(child)
-            if is_mut and var in SELF_REARMING_VARS:
-                is_mut = False
-            if is_mut:
-                if var is None:
-                    ok = any(any_mgr for _c, any_mgr in stack)
-                else:
-                    ok = any(var in c for c, _a in stack)
-                if not ok:
-                    hits[(child.lineno, child.col_offset)] = var
-            collect(child, stack)
-
-    collect(tree, [])
-    return [(ln, var) for (ln, _c), var in sorted(hits.items())]
 
 
 def scan(root: str = None) -> tuple:
