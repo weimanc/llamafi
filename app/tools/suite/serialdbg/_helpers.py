@@ -681,6 +681,21 @@ def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
     return r2.get("name") == "Spotify"
 
 
+def _spotify_off(dut: Dut) -> bool:
+    """True only when the firmware SAYS Spotify is compiled out (`get variant`
+    -> spotify="off", a -DDISABLE_SPOTIFY build such as cyd2usb_player).
+
+    An unreadable reply is False, never True: an id that asserts Spotify
+    behaviour must not skip on a board that merely failed to answer. TASK-691
+    measured the cost of not asking: T_PLR_06/07/17 FAILed 3/3 on
+    cyd2usb_player, asserting a Spotify TLS reset and spotifyTask dispatch on
+    a build that has neither."""
+    try:
+        return dut.cmd("get variant", timeout=5.0).get("spotify") == "off"
+    except Exception:
+        return False
+
+
 def _switch_to(dut: Dut, app_name: str, timeout: float = 3.0) -> bool:
     """Reset scroll to 0, tap the app's taskbar slot, verify appId == app_name.
 

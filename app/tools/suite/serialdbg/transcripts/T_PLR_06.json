@@ -1,10 +1,10 @@
 {
  "schema": 1,
  "id": "T_PLR_06",
- "elf": "168bf21d",
+ "elf": "0f7c9284",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:31:43Z",
- "generation": "22.3",
+ "recorded_at": "2026-09-13T20:54:15Z",
+ "generation": "104.1",
  "preamble": [],
  "exchanges": [
   {
@@ -46,43 +46,31 @@
     "Refresh of the Access token is due, doing that now.",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":147,\"y\":97,\"hit\":\"EJECT\",\"action\":\"EJECT\",\"skipped\":false}",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[W][perf] iter=64ms (worst path so far: shell.switch:80ms)",
-    "[892664][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[892677][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[892692][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[W][perf] iter=62ms (worst path so far: app.tick:37ms)",
+    "[126085][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[126099][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[126113][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
     "[lib] parseError: no content-length",
-    "[894480][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[127909][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
-    "[896281][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[129663][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
     "[lib] GET write fail, retrying",
     "[lib] GET failed after retry",
     "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
     "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
     "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[D][spotify.queue] GET /v1/me/player/queue",
-    "Refresh of the Access token is due, doing that now.",
-    "[896799][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[896813][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[896828][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "[898607][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[900408][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)"
+    "[I][spotify.tls] hard reset \u2014 stopping client"
    ]
   },
   {
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[D][spotify.queue] status=-1 elapsed=4116ms",
-    "[I][spotify.tls] hard reset \u2014 stopping client",
     "[D][spotify.task] dequeued action=FORCE_POLL param=0",
     "[D][spotify.poll] GET /v1/me/player/currently-playing",
     "Refresh of the Access token is due, doing that now.",
+    "[130192][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -90,6 +78,7 @@
    "cmd": "set bgPoll 0",
    "nth": 0,
    "lines": [
+    "[130211][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
    ]
   },
@@ -97,6 +86,7 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
+    "[130231][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
    ]
   },
@@ -104,6 +94,8 @@
    "cmd": "set cooldown 0",
    "nth": 1,
    "lines": [
+    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
+    "[lib] parseError: no content-length",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
@@ -119,9 +111,11 @@
    "nth": 0,
    "lines": [
     "SettingsStorage: saved (doc 1986/6144 B)",
-    "[shell] leaving 0  heap=104500 maxAlloc=40948 minFree=42976",
-    "[shell] entered 11  heap=104500 maxAlloc=40948 minFree=42976",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=1ms taskbar=19ms total=48ms",
+    "[shell] leaving 0  heap=106692 maxAlloc=49140 minFree=44744",
+    "[I][webradio] HEAP init free=106288 min=44744",
+    "[I][webradio] HEAP pre-fetch free=106288 min=44744",
+    "[shell] entered 11  heap=106288 maxAlloc=49140 minFree=44744",
+    "[shell] switch 0->11 suspend=1ms wipe=26ms init=1ms taskbar=27ms total=55ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -129,14 +123,9 @@
    "cmd": "get appId",
    "nth": 3,
    "lines": [
-    "[900958][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[900972][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate [D][chromverification failed, e.g. CRL, CA or signature check failed",
-    "e] drawVolume pct=49 keyframe=2",
-    "[900996][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[W][perf] iter=218ms (worst path so far: app.tick:120ms)",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=170ms (worst path so far: app.tick:58ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -151,7 +140,7 @@
    "cmd": "get dataq",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":901306,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":7,\"inFlightMs\":900843,\"wrPhase\":0,\"wrPhaseMs\":900843,\"wrEnqueues\":14,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":900632,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":130829,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":7,\"inFlightMs\":130352,\"wrPhase\":0,\"wrPhaseMs\":130352,\"wrEnqueues\":1,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":129896,\"last\":true}"
    ]
   },
   {
@@ -188,7 +177,7 @@
    "cmd": "get dataq",
    "nth": 1,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":901693,\"queueWaiting\":1,\"pendingMask\":0,\"inFlight\":7,\"inFlightMs\":900843,\"wrPhase\":0,\"wrPhaseMs\":900843,\"wrEnqueues\":15,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":900632,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":131223,\"queueWaiting\":1,\"pendingMask\":0,\"inFlight\":7,\"inFlightMs\":130352,\"wrPhase\":0,\"wrPhaseMs\":130352,\"wrEnqueues\":2,\"wrDrops\":0,\"yieldCount\":1,\"tlsStopped\":false,\"spAct\":3,\"spActMs\":129896,\"last\":true}"
    ]
   },
   {
@@ -210,7 +199,7 @@
    "cmd": "get tbScrollOffset",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=108ms (worst path so far: app.tick:120ms)",
+    "[W][perf] iter=93ms (worst path so far: app.tick:58ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -239,9 +228,9 @@
    "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "[shell] leaving 11  heap=58688 maxAlloc=40948 minFree=42976",
-    "[shell] entered 1  heap=58736 maxAlloc=40948 minFree=42976",
-    "[shell] switch 11->1 suspend=2ms wipe=54ms init=78ms taskbar=24ms total=158ms",
+    "[shell] leaving 11  heap=60400 maxAlloc=40948 minFree=44744",
+    "[shell] entered 1  heap=60400 maxAlloc=40948 minFree=44744",
+    "[shell] switch 11->1 suspend=2ms wipe=54ms init=84ms taskbar=24ms total=164ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -249,8 +238,7 @@
    "cmd": "get appId",
    "nth": 5,
    "lines": [
-    "[W][perf] iter=176ms (worst path so far: shell.switch:158ms)",
-    "[I][hb] display=winamp wifi=rssi(-60) disc=0 heap=57k maxAlloc=39k stack_hwm=11660b uptime=00:15:02 poll=0/46 last=-1 block_max=4116ms loop_max=218ms slow=shell.switch:158ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=1362 build=Sep 11 2026-14",
+    "[W][perf] iter=179ms (worst path so far: shell.switch:164ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":1,\"name\":\"Clock\",\"last\":true}"
    ]
   },
@@ -272,10 +260,11 @@
    "cmd": "tap 297 20",
    "nth": 1,
    "lines": [
-    "[shell] leaving 1  heap=53968 maxAlloc=40948 minFree=42976",
-    "[I][m3u] loaded /playlists/short5.m3u: 5 entries in 18ms (total 15s)",
-    "[shell] entered 12  heap=47280 maxAlloc=40948 minFree=42976",
-    "[shell] switch 1->12 suspend=1ms wipe=32ms init=21ms taskbar=12ms total=66ms",
+    "[shell] leaving 1  heap=52148 maxAlloc=40948 minFree=44352",
+    "[shell] entered 12  heap=64884 maxAlloc=40948 minFree=44352",
+    "[132073][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
+    "[lib] GET write fail, retrying",
+    "[shell] switch 1->12 suspend=2ms wipe=29ms init=0ms taskbar=20ms total=51ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -284,7 +273,7 @@
    "nth": 6,
    "lines": [
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=157ms (worst path so far: app.tick:77ms)",
+    "[W][perf] iter=122ms (worst path so far: shell.switch:164ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -307,8 +296,8 @@
    "nth": 2,
    "lines": [
     "[D][touch] dead zone tap \u2192 force poll",
-    "[I][localplayer] eject tap -> file browser: /playlists/",
-    "[I][filebrowser] browsing /playlists/",
+    "[I][localplayer] eject tap -> file browser: /",
+    "[I][filebrowser] browsing /",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":147,\"y\":97,\"hit\":\"EJECT\",\"row\":-1,\"action\":\"EJECT\",\"skipped\":false}"
    ]
   },
@@ -316,9 +305,10 @@
    "cmd": "get appId",
    "nth": 7,
    "lines": [
-    "[W][perf] iter=111ms (worst path so far: app.tick:77ms)",
-    "[I][filebrowser] /playlists/: 0 dirs, 7 files",
-    "[W][perf] iter=63ms (worst path so far: app.tick:77ms)",
+    "[W][perf] iter=76ms (worst path so far: shell.switch:164ms)",
+    "[W][perf] iter=54ms (worst path so far: shell.switch:164ms)",
+    "[I][filebrowser] /: 10 dirs, 0 files",
+    "[W][perf] iter=55ms (worst path so far: shell.switch:164ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -326,14 +316,13 @@
    "cmd": "get fbState",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/playlists/\",\"dirCount\":0,\"fileCount\":7,\"lastErr\":\"none\",\"free8\":9616,\"largest8\":1460,\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"fbState\",\"active\":true,\"pending\":false,\"dir\":\"/\",\"dirCount\":10,\"fileCount\":0,\"lastErr\":\"none\",\"free8\":15372,\"largest8\":12276,\"last\":true}"
    ]
   },
   {
    "cmd": "set fbCancel",
    "nth": 0,
    "lines": [
-    "[I][filebrowser] browsing /",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"fbCancel\"}"
    ]
   },
@@ -341,8 +330,7 @@
    "cmd": "set playerMode spotify",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=75ms (worst path so far: app.tick:77ms)",
-    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=1460 freeInt=51240). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "SettingsStorage: saved (doc 1986/6144 B)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
   },
@@ -350,7 +338,7 @@
    "cmd": "get appId",
    "nth": 8,
    "lines": [
-    "[W][perf] iter=68ms (worst path so far: app.tick:77ms)",
+    "[W][perf] iter=99ms (worst path so far: shell.switch:164ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
    ]
   },
@@ -358,8 +346,6 @@
    "cmd": "get tbScrollOffset",
    "nth": 2,
    "lines": [
-    "[I][filebrowser] /: 10 dirs, 0 files",
-    "[W][perf] iter=51ms (worst path so far: app.tick:77ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
    ]
   },
@@ -388,9 +374,9 @@
    "cmd": "tap 297 60",
    "nth": 1,
    "lines": [
-    "[shell] leaving 12  heap=51988 maxAlloc=40948 minFree=42976",
-    "[shell] entered 1  heap=50668 maxAlloc=40948 minFree=42976",
-    "[shell] switch 12->1 suspend=2ms wipe=29ms init=42ms taskbar=15ms total=88ms",
+    "[shell] leaving 12  heap=57372 maxAlloc=40948 minFree=44352",
+    "[shell] entered 1  heap=57948 maxAlloc=40948 minFree=44352",
+    "[shell] switch 12->1 suspend=2ms wipe=54ms init=80ms taskbar=24ms total=160ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -398,9 +384,7 @@
    "cmd": "set playerMode spotify",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=102ms (worst path so far: shell.switch:88ms)",
-    "[903838][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
+    "[W][perf] iter=179ms (worst path so far: shell.switch:164ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
    ]
   },
@@ -436,11 +420,11 @@
    "cmd": "tap 297 20",
    "nth": 2,
    "lines": [
-    "[shell] leaving 1  heap=101400 maxAlloc=40948 minFree=42976",
+    "[shell] leaving 1  heap=57360 maxAlloc=40948 minFree=44352",
     "[D][chrome] drawVolume pct=49 keyframe=2",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=101400 maxAlloc=40948 minFree=42976",
-    "[shell] switch 1->0 suspend=1ms wipe=27ms init=37ms taskbar=11ms total=76ms",
+    "[shell] entered 0  heap=54244 maxAlloc=40948 minFree=44352",
+    "[shell] switch 1->0 suspend=2ms wipe=54ms init=70ms taskbar=16ms total=142ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -448,8 +432,15 @@
    "cmd": "get appId",
    "nth": 9,
    "lines": [
-    "[W][perf] iter=113ms (worst path so far: shell.switch:88ms)",
+    "[W][perf] iter=181ms (worst path so far: shell.switch:164ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get variant",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"on\",\"last\":true}"
    ]
   }
  ]

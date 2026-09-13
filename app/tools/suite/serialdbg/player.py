@@ -19,7 +19,7 @@ import coords as _c
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
-    _restore_spotify, _switch_to, _wait_shell_not_busy, _tap_and_wait_log,
+    _restore_spotify, _spotify_off, _switch_to, _wait_shell_not_busy, _tap_and_wait_log,
     _tb_set_offset, _get_scroll, _do_drag,
     _poll_shell_busy, _bgpoll_suspended,
 )
@@ -170,7 +170,9 @@ def t_plr_06(dut: Dut):
         appid = dut.cmd("get appId", timeout=3.0).get("name")
         if appid != "Spotify":
             errors.append(f"Spotify: appId={appid!r} after eject (expected Spotify — eject no longer switches apps)")
-        if not tls_seen:
+        if not tls_seen and not _spotify_off(dut):
+            # TASK-691: on a -DDISABLE_SPOTIFY build eject still dispatches
+            # (asserted above), but there is no Spotify TLS session to reset.
             errors.append("Spotify: no TLS-reset log line within 8 s")
 
     # ── WebRadio: station-list refresh ──────────────────────────────────────
@@ -251,7 +253,9 @@ def t_plr_06(dut: Dut):
     if errors:
         fail("T_PLR_06", "; ".join(errors))
         return
-    pass_("T_PLR_06", "eject per-mode confirmed: Spotify TLS-reset, WebRadio refresh, Player browser opens")
+    spotify_leg = ("Spotify eject dispatched (TLS reset NOT checked: variant spotify=off)"
+                   if _spotify_off(dut) else "Spotify TLS-reset")
+    pass_("T_PLR_06", f"eject per-mode confirmed: {spotify_leg}, WebRadio refresh, Player browser opens")
 
 
 def t_plr_07(dut: Dut):
@@ -260,6 +264,10 @@ def t_plr_07(dut: Dut):
     force-poll action into a shared tryReconnect() (winampDisplay.h) used by
     both the logo tap and eject."""
     print("T_PLR_07  Logo tap still resets TLS (unchanged from TASK-053f)")
+    if _spotify_off(dut):
+        skip("T_PLR_07", "variant spotify=off — no Spotify TLS session exists to reset "
+                         "on this build (TASK-691: FAILed 3/3 on cyd2usb_player)")
+        return
     if not _restore_spotify(dut):
         skip("T_PLR_07", "precondition: could not restore Spotify")
         return
@@ -1003,6 +1011,10 @@ def t_plr_17(dut: Dut):
     repeat are still drawn and still hit-tested, dispatching ACT_SHUFFLE/
     ACT_REPEAT exactly as before TASK-417. Zero delta is the pass condition."""
     print("T_PLR_17  Spotify: all four capabilities unchanged (shuffle/repeat still real)")
+    if _spotify_off(dut):
+        skip("T_PLR_17", "variant spotify=off — there is no spotifyTask to dispatch "
+                         "ACT_SHUFFLE/ACT_REPEAT to on this build (TASK-691: FAILed 3/3 on cyd2usb_player)")
+        return
     if not _restore_spotify(dut):
         skip("T_PLR_17", "precondition: could not restore Spotify app")
         return
