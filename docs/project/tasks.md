@@ -121,7 +121,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-697** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-699** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 
@@ -207,6 +207,8 @@ the board to re-derive what is already written down.
 | TASK-694 | P2 | **DONE 2026-09-13** (`cd718ee`) | `previous_comparable()` now also requires id-set Jaccard overlap >= 0.5 (`MIN_ID_OVERLAP`, `lib/artifact.py`) alongside the premise key; refuses the 194-vs-1 shape, prefers an earlier well-overlapping run. `min_overlap` param, T_ART_90-92. |
 | TASK-695 | P2 | **OPEN — filed 2026-09-13 from TASK-592's scan** | Unrestored in-body writes no row owned: `T270` (teletext subpage fields, no app restore), `T149/150/153/154` (`songDuration` fixture), `T_PLR_21/22/24` (`plCursor`/`plPlay`). B-5 (`_switch_to_stock` `stockMode`), B-6 (`T_PMT_04` `bgPoll 0`) and B-7 (`T-ERR-04/05`) are also still unfixed. Route each via `dut.saved`. |
 | TASK-696 | P3 | **OPEN — filed 2026-09-13** | Python 3.14's argparse rejects a bare `%` in a help string at parser construction; the venv (3.12) accepts it, but `smoke_test.sh` runs system `python3`. TASK-636 hit it once. Sweep `app/tools` for `%` in `help=` and add a gate case. |
+| TASK-697 | P1 | **OPEN — filed 2026-09-13** | `T_PRM_01`(reboot)→`T_PRI_01`→Stock wedges fetches for the boot generation: 22 Stock ids FAIL/SKIP, fetch in flight since ~2 s, `tlsStopped=True`. Fails with R14's check on and off; each pair alone PASSES. Cause not established. [record](../architecture/designs/M-HARNESS2-armed-state-task635.md) §5 |
+| TASK-698 | P3 | **OPEN — filed 2026-09-13** | `_TeeSerial` labels every `[REBOOT]` id's own deliberate reset `<< UNEXPECTED: the board reset mid-session` (`T_PR_04`, `T_PRM_01`, `T_PLR_26` in one run). A true alarm reads the same as a scheduled one. |
 | TASK-687 | P3 | **OPEN — filed 2026-09-12** | `T087`/`T092` reproduced in BOTH runs — deterministic, not flaky, so their `flaky.yaml` declarations are the wrong description. Also `T_PLR_17`'s mis-correlated reply (`__TEST_T_PLR_17__` sentinel reaching a live run). TASK-595 follow-on. **Owner:** @VE. |
 | TASK-688 | P2 | **OPEN — filed 2026-09-12** | Five ids R34's runtime gate can now see — `T170`, `T176`, `T188`, `T204`, `T_CLK_SIG_01` — go red only via contract/accident, never by asserting on their subject. **Exposed, not caused**, by the 194-transcript refresh. [ledger](../verification/can_go_red_ledger.md). **Owner:** @VE. |
 | TASK-689 | **P1** | **DONE 2026-09-13** (`4fd1a78`) | `lib/artifact.py` gains `diff_documents` + `previous_comparable`; `run/test`/`test-targeted` print the delta against the last comparable run. **Report, never a gate** — it cannot touch an exit code. Includes `still_failing`, because a delta hides persistence and persistence is what lost TASK-685. |

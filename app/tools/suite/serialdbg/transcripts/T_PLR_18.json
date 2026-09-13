@@ -1,12 +1,19 @@
 {
  "schema": 1,
  "id": "T_PLR_18",
- "elf": "168bf21d",
+ "elf": "56846cce",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:33:44Z",
- "generation": "22.3",
+ "recorded_at": "2026-09-13T13:50:32Z",
+ "generation": "50.1",
  "preamble": [],
  "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":12,\"name\":\"LocalPlayer\",\"last\":true}"
+   ]
+  },
   {
    "cmd": "get tbScrollOffset",
    "nth": 0,
@@ -36,25 +43,117 @@
    ]
   },
   {
-   "cmd": "tap 297 460",
+   "cmd": "tap 297 60",
    "nth": 0,
    "lines": [
-    "SettingsStorage: saved (doc 1985/6144 B)",
-    "[shell] leaving 0  heap=101396 maxAlloc=40948 minFree=42976",
-    "[shell] entered 11  heap=101396 maxAlloc=40948 minFree=42976",
-    "[shell] switch 0->11 suspend=1ms wipe=27ms init=0ms taskbar=16ms total=44ms",
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":460,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+    "[shell] leaving 12  heap=107320 maxAlloc=63476 minFree=104888",
+    "[shell] entered 1  heap=107320 maxAlloc=63476 minFree=104888",
+    "[shell] switch 12->1 suspend=1ms wipe=27ms init=40ms taskbar=12ms total=80ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":60,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "set playerMode spotify",
+   "nth": 0,
+   "lines": [
+    "[W][perf] iter=94ms (worst path so far: shell.switch:80ms)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"playerMode\",\"val\":0,\"name\":\"Spotify\"}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=90ms (worst path so far: shell.switch:80ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "get tbScrollOffset",
+   "nth": 3,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"key\":\"tbScrollOffset\",\"val\":0}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 1  heap=107320 maxAlloc=63476 minFree=96716",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=107320 maxAlloc=63476 minFree=96716",
+    "[shell] switch 1->0 suspend=1ms wipe=27ms init=35ms taskbar=12ms total=75ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
   {
    "cmd": "get appId",
-   "nth": 0,
+   "nth": 1,
    "lines": [
-    "[I][webradio] HEAP post-fetch free=101396 min=42976",
-    "[W][webradio] station fetch failed ok=0 http=-101 jsonErr=",
+    "[W][perf] iter=112ms (worst path so far: shell.switch:80ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set cooldown 0",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get shellCooldown",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "tap 297 20",
+   "nth": 1,
+   "lines": [
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[shell] leaving 0  heap=107320 maxAlloc=63476 minFree=96716",
+    "[I][webradio] HEAP init free=106916 min=96716",
+    "[I][webradio] HEAP pre-fetch free=106916 min=96716",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[shell] entered 11  heap=106916 maxAlloc=63476 minFree=96716",
+    "[D][dataTask.webradio] heap free=63k maxBlk=61k",
+    "[D][dataTask.webradio] url=https://all.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
+    "[shell] switch 0->11 suspend=1ms wipe=26ms init=1ms taskbar=28ms total=56ms",
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=49 keyframe=2",
-    "[W][perf] iter=153ms (worst path so far: app.tick:62ms)",
+    "[W][perf] iter=194ms (worst path so far: app.tick:81ms)",
+    "[  5525][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[  5538][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[  5552][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[I][dataTask.webradio] GET mirror=all.api.radio-browser.info code=-120 elapsed=205ms",
+    "[W][dataTask.webradio] mirror=all.api.radio-browser.info failed code=-120",
+    "[D][dataTask.webradio] url=https://de1.api.radio-browser.info/json/stations/search?countrycode=NL&codec=MP3&hidebroken=true&order=votes&reverse=true&limit=30&offset=0&bitrateMax=128",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":11,\"name\":\"WebRadio\",\"last\":true}"
    ]
   },
@@ -62,21 +161,19 @@
    "cmd": "get shufRep",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":1,\"lastShuffle\":1,\"lastRepeat\":1,\"last\":true}",
-    "[1007780][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shufRep\",\"caps\":1,\"lastShuffle\":0,\"lastRepeat\":2,\"last\":true}"
    ]
   },
   {
    "cmd": "set cooldown 0",
-   "nth": 1,
+   "nth": 3,
    "lines": [
-    "[lib] PUT  header write fail, retrying",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
    "cmd": "get shellCooldown",
-   "nth": 1,
+   "nth": 3,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
@@ -87,37 +184,31 @@
    "lines": [
     "[D][touch] dead zone tap \u2192 force poll",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":187,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}",
-    "[1009685][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] PUT  header write fail, retrying",
-    "[lib] PUT /v1/me/player/repeat?state=context failed after retry",
-    "[D][spotify.poll] GET /v1/me/player/currently-playing",
-    "Refresh of the Access token is due, doing that now.",
-    "[1010192][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
-    "[1010205][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
-    "[1010220][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
-    "[lib] POST  connect accounts.spotify.com:443 failed errno=11 (No more processes)",
-    "[lib] parseError: no content-length",
-    "[1012100][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[1013980][E][ssl_client.cpp:37] _handle_error(): [send_ssl_data():403]: (-80) UNKNOWN ERROR CODE (0050)",
-    "[lib] GET write fail, retrying",
-    "[lib] GET failed after retry",
-    "[W][spotify.poll] fail http=-1 HTTPC_CONNECTION_REFUSED",
-    "[W][spotify.tls] after -1: stale connect fd=49 (no current tls error)",
-    "[D][spotify.poll] backoff: consecutive=1 next=10000ms",
-    "[I][spotify.tls] hard reset \u2014 stopping client"
+    "[  9016][E][ssl_client.cpp:292] start_ssl_client(): [tls-verify] flags=0x00000008 The certificate is not correctly signed by the trusted CA",
+    "[  9029][E][ssl_client.cpp:37] _handle_error(): [start_ssl_client():294]: (-9984) X509 - Certificate verification failed, e.g. CRL, CA or signature check failed",
+    "[  9043][E][WiFiClientSecure.cpp:163] connect(): start_ssl_client: -9984",
+    "[I][dataTask.webradio] GET mirror=de1.api.radio-browser.info code=-120 elapsed=3467ms",
+    "[W][dataTask.webradio] mirror=de1.api.radio-browser.info failed code=-120",
+    "[D][dataTask.webradio] heap free=62k maxBlk=47k",
+    "[I][webradio] HEAP post-fetch free=106304 min=43344",
+    "[W][webradio] station fetch failed ok=0 http=-120 jsonErr=",
+    "[I][spotify.tls] tls yield \u2014 resumed",
+    "[I][spotify.tls] hard reset \u2014 stopping client",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[D][chrome] drawVolume pct=49 keyframe=2",
+    "[W][perf] iter=62ms (worst path so far: app.tick:81ms)"
    ]
   },
   {
    "cmd": "set cooldown 0",
-   "nth": 2,
+   "nth": 4,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
    "cmd": "get shellCooldown",
-   "nth": 2,
+   "nth": 4,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]
@@ -127,20 +218,19 @@
    "nth": 0,
    "lines": [
     "[D][touch] dead zone tap \u2192 force poll",
-    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}",
-    "[I][hb] display=winamp wifi=rssi(-59) disc=0 heap=99k maxAlloc=39k stack_hwm=11660b uptime=00:17:02 poll=0/56 last=-1 block_max=5295ms loop_max=153ms slow=app.tick:62ms last_poll_age_ms=0 next_poll_in_ms=0 last_render_age_ms=16036 build=Sep 11 2026-14:26:"
+    "{\"ok\":true,\"cmd\":\"tap\",\"x\":225,\"y\":96,\"hit\":\"DEADZONE\",\"action\":\"FORCE_POLL\",\"skipped\":false}"
    ]
   },
   {
    "cmd": "set cooldown 0",
-   "nth": 3,
+   "nth": 5,
    "lines": [
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"cooldown\",\"val\":\"0\"}"
    ]
   },
   {
    "cmd": "get shellCooldown",
-   "nth": 3,
+   "nth": 5,
    "lines": [
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellCooldown\",\"remainingMs\":0,\"last\":true}"
    ]

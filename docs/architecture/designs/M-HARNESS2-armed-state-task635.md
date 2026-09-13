@@ -131,3 +131,27 @@ R20 forbids. Declaring it becomes justified the first time a real case appears, 
 4. DUT: `set wrDeadUrls 3` → `get armed` names `wrDeadUrls` → `set injclear` → `get armed` is
    empty. Then one full `run/test`, whose boundary FAILs are the finding. **The count of ids R14
    newly fails is the measurement this task exists to produce.**
+
+## 5. Result, 2026-09-13 — DUT, board flashed at `0a63eb8`
+
+**§4.4, directly:** `set wrDeadUrls 3`, `set now … freeze`, `set bgPoll 0` → `get armed` returned
+`["nowFrozen","wrDeadUrls","bgPollOff"]` → `set injclear 1` cleared all three → `get armed` returned
+`[]`. The first attempt used a bare `set injclear` and got `bad args`. Every host arm had passed
+against a stub, and that defect reached hardware (`0a63eb8` fixes it).
+
+**The measurement §4 asked for — one full `run/test`: R14 newly fails 4 ids.**
+
+| id | left armed | its own record | reading |
+|---|---|---|---|
+| `T_PRI_01` | `prInject` | PASS | H-1's injector leak is real. TASK-581 refuted its *effect* on the eight radar ids, not its existence |
+| `T_PLR_08`, `T_PLR_19`, `T_PLR_24` | `bgPollOff` | FAIL (`TimeoutError`) | `bgPoll 0` is restored on the pass path only. Each timed out first and leaked on its fail path: R17's C-15 shape |
+
+One run is not a rate (~7 % non-stationary exposure). These are four observed leaks, not a
+census.
+
+**Not caused by this change: a 22-id Stock collapse in the same run.** It is recorded because it
+was the obvious suspect. Every one of those ids ran after `T_PRM_01` (reboot) → `T_PRI_01`, and the
+diagnostics show a data-fetch in flight since ~2 s after boot with `tlsStopped=True`. A targeted
+A/B on `T_PRM_01,T_PRI_01,T170,T186` failed **with the boundary check on and with it off**
+(`DUT_ARMED_CHECK=0`). `T170,T186` alone PASS, `T_PRM_01,T170` PASS, and `T_PRI_01,T170` PASS: only
+the reboot → inject → Stock sequence fails. Filed as TASK-697; the cause is not established.
