@@ -750,7 +750,18 @@ def t_plr_13(dut: Dut):
             fail("T_PLR_13", f"fbOpen {_FB_BIG} failed but sdls says the directory IS on the card "
                              f"— browser-side open failure, see TASK-433. reply={r}")
         return
-    st = _fb_wait_done(dut, timeout_s=15.0)
+    # TASK-692: this id's SUBJECT, per its own docstring, is "the walk completes
+    # cleanly and the DUT stays responsive" — not "within 15 s". The old 15.0 s
+    # was an unstated PERFORMANCE bound smuggled in as a timeout, with no cited
+    # origin anywhere (test_plan.md points this id at its design doc, not at the
+    # number). It fired on 2026-09-13 while the walk was merely slower than it:
+    # a probe watched the same walk run to completion at 22.1 s, pending going
+    # False, `get fbState` answering throughout. The bound now bounds STUCK, which
+    # is what the subject is about; the elapsed time is reported on the PASS line
+    # either way, so a genuine slowdown stays visible instead of being hidden by
+    # the larger number.
+    _STUCK_BOUND_S = 60.0
+    st = _fb_wait_done(dut, timeout_s=_STUCK_BOUND_S)
     elapsed = time.monotonic() - t0
     _leave_player(dut)
     if st is None:
@@ -758,7 +769,13 @@ def t_plr_13(dut: Dut):
                           "— loopTask stalled")
         return
     if st.get("pending"):
-        fail("T_PLR_13", f"walk still pending after {elapsed:.1f}s (>{15.0}s bound) — batching regression")
+        # BP-059: state what was observed. The walk did not finish inside the
+        # stuck bound — that is the observation. It is NOT called a "batching
+        # regression" here, which is a cause this id has never established and
+        # which the 22.1 s measurement above actively contradicts.
+        fail("T_PLR_13", f"walk still pending after {elapsed:.1f}s "
+                         f"(>{_STUCK_BOUND_S}s stuck bound) — the walk did not "
+                         f"complete; cause NOT established by this id")
         return
     pass_("T_PLR_13", f"200-entry walk completed in {elapsed:.1f}s, DUT responsive throughout "
                       f"(dirCount={st.get('dirCount')} fileCount={st.get('fileCount')} — "

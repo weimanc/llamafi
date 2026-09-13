@@ -619,12 +619,14 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 
 ---
 
-### BP-059 — A `skip()` reason states what the test observed, not a cause it has not verified
+### BP-059 — A VERDICT MESSAGE states what the test observed, not a cause it has not verified
 
 **Adopted from**: LL-124
 **Date adopted**: 2026-08-11 (human)
 **Rule**: A skip message may state only what the test **actually observed**. If it names a cause, that cause must be verified independently first — and where a test skips on a precondition failure, probe that precondition through a path that does **not** go through the code under test. A skip reads as "nothing to see here" in every summary, so an unverified cause in a skip reason is the most effective way to hide a defect in this project's reporting.
 **Rationale**: `T_PLR_13` and `T_PLR_15` guarded on `set fbOpen <path>` and, on failure, reported `skip("fixture /probe200 not on the card")` — neither test ever checked whether the fixture was on the card. In one run `T_PLR_13` opened `/probe200` successfully and `T_PLR_15` failed to open the same path minutes later, reporting it as missing. The full-suite baseline then failed all three browser tests on that cause while the same ids pass targeted from a fresh flash. It became TASK-433 at P1, blocking TASK-418, whose auto-advance puts the same path on the end-of-track path with no user gesture. The implementing agent's own gate run had reported 6 passed / 0 skipped, so it was invisible there, and two separate readers absorbed the skip without investigating — while the same session's stale *assertion* in `T_PLR_06` produced a loud FAIL and was diagnosed in minutes. The fix probes with `sdls`, which does not touch `fileBrowser`'s state or allocation.
+**Widened 2026-09-13 (TASK-685/686) from `skip()` to EVERY verdict message — `skip()`, `fail()`, `unmet()` — and to any shared constant quoted into them.** Three instances in one day, all `fail()`: (1) `_RESIDUE_DISPROOF`, quoted into six ids, argued that an idle/403 Spotify "still advances this clock" and omitted that the advance is ONE-SHOT — the omission is why six call sites read their baseline on the wrong side of it and reported six false FAILs across four runs; (2) `T_PLR_13` reported "batching regression" while the walk it blamed was measured completing at 22.1 s, DUT responsive throughout; (3) the same id is BP-059's ORIGINAL rationale example, so the narrow rule had already been applied to its `skip()` and left its `fail()` untouched. A `fail()` carries more authority than a `skip()`, not less: it is the message a human reads when deciding whether firmware is broken, and an unverified cause there sends someone to debug the wrong component. The test that cannot establish a cause says what it saw and says the cause is not established.
+
 **Applies to**: VE, Developer (anyone writing a guarded test)
 
 ---
