@@ -606,6 +606,10 @@ def build_document(exit_code: int, health_fail: Optional[str] = None,
             "generation": premise.get("generation"),
             "class_order_in_force": premise.get("class_order_in_force"),
             "class_order": premise.get("class_order"),
+            # TASK-636, schema 1.4 (additive). `None` unless the run passed
+            # --shuffle-family; see lib/shuffle.py and lib/artifact.py's
+            # order_dependence().
+            "shuffle_seed": premise.get("shuffle_seed"),
             "selection": premise.get("selection"),
             "downgraded_gates": premise.get("downgraded_gates") or [],
         },

@@ -507,6 +507,93 @@ out69 = _buf69.getvalue()
 check("T_ART_69b", str(_p_a) in out69, True)
 check("T_ART_69c", str(_p_e_current) in out69, True)
 
+# ── G. TASK-636 — the order-dependence comparison (R20/R21, ADR-066 D2a) ────
+print("T_ART_80  order_dependence: verdict enum stays at seven (D2a)")
+check("T_ART_80a", len(R.Verdict), 7)
+check("T_ART_80b", A.ORDER_DEPENDENT not in {v.value for v in R.Verdict}, True)
+
+
+def _od_doc(name, entry_point, build_env, board_id, order, shuffle_seed=None):
+    return {
+        "schema": {"name": A.SCHEMA_NAME, "version": A.SCHEMA_VERSION},
+        "run": {"run_token": name, "started_at": "2026-01-01T00:00:00Z",
+               "counts": {}},
+        "premise": {"entry_point": entry_point, "build_env": build_env,
+                   "board": {"id": board_id},
+                   "class_order": [tid for tid, _v in order],
+                   "shuffle_seed": shuffle_seed},
+        "per_class": {},
+        "results": [{"id": tid, "verdict": v} for tid, v in order],
+    }
+
+
+# order=[(id, verdict), ...] doubles as both the executed sequence AND the
+# per-id verdicts, since a fixture never needs them to disagree.
+_canon1 = _od_doc("c1", "runner.py", "envX", "board1",
+                  [("A", "PASS"), ("B", "PASS"), ("C", "FAIL")])
+_canon2 = _od_doc("c2", "runner.py", "envX", "board1",
+                  [("A", "PASS"), ("C", "FAIL"), ("B", "PASS")])
+_shuf = _od_doc("s1", "runner.py", "envX", "board1",
+               [("A", "PASS"), ("C", "PASS"), ("B", "PASS")], shuffle_seed="42")
+
+print("T_ART_81  a flipped id is found and names both predecessors' positions")
+res81 = A.order_dependence([_canon1, _canon2], _shuf)
+check("T_ART_81a", res81["comparable"], True)
+check("T_ART_81b", res81["seed"], "42")
+check("T_ART_81c", [r["id"] for r in res81["rows"]], ["C"])
+_row81 = res81["rows"][0]
+check("T_ART_81d", (_row81["canonical_verdict"], _row81["shuffled_verdict"]),
+      ("FAIL", "PASS"))
+check("T_ART_81e", _row81["canonical_index"], 2)   # c1's executed order
+check("T_ART_81f", _row81["shuffled_index"], 1)
+check("T_ART_81g", _row81["label"], A.ORDER_DEPENDENT)
+
+print("T_ART_82  a single canonical run gets the flake-caveat label, not the "
+     "bare one")
+res82 = A.order_dependence(_canon1, _shuf)   # single doc, not a list
+check("T_ART_82a", [r["label"] for r in res82["rows"]],
+     [A.ORDER_DEPENDENT_UNSEPARATED])
+_txt82 = A.format_order_dependence(res82)
+check("T_ART_82b", "not separated from flake" in _txt82, True)
+
+print("T_ART_83  canonical runs disagreeing among themselves are excluded, "
+     "not misreported as order-dependent")
+_canon2_disagree = _od_doc("c2d", "runner.py", "envX", "board1",
+                          [("A", "PASS"), ("B", "PASS"), ("C", "PASS")])
+res83 = A.order_dependence([_canon1, _canon2_disagree], _shuf)
+check("T_ART_83a", res83["rows"], [])
+
+print("T_ART_84  non-comparable docs (different board) are refused, not "
+     "silently compared")
+_shuf_other_board = _od_doc("s2", "runner.py", "envX", "board2",
+                            [("A", "PASS")], shuffle_seed="7")
+res84 = A.order_dependence(_canon1, _shuf_other_board)
+check("T_ART_84a", res84["comparable"], False)
+check("T_ART_84b", res84["rows"], [])
+check("T_ART_84c", "NOT COMPARABLE" in A.format_order_dependence(res84), True)
+
+print("T_ART_85  no order-dependent ids -> comparable, empty rows, says so")
+_shuf_clean = _od_doc("s3", "runner.py", "envX", "board1",
+                      [("A", "PASS"), ("B", "PASS"), ("C", "FAIL")],
+                      shuffle_seed="1")
+res85 = A.order_dependence([_canon1, _canon2], _shuf_clean)
+check("T_ART_85a", res85["comparable"], True)
+check("T_ART_85b", res85["rows"], [])
+check("T_ART_85c", "no order-dependent ids found" in
+     A.format_order_dependence(res85), True)
+
+print("T_ART_86  main() --order-dependence wires the CLI end to end")
+_TMP86 = TMP / "od86"
+_TMP86.mkdir()
+_p_c1 = A.write(_TMP86 / "c1.json", _canon1)
+_p_c2 = A.write(_TMP86 / "c2.json", _canon2)
+_p_s = A.write(_TMP86 / "s.json", _shuf)
+_buf86 = io.StringIO()
+with contextlib.redirect_stdout(_buf86):
+    rc86 = A.main([str(_p_s), "--order-dependence", str(_p_c1), str(_p_c2)])
+check("T_ART_86a", rc86, 0)
+check("T_ART_86b", "C: ORDER-DEPENDENT" in _buf86.getvalue(), True)
+
 # ── E. R29's acceptance number: zero summary parsers ─────────────────────────
 print("T_ART_50  no consumer parses the human summary text (R29 == 0)")
 _ROOT = _here.parent.parent

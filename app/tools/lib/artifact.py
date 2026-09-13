@@ -99,7 +99,21 @@ SCHEMA_MAJOR = 1
 #: `null` on any run without it, including every run on a public checkout —
 #: an old reader that does not know the key simply never looks at it, which is
 #: exactly what MINOR promises.
-SCHEMA_MINOR = 3
+#:
+#: 1.4 (TASK-636 / M-HARNESS2-requirements R20-R21): `premise.shuffle_seed`
+#: (new, additive, optional) — the seed passed to `runner.py --shuffle-family`,
+#: or `null` on every run that did not pass it (which is every run before this
+#: change, and most runs after it). The EXECUTED order itself needed no new
+#: field: `premise.class_order` already records the sequence ids actually ran
+#: in for every run, shuffled or not (`_gate.EXECUTED_ORDER`, set
+#: unconditionally by `run_suite()`) — this field only carries the seed, so a
+#: later reader can reproduce the same permutation via
+#: `lib.shuffle.shuffle_family()` instead of treating `class_order` as
+#: unexplained. See `order_dependence()` below for the cross-run comparison
+#: this exists to feed — ADR-066 D2a: that comparison's `ORDER-DEPENDENT`
+#: outcome is NOT an eighth verdict and lives only in the comparison's own
+#: report, never in `results[].verdict`.
+SCHEMA_MINOR = 4
 SCHEMA_VERSION = f"{SCHEMA_MAJOR}.{SCHEMA_MINOR}"
 
 #: Where a run writes when the caller named no path (layer L1).
@@ -362,6 +376,184 @@ def previous_comparable(current_doc: dict, current_path,
     return best[1] if best else None
 
 
+# ── order-dependence comparison (TASK-636 / R20-R21 / ADR-066 D2a) ──────────
+#
+# ADR-066 D2a is explicit about what this may and may not be: `ORDER-DEPENDENT`
+# is a comparison outcome over TWO (OR MORE) IFC-008 artifacts, keyed by id,
+# naming both orders — never an eighth member of `lib.results.Verdict`, never
+# written into `results[].verdict`, never taught to `classify()`. Both inputs
+# below are ordinary seven-verdict documents; this function is a NEW CONSUMER
+# of IFC-008, not a change to it (same posture as `diff_documents`, TASK-689,
+# which this deliberately sits next to rather than forking).
+#
+# THE FLAKE CAVEAT (TASK-566: ~7% of ids are non-stationary flakes). A single
+# canonical-vs-shuffled PAIR cannot distinguish "this id's outcome depends on
+# execution order" from "this id is just flaky today" — a flake could differ
+# from one canonical run to the next with no shuffle involved at all. So a
+# differing id is labelled the bare `ORDER-DEPENDENT` only when the CALLER
+# supplied 2+ canonical (registry-order) artifacts and they all AGREE on that
+# id's verdict — agreement across canonical runs is the evidence that rules
+# out "this id just flips on its own". With exactly one canonical artifact the
+# row is still reported (never silently dropped: the whole point, per R21's
+# rationale, is that a flake declaration is where order dependence goes to be
+# forgotten), but labelled `ORDER-DEPENDENT (single pair — not separated from
+# flake)` so a reader cannot mistake a hint for a finding.
+#
+# THIS IS A REPORT, NEVER A GATE (same stance as TASK-689's diff_documents):
+# no exit code anywhere in this module is a function of what it returns.
+
+#: The label vocabulary this comparison prints. Neither string is a `Verdict`
+#: member and neither is ever assigned to `results[].verdict` — see the module
+#: docstring above and ADR-066 D2a.
+ORDER_DEPENDENT = "ORDER-DEPENDENT"
+ORDER_DEPENDENT_UNSEPARATED = "ORDER-DEPENDENT (single pair — not separated from flake)"
+
+
+def _comparable_runs(a: dict, b: dict) -> bool:
+    """Same comparability rule `previous_comparable` already uses: same
+    entry_point, build_env and board id, and neither unstated."""
+    key_a, key_b = _premise_key(a), _premise_key(b)
+    return key_a[0] is not None and key_a[1] is not None and key_a == key_b
+
+
+def _executed_order(doc: dict) -> list:
+    """The sequence ids actually ran in. `premise.class_order` carries this
+    for EVERY run (`_gate.EXECUTED_ORDER`, set unconditionally by
+    `run_suite()`) despite the field's name predating TASK-636 — it is not
+    only populated under `--class-order`. See SCHEMA_MINOR 1.4's note."""
+    return list((doc.get("premise") or {}).get("class_order") or [])
+
+
+def order_dependence(canonical_docs, shuffled_doc: dict) -> dict:
+    """Compare one or more CANONICAL (registry-order) artifacts against one
+    SHUFFLED (per-family, `--shuffle-family`) artifact. Pure: no files touched,
+    both/all documents already loaded.
+
+    `canonical_docs`: a single document, or a list of 1+ documents — all from
+    registry-order runs (no `--shuffle-family`) of otherwise-comparable runs
+    (see `_comparable_runs`). Per IFC-008 I8, artifacts are never merged: each
+    is read as its own id->verdict map and only membership/values are compared
+    across them, never flattened into one dict.
+
+    Returns:
+      {
+        "comparable": bool,
+        "reason": str or None,        # set (and rows == []) when not comparable
+        "seed": <shuffled_doc's premise.shuffle_seed>,
+        "n_canonical": <int>,         # how many canonical docs were supplied
+        "canonical_order": [...],     # first canonical doc's executed order
+        "shuffled_order": [...],
+        "rows": [
+          {"id", "canonical_verdict", "shuffled_verdict",
+           "canonical_index", "shuffled_index",  # position in each order, or
+                                                  # None if absent from it
+           "n_canonical", "label"},
+          ...
+        ],  # sorted by id
+      }
+
+    An id enters `rows` only when EVERY supplied canonical doc has it, the
+    shuffled doc has it, and all the canonical docs AGREE with each other on
+    its verdict but the shuffled doc's verdict differs. Canonical docs that
+    disagree AMONG THEMSELVES on an id are excluded from `rows` for that id —
+    that disagreement is flake evidence with no shuffled run needed to see it,
+    and reporting it here as order dependence would misattribute it.
+    """
+    docs = canonical_docs if isinstance(canonical_docs, list) else [canonical_docs]
+    if not docs:
+        raise ValueError("order_dependence: at least one canonical doc required")
+    for d in docs:
+        if not _comparable_runs(d, shuffled_doc):
+            return {"comparable": False,
+                    "reason": ("premise mismatch (entry_point/build_env/board) "
+                               "between a canonical run and the shuffled run, "
+                               "or one of them never stated its premise"),
+                    "seed": None, "n_canonical": len(docs),
+                    "canonical_order": [], "shuffled_order": [], "rows": []}
+
+    canon_status = [id_status(d) for d in docs]
+    shuf_status = id_status(shuffled_doc)
+    common = set(shuf_status)
+    for s in canon_status:
+        common &= set(s)
+    if not common:
+        return {"comparable": False,
+                "reason": ("no id is present in BOTH the shuffled run and "
+                           "every canonical run supplied — likely a selection "
+                           "mismatch (compare the same id set in every run)"),
+                "seed": None, "n_canonical": len(docs),
+                "canonical_order": [], "shuffled_order": [], "rows": []}
+
+    def _index(order, tid):
+        try:
+            return order.index(tid)
+        except ValueError:
+            return None
+
+    canonical_order = _executed_order(docs[0])
+    shuffled_order = _executed_order(shuffled_doc)
+    n = len(docs)
+    rows = []
+    for tid in sorted(common):
+        canon_verdicts = {s[tid] for s in canon_status}
+        if len(canon_verdicts) != 1:
+            continue  # canonical runs disagree among themselves — not this id
+        canon_v = next(iter(canon_verdicts))
+        shuf_v = shuf_status[tid]
+        if canon_v == shuf_v:
+            continue
+        rows.append({
+            "id": tid,
+            "canonical_verdict": canon_v,
+            "shuffled_verdict": shuf_v,
+            "canonical_index": _index(canonical_order, tid),
+            "shuffled_index": _index(shuffled_order, tid),
+            "n_canonical": n,
+            "label": ORDER_DEPENDENT if n >= 2 else ORDER_DEPENDENT_UNSEPARATED,
+        })
+    return {
+        "comparable": True,
+        "reason": None,
+        "seed": (shuffled_doc.get("premise") or {}).get("shuffle_seed"),
+        "n_canonical": n,
+        "canonical_order": canonical_order,
+        "shuffled_order": shuffled_order,
+        "rows": rows,
+    }
+
+
+def format_order_dependence(result: dict, max_ids: int = 20) -> str:
+    """Human summary of `order_dependence()`'s return."""
+    lines = []
+    if not result["comparable"]:
+        lines.append(f"[order-dependence] NOT COMPARABLE: {result['reason']}")
+        return "\n".join(lines)
+    lines.append(f"[order-dependence] seed={result['seed']!r} "
+                 f"n_canonical={result['n_canonical']}")
+    rows = result["rows"]
+    if not rows:
+        lines.append(f"  no order-dependent ids found (0 differed across "
+                     f"{result['n_canonical']} canonical run(s) vs the "
+                     f"shuffled run)")
+        return "\n".join(lines)
+    lines.append(f"  {len(rows)} id(s) differ between canonical and shuffled "
+                 f"order:")
+    for row in rows[:max_ids]:
+        lines.append(
+            f"    {row['id']}: {row['label']}"
+            f"  canonical={row['canonical_verdict']}"
+            f"(pos={row['canonical_index']})"
+            f"  shuffled={row['shuffled_verdict']}(pos={row['shuffled_index']})")
+    if len(rows) > max_ids:
+        lines.append(f"    ... and {len(rows) - max_ids} more")
+    if result["n_canonical"] < 2:
+        lines.append("  NOTE: only one canonical run was supplied — TASK-566's "
+                     "~7% non-stationary-flake rate means these rows are NOT "
+                     "yet separated from ordinary flake. Supply 2+ agreeing "
+                     "canonical runs to drop this caveat.")
+    return "\n".join(lines)
+
+
 def format_diff(old_path, new_path, delta: dict, max_ids: int = 10) -> str:
     """Human summary of `delta` (from `diff_documents`). ALWAYS names both
     input files — a delta whose inputs are invisible is the same class of
@@ -457,6 +649,19 @@ def main(argv) -> int:
                          "Prints nothing and exits 0 if no comparable run "
                          "exists — that is a normal state (first run of its "
                          "kind), not an error.")
+    ap.add_argument("--order-dependence", nargs="+", metavar="CANONICAL",
+                    default=None,
+                    help="TASK-636/R20-R21: treat THIS artifact (`path`) as "
+                         "the SHUFFLED (--shuffle-family) run and compare it "
+                         "against one or more CANONICAL (registry-order) run "
+                         "artifacts, reporting per-id rows whose verdict "
+                         "differs. REPORT ONLY, exit code unaffected — see "
+                         "main() below. Supply 2+ canonical paths (from "
+                         "agreeing runs) to get the unqualified "
+                         "ORDER-DEPENDENT label; with exactly one, rows carry "
+                         "a flake-caveat label instead (TASK-566: ~7% "
+                         "non-stationary). ADR-066 D2a: this is a comparison "
+                         "outcome over artifacts, never an eighth verdict.")
     a = ap.parse_args(argv)
     try:
         doc = load(a.path, expect_token=a.token)
@@ -486,6 +691,15 @@ def main(argv) -> int:
             return 1
         delta = diff_documents(old_doc, doc)
         print(format_diff(old_path, a.path, delta))
+        return 0
+    if a.order_dependence:
+        try:
+            canon_docs = [load(p) for p in a.order_dependence]
+        except ArtifactError as e:
+            print(f"ERROR [artifact]: {e}", file=__import__("sys").stderr)
+            return 1
+        result = order_dependence(canon_docs, doc)
+        print(format_order_dependence(result))
         return 0
     if a.ids_status or True:
         for tid, verdict in id_status(doc).items():

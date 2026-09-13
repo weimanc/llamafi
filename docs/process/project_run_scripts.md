@@ -150,6 +150,7 @@ PORT=/dev/ttyUSB1 ./run/test-targeted T080,T083
 | `RIGWATCH` | unset (0) | `1` turns on rigwatch (TASK-677) — kernel-event daemon, harness stamps, DUT-line timestamps, the artifact's `rig` section. Set in `run/local.env`, not inline — see below |
 | `DUT_BY_PATH` | auto (first CH340 by-id) | Which DUT node rigwatch resolves to a USB topology port for kernel-log filtering. Only matters with two CH340s attached |
 | `RIG_EVENTS` | `/tmp/spotify-mon-rig-events.jsonl` | Where rigwatch's kernel + harness events are appended |
+| `DUT_SHUFFLE_SEED` | unset | Same as `runner.py --shuffle-family SEED` (TASK-636) — no wrapper change needed, `run/test`/`run/test-targeted` inherit it like `DUT_CLASS_ORDER`. Refused together with `DUT_CLASS_ORDER=1`/`--class-order`. See "Per-family shuffle" below |
 
 ---
 
@@ -199,6 +200,44 @@ previous run's file is silent and looks like a result. Three layers: the default
 run and never reused (there is deliberately no `latest.json`); a consumer that owns the path passes
 a nonce and any other run's document is refused; and a missing or unknown-schema artifact is an
 error, never an empty result set.
+
+---
+
+## Per-family shuffle & order-dependence (TASK-636, R20/R21)
+
+R20 (MUST, amended by the architect review to a MUST-capability + SHOULD-campaign split): the
+harness must be able to run a class's ids in a shuffled order and report any verdict that differs
+from the canonical order's. Landed as `runner.py --shuffle-family SEED` (or `DUT_SHUFFLE_SEED=SEED`,
+same style as `DUT_CLASS_ORDER` — no `run/test`/`run/test-targeted` wrapper change needed, both
+inherit the env var):
+
+```sh
+DUT_SHUFFLE_SEED=42 ./run/test-targeted --scope <family's scope>
+# or directly:
+python3 tools/suite/serialdbg/runner.py --shuffle-family 42 --tests T1,T2,T3
+```
+
+Ids keep their **family blocks** (the `suite/serialdbg/<family>.py` module an id's `TESTS` entry
+lives in — `lib/shuffle.py`'s `module` axis, distinct from `scope`) in canonical (first-occurrence)
+order; the order **within** each family block is permuted by a seeded RNG, deterministic and
+reproducible from the seed alone. Refuses to combine with `--class-order`/`DUT_CLASS_ORDER=1` — the
+two axes (gating precedence vs. order-independence audit) have no defined composition. The executed
+(post-shuffle) sequence lands in the artifact's existing `premise.class_order` field (that field
+records the executed order for every run, not only a `--class-order` one); the seed itself is the
+new `premise.shuffle_seed` (schema 1.4, additive, `null` unless `--shuffle-family` was passed).
+
+Comparing a canonical (registry-order) run against a shuffled one — R21's `ORDER-DEPENDENT` outcome,
+which per ADR-066 D2a is a **comparison over two-or-more artifacts**, never an eighth verdict:
+
+```sh
+python3 -m lib.artifact shuffled-run.json --order-dependence canonical-run-1.json canonical-run-2.json
+```
+
+Report only, never a gate/exit code — same posture as `--diff`/`--diff-auto` (TASK-689). TASK-566's
+~7% non-stationary-flake rate means a single canonical/shuffled PAIR cannot separate "order-dependent"
+from "just flaky today": supply 2+ **agreeing** canonical artifacts to get the bare `ORDER-DEPENDENT`
+label; with exactly one, a differing row is still reported but labelled `ORDER-DEPENDENT (single pair
+— not separated from flake)`.
 
 ---
 

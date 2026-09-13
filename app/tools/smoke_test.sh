@@ -125,6 +125,16 @@ if ! "$PYTHON" lib/test_armed.py; then
     exit 1
 fi
 
+# 4f0a. `--shuffle-family`'s pure core — TASK-636 / R20-R21. Reproducibility
+# from a seed, family-block preservation/contiguity, an id with no (or
+# malformed) meta degrading to its own singleton family rather than crashing
+# or merging, and per-family seeding (one family's permutation must not depend
+# on which other families are also selected). No DUT, no port, <0.1 s.
+if ! "$PYTHON" lib/test_shuffle.py; then
+    echo "FAIL: lib/test_shuffle.py (TASK-636 per-family shuffle) FAILED" >&2
+    exit 1
+fi
+
 # 4f1. the run artifact — TASK-608 / ADR-066 D1 / IFC-008 / R29+R30.
 # The artifact is now the SOLE machine interface to a run, so the failure that
 # matters is a consumer reading something and being WRONG about it. The stale
@@ -134,6 +144,9 @@ fi
 # LINE keeps its pre-TASK-627 shape, and — mechanically, over the tree — that
 # R29's count of summary-text parsers stays at zero. Host-only, no DUT, ~0.3 s.
 # Runs BEFORE the comparator selftest below, which now reads artifacts it makes.
+# Extended by TASK-636 (T_ART_80-86): the order_dependence() cross-run
+# comparison (R20/R21) — same file, per the project's "extend, don't fork"
+# rule, since it is another pure consumer of the same artifact shape.
 if ! "$PYTHON" test_run_artifact.py; then
     echo "FAIL: test_run_artifact.py (TASK-608 run artifact) FAILED" >&2
     exit 1

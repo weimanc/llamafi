@@ -82,6 +82,7 @@ from lib.results import (print_results,                                  # noqa:
 import lib.armed as _armed                                                # noqa: E402
 import lib.replay as _replay                                             # noqa: E402
 import lib.dispatch as _dispatch_mod                                     # noqa: E402
+import lib.shuffle as _shuffle                                            # noqa: E402
 
 try:
     import serial
@@ -317,6 +318,28 @@ def main():
                         "network premise it never needed could only refuse it. "
                         "Unknown or non-HEALTH ids are a usage error, not a "
                         "silent narrowing. Default: the whole class.")
+    p.add_argument("--shuffle-family", default=os.environ.get("DUT_SHUFFLE_SEED") or None,
+                   metavar="SEED",
+                   help="TASK-636 / R20-R21: permute the order WITHIN each "
+                        "family's block by a seeded RNG (lib/shuffle.py), "
+                        "keeping family blocks in their canonical "
+                        "(first-occurrence) order. Deterministic and "
+                        "reproducible from SEED — any string, e.g. a date or "
+                        "an int. Or set DUT_SHUFFLE_SEED. Refuses to combine "
+                        "with --class-order: both reorder `selected` and no "
+                        "composition of the two is defined — run them "
+                        "separately. The run's EXECUTED order (post-shuffle) "
+                        "lands in the artifact's existing "
+                        "`premise.class_order` field, which despite its name "
+                        "already records the executed sequence for every run, "
+                        "not only a --class-order one (see _gate.EXECUTED_ORDER); "
+                        "the seed itself lands in the new `premise.shuffle_seed` "
+                        "field (schema 1.4). Comparing a canonical run against "
+                        "a shuffled one is `lib/artifact.py --order-dependence` "
+                        "— see its --help. ADR-066 D2a: `ORDER-DEPENDENT` is a "
+                        "comparison outcome over two-or-more artifacts, never "
+                        "an eighth verdict; this flag only produces one of the "
+                        "two (or more) runs that comparison reads.")
     p.add_argument("--order-diff", action="store_true",
                    help="HOST-ONLY (no port, no DUT, EC-G9): print the "
                         "class-ordered id sequence diffed against today's, the "
@@ -354,10 +377,19 @@ def main():
         sys.exit(f"DUT_HEALTH must be one of {_gate.HEALTH_MODES} (got "
                  f"{health_mode!r})")
 
+    if args.shuffle_family and args.class_order:
+        sys.exit("--shuffle-family and --class-order both reorder the "
+                 "selected ids and no composition of the two is defined "
+                 "(TASK-636). Run them separately: --class-order's ordering "
+                 "is a gating-precedence claim (RIG<HEALTH<CORE<APP<FEATURE), "
+                 "--shuffle-family's is an order-INDEPENDENCE audit within "
+                 "family blocks — combining them would leave it ambiguous "
+                 "which claim a differing verdict is evidence for.")
+
     if args.dut_health:
-        if args.tests or args.scope:
+        if args.tests or args.scope or args.shuffle_family:
             sys.exit("--dut-health runs the HEALTH class and nothing else; it "
-                     "does not combine with --tests/--scope.")
+                     "does not combine with --tests/--scope/--shuffle-family.")
         selected = []
         health_selected = list(health_tests)
     else:
@@ -410,6 +442,18 @@ def main():
             print(f"[triage] registry unavailable ({type(e).__name__}: {e}) — "
                   f"FAILs will carry no (cls, scope)")
             all_meta = {}
+
+    if args.shuffle_family:
+        # TASK-636. Pure, no DUT — applied before the port opens like
+        # --order-diff/--scope resolution above, so a bad seed can't cost a
+        # board reset (there is no bad seed, but the discipline is the same).
+        _before = list(selected)
+        selected = _shuffle.shuffle_family(selected, all_meta, args.shuffle_family)
+        _fams = _shuffle.family_blocks(selected, all_meta)
+        _moved = sum(1 for a, b in zip(_before, selected) if a != b)
+        print(f"[shuffle] --shuffle-family seed={args.shuffle_family!r}: "
+              f"{len(selected)} ids across {len(_fams)} family block(s) "
+              f"({list(_fams)}), {_moved} id(s) moved within their family")
 
     print(f"Connecting to {args.port} @ {args.baud}…")
     if args.log_file:
@@ -470,6 +514,12 @@ def main():
         "generation": dut.gen_tag(),
         "class_order_in_force": _gate.ORDER_IN_FORCE,
         "class_order": list(_gate.EXECUTED_ORDER),
+        # TASK-636 / schema 1.4 (additive). `None` on every run that did not
+        # pass --shuffle-family — the EXECUTED order (shuffled or not) is
+        # already `class_order` above; this is only the seed, so a later
+        # reader can re-derive the same permutation via
+        # lib.shuffle.shuffle_family() without guessing whether one was used.
+        "shuffle_seed": args.shuffle_family,
         "selection": {
             "ids": list(selected),
             # WHY these ids — R30 asks for the reason, not just the set, and
