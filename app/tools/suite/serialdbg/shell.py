@@ -1404,6 +1404,12 @@ def t_ma_03(dut: Dut):
         return
     time.sleep(0.15)  # allow one or two Matrix ticks
     # Switch back to Spotify.
+    # TASK-685: baseline BEFORE the switch-back tap. lastPlaylistDraw stamps
+    # ONCE on resume and then stands still (measured 3861 -> 127744 within
+    # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
+    # sees the post-stamp value and the 3 s window watches a correctly idle
+    # clock. See _check_residue()'s docstring.
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
@@ -1419,7 +1425,7 @@ def t_ma_03(dut: Dut):
                        f"{landed!r} — the Matrix->Spotify switch-back did not land")
         _restore_spotify(dut)
         return
-    if not _check_residue(dut, "T_MA_03"):
+    if not _check_residue(dut, "T_MA_03", _t_before):
         fail("T_MA_03", "lastPlaylistDraw did not advance in 3 s after returning "
                       "to Spotify from Matrix — " + _RESIDUE_DISPROOF)
 
@@ -1458,6 +1464,12 @@ def t_gol_03(dut: Dut):
         _restore_spotify(dut)
         return
     time.sleep(0.2)  # allow GoL to tick
+    # TASK-685: baseline BEFORE the switch-back tap. lastPlaylistDraw stamps
+    # ONCE on resume and then stands still (measured 3861 -> 127744 within
+    # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
+    # sees the post-stamp value and the 3 s window watches a correctly idle
+    # clock. See _check_residue()'s docstring.
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
@@ -1473,7 +1485,7 @@ def t_gol_03(dut: Dut):
                        f"{landed!r} — the GoL->Spotify switch-back did not land")
         _restore_spotify(dut)
         return
-    if not _check_residue(dut, "T_GOL_03"):
+    if not _check_residue(dut, "T_GOL_03", _t_before):
         fail("T_GOL_03", "lastPlaylistDraw did not advance in 3 s after returning "
                       "to Spotify from GoL — " + _RESIDUE_DISPROOF)
 
@@ -1537,6 +1549,12 @@ def t_wx_03(dut: Dut):
         _restore_spotify(dut)
         return
     time.sleep(0.15)
+    # TASK-685: baseline BEFORE the switch-back tap. lastPlaylistDraw stamps
+    # ONCE on resume and then stands still (measured 3861 -> 127744 within
+    # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
+    # sees the post-stamp value and the 3 s window watches a correctly idle
+    # clock. See _check_residue()'s docstring.
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
@@ -1552,7 +1570,7 @@ def t_wx_03(dut: Dut):
                        f"{landed!r} — the Weather->Spotify switch-back did not land")
         _restore_spotify(dut)
         return
-    if not _check_residue(dut, "T_WX_03"):
+    if not _check_residue(dut, "T_WX_03", _t_before):
         fail("T_WX_03", "lastPlaylistDraw did not advance in 3 s after returning "
                       "to Spotify from Weather — " + _RESIDUE_DISPROOF)
 
@@ -1704,6 +1722,12 @@ def t_cx_03(dut: Dut):
         _restore_spotify(dut)
         return
     time.sleep(0.15)
+    # TASK-685: baseline BEFORE the switch-back tap. lastPlaylistDraw stamps
+    # ONCE on resume and then stands still (measured 3861 -> 127744 within
+    # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
+    # sees the post-stamp value and the 3 s window watches a correctly idle
+    # clock. See _check_residue()'s docstring.
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=3.0)
@@ -1719,7 +1743,7 @@ def t_cx_03(dut: Dut):
                        f"{landed!r} — the Crypto->Spotify switch-back did not land")
         _restore_spotify(dut)
         return
-    if not _check_residue(dut, "T_CX_03"):
+    if not _check_residue(dut, "T_CX_03", _t_before):
         fail("T_CX_03", "lastPlaylistDraw did not advance in 3 s after returning "
                       "to Spotify from Crypto — " + _RESIDUE_DISPROOF)
 

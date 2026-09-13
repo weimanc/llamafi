@@ -328,6 +328,13 @@ def t172(dut: Dut):
         _restore_from_stock(dut)
         return
     time.sleep(0.15)
+    # TASK-685: the baseline MUST be read BEFORE the switch-back. The clock
+    # stamps ONCE on resume and then stands still (measured: 3861 -> 127744
+    # within 180 ms, then one value for 6 s), so a baseline read afterwards
+    # sees the post-stamp value and the window observes a correctly idle
+    # clock. Read here, while still away from Spotify, and the assertion
+    # becomes "did the return repaint?" — which is the subject.
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     if not _restore_from_stock(dut):
         fail("T172", "Stock→Spotify switch-back failed")
         return
@@ -335,7 +342,7 @@ def t172(dut: Dut):
     # (`_helpers.py:_restore_from_stock` -> `_appid_is`), so the residue
     # assertion's precondition — "we are back on Spotify" — is established
     # above and a stalled clock here is attributable to the subject.
-    if not _check_residue(dut, "T172"):
+    if not _check_residue(dut, "T172", _t_before):
         fail("T172", "lastPlaylistDraw did not advance in 3 s after "
                      "Stock->Spotify switch-back — " + _RESIDUE_DISPROOF)
 
@@ -696,11 +703,18 @@ def t182(dut: Dut):
     # standing in for the reachable one. `_restore_from_stock` asserts
     # `get appId == "Spotify"` (`_appid_is`), so it is the real establishment of
     # the residue assertion's precondition and a real failure of the return leg.
+    # TASK-685: the baseline MUST be read BEFORE the switch-back. The clock
+    # stamps ONCE on resume and then stands still (measured: 3861 -> 127744
+    # within 180 ms, then one value for 6 s), so a baseline read afterwards
+    # sees the post-stamp value and the window observes a correctly idle
+    # clock. Read here, while still away from Spotify, and the assertion
+    # becomes "did the return repaint?" — which is the subject.
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     if not _restore_from_stock(dut):
         fail("T182", "Stock->Spotify return leg did not land on Spotify after "
                      "the taskbar-driven switch")
         return
-    if not _check_residue(dut, "T182"):
+    if not _check_residue(dut, "T182", _t_before):
         fail("T182", "lastPlaylistDraw did not advance in 3 s after the "
                      "taskbar-driven return to Spotify — " + _RESIDUE_DISPROOF)
         return

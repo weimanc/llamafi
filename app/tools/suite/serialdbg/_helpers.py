@@ -231,20 +231,50 @@ def _vs_drain_until_drag(dut: Dut, timeout: float = 10.0) -> tuple[list[dict], d
 #:     (`app/src/apps/spotifyApp.cpp:67`).
 #:
 #: So on any boot where the shell is on Spotify and ticking, `lastPlaylistDraw`
-#: advances within one tick of resume(). If it does not advance in 3 s, either
-#: resume() did not run or the Spotify tick is not running — which is the TFT
-#: state residue these ids exist to catch.
+#: advances within one tick of resume(). If it does not advance ACROSS the
+#: switch-back, either resume() did not run or the Spotify tick is not running —
+#: which is the TFT state residue these ids exist to catch.
+#:
+#: TASK-685 ADDS THE CLAUSE THIS ANALYSIS WAS MISSING, and it is the one that
+#: matters to a caller: the advance is ONE-SHOT. After that first stamp,
+#: `seqno` is latched and `_scrollDirty` is cleared, so `draw()` takes the
+#: early return at `:139` on every subsequent tick and the clock stands still
+#: until something new arrives — which, on an idle or 403 account, is never.
+#: Measured on the device: 3861 -> 127744 within 180 ms of `switchApp`, then a
+#: single distinct value for the following 6 s.
+#:
+#: Everything above is true and was never the defect. The defect was WHERE the
+#: baseline was read: all six callers read it AFTER the switch-back, by which
+#: time the one stamp had landed, and then watched a correctly idle clock for
+#: 3 s and called it residue. Six ids reported FAIL across four runs and the
+#: firmware was right every time. Read the baseline BEFORE the switch-back.
 _RESIDUE_DISPROOF = (
     "SpotifyApp::resume() calls invalidatePlaylist() unconditionally "
     "(spotifyApp.cpp:27) and PleditView::draw() stamps _lastDrawMs before it "
     "reads the queue count (pleditView.h:139-156), so an idle/empty/403 "
-    "Spotify still advances this clock — a stalled clock is the residue "
-    "regression, not an idle account"
+    "Spotify still advances this clock ONCE on resume — the baseline for this "
+    "assertion is read BEFORE the switch-back (TASK-685), so a clock that did "
+    "not move across it is the residue regression, not an idle account"
 )
 
 
-def _check_residue(dut: Dut, tid: str) -> bool:
-    """After switching back to Spotify, verify lastPlaylistDraw advances within 3 s.
+def _check_residue(dut: Dut, tid: str, t_before: int = None) -> bool:
+    """Verify lastPlaylistDraw advances ACROSS a switch back to Spotify.
+
+    PASS `t_before`, read BEFORE the switch-back. TASK-685 measured why on the
+    device: `lastPlaylistDraw` is a LAST-REPAINT stamp, not a heartbeat. On
+    resume, `SpotifyApp::resume()` invalidates the pledit, the next
+    `SpotifyApp::tick()` repaints, and the clock jumps ONCE — measured 3861 ->
+    127744 within 180 ms of `switchApp`. It then stands still for as long as you
+    care to watch (6 s, one distinct value), because `PleditView::draw()`
+    early-returns when neither `seqno` nor `_scrollDirty` moved, and an idle or
+    403 account never moves `seqno` again.
+
+    Read after the switch-back — as every caller did until TASK-685 — the
+    baseline is taken once that single stamp has already landed, and the 3 s
+    window then observes a correctly idle clock and calls it a regression. Six
+    ids reported that as FAIL across four runs. The firmware was right each
+    time.
 
     Returns True if PASS was recorded. Returns False ONLY for the regression:
     the device answered, and the clock did not move.
@@ -262,7 +292,8 @@ def _check_residue(dut: Dut, tid: str) -> bool:
     # helper could not distinguish "Spotify did not repaint" from "the device did
     # not answer". TASK-584 closes that: the two outcomes are now a bool and an
     # exception, and they cannot be confused by a caller.
-    t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    if t_before is None:
+        t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
     answered = False
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
