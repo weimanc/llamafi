@@ -244,3 +244,62 @@ not a measurement, and it belongs to @PM.
 The control-arm edit was reverted immediately after the run and verified: `t.timeout = 0.5` again
 reaches pyserial. Nothing from arm C is committed.
 
+## 9. The criterion RE-RUN, 2026-09-13 (§4 applied a second time)
+
+§6's runs predated TASK-685 and TASK-692. Both landed, so the criterion was re-run at one commit
+(`c7894ef`), two full runs, same board. `RECORD_DIR` deliberately NOT set: the 194 transcripts were
+refreshed on 09-12 and `check_can_go_red` is green against them, so re-recording would churn all 194
+and raise fresh ledger work unrelated to the question these runs exist to answer.
+
+| | run 1 | run 2 |
+|---|---|---|
+| summary | 150 passed, 13 failed, 28 skipped, 2 unmet | 151 passed, 12 failed, 28 skipped, 2 unmet |
+| non-PASS | 15 | 14 |
+
+**Deterministic (both runs): 8** — was 16 in §6.
+
+`T078` · `T087` · `T_DTP_01`(U) · `T_DTP_02`(U) · `T_PLR_06` · `T_PLR_15` · `T_PLR_24` · `T_WR_TLS_01`
+
+**Non-stationary: 13 ids** (7 run-1-only, 6 run-2-only) of ~193 = **6.7 %**, which corroborates
+TASK-566's independently measured 7.1 % rather than resting on it.
+
+The fixes are visible in the delta against 09-12: **11 newly passing**, including all six
+`lastPlaylistDraw` ids (TASK-685) and `T_PLR_13` (TASK-692).
+
+### §4 clause by clause
+
+**Clause 1 — "no failing id whose mode is a read that gave up": MET.** No `TimeoutError` anywhere in
+the deterministic set. This is the clause that carried TASK-575's own signature, and in §6 it was
+failed by `T_PLR_13`. It is now clean, which is the second independent confirmation — after §8's
+A/B — that the `_TeeSerial` fix broke nothing.
+
+**Clause 2 — "every failing id accounted for": NOT MET, by two ids.**
+
+| id | account |
+|---|---|
+| `T078` | TASK-662 ✓ |
+| `T087` | declared in `flaky.yaml` ✓ |
+| `T_DTP_01`/`02`, `T_PLR_24` | TASK-686 ✓ |
+| `T_PLR_06` | TASK-691 ✓ |
+| **`T_PLR_15`** | **none** — no open row names it |
+| **`T_WR_TLS_01`** | **none** — it is a `candidates:` entry, and §4 says *declaration* |
+
+### Verdict: still FAIL, and deliberately not laundered
+
+Two ids short. Filing rows for them **now** would make clause 2 read MET, and that is exactly what
+this record must not do: §4 says *a pre-existing open row*, and satisfying a criterion by filing
+paperwork against it after seeing the result is the shape LL-146 exists to prevent. They are filed
+as **TASK-693** because they are real deterministic failures that need owners — **not** to close
+this clause, which stays failed for this run.
+
+### What it means
+
+The criterion's PURPOSE — did TASK-575's fix break anything? — is answered twice over: clause 1 is
+clean and §8's A/B showed an identical verdict set with the fix disabled. What remains is a
+pre-existing backlog that has nothing to do with `_TeeSerial`, now down from a cluster to **two
+unaccounted ids**.
+
+Phase 3 entry therefore remains a scheduling judgement rather than a measurement — but a far
+narrower one than on 09-12: two named ids instead of an unexplained cluster, with the
+TASK-575-specific signature measured absent.
+
