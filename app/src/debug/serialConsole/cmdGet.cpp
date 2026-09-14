@@ -537,6 +537,39 @@ void cmdGet(const char *args) {
                   (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA));
     return;
   }
+  if (strcmp(args, "heapInfo") == 0) {
+    // TASK-697 (M-DATATASK-heap-region-instrument), IFC-007 I1/I3: additive,
+    // one JSON line. Per-capability-class detail `get heap` doesn't carry —
+    // heap_caps_get_info() aggregates every heap matching the capability
+    // mask into one multi_heap_info_t (design doc "What the framework
+    // actually offers"), so this is Option B's shape, not a per-region view
+    // (that's the gated [heapreg] dumps in dataTaskStorage.cpp, human-read
+    // off raw serial, not this console key — text dumps aren't JSON-safe;
+    // app/tools/lib/dut.py's read_json discards non-'{' lines).
+    multi_heap_info_t internal, cap8, dma;
+    heap_caps_get_info(&internal, MALLOC_CAP_INTERNAL);
+    heap_caps_get_info(&cap8,     MALLOC_CAP_8BIT);
+    heap_caps_get_info(&dma,      MALLOC_CAP_DMA);
+    Serial.printf(
+      "{\"ok\":true,\"cmd\":\"get\",\"var\":\"heapInfo\","
+      "\"internal\":{\"totalFree\":%u,\"largestFree\":%u,\"minFree\":%u,"
+      "\"allocBlocks\":%u,\"freeBlocks\":%u,\"totalBlocks\":%u},"
+      "\"cap8bit\":{\"totalFree\":%u,\"largestFree\":%u,\"minFree\":%u,"
+      "\"allocBlocks\":%u,\"freeBlocks\":%u,\"totalBlocks\":%u},"
+      "\"dma\":{\"totalFree\":%u,\"largestFree\":%u,\"minFree\":%u,"
+      "\"allocBlocks\":%u,\"freeBlocks\":%u,\"totalBlocks\":%u},"
+      "\"last\":true}\n",
+      (unsigned)internal.total_free_bytes, (unsigned)internal.largest_free_block,
+      (unsigned)internal.minimum_free_bytes, (unsigned)internal.allocated_blocks,
+      (unsigned)internal.free_blocks, (unsigned)internal.total_blocks,
+      (unsigned)cap8.total_free_bytes, (unsigned)cap8.largest_free_block,
+      (unsigned)cap8.minimum_free_bytes, (unsigned)cap8.allocated_blocks,
+      (unsigned)cap8.free_blocks, (unsigned)cap8.total_blocks,
+      (unsigned)dma.total_free_bytes, (unsigned)dma.largest_free_block,
+      (unsigned)dma.minimum_free_bytes, (unsigned)dma.allocated_blocks,
+      (unsigned)dma.free_blocks, (unsigned)dma.total_blocks);
+    return;
+  }
   if (strcmp(args, "weatherReady") == 0) {
     // ADR-063 D3 (TASK-637): identity-guarded — Weather is one of the two
     // apps R3(a)'s retired T_WX_02 covered. Single trailing `return` (not an

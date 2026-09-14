@@ -262,6 +262,48 @@ private:
 // Reserved band -120..-129: TLS-layer sentinels (see dataTask.h).
 static constexpr int CERT_VERIFY_FAILED = -120;
 
+#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+// TASK-697 (M-DATATASK-heap-region-instrument): per-region heap dump at the
+// three capture points the design doc names. COMPILE-TIME gate only — never
+// a runtime `set` toggle, per the design's Gate 0 protocol: a runtime toggle
+// would still execute heap_caps_print_heap_info()/_check_integrity_all() and
+// only suppress the print, which doesn't test the perturbation the gate
+// exists to bound. `-DHEAP_REGION_DUMP_OFF` (added to a build's
+// build_flags) removes this whole block — and every call site below, also
+// `#if`-guarded — so that build carries none of these symbols (T089-style
+// absence, verified by `strings`/`nm`, not just "doesn't print").
+//
+// Cost: NOT MEASURED here — this is a host-only change with no DUT/serial
+// access, so `get stacks` (DUT-only) couldn't be run. heap_caps_print_heap_
+// info()'s ~4-6 two-line per-matching-heap blocks and the Serial.printf/
+// logSink call frames underneath add stack depth on top of
+// fetchPlaneRadar's/certSentinel's own frames, against dataTask's 14 KB
+// stack (kStackBytes below, non-WEBRADIO_ONLY build). The design's own
+// Gate 0 (re-run T_PR_04,T_PRI_01,T170 x8 instrumented vs baseline,
+// tolerance {3,4,5}/8) is the empirical check for this in place of a
+// hand-estimate — not run here, DUT-only.
+static void heapRegionDump(int point, const char* fetchTag) {
+    unsigned long ms = millis();
+    LOG_D("heapreg", "[heapreg] point=%d fetch=%s ms=%lu begin", point, fetchTag, ms);
+    // The only call in this build that preserves individual heap-region
+    // boundaries — heap_caps_get_info() (used by `get heap`/`get heapInfo`)
+    // merges every matching heap into one struct by construction, which is
+    // exactly why it can't tell (a) region-span from (b) mid-block-survivor
+    // on its own (design doc, "What the framework actually offers").
+    heap_caps_print_heap_info(MALLOC_CAP_8BIT);
+    // Supplement only (design doc Option D / VE-4): a clean result rules out
+    // only (c)'s block-corruption sub-case; it says nothing about (a) vs
+    // (b), and is NOT "for free" — it walks every block in every matching
+    // heap, slower on a fragmented pool (the state under test). dataTask is
+    // confirmed not TWDT-subscribed (boot.cpp:236-237: only loopTask/idle
+    // call esp_task_wdt_add), so a slow walk here risks delaying dataTask's
+    // own loop, not a watchdog trip.
+    bool ok = heap_caps_check_integrity_all(true);
+    LOG_D("heapreg", "[heapreg] point=%d fetch=%s ms=%lu integrity=%s end",
+          point, fetchTag, millis(), ok ? "ok" : "FAIL");
+}
+#endif
+
 // TASK-341: shared substitution, factored out so the fetchers that hand-roll
 // begin()/GET() instead of going through httpFetchJsonBuffered() (TASK-460;
 // their divergence is deliberate — extra headers/streaming-filter parse
@@ -273,7 +315,32 @@ static constexpr int CERT_VERIFY_FAILED = -120;
 static int certSentinel(WiFiClientSecure& tls, int code) {
     if (code < 0) {
         char ebuf[8];   // text unused; lastError() is the int accessor
-        if (tls.lastError(ebuf, sizeof(ebuf)) == -0x2700)
+        int lastErr = tls.lastError(ebuf, sizeof(ebuf));
+#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+        // Capture point 2 (design doc): -0x7F00/-32512 is
+        // MBEDTLS_ERR_SSL_ALLOC_FAILED, the X010/X068 SSL-OOM sentinel
+        // ITSELF — not a proxy threshold to tune (design doc open question
+        // 4: trigger is unconditional). Bounded to once per boot: once the
+        // pool is fragmented enough for one -32512, every subsequent
+        // handshake this boot fails the same way
+        // (task697-reboot-inject-stock.md: "every TLS handshake after that
+        // fails at once with -32512"), so a per-call dump adds no new
+        // information, only repetitive output. certSentinel() is the SHARED
+        // wrapper for 6 call sites across 5+ fetch types and deliberately
+        // doesn't know its caller's FetchType (see the A5/A6 attribution
+        // comment above `BufferedFetchCfg`) — a once-per-fetch-type bound
+        // would need a new parameter threaded through every call site for a
+        // capture point whose own trigger needs no fetch identification;
+        // once-per-boot needs none. fetchTag is generic ("certSentinel"),
+        // not attributed to a specific fetcher — a design-silent choice,
+        // documented here rather than invented at the call site.
+        static bool s_point2Fired = false;
+        if (!s_point2Fired && lastErr == -0x7F00) {
+            s_point2Fired = true;
+            heapRegionDump(2, "certSentinel");
+        }
+#endif
+        if (lastErr == -0x2700)
             return CERT_VERIFY_FAILED;
     }
     return code;
@@ -1425,6 +1492,9 @@ static void fetchPlaneRadar() {
 
     spotifyTask::tlsYield();   // BP-031: free Spotify TLS before our own handshake
     LOG_HEAP("dataTask.planeradar");
+#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+    heapRegionDump(0, "planeradar");   // capture point 0: same-try "before" half
+#endif
 
     char url[128];
     snprintf(url, sizeof(url), "%s%.4f/lon/%.4f/dist/%.1f",
@@ -1528,6 +1598,9 @@ static void fetchPlaneRadar() {
     s_planeRadarNew    = true;
     portEXIT_CRITICAL_SAFE(&s_planeRadarMux);
     LOG_HEAP("dataTask.planeradar");
+#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+    heapRegionDump(1, "planeradar");   // capture point 1: same-try "after" half, before tlsResume()
+#endif
     spotifyTask::tlsResume();
 }
 

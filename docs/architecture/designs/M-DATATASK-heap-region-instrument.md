@@ -151,6 +151,47 @@ all three points firing unconditionally.
 - At N=8/arm this has essentially no power to distinguish 4/8 from 3/8 or 5/8 — the tolerance band
   is one try wide on purpose. It catches gross perturbation (the 1 Hz-poll kind), not zero cost.
 
+**Addendum 2026-09-14 (Developer, TASK-697 host-only implementation)**: the compile-time gate is
+`#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)` around `dataTaskStorage.cpp`'s
+`heapRegionDump()` helper and all three call sites (`fetchPlaneRadar()` points 0/1,
+`certSentinel()` point 2) — nothing runtime-conditional. The two build commands for Gate 0's
+two-binary protocol, confirmed on this host:
+
+```sh
+./run/build-debug                                              # firing build (default)
+PLATFORMIO_BUILD_FLAGS=-DHEAP_REGION_DUMP_OFF ./run/build-debug # #ifdef-absent build
+```
+
+PlatformIO appends `PLATFORMIO_BUILD_FLAGS` to the targeted env's own `build_flags` (confirmed:
+the OFF build's `firmware.elf` differs — flash usage 1967025→1966385 B, 640 B smaller). Proof of
+absence, both firing and OFF builds of `cyd2usb_winamp_debug`:
+
+```
+$ strings firmware.elf | grep -c heapreg     # firing build
+3
+$ nm firmware.elf | grep heapRegionDump      # firing build
+400ef574 t _ZN8dataTaskL14heapRegionDumpEiPKc
+$ PLATFORMIO_BUILD_FLAGS=-DHEAP_REGION_DUMP_OFF ./run/build-debug
+$ strings firmware.elf | grep -c heapreg     # OFF build
+0
+$ nm firmware.elf | grep heapRegionDump      # OFF build
+(no output)
+```
+
+`get heapInfo` (capture point 3 / Option B, `cmdGet.cpp`) is gated on `SERIAL_DEBUG` alone, not on
+`HEAP_REGION_DUMP_OFF` — it's the cheap always-on-in-debug console key, not one of Gate 0's
+perturbation-risk calls, so it stays present in both builds above (confirmed: `strings` finds
+`heapInfo` in both). Production (`./run/build`, no `SERIAL_DEBUG`) carries neither string.
+
+**Operator note**: `app/tools/lib/dut.py`'s ELF guard (`firmware_bin()`/`BUILD_ROOT`) compares
+whatever the board reports against whatever `.pio/build/<env>/firmware.bin` currently sits on the
+host filesystem — it is flag-agnostic, not `HEAP_REGION_DUMP_OFF`-aware. Running Gate 0's OFF arm
+therefore requires passing the SAME `PLATFORMIO_BUILD_FLAGS` to both the build step and the flash
+step (`PLATFORMIO_BUILD_FLAGS=-DHEAP_REGION_DUMP_OFF ./run/flash-debug`, PlatformIO honors it the
+same way) — build-then-flash with mismatched flags leaves a host artifact that doesn't match the
+board's actual binary and `run/test-targeted` refuses with `elf-mismatch`, correctly, since it
+would otherwise be silently testing the wrong variant.
+
 **Gate 1 (content read, only after Gate 0 passes)**: collect readable captures until 3 FAIL-side +
 3 PASS-side are gathered or 8 tries exhausted (captures, not tries — an unreadable/ambiguous dump
 doesn't count). N=3+3 per @VE, distinct from Gate 0's N=8 (rate-comparison needs power against the
@@ -213,6 +254,15 @@ This design adds 0 B of new static state (no new globals; print/check/get-info c
 library state and caller-stack scratch) — only flash for `get heapInfo` and the two gated points,
 expected negligible against a RAM budget, but the re-derivation is still owed since it's the actual
 gate, not this design's estimate.
+
+**Re-derived 2026-09-14 (Developer, TASK-697 host-only implementation)**, from
+`app/.pio/build/cyd2usb_winamp_debug/firmware.map`: `dram0_0_seg` ORIGIN `0x3ffbdb5c` LENGTH
+`0x1e6a4` → segment end `0x3ffdc200`; `_bss_end` (= `_static_data_end`) `0x3ffda680`. Headroom
+`0x3ffdc200 - 0x3ffda680 = 0x1b80 = 7040 B` — **unchanged from the 7040 B baseline**, both in the
+default (firing) build and the `-DHEAP_REGION_DUMP_OFF` build (both re-derived; identical
+`_bss_end`). Consistent with "0 B new static state": the one new function-local `static bool
+s_point2Fired` in `certSentinel()` is 1 B and was absorbed by existing alignment padding, not
+visible at this resolution. Positive, both variants.
 
 ## Exit criteria
 
