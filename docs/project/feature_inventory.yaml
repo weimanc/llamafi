@@ -543,7 +543,7 @@ features:
       "optimisticVolume"/"songDuration"). debugExportable.h defines the interface;
       SpotifyDisplay base provides default no-ops; non-Winamp backends compile unchanged.
       cmdGet/cmdSet are dumb dispatchers — frozen, never need to change as fields grow.
-    status: planned
+    status: implemented   # was `planned` long after it shipped; corrected 2026-09-14
     git_ref: "fff0208 (2026-07-17)"
     components:
       - Spotify-Diy-Thing/platformio.ini
@@ -554,6 +554,10 @@ features:
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTask.h
       - Spotify-Diy-Thing/SpotifyDiyThing/debugExportable.h
       - Spotify-Diy-Thing/SpotifyDiyThing/spotifyTaskStorage.cpp
+      - app/src/debug/armedInjectors.h        # TASK-635
+      - app/src/appShell.h                    # TASK-637 identity guard + tick counter
+      - app/src/appShell.cpp
+      - app/tools/gate/check_armed_injectors.py
     cross_features: [conn-001, touch-002, chrome-001, io-001]
     test_ids: [T076, T077, T078, T079, T080, T081, T082, T083, T084, T085, T086, T087, T088, T089, T095, T096]
     notes: |
@@ -568,6 +572,20 @@ features:
       s_consecutiveFailures changed to `volatile` to match the s_resetTlsPending pattern;
       cross-task set is a single aligned 32-bit store, atomic on Xtensa.
       tmux/grep scripts matching the old `[reconnect]` prefix must be audited at j-merge.
+      2026-09-13/14 console additions (M-HARNESS2 Phase 3/4; all SERIAL_DEBUG, IFC-007 additive):
+        - `get armed` / `set injclear 1` (TASK-635, R14): one X-macro table of 17 persistent debug
+          injectors, evaluated at query time over their own state (no mask). The harness reads it
+          after every id and FAILs the id that left one armed. `set injclear` needs a value; a bare
+          form answers `bad args`. gate/check_armed_injectors.py keeps every `set` key classified.
+        - Identity guard (TASK-637, ADR-063 D3): a per-app `get` key answers `inactiveApp` while its
+          app is not active, for 10 of 13 apps. Named exceptions (`dbgKeyReachableInactive`):
+          weatherReady, cryptoReady, prPollSec. Spotify/WebRadio/LocalPlayer keys and `set` are
+          unguarded (TASK-703). `get appTicks` is the shell-owned per-app tick counter (D4); the
+          repaint half is unbuilt (TASK-702).
+        - `set shellBusy <1|0>` (TASK-617): raises the shell busy gate with no app fetch; an armed
+          injector (busyForced), so CORE `T-CDWN-02` gates offline.
+        - `get dataRing` (TASK-697): a 32-entry dataTask/spotifyTask event ring (enqueue, dispatch,
+          finish, TLS yield request/ack/timeout/resume); carried in `_diag_snapshot`.
 
   - id: sync-001
     name: DUT–Spotify state synchronization (M-SYNC)
@@ -1680,7 +1698,9 @@ features:
     cross_features:
       - app-interface-001
       - app-registry-001
-    test_ids: []
+      - auth-001
+      - stock-001
+    test_ids: [T170, T_DTP_01]
     dependencies:
       - app-interface-001
     notes: |
@@ -1691,6 +1711,12 @@ features:
       stress/soak harness). The shared tlsYield is also the no-PSRAM contention point — a Spotify
       403 starves every fetcher via it (project memory: tlsYield starvation; fixed by TASK-244's
       hard-backoff). data-task-001's resident stack is M-MEMBUDGET's Q2 dynamic-reclaim candidate.
+      2026-09-14: the same starvation recurs from a different trigger. After an in-session reboot,
+      Spotify's backoff restarts at 0 and its token refresh fails `-9984` every cycle (TASK-675's
+      pinned-root rot). A Stock fetch then waited ~60 s for the yield ack (TASK-697, matrix X068;
+      a reading, not proof). The default `TlsYieldGuard` records success even if `tlsYield()` timed
+      out (TASK-700). Instrument: `get dataRing` event ring (TASK-697). Primitive-operation tests for
+      the hand-off are TASK-705.
 
   - id: memplan-001
     name: Static app-memory overlay planner (build-time memory budgeting)

@@ -1756,3 +1756,56 @@ interactions:
       Tracked as TASK-564, TASK-565, TASK-566, TASK-570, TASK-571 (+572 optional); 567/569 deferred,
       TASK-568 with @QM.
       Design: docs/architecture/designs/M-TESTARCH-precedence-hierarchy.md
+      STATUS 2026-09-14: built and switched on. HEALTH ids T_DH_01..03 and T_DH_05 ship (T_DH_04
+      deferred, TASK-569). TASK-566's class-order switch was FLIPPED for `run/test` by human ruling
+      on the interleaved A/B (docs/verification/regression_suite/task566-interleaved-ab.md: 0 ids
+      worse, 2 better, 0 NOT-RUN); other entry points keep registry order. TASK-617's exit
+      criteria are met (T_BI_03 demoted to FEATURE, check_gating_offline reads zero). CORE is 17.
+
+  - id: X068
+    feature_a: auth-001
+    feature_b: data-task-001
+    interaction_type: conflict
+    description: |
+      Spotify's failing token refresh starves every dataTask fetch through the shared TLS yield.
+      On no-PSRAM builds one TLS session exists at a time (BP-031, X010), so a dataTask fetcher
+      must get spotifyTask to stop its client and ack before handshaking. When `accounts.spotify.com`
+      no longer verifies against the pinned root (TASK-675, `-9984`), every Spotify poll or queue
+      GET first runs a failing refresh, then two failing `-80` write retries, ~4 s per cycle.
+      After an in-session reboot the backoff restarts at 0, so the cycles run back to back and the
+      task rarely reaches its yield checkpoint. Observed (TASK-697): a Stock quote fetch waited
+      ~60 s for the ack, and ~22 Stock ids failed or skipped for that boot generation. Long
+      sessions do not show it, because the backoff has grown to 60 s. Same family as X021's
+      TASK-244 403 starvation, with a different trigger.
+    risk: high
+    test_coverage: [T170, T_DTP_01]
+    notes: |
+      Added 2026-09-14. The mechanism is a reading from one raw-serial catch, not proof
+      (docs/verification/regression_suite/task697-reboot-inject-stock.md). Deciding experiment:
+      the same sequence with TASK-675 fixed or Spotify polling held off. Contributing defect:
+      TlsYieldGuard's default constructor records success unconditionally (TASK-700). T170 and
+      T_DTP_01 cover it only as a composite; single-operation tests for the hand-off are TASK-705.
+      User-facing: any device whose Spotify credentials fail TLS can stall Stock/Weather/Crypto/
+      PlaneRadar fetches.
+
+  - id: X069
+    feature_a: serialdbg-001
+    feature_b: app-interface-001
+    interaction_type: shared_state
+    description: |
+      TASK-637's identity guard (ADR-063 D3) makes a per-app debug `get` key answer `inactiveApp`
+      while its owning app is not the active one, so a test cannot read stale app state and take
+      it as current. It couples the console to the shell's active-app state, which some
+      consumers read across apps by design: one-way fetch latches (weatherReady, cryptoReady) and
+      persisted settings (prPollSec) stay reachable through named exceptions
+      (`dbgKeyReachableInactive`, appShell.cpp). The player-slot apps (Spotify, WebRadio,
+      LocalPlayer) are unguarded because some of their keys are read from other screens by design
+      (TASK-415, ADR-059 D12), and the `set` path is unguarded.
+    risk: medium
+    test_coverage: [T_WX_04, T_CX_04, T_PRM_01]
+    notes: |
+      Added 2026-09-14. The first full DUT run of the guard refused exactly those three ids (each
+      reads its key without entering the app); the named exceptions fixed them and a probe
+      confirmed refusal, exceptions and `get appTicks`. Remaining coverage is TASK-703.
+      Side effect: failure diagnostics that read an app's keys after leaving it now get
+      `inactiveApp` (T170's `fetchFailed='?'`, TASK-701).
