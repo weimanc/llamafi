@@ -121,7 +121,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-707** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-708** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 
@@ -217,6 +217,7 @@ the board to re-derive what is already written down.
 | TASK-704 | P3 | **OPEN — filed 2026-09-14** | `kCasRetryCookie = 0x426AB1FE` is now written out in three files: `boot/boot.cpp`, `cmdSet.cpp` and `debug/armedInjectors.h`. A mirror with no equality check (R42); export one constant, or add the pair to TASK-606's gate. |
 | TASK-705 | P2 | **PARTIAL 2026-09-14** — gate at zero. DUT: `T_TLS_01`, `T_SBK_01`, `T_PR_07`, `T_SQI_01` PASS; `T_TLS_02`/`T_DTQ_01` UNMET (wedge missed the yield path). can-go-red: `T_TLS_01`/`T_SQI_01`/`T_PR_07` never red by assertion; transcripts held. `bgPoll 0` ≠ idle |
 | TASK-706 | P3 | **OPEN — filed 2026-09-14** | A dataTask result for an app that is no longer active has no stated rule: no discard/coalesce was found in `dataTaskStorage.cpp` for a switched-away app's in-flight fetch. Left out of TASK-705's `OPS` because there is no claim to encode. Write the rule (ADR-level), then the primitive test. |
+| TASK-707 | P3 | **OPEN — filed 2026-09-14** | T089 (production ELF carries zero SERIAL_DEBUG symbols) is a one-time manual check from 2026-05-17. No `run/check` gate or `smoke_test.sh` script re-verifies it, and every debug surface since then leans on it. Automate it: an `nm` over the production ELF in `run/check`, blocking at zero. |
 | TASK-687 | P3 | **OPEN — filed 2026-09-12** | `T087`/`T092` reproduced in BOTH runs — deterministic, not flaky, so their `flaky.yaml` declarations are the wrong description. Also `T_PLR_17`'s mis-correlated reply (`__TEST_T_PLR_17__` sentinel reaching a live run). TASK-595 follow-on. **Owner:** @VE. |
 | TASK-688 | P2 | **OPEN — filed 2026-09-12** | Five ids R34's runtime gate can now see — `T170`, `T176`, `T188`, `T204`, `T_CLK_SIG_01` — go red only via contract/accident, never by asserting on their subject. **Exposed, not caused**, by the 194-transcript refresh. [ledger](../verification/can_go_red_ledger.md). **Owner:** @VE. |
 | TASK-689 | **P1** | **DONE 2026-09-13** (`4fd1a78`) | `lib/artifact.py` gains `diff_documents` + `previous_comparable`; `run/test`/`test-targeted` print the delta against the last comparable run. **Report, never a gate** — it cannot touch an exit code. Includes `still_failing`, because a delta hides persistence and persistence is what lost TASK-685. |
