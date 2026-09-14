@@ -121,7 +121,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-705** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-706** (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement). `tasks-architecture.md` was retired 2026-09-10.
 
 ---
 
@@ -215,6 +215,7 @@ the board to re-derive what is already written down.
 | TASK-702 | P3 | **OPEN — filed 2026-09-14** | ADR-063 D4's repaint half is unbuilt: no per-app "did I redraw" signal exists without changing `App::tick()`'s contract across 13 apps. `get appRepaints` was drafted counting ticks and removed before landing (`60f98004`). Decide the signal; not TASK-593's scope (D5). |
 | TASK-703 | P2 | **OPEN — filed 2026-09-14** | TASK-637's identity guard (ADR-063 D3) covers `get` for 10/13 apps: Spotify, WebRadio, LocalPlayer keys and the whole `set` path are unguarded. Needs a key-by-key review, since some player-slot keys are read from off-screen by design (TASK-415, ADR-059 D12). |
 | TASK-704 | P3 | **OPEN — filed 2026-09-14** | `kCasRetryCookie = 0x426AB1FE` is now written out in three files: `boot/boot.cpp`, `cmdSet.cpp` and `debug/armedInjectors.h`. A mirror with no equality check (R42); export one constant, or add the pair to TASK-606's gate. |
+| TASK-705 | P2 | **OPEN — filed 2026-09-14** | Break TASK-697's composite into primitive operations: single-op DUT tests for the uncovered ones (TLS hand-off idle and wedged, PlaneRadar clear re-arms a fetch, cross-app enqueue while in flight, Stock fetch with Spotify idle, backoff schedule), plus `@meta(ops=…)` and a gate requiring a single-op test for every op a composite uses. |
 | TASK-687 | P3 | **OPEN — filed 2026-09-12** | `T087`/`T092` reproduced in BOTH runs — deterministic, not flaky, so their `flaky.yaml` declarations are the wrong description. Also `T_PLR_17`'s mis-correlated reply (`__TEST_T_PLR_17__` sentinel reaching a live run). TASK-595 follow-on. **Owner:** @VE. |
 | TASK-688 | P2 | **OPEN — filed 2026-09-12** | Five ids R34's runtime gate can now see — `T170`, `T176`, `T188`, `T204`, `T_CLK_SIG_01` — go red only via contract/accident, never by asserting on their subject. **Exposed, not caused**, by the 194-transcript refresh. [ledger](../verification/can_go_red_ledger.md). **Owner:** @VE. |
 | TASK-689 | **P1** | **DONE 2026-09-13** (`4fd1a78`) | `lib/artifact.py` gains `diff_documents` + `previous_comparable`; `run/test`/`test-targeted` print the delta against the last comparable run. **Report, never a gate** — it cannot touch an exit code. Includes `still_failing`, because a delta hides persistence and persistence is what lost TASK-685. |
