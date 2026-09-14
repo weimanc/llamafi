@@ -114,3 +114,28 @@ the in-flight fetch returns. It is the X010 family (TLS OOM), with a new trigger
 TLS-yield hand-off defect. TASK-700 (`TlsYieldGuard`) and TASK-675 remain real but are not its
 cause. The next evidence to collect is the largest free block across `T_PRI_01`'s steps
 (`get heap` between each command), and the PlaneRadar allocation that survives the result.
+
+## 2026-09-14 afternoon — rate measured; the first allocation candidate REFUTED
+
+**Baseline, log-only, 8 tries** (`run/test-targeted T_PR_04,T_PRI_01,T170` with `LOG_FILE`, no extra
+commands, `efe86b6f`-era firmware plus the event ring): **4 of 8 FAIL.** The correlation is exact: all
+4 FAILs show `maxBlk=31k` and 18 × `-32512`; all 4 PASSes stay ≥ 33k with no `-32512`. The console
+sequence is identical in all 8 (both injections precede the in-flight fetch's `GET 200`). Only the
+`maxBlk` after that result differs: 31k in FAILs; 33k, 37k, 39k and 43k in PASSes. So the outcome
+depends on placement, not command order.
+
+**A heap-probe run** (the same commands plus `get heap`/`get dataq` every second, 4 attempts)
+reproduced **0 of 4** (min `maxBlk` 35k). The probe perturbs the timing, and it omits `get prInterp`.
+
+**Candidate 1 — PlaneRadar's lazily allocated, never-freed motion table** (`new PrMotion[24]`,
+~480 B, `planeRadarApp.cpp` `_ensureMotion()`), first allocated at the first injection while the
+in-flight fetch's TLS buffers were live. **A/B: allocated eagerly in `init()`, before the first
+fetch, then the same 8-try loop: 5 of 8 FAIL**, with the same signature. **Refuted.** The change
+was reverted and never committed.
+
+**What is left:** the drop to 31k is placement-dependent and happens when that fetch's result is
+processed. An allocation-level instrument is needed now, not another candidate guessed from code:
+per-region free-block stats (`heap_caps_print_heap_info(MALLOC_CAP_8BIT)` is available on IDF 4.4)
+immediately before and after the PlaneRadar result lands, in a FAIL and in a PASS.
+The internal heap on this chip is several disjoint regions, so a 31k ceiling may be one region's
+remaining span rather than a mid-block survivor.
