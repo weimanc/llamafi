@@ -46,3 +46,22 @@ would settle these ids is scheduled work.
 
 `T_PLR_24` timed out and leaked `bgPoll 0` again (TASK-635's boundary check caught it). TASK-695's
 backstop (`c8234382`) lands after this run and is what should stop it.
+
+## Campaign continued, 2026-09-14 01:02–02:21 — `clock`, `planeradar`, `webradio` (seed 42)
+
+Same design: two canonical runs and one shuffled, `--scope <Family>`, one flash, board `d48afcc8eed0`.
+
+| family | canonical 1 | canonical 2 | shuffled | comparison |
+|---|---|---|---|---|
+| `clock` (11) | 11 P | 11 P | 11 P | **0 differ — the canonical verdict set reproduced under shuffle** |
+| `planeradar` (9) | `T_PRM_02` F | `T_PR_05`, `T_PRM_01` F | `T_PR_05`, `T_PRM_02` F | 0 flagged, but **the canonical runs disagree with each other**, so the comparison has nothing to hold |
+| `webradio` (25) | `T_WR_TLS_01` F | `T_WR_TLS_01` F (+ `T_WR_EJECT_01` flaky-pass) | `T_WR_TLS_01`, **`T237`** F | **`T237` ORDER-DEPENDENT candidate** (PASS at position 16 → `TimeoutError` at position 5) |
+
+R20's exit ("per-family shuffled runs produce the canonical verdict set") is **met for `clock` only**.
+`planeradar` is non-stationary on its own before order is involved: `T_PR_05` times out and
+`T_PRM_01` read `prPollSec=1 after reboot, expected 30`.
+
+**A finding for TASK-697:** `T_PRM_02` (shuffled) reported `spotifyTask activity stamp went
+306382ms stale (>120s)` under continuous PlaneRadar fetching. A spotifyTask that stops making
+progress is what TASK-697's code reading predicts: `tlsYield()` can wait 150 s, and `TlsYieldGuard`
+records success unconditionally. Recorded as a correlation, not a cause.
