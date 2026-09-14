@@ -139,3 +139,29 @@ per-region free-block stats (`heap_caps_print_heap_info(MALLOC_CAP_8BIT)` is ava
 immediately before and after the PlaneRadar result lands, in a FAIL and in a PASS.
 The internal heap on this chip is several disjoint regions, so a 31k ceiling may be one region's
 remaining span rather than a mid-block survivor.
+
+## Gate 0 (pre-registered, M-DATATASK-heap-region-instrument), 2026-09-14 16:41–18:42 — FAILED: perturbing
+
+Same commit (`8af4a0a2`), board `d48afcc8eed0`, `run/test-targeted T_PR_04,T_PRI_01,T170` with
+`LOG_FILE`, 8 tries per arm, a fresh flash per arm, the OFF arm first.
+
+| arm | build | FAIL | PASS | other |
+|---|---|---|---|---|
+| OFF | `PLATFORMIO_BUILD_FLAGS=-DHEAP_REGION_DUMP_OFF` (dump absent) | **3** (4, 5, 8) | 5 | 0 |
+| ON | default (dump fires at points 0, 1 and 2) | **2** (3, 4) | 0 | **6**: `T170` SKIP "could not switch to Stock" ×5, UNMET "no reply to `get quoteOkCount` within 3.0s" ×1 |
+
+The OFF arm reproduces the baseline and the signature exactly: every FAIL is `maxBlk=31k` with 18 ×
+`-32512`, and every PASS stays ≥ 33k with none. The rate is 3/8, consistent with this morning's 4/8.
+
+**Verdict, applying the pre-registered rule:** the instrumented FAIL rate is 2/8, outside {3,4,5}/8,
+so the instrument **perturbs. Stop. The dump contents are not read.** Beyond the rate, the ON arm
+broke the harness's own console exchanges (a switch not confirmed, a reply lost) in 6 of 8 tries,
+which the OFF arm never did. That is gross perturbation, the kind Gate 0 exists to catch. All 57
+`integrity=ok` markers are recorded and not interpreted.
+
+**Unverified reading of the mechanism**, for the redesign only: `heap_caps_check_integrity_all()`
+takes each heap's lock while it walks every block. That stalls every allocating task, the loop
+task that answers the console included, for the length of the walk. `heap_caps_print_heap_info()`
+is small by comparison. The design's pre-named fallbacks: move the dump off dataTask onto a
+lower-priority task via a lock-free ring, or accept "cannot observe non-invasively". A third option
+the gate result suggests: drop the integrity walk (Option D) and re-run Gate 0 with the print only.
