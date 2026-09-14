@@ -51,3 +51,32 @@ in-flight slot for the rest of the boot. That is the shape of the tlsYield hand-
 under TASK-277/287/289/293/295. The next step is instrumentation, not another run: log the
 `tlsStopped` edges and `inFlight` transitions on the DUT across a failing `run/test-targeted` F, so
 the stuck transition is read rather than inferred.
+
+## Caught with raw serial, 2026-09-14 02:40 — the strongest evidence so far
+
+With the event ring flashed (`d5b1a521`), `LOG_FILE=… ./run/test-targeted T_PR_04,T_PRI_01,T170` was
+looped. Tries 1–2 PASSed; **try 3 FAILed `T170`**. The ring was not captured: `T170`'s failure
+path does not call `_diag_snapshot`, and its own late `get fetchFailed` was refused `inactiveApp` by
+TASK-637's guard, which is why it reports `'?'`. The raw serial log (`c697_serial_3.log`, 624 lines)
+does show the mechanism:
+
+- After the reboot, Spotify's backoff is reset (`backoff: consecutive=1 next=10000ms`). The
+  spotifyTask then runs **back-to-back failing cycles**. Every poll or queue GET first attempts a
+  token refresh that fails `-9984` (`accounts.spotify.com`, the TASK-675 pin rot), then
+  `GET write fail, retrying` ×2 with `(-80)`. That is ~4 s per cycle (`spotify.queue status=-1
+  elapsed=4263ms`, `block_max=4332ms`), and the cycles are separated only by the backoff.
+- The Stock quote fetch does not start until the **very end** of `T170`'s 65 s window:
+  `[spotify.tls] tls yield — client stopped` → `[dataTask.stock] spark GET -1 elapsed=107ms` →
+  `tls yield — resumed`. It waited ~60 s for spotifyTask to reach its yield checkpoint, and then
+  its own GET failed immediately.
+
+**Reading, not proof:** TASK-697 is dataTask's TLS yield starved by a spotifyTask kept
+permanently busy by TASK-675's failing token refresh. A reboot resets the backoff, so the failing
+cycles come fastest exactly in the generation after an in-session reboot. That explains the reboot
+dependence, the timing dependence, and why long sessions (backoff grown to 60 s) did not show it.
+The deciding experiment is an A/B with TASK-675 fixed (a valid pin), or with Spotify polling held
+off (`bgPoll 0`) across the same sequence. TASK-675 is **DEFERRED by the human**, and that deferral
+now has a measured cost: this wedge, ~22 Stock ids in an affected full run.
+
+Two harness findings on the way: `T170`'s failure path collects no `_diag_snapshot` (so no ring),
+and its failure diagnostics read Stock keys after leaving Stock, which TASK-637's guard now refuses.
