@@ -1,7 +1,8 @@
 # Design — Heap-region instrument for TASK-697's 31k ceiling
 
 > Owner: Architect
-> Status: proposed
+> Status: accepted
+> **Accepted by human sign-off 2026-09-14**, after @VE's ACCEPT on re-review.
 > Date: 2026-09-14
 > Feeds: — (no ADR yet; this designs a probe, not a fix)
 > Tracked-as: TASK-697
