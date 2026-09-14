@@ -1,6 +1,7 @@
 """PlaneRadar app tests -- M-PLANERADAR (TASK-307/355/357). Split from
 run_serialdbg_tests.py, TASK-480."""
 
+import functools
 import time
 
 from lib.dut import Dut
@@ -410,6 +411,25 @@ def t_prm_02(dut: Dut):
 # T_PRI_01: injected continuity pair (same callsign, shifted fix) shows a
 #           nonzero, un-snapped offset that decays toward 0 with tau=2s.
 
+def _pr_inject_custody(fn):
+    """Clear PlaneRadar's aircraft injector on EVERY exit path of the body.
+
+    `set prInjectAircraft` sets `PlaneRadarApp::_injected`, which guards every
+    real-fetch site and is cleared only by `set prClearInject 1` or `init()`,
+    not by `resume()`. T_PRI_01 cleared it on entry but never on exit. TASK-635's
+    boundary check FAILed it for that in 4 of 4 full runs (2026-09-13/14).
+    The disarm is a different key from the arm, so the manager is armed with the
+    clear itself: `prClearInject 1` on entry (what the body already did first)
+    and again on exit.
+    """
+    @functools.wraps(fn)
+    def wrapper(dut: Dut):
+        with dut.injected("prClearInject", 1, clear_to=1):
+            return fn(dut)
+    return wrapper
+
+
+@_pr_inject_custody
 def t_pri_01(dut: Dut):
     """T_PRI_01 (TASK-357): dr-damped(tau=2) offset continuity + decay via the
     `get prInterp` observable (motion-slot 0: offsetPx, fixAgeMs, tracked).

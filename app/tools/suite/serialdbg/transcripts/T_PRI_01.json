@@ -1,12 +1,19 @@
 {
  "schema": 1,
  "id": "T_PRI_01",
- "elf": "168bf21d",
+ "elf": "cfff76ab",
  "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:23:56Z",
- "generation": "22.3",
+ "recorded_at": "2026-09-14T00:01:31Z",
+ "generation": "116.1",
  "preamble": [],
  "exchanges": [
+  {
+   "cmd": "set prClearInject 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prClearInject\",\"val\":\"1\"}"
+   ]
+  },
   {
    "cmd": "get tbScrollOffset",
    "nth": 0,
@@ -39,9 +46,12 @@
    "cmd": "tap 297 380",
    "nth": 0,
    "lines": [
-    "[shell] leaving 0  heap=54892 maxAlloc=40948 minFree=44016",
-    "[shell] entered 9  heap=53816 maxAlloc=40948 minFree=44016",
-    "[shell] switch 0->9 suspend=1ms wipe=54ms init=154ms taskbar=26ms total=235ms",
+    "[shell] leaving 0  heap=106724 maxAlloc=49140 minFree=44496",
+    "[D][spotify.task] dequeued action=POLL param=0",
+    "[I][spotify.tls] tls yield \u2014 client stopped",
+    "[shell] entered 9  heap=106724 maxAlloc=49140 minFree=44496",
+    "[D][dataTask.planeradar] heap free=62k maxBlk=47k",
+    "[shell] switch 0->9 suspend=1ms wipe=27ms init=76ms taskbar=28ms total=132ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":380,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
   },
@@ -49,7 +59,7 @@
    "cmd": "get appId",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=255ms (worst path so far: shell.switch:235ms)",
+    "[W][perf] iter=148ms (worst path so far: shell.switch:132ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
    ]
   },
@@ -63,9 +73,9 @@
   },
   {
    "cmd": "set prClearInject 1",
-   "nth": 0,
+   "nth": 1,
    "lines": [
-    "[W][perf] iter=314ms (worst path so far: shell.switch:235ms)",
+    "[W][perf] iter=645ms (worst path so far: shell.switch:132ms)",
     "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prClearInject\",\"val\":\"1\"}"
    ]
   },
@@ -80,8 +90,8 @@
    "cmd": "get prInterp",
    "nth": 0,
    "lines": [
-    "[W][perf] iter=76ms (worst path so far: shell.switch:235ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.00,\"fixAgeMs\":79,\"tracked\":1,\"last\":true}"
+    "[W][perf] iter=69ms (worst path so far: shell.switch:132ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.00,\"fixAgeMs\":77,\"tracked\":1,\"last\":true}"
    ]
   },
   {
@@ -95,19 +105,14 @@
    "cmd": "get prInterp",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=71ms (worst path so far: shell.switch:235ms)",
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":1.93,\"fixAgeMs\":75,\"tracked\":1,\"last\":true}"
+    "[W][perf] iter=70ms (worst path so far: shell.switch:132ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":1.93,\"fixAgeMs\":76,\"tracked\":1,\"last\":true}"
    ]
   },
   {
    "cmd": "get prInterp",
    "nth": 2,
    "lines": [
-    "[D][dataTask.planeradar] GET 200 elapsed=4540ms size=-1",
-    "[D][dataTask.planeradar] ok=1 errorCode=0 count=2 scanned=14 epoch=0",
-    "[D][dataTask.planeradar] roster TRA8A,9.9,320;RYR67ZT,8.5,190;",
-    "[D][dataTask.planeradar] heap free=61k maxBlk=33k",
-    "[D][dataTask.planeradar] heap free=61k maxBlk=33k",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.70,\"fixAgeMs\":2097,\"tracked\":1,\"last\":true}"
    ]
   },
@@ -115,7 +120,12 @@
    "cmd": "get prInterp",
    "nth": 3,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.26,\"fixAgeMs\":4116,\"tracked\":1,\"last\":true}"
+    "[D][dataTask.planeradar] GET 200 elapsed=4411ms size=-1",
+    "[D][dataTask.planeradar] ok=1 errorCode=0 count=0 scanned=4 epoch=0",
+    "[D][dataTask.planeradar] roster",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=41k",
+    "[D][dataTask.planeradar] heap free=61k maxBlk=41k",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"prInterp\",\"have\":true,\"offsetPx\":0.26,\"fixAgeMs\":4118,\"tracked\":1,\"last\":true}"
    ]
   },
   {
@@ -130,7 +140,7 @@
    "cmd": "get appId",
    "nth": 1,
    "lines": [
-    "[W][perf] iter=286ms (worst path so far: shell.switch:235ms)",
+    "[W][perf] iter=340ms (worst path so far: shell.switch:132ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":9,\"name\":\"PlaneRadar\",\"last\":true}"
    ]
   },
@@ -173,10 +183,10 @@
    "cmd": "tap 297 20",
    "nth": 0,
    "lines": [
-    "[shell] leaving 9  heap=54936 maxAlloc=40948 minFree=43560",
+    "[shell] leaving 9  heap=56308 maxAlloc=40948 minFree=44496",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
     "[D][chrome] drawVolume pct=-1 keyframe=NONE",
-    "[shell] entered 0  heap=54544 maxAlloc=40948 minFree=43560",
+    "[shell] entered 0  heap=56356 maxAlloc=40948 minFree=44496",
     "[shell] switch 9->0 suspend=2ms wipe=54ms init=76ms taskbar=24ms total=156ms",
     "{\"ok\":true,\"cmd\":\"tap\",\"x\":297,\"y\":20,\"hit\":\"TASKBAR\",\"action\":\"APP_SWITCH\",\"skipped\":false}"
    ]
@@ -185,8 +195,15 @@
    "cmd": "get appId",
    "nth": 2,
    "lines": [
-    "[W][perf] iter=220ms (worst path so far: shell.switch:235ms)",
+    "[W][perf] iter=220ms (worst path so far: shell.switch:156ms)",
     "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set prClearInject 1",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"prClearInject\",\"val\":\"1\"}"
    ]
   }
  ]
