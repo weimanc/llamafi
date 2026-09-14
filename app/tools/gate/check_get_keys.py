@@ -53,7 +53,9 @@ from gen_get_keys import collect_with_sites   # noqa: E402
 #: raised to 112 on 2026-09-06 when TASK-645 added `get boardId` (the board
 #: identity the run artifact's premise needs). RAISE this when keys are added; a
 #: drop is a finding, not a reason to lower it.
-MIN_KEYS = 116   # TASK-637 added `get appTicks` (ADR-063 D4; an `appRepaints` drafted in
+MIN_KEYS = 117   # TASK-697 added `get dataRing` (the dataTask event ring, the
+                 # sequence-of-edges companion to `get dataq`'s snapshot). Was 116
+                 # after TASK-637 added `get appTicks` (ADR-063 D4; an `appRepaints` drafted in
                  # the same change counted ticks, was removed before any DUT or
                  # consumer saw it, and is the one lowering this floor has had) (ADR-063 D4,
                  # M-HARNESS2 shell half); was 115 after TASK-635's `get armed`

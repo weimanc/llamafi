@@ -16,6 +16,7 @@
 #include "logHeartbeat.h"
 #include "perf.h"
 #include <esp_task_wdt.h>
+#include "dataTask.h"   // TASK-697: dbgRingPush — the yield-handshake half of `get dataRing`
 
 extern WiFiClientSecure client;
 extern long             songStartMillis;  // spotifyLogic.h global
@@ -376,6 +377,9 @@ static void taskBody(void *) {
       client.stop();
       LOG_I("spotify.tls", "tls yield — client stopped");
       dbgAct(1);
+#ifdef SERIAL_DEBUG
+      dataTask::dbgRingPush(dataTask::RING_TLS_STOP_ACK, (int16_t)s_tlsYieldReqCount);
+#endif
       if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
       while (s_tlsYieldReqCount > 0) {
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -452,6 +456,9 @@ static void taskBody(void *) {
       client.stop();
       LOG_I("spotify.tls", "tls yield — client stopped");
       dbgAct(1);
+#ifdef SERIAL_DEBUG
+      dataTask::dbgRingPush(dataTask::RING_TLS_STOP_ACK, (int16_t)s_tlsYieldReqCount);
+#endif
       if (s_tlsYieldedSem) xSemaphoreGive(s_tlsYieldedSem);
       while (s_tlsYieldReqCount > 0) {
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -689,6 +696,10 @@ void tlsYield() {
   portEXIT_CRITICAL(&s_tlsYieldMux);
   if (!needWait) return;
 
+#ifdef SERIAL_DEBUG
+  dataTask::dbgRingPush(dataTask::RING_YIELD_REQ, (int16_t)s_tlsYieldReqCount);
+#endif
+
   // Drain any orphaned give from a previous timed-out yield (avoids the race
   // where the semaphore is already available from a prior cycle, making the
   // next xSemaphoreTake return immediately before spotifyTask actually stops).
@@ -708,14 +719,31 @@ void tlsYield() {
   for (uint32_t waited = 0; waited < kTotalMs; waited += kSliceMs) {
     if (xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(kSliceMs)) == pdTRUE) {
       s_tlsStopped = true;
+#ifdef SERIAL_DEBUG
+      dataTask::dbgRingPush(dataTask::RING_YIELD_ACK, (int16_t)s_tlsYieldReqCount);
+#endif
       return;
     }
     // TASK-287: a concurrent tlsYield() call already consumed the one give()
     // spotifyTask issues per stop event and set s_tlsStopped — stop waiting
     // on a token that will never come again this cycle.
-    if (s_tlsStopped) return;
+    if (s_tlsStopped) {
+#ifdef SERIAL_DEBUG
+      dataTask::dbgRingPush(dataTask::RING_YIELD_ACK, (int16_t)s_tlsYieldReqCount);
+#endif
+      return;
+    }
     esp_task_wdt_reset();
   }
+  // TASK-697: the 150 s ceiling elapsed with no ack — unlike tlsTryYield()
+  // below, this path does NOT roll back s_tlsYieldReqCount (see the reading
+  // note in the TASK-697 commit): the increment above stands, relying on the
+  // caller's eventual tlsResume() (TlsYieldGuard's destructor always calls
+  // it, unconditionally) to rebalance it. Recorded so a run that hits this
+  // ceiling shows up as a timeout event, not silence.
+#ifdef SERIAL_DEBUG
+  dataTask::dbgRingPush(dataTask::RING_YIELD_TIMEOUT, (int16_t)s_tlsYieldReqCount);
+#endif
 }
 
 // TASK-430: bounded non-blocking sibling of tlsYield() above — same
@@ -740,6 +768,10 @@ bool tlsTryYield(uint32_t timeoutMs) {
   portEXIT_CRITICAL(&s_tlsYieldMux);
   if (!needWait) return true;
 
+#ifdef SERIAL_DEBUG
+  dataTask::dbgRingPush(dataTask::RING_YIELD_REQ, (int16_t)s_tlsYieldReqCount);
+#endif
+
   // Same orphaned-give drain as tlsYield() — see its comment.
   xSemaphoreTake(s_tlsYieldedSem, 0);
   Request r{ACT_POLL, 0};
@@ -751,9 +783,17 @@ bool tlsTryYield(uint32_t timeoutMs) {
     uint32_t slice = (timeoutMs - waited < kSliceMs) ? (timeoutMs - waited) : kSliceMs;
     if (xSemaphoreTake(s_tlsYieldedSem, pdMS_TO_TICKS(slice)) == pdTRUE) {
       s_tlsStopped = true;
+#ifdef SERIAL_DEBUG
+      dataTask::dbgRingPush(dataTask::RING_YIELD_ACK, (int16_t)s_tlsYieldReqCount);
+#endif
       return true;
     }
-    if (s_tlsStopped) return true;  // TASK-287: concurrent caller already got the ack
+    if (s_tlsStopped) {  // TASK-287: concurrent caller already got the ack
+#ifdef SERIAL_DEBUG
+      dataTask::dbgRingPush(dataTask::RING_YIELD_ACK, (int16_t)s_tlsYieldReqCount);
+#endif
+      return true;
+    }
     esp_task_wdt_reset();
     waited += slice;
   }
@@ -766,11 +806,16 @@ bool tlsTryYield(uint32_t timeoutMs) {
   portENTER_CRITICAL(&s_tlsYieldMux);
   bool ackedAtTheWire = s_tlsStopped;
   if (!ackedAtTheWire && s_tlsYieldReqCount > 0) s_tlsYieldReqCount--;
+  uint8_t countAfter = s_tlsYieldReqCount;
   portEXIT_CRITICAL(&s_tlsYieldMux);
   if (!ackedAtTheWire) {
     LOG_W("spotify.tls", "tls try-yield timed out after %ums — ref count rolled back, no yield granted",
           (unsigned)timeoutMs);
   }
+#ifdef SERIAL_DEBUG
+  dataTask::dbgRingPush(ackedAtTheWire ? dataTask::RING_YIELD_ACK : dataTask::RING_YIELD_TIMEOUT,
+                         (int16_t)countAfter);
+#endif
   return ackedAtTheWire;
 }
 
@@ -786,7 +831,11 @@ void tlsResume() {
   portENTER_CRITICAL(&s_tlsYieldMux);
   if (s_tlsYieldReqCount > 0) s_tlsYieldReqCount--;
   if (s_tlsYieldReqCount == 0) s_tlsStopped = false;
+  uint8_t countAfter = s_tlsYieldReqCount;
   portEXIT_CRITICAL(&s_tlsYieldMux);
+#ifdef SERIAL_DEBUG
+  dataTask::dbgRingPush(dataTask::RING_TLS_RESUME, (int16_t)countAfter);
+#endif
 }
 
 bool enqueue(Action a, int32_t param) {

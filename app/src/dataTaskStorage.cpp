@@ -71,6 +71,61 @@ static volatile uint32_t s_dbgWrPhaseMs  = 0;
 static volatile uint32_t s_dbgWrEnqueues = 0;
 static volatile uint32_t s_dbgWrDrops    = 0;
 
+#ifdef SERIAL_DEBUG
+// TASK-697: event ring (`get dataRing`) — see dataTask.h's RingEvent comment.
+// Written from dataTask (enqueue*/taskBody) AND spotifyTask (the yield
+// handshake), so it needs its own spinlock distinct from every per-result mux
+// above (none of those are held across both tasks' write sites at once).
+struct RingSlot {
+    uint32_t ms;
+    uint8_t  event;
+    int16_t  arg;
+};
+static constexpr uint8_t kRingSize = 32;
+static portMUX_TYPE s_ringMux                = portMUX_INITIALIZER_UNLOCKED;
+static RingSlot      s_ring[kRingSize]        = {};
+static uint8_t        s_ringHead              = 0;   // next slot to write
+static uint32_t        s_ringCount            = 0;   // total pushes since boot (for overflow detection)
+
+void dbgRingPush(uint8_t event, int16_t arg) {
+    portENTER_CRITICAL_SAFE(&s_ringMux);
+    s_ring[s_ringHead] = {millis(), event, arg};
+    s_ringHead = (uint8_t)((s_ringHead + 1) % kRingSize);
+    s_ringCount++;
+    portEXIT_CRITICAL_SAFE(&s_ringMux);
+}
+
+void dbgRingDump(char* buf, size_t len) {
+    RingSlot snap[kRingSize];
+    uint8_t  head;
+    uint32_t count;
+    portENTER_CRITICAL_SAFE(&s_ringMux);
+    memcpy(snap, s_ring, sizeof(snap));
+    head  = s_ringHead;
+    count = s_ringCount;
+    portEXIT_CRITICAL_SAFE(&s_ringMux);
+
+    uint8_t n = (uint8_t)(count < kRingSize ? count : kRingSize);
+    // Oldest-first: when the ring has wrapped (count >= kRingSize), the oldest
+    // live slot is the one `head` is about to overwrite next.
+    uint8_t start = (count < kRingSize) ? 0 : head;
+    size_t o = 0;
+    if (o < len) buf[o++] = '[';
+    for (uint8_t i = 0; i < n && o + 42 < len; i++) {
+        uint8_t idx = (uint8_t)((start + i) % kRingSize);
+        int written = snprintf(buf + o, len - o, "%s{\"ms\":%lu,\"ev\":%u,\"arg\":%d}",
+                                i ? "," : "",
+                                (unsigned long)snap[idx].ms,
+                                (unsigned)snap[idx].event,
+                                (int)snap[idx].arg);
+        if (written < 0) break;
+        o += (size_t)written;
+    }
+    if (o < len) buf[o++] = ']';
+    if (o < len) buf[o] = '\0'; else buf[len - 1] = '\0';
+}
+#endif
+
 static portMUX_TYPE  s_weatherMux  = portMUX_INITIALIZER_UNLOCKED;
 static WeatherResult s_weatherResult;
 static bool          s_weatherNew  = false;
@@ -1687,6 +1742,30 @@ static void fetchWebRadioStations() {
 
 // --- task body ---------------------------------------------------------------
 
+#ifdef SERIAL_DEBUG
+// TASK-697: coarse ok/fail for the ring's finish event, read straight from the
+// per-type result globals the fetch function that JUST returned wrote a few
+// lines above — the same globals poll*() publishes, so this costs nothing new
+// to maintain. Deliberately unlocked: the ring only needs "did that fetch
+// think it succeeded", never the value, and it is read on the dataTask task
+// immediately after the fetch function that owns the write returned.
+static bool dbgLastFetchOk(FetchType type) {
+    switch (type) {
+        case DATA_FETCH_WEATHER:            return s_weatherResult.ok;
+        case DATA_FETCH_CRYPTO:             return s_cryptoResult.ok;
+        case DATA_FETCH_STOCK_QUOTE:        return s_stockQuoteResult.ok;
+        case DATA_FETCH_STOCK_CHART:        return s_stockChartResult.ok;
+        case DATA_FETCH_HEATMAP_QUOTE:      return s_heatmapResult.ok;
+        case DATA_FETCH_STOCK_CHART_BY_SYM: return s_stockChartResult.ok;
+        case DATA_FETCH_TELETEXT_PAGE:      return s_teletextState.lastHttpCode == 200;
+        case DATA_FETCH_WEBRADIO_STATIONS:  return s_webRadioResult.ok;
+        case DATA_FETCH_PLANERADAR:         return s_planeRadarResult.ok;
+        case DATA_FETCH_GEOCODE:            return s_geocodeResult.ok;
+        default:                            return false;
+    }
+}
+#endif
+
 static void taskBody(void *) {
     LOG_I("dataTask", "task started stack=%uB", (unsigned)kStackBytes);
     for (;;) {
@@ -1694,6 +1773,9 @@ static void taskBody(void *) {
         BaseType_t got = xQueueReceive(s_queue, &req, portMAX_DELAY);
         if (got != pdTRUE) continue;
         s_dbgInFlight = (int8_t)req.type; s_dbgInFlightMs = millis();  // TASK-299
+#ifdef SERIAL_DEBUG
+        dbgRingPush(RING_DISPATCH_START, (int16_t)req.type);
+#endif
         switch (req.type) {
             case DATA_FETCH_WEATHER:          fetchWeather(); break;
             case DATA_FETCH_CRYPTO:           fetchCrypto();  break;
@@ -1712,6 +1794,10 @@ static void taskBody(void *) {
             case DATA_FETCH_GEOCODE:           fetchGeocode(); break;
             default: break;
         }
+#ifdef SERIAL_DEBUG
+        dbgRingPush(dbgLastFetchOk((FetchType)req.type) ? RING_FINISH_OK : RING_FINISH_FAIL,
+                    (int16_t)req.type);
+#endif
         s_pendingMask &= ~(1u << req.type);   // TASK-250: fetch done — allow re-enqueue
         s_dbgInFlight = -1;                   // TASK-299: dispatch loop idle
     }
@@ -1753,6 +1839,9 @@ void enqueue(FetchType type) {
         return;
     }
     s_pendingMask |= bit;
+#ifdef SERIAL_DEBUG
+    dbgRingPush(RING_ENQUEUE, (int16_t)type);
+#endif
 }
 
 // WIRE2-G4: weather fetch with coords snapshotted at enqueue time.
@@ -1777,6 +1866,9 @@ void enqueueWeather(float lat, float lon) {
         return;
     }
     s_pendingMask |= bit;
+#ifdef SERIAL_DEBUG
+    dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_WEATHER);
+#endif
 }
 
 bool pollWeather(WeatherResult *out) {
@@ -1808,23 +1900,38 @@ int lastCryptoHttpCode() { return s_cryptoLastCode; }
 void enqueueStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
     if (!s_queue) return;
     Request req = {}; req.type = DATA_FETCH_STOCK_CHART; req.param0 = tickerIdx; req.param1 = rangeIdx;
-    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
         LOG_W("dataTask", "queue full — dropped stock chart idx=%u rng=%u", tickerIdx, rangeIdx);
+        return;
+    }
+#ifdef SERIAL_DEBUG
+    dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_STOCK_CHART);
+#endif
 }
 
 void enqueueHeatmapQuote() {
     if (!s_queue) return;
     Request req = {}; req.type = DATA_FETCH_HEATMAP_QUOTE;
-    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
         LOG_W("dataTask", "queue full — dropped heatmap quote");
+        return;
+    }
+#ifdef SERIAL_DEBUG
+    dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_HEATMAP_QUOTE);
+#endif
 }
 
 void enqueueStockChartBySym(const char* symbol, uint8_t rangeIdx) {
     if (!s_queue || !symbol) return;
     Request req = {}; req.type = DATA_FETCH_STOCK_CHART_BY_SYM; req.param1 = rangeIdx;
     strncpy(req.symbol, symbol, 7); req.symbol[7] = '\0';
-    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
         LOG_W("dataTask", "queue full — dropped chart-sym %s", symbol);
+        return;
+    }
+#ifdef SERIAL_DEBUG
+    dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_STOCK_CHART_BY_SYM);
+#endif
 }
 
 bool pollStockQuote(StockQuoteResult *out) {
@@ -1896,8 +2003,13 @@ void enqueueTeletextPage(uint16_t page, uint8_t sub) {
     // High nibble of param0 = sub (0-15); low nibble = page high byte (0-3 for pages 100-899)
     req.param0 = (uint8_t)((sub << 4) | ((page >> 8) & 0x0F));
     req.param1 = (uint8_t)(page & 0xFF);
-    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
         LOG_W("dataTask", "queue full — dropped teletext page=%u sub=%u", page, (unsigned)sub);
+        return;
+    }
+#ifdef SERIAL_DEBUG
+    dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_TELETEXT_PAGE);
+#endif
 }
 
 bool pollTeletext(TeletextState *out) {
@@ -1934,6 +2046,9 @@ void enqueueWebRadioStations(const char* countryCode, uint8_t bitrateCap) {
         LOG_W("dataTask", "queue full — dropped webradio stations country=%s", countryCode);
     } else {
         s_dbgWrEnqueues++;
+#ifdef SERIAL_DEBUG
+        dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_WEBRADIO_STATIONS);
+#endif
     }
 }
 
@@ -1946,8 +2061,13 @@ void enqueuePlaneRadar(float lat, float lon, float distNm, uint8_t epoch) {
     s_pendingPrEpoch  = epoch;
     portEXIT_CRITICAL_SAFE(&s_pendingPrMux);
     Request req = {}; req.type = DATA_FETCH_PLANERADAR;
-    if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+    if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
         LOG_W("dataTask", "queue full — dropped planeradar fetch");
+        return;
+    }
+#ifdef SERIAL_DEBUG
+    dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_PLANERADAR);
+#endif
 }
 
 bool pollPlaneRadar(PlaneRadarResult *out) {
@@ -1983,8 +2103,13 @@ uint8_t enqueueGeocode(const char* countryCC, const char* postcode) {
 
     if (s_queue) {
         Request req = {}; req.type = DATA_FETCH_GEOCODE;
-        if (xQueueSend(s_queue, &req, 0) != pdTRUE)
+        if (xQueueSend(s_queue, &req, 0) != pdTRUE) {
             LOG_W("dataTask", "queue full — dropped geocode %s %s", countryCC, postcode);
+        } else {
+#ifdef SERIAL_DEBUG
+            dbgRingPush(RING_ENQUEUE, (int16_t)DATA_FETCH_GEOCODE);
+#endif
+        }
     }
     return seq;
 }

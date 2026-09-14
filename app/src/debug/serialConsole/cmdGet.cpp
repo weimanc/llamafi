@@ -205,6 +205,23 @@ void cmdGet(const char *args) {
                   (unsigned long)spotifyTask::taskActivityMs());
     return;
   }
+  // TASK-697: `get dataq` is a snapshot — it can't tell a generation that
+  // stalled 10s and cleared apart from one still stuck when this read landed.
+  // `get dataRing` is the sequence of edges (enqueue/dispatch/finish +
+  // tlsYield handshake) that got there, oldest -> newest, so a stuck
+  // transition can be read off a failing run instead of inferred from timing.
+  // See dataTask.h's RingEvent enum for the event codes and docs/verification/
+  // regression_suite/task697-reboot-inject-stock.md for why this exists.
+  if (strcmp(args, "dataRing") == 0) {
+    // 32 slots * worst-case entry `,{"ms":4294967295,"ev":255,"arg":-32768}`
+    // (40 bytes) + brackets/NUL — sized for the full ring, never truncated.
+    char ring[1300];
+    dataTask::dbgRingDump(ring, sizeof(ring));
+    Serial.printf("{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataRing\",\"ms\":%lu,"
+                  "\"events\":%s,\"last\":true}\n",
+                  (unsigned long)millis(), ring);
+    return;
+  }
   // TASK-344 (M-CERT-ERRCODE): peek whether a `set certbreak <app>` arm is
   // still pending (armed=false once the target fetch has consumed it).
   if (strcmp(args, "certbreak") == 0) {

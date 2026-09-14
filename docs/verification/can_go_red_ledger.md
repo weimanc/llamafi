@@ -50,10 +50,18 @@ is stale or unhealthy for it — and are printed with a re-record instruction, n
 | `T170` | RED-WITHOUT-ASSERTION | newly VISIBLE 2026-09-12: TASK-575's run refreshed 194 transcripts, and a healthy recording sweeps where a `BASELINE-NOT-PASS` one was skipped. Not a new defect — newly measurable | TASK-688 | 2026-09-12 |
 | `T176` | RED-WITHOUT-ASSERTION | as `T170` — exposed by the 2026-09-12 transcript refresh, not introduced by it | TASK-688 | 2026-09-12 |
 | `T188` | RED-WITHOUT-ASSERTION | as `T170` | TASK-688 | 2026-09-12 |
-| `T204` | RED-WITHOUT-ASSERTION | as `T170`; `T204`'s 120 s Ytd stall is separately TASK-668 | TASK-688 | 2026-09-12 |
 | `T_CLK_SIG_01` | RED-WITHOUT-ASSERTION | as `T170`; 41 replays over 5 exchanges, zero assertions on its subject. TASK-638 landed the id; the oracle is what is missing | TASK-688 | 2026-09-12 |
 
-**9 rows** (first recording, 2026-09-09).
+**8 rows** (first recording, 2026-09-09, 9 rows; `T204` removed 2026-09-14 — see below).
+
+**`T204` removed 2026-09-14 (TASK-697).** TASK-697 added `_diag_snapshot`'s `get dataRing` call
+(app/tools/suite/serialdbg/_helpers.py) ahead of where `T204`'s recorded transcript diverges from
+its old RED-WITHOUT-ASSERTION path — the poisoned replay now runs out of recorded exchanges one
+command earlier and grades INCONCLUSIVE instead, per rule 2 ("the list can only shrink"; a row
+whose id no longer sweeps a blocking outcome is itself a failure). Not a fix to whatever `T204`'s
+120 s Ytd stall (TASK-668) or its missing assertion actually is — those are unchanged and still
+real — only the recording is stale. Re-record `T204` (`RECORD_DIR=... run/test-targeted T204`) and
+re-add the row with whatever outcome the fresh sweep finds.
 
 **Opening state, 2026-09-08 (0 rows):** The transcript directory was empty when this gate landed — a TASK-557 observation
 window (uptime ~24 h) was live and recording costs a reset — so the gate reads zero **by absence**,

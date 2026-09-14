@@ -760,6 +760,18 @@ def _diag_snapshot(dut: Dut, tag: str = "") -> str:
             f"yieldCount={q.get('yieldCount')})" if q.get("ok") else "dataq(no-ok)")
     except TimeoutError:
         parts.append("dataq(timeout)")
+    try:
+        # TASK-697: the ring of enqueue/dispatch/finish + tlsYield-handshake
+        # edges (`get dataRing`) — appended only when the reply itself is ok,
+        # so an unknown-key `{"ok":false,...}` from older firmware (this
+        # command postdates TASK-697) is silently omitted rather than shown
+        # as a fake "no-ok" entry that looks like the same failure as a real
+        # dataq/heap timeout above.
+        rg = dut.cmd("get dataRing", timeout=3.0)
+        if rg.get("ok"):
+            parts.append(f"dataRing({rg.get('events')})")
+    except TimeoutError:
+        pass
     snap = " ".join(parts)
     prefix = f"[{tag}] " if tag else ""
     print(f"  {prefix}diag: {snap}", flush=True)

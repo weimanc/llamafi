@@ -378,4 +378,36 @@ void dbgQueueState(DbgQueueState* out);
 size_t stackHighWaterBytes();
 size_t stackSizeBytes();
 
+#ifdef SERIAL_DEBUG
+// TASK-697: dataTask event ring (`get dataRing`). `get dataq` is a snapshot —
+// it shows the CURRENT inFlight/tlsStopped pair but not the sequence of edges
+// that got there, so a stuck-forever generation and a generation that stalled
+// for 10s and cleared look identical in a single dataq read. The ring is a
+// fixed 32-entry circular log of the enqueue/dispatch/finish and TLS
+// yield-handshake edges (dataTaskStorage.cpp's taskBody()/enqueue*() and
+// spotifyTaskStorage.cpp's tlsYield()/tlsTryYield()/tlsResume() and the loop's
+// own client.stop() ack), spinlock-protected because both tasks write it.
+// SERIAL_DEBUG-only: 32 * 8B = 256B of .dram0.bss the production build does
+// not pay (see docs/verification/regression_suite/task697-reboot-inject-stock.md).
+enum RingEvent : uint8_t {
+    RING_ENQUEUE        = 0,  // arg = FetchType queued
+    RING_DISPATCH_START = 1,  // arg = FetchType taskBody just set s_dbgInFlight to
+    RING_FINISH_OK      = 2,  // arg = FetchType whose fetch function just returned, result.ok
+    RING_FINISH_FAIL    = 3,  // arg = FetchType whose fetch function just returned, !result.ok
+    RING_YIELD_REQ      = 4,  // arg = tlsYieldReqCount after increment — a caller entered
+                              //       tlsYield()/tlsTryYield() and TLS was not already stopped
+    RING_TLS_STOP_ACK   = 5,  // arg = tlsYieldReqCount — spotifyTask's own loop just called
+                              //       client.stop() and gave the yield semaphore
+    RING_YIELD_ACK      = 6,  // arg = tlsYieldReqCount — a waiting caller's xSemaphoreTake
+                              //       succeeded (or saw s_tlsStopped already true)
+    RING_YIELD_TIMEOUT  = 7,  // arg = tlsYieldReqCount — tlsYield()'s 150s ceiling elapsed
+                              //       un-acked, or tlsTryYield() gave up and rolled back
+    RING_TLS_RESUME     = 8,  // arg = tlsYieldReqCount after decrement
+};
+void dbgRingPush(uint8_t event, int16_t arg);
+// `get dataRing`: one compact JSON line, oldest -> newest, empty array if
+// nothing recorded since boot. Never blocks; safe from either task.
+void dbgRingDump(char* buf, size_t len);
+#endif
+
 }  // namespace dataTask
