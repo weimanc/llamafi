@@ -304,6 +304,71 @@ static void heapRegionDump(int point, const char* fetchTag) {
 }
 #endif
 
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+// TASK-697 (M-DATATASK-heap-region-instrument, "Option 3 experiment
+// specification" / Revision 3, dataTask-only — the symmetric Spotify-side
+// hooks are SUPERSEDED, not implemented). EXPERIMENT-ONLY: behind this flag
+// only, debug build, no mem_manifest.yaml entry — independent of
+// HEAP_REGION_DUMP_OFF/heapRegionDump() above (Gate 0 found that instrument
+// itself perturbing; both A/B arms of this experiment build with
+// -DHEAP_REGION_DUMP_OFF, so heapRegionDump() never fires here).
+//
+// A 40 KB span, malloc'd once at dataTask::begin() (before the task loop —
+// and therefore every fetcher/injection — can run at all) and held for the
+// remainder of boot except when transiently released around one dataTask
+// fetcher's own TLS bracket, then re-acquired immediately after. Spotify's
+// own two call sites (spotifyTaskStorage.cpp doPoll/doFetchQueue) are
+// deliberately NOT touched — Revision 3's premise check found Spotify never
+// holds a live session in the T_PR_04->T170 sequence this A/B runs
+// (TASK-675 fails every refresh before a session forms), so there is
+// nothing for a dataTask-favouring hold to squeeze in this scenario.
+static constexpr size_t kTlsReserveBytes = 40 * 1024;
+static void* s_tlsReserve = nullptr;
+
+// Called once from dataTask::begin(), before the task is created.
+static void tlsReserveBoot() {
+    s_tlsReserve = heap_caps_malloc(kTlsReserveBytes, MALLOC_CAP_8BIT);
+    LOG_D("tlsres", "[tlsres] boot reserve=%s bytes=%u ms=%lu",
+          s_tlsReserve ? "ok" : "FAIL", (unsigned)kTlsReserveBytes, millis());
+}
+
+// Called right after a fetcher yields Spotify's TLS (RAII TlsYieldGuard's
+// declaration line, or fetchPlaneRadar's manual tlsYield()), freeing the
+// reserved span back to the pool so that fetcher's own TLS handshake can
+// claim clean, unfragmented headroom.
+static void tlsReserveRelease(const char* fetchTag) {
+    if (s_tlsReserve) {
+        heap_caps_free(s_tlsReserve);
+        s_tlsReserve = nullptr;
+    }
+    LOG_D("tlsres", "[tlsres] release fetch=%s ms=%lu", fetchTag, millis());
+}
+
+// Called right before the fetcher resumes Spotify's TLS (RAII guard's scope
+// close / fetchPlaneRadar's manual tlsResume()). Single malloc attempt —
+// never retried, never blocks dataTask's own loop. On failure the reservation
+// simply stays absent for this cycle (today's unprotected behaviour); logged
+// once, not escalated.
+static void tlsReserveReacquire(const char* fetchTag) {
+    void* p = heap_caps_malloc(kTlsReserveBytes, MALLOC_CAP_8BIT);
+    if (p) s_tlsReserve = p;
+    LOG_D("tlsres", "[tlsres] reacquire %s fetch=%s ms=%lu",
+          p ? "ok" : "FAIL", fetchTag, millis());
+}
+
+// Engagement observable (@VE, "Re-check after the premise check" /
+// "Final check — symmetric release" §"Engagement observable"): logs the
+// reservation's actual live state, single line, cheap (no heap dump), at
+// capture point 1 (right after fetchPlaneRadar publishes its result) —
+// independent of HEAP_REGION_DUMP_OFF/heapRegionDump(). A try whose point1
+// line reports RELEASED is excluded from that arm's count by whoever reads
+// the transcript (not enforced in firmware).
+static void tlsReservePoint1() {
+    LOG_D("tlsres", "[tlsres] point1 %s ms=%lu",
+          s_tlsReserve ? "HELD" : "RELEASED", millis());
+}
+#endif
+
 // TASK-341: shared substitution, factored out so the fetchers that hand-roll
 // begin()/GET() instead of going through httpFetchJsonBuffered() (TASK-460;
 // their divergence is deliberate — extra headers/streaming-filter parse
@@ -476,6 +541,9 @@ static void fetchWeather() {
     // below. Was previously omitted here despite BP-031 citing weather as
     // conforming — fixed 2026-06-21 (TASK-222).
     spotifyTask::TlsYieldGuard tlsGuard;
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveRelease("weather");
+#endif
     WiFiClientSecure tls;
     BufferedFetchCfg cfg{url, OPEN_METEO_ROOT_CA, DATA_FETCH_WEATHER,
                           &s_weatherFetchPhase, "dataTask.weather", nullptr};
@@ -508,6 +576,9 @@ static void fetchWeather() {
             LOG_W("dataTask.weather", "JSON parse error: %s", err.c_str());
         }
     });
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("weather");
+#endif
 }
 
 static void fetchCrypto() {
@@ -516,6 +587,9 @@ static void fetchCrypto() {
     // Pause Spotify TLS first (same mechanism as heatmap) to give the alloc clean
     // contiguous heap. HTTP/1.0 ensures http.end() frees TLS before JSON parse.
     spotifyTask::TlsYieldGuard tlsGuard;
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveRelease("crypto");
+#endif
 
     char ids[6][16];
     char ccy[4];
@@ -570,10 +644,16 @@ static void fetchCrypto() {
             LOG_W("dataTask.crypto", "JSON parse error: %s", err.c_str());
         }
     });
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("crypto");
+#endif
 }
 
 static void fetchStockQuote() {
     spotifyTask::TlsYieldGuard tlsGuard;      // free Spotify TLS before the Yahoo handshake
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveRelease("stockQuote");
+#endif
     LOG_HEAP("dataTask.stock");
     char tickers[8][8];
     portENTER_CRITICAL_SAFE(&s_stockTickersMux);
@@ -649,6 +729,9 @@ static void fetchStockQuote() {
     portEXIT_CRITICAL_SAFE(&s_stockQuoteMux);
     if (r.ok) LOG_D("dataTask.stock", "spark ok aapl=%.2f msft=%.2f", r.prices[0], r.prices[1]);
     LOG_HEAP("dataTask.stock");
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("stockQuote");
+#endif
 }
 
 // Single GET+parse attempt, shared by the by-ticker-index and by-symbol chart
@@ -730,6 +813,9 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
 // and by-symbol entry points below both delegate here.
 static void fetchStockChartWithRetry(const char* symbol, uint8_t rangeIdx, FetchType certTag) {
     spotifyTask::TlsYieldGuard tlsGuard;
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveRelease("stockChart");
+#endif
     LOG_D("dataTask.stock", "chart START sym=%s range=%s heap free=%uk maxBlk=%uk",
           symbol, STOCK_RANGE_STR[rangeIdx],
           (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
@@ -763,6 +849,9 @@ static void fetchStockChartWithRetry(const char* symbol, uint8_t rangeIdx, Fetch
     s_stockChartNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
     LOG_HEAP("dataTask.stock");
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("stockChart");
+#endif
 }
 
 static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
@@ -812,6 +901,14 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
     WiFiClientSecure tls;
     BufferedFetchCfg cfg{url, TELETEXT_NOS_ROOT_CA, DATA_FETCH_TELETEXT_PAGE,
                           nullptr, "dataTask.teletext", nullptr};
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // Moved past the BufferedFetchCfg construction (stack-only, no heap use)
+    // to keep gate/test_check_app_conformance.py's A5 anchor
+    // ('TlsYieldGuard tlsGuard;\n WiFiClientSecure tls;\n BufferedFetchCfg
+    // cfg{url, TELETEXT_NOS_ROOT_CA, ...') contiguous and unmodified — still
+    // released before httpFetchJsonBuffered()'s own TLS handshake begins.
+    tlsReserveRelease("teletext");
+#endif
     httpFetchJsonBuffered(tls, cfg, [page](int code, const String& body) {
         if (code == OPENHTTPS_BEGIN_FAILED) {
             LOG_W("dataTask.teletext", "http.begin failed page=%u", page);
@@ -952,6 +1049,9 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
         s_teletextNew   = true;
         portEXIT_CRITICAL_SAFE(&s_teletextMux);
     });
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("teletext");
+#endif
 }
 
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
@@ -1071,6 +1171,9 @@ static void fetchHeatmapQuote() {
     // (~50–70 k). tlsYield() blocks until the spotify task has called
     // client.stop(); tlsResume() (below) releases it to reconnect.
     spotifyTask::TlsYieldGuard tlsGuard;
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveRelease("heatmap");
+#endif
     LOG_HEAP("dataTask.stock");   // after Spotify TLS freed — expect maxBlk ≥ 50k
 
     WiFiClientSecure tls;
@@ -1084,6 +1187,9 @@ static void fetchHeatmapQuote() {
         portENTER_CRITICAL_SAFE(&s_heatmapMux);
         s_heatmapResult = r; s_heatmapNew = true;
         portEXIT_CRITICAL_SAFE(&s_heatmapMux);
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        tlsReserveReacquire("heatmap");
+#endif
         return;
     }
     // Screener endpoint requires a browser-like User-Agent; without it the
@@ -1151,6 +1257,9 @@ static void fetchHeatmapQuote() {
     }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
     LOG_HEAP("dataTask.stock");   // after heatmap TLS freed
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("heatmap");
+#endif
 }
 
 static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
@@ -1492,6 +1601,13 @@ static void fetchPlaneRadar() {
 
     spotifyTask::tlsYield();   // BP-031: free Spotify TLS before our own handshake
     LOG_HEAP("dataTask.planeradar");
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // Placed after LOG_HEAP to keep gate/test_check_app_conformance.py's A5
+    // caller-bracket anchor ('tlsYield();...\n LOG_HEAP("dataTask.
+    // planeradar");') contiguous and unmodified — still released well before
+    // prFetchOnce()'s own TLS handshake begins below.
+    tlsReserveRelease("planeradar");
+#endif
 #if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
     heapRegionDump(0, "planeradar");   // capture point 0: same-try "before" half
 #endif
@@ -1597,9 +1713,20 @@ static void fetchPlaneRadar() {
     s_planeRadarResult = r;
     s_planeRadarNew    = true;
     portEXIT_CRITICAL_SAFE(&s_planeRadarMux);
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // Capture point 1 (@VE "Re-check after the premise check" / "Final check —
+    // symmetric release" — engagement observable): the reservation's ACTUAL
+    // live state, logged right here, independent of HEAP_REGION_DUMP_OFF/
+    // heapRegionDump() (both A/B arms build with -DHEAP_REGION_DUMP_OFF). One
+    // cheap single-line log, no heap dump.
+    tlsReservePoint1();
+#endif
     LOG_HEAP("dataTask.planeradar");
 #if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
     heapRegionDump(1, "planeradar");   // capture point 1: same-try "after" half, before tlsResume()
+#endif
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("planeradar");
 #endif
     spotifyTask::tlsResume();
 }
@@ -1641,6 +1768,9 @@ static void fetchGeocode() {
     portEXIT_CRITICAL_SAFE(&s_pendingGeoMux);
 
     spotifyTask::TlsYieldGuard tlsGuard;   // BP-031: free Spotify TLS before our own handshake
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveRelease("geocode");
+#endif
     WiFiClientSecure tls;
 
     char encPost[40];
@@ -1689,6 +1819,9 @@ static void fetchGeocode() {
         s_geocodeNew    = true;
         portEXIT_CRITICAL_SAFE(&s_geocodeMux);
     });
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("geocode");
+#endif
 }
 
 static void fetchWebRadioStations() {
@@ -1711,6 +1844,9 @@ static void fetchWebRadioStations() {
     // enough contiguous heap for its own handshake.
     s_dbgWrPhase = 0; s_dbgWrPhaseMs = millis();   // TASK-299: entering tlsYield
     spotifyTask::TlsYieldGuard tlsGuard;
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveRelease("webRadioStations");
+#endif
     s_dbgWrPhase = 1; s_dbgWrPhaseMs = millis();   // TASK-299: yield acked, fetching
     LOG_HEAP("dataTask.webradio");
 
@@ -1811,6 +1947,9 @@ static void fetchWebRadioStations() {
 
     s_dbgWrPhase = 2; s_dbgWrPhaseMs = millis();   // TASK-299: fetch pass complete
     LOG_HEAP("dataTask.webradio");
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    tlsReserveReacquire("webRadioStations");
+#endif
 }
 
 // --- task body ---------------------------------------------------------------
@@ -1885,6 +2024,12 @@ void begin() {
         LOG_E("dataTask", "xQueueCreate failed");
         return;
     }
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // TASK-697 Option 3 A/B: acquire the 40 KB reservation before the task
+    // (and therefore every fetcher/injection) can run at all — nothing that
+    // could fragment the pool has executed yet at this point in boot.
+    tlsReserveBoot();
+#endif
     BaseType_t rc = xTaskCreatePinnedToCore(
         &taskBody, "dataTask",
         kStackBytes / sizeof(StackType_t),
