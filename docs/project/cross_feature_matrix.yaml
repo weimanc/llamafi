@@ -1763,30 +1763,27 @@ interactions:
       criteria are met (T_BI_03 demoted to FEATURE, check_gating_offline reads zero). CORE is 17.
 
   - id: X068
-    feature_a: auth-001
+    feature_a: planeradar-001
     feature_b: data-task-001
     interaction_type: conflict
     description: |
-      Spotify's failing token refresh starves every dataTask fetch through the shared TLS yield.
-      On no-PSRAM builds one TLS session exists at a time (BP-031, X010), so a dataTask fetcher
-      must get spotifyTask to stop its client and ack before handshaking. When `accounts.spotify.com`
-      no longer verifies against the pinned root (TASK-675, `-9984`), every Spotify poll or queue
-      GET first runs a failing refresh, then two failing `-80` write retries, ~4 s per cycle.
-      After an in-session reboot the backoff restarts at 0, so the cycles run back to back and the
-      task rarely reaches its yield checkpoint. Observed (TASK-697): a Stock quote fetch waited
-      ~60 s for the ack, and ~22 Stock ids failed or skipped for that boot generation. Long
-      sessions do not show it, because the backoff has grown to 60 s. Same family as X021's
-      TASK-244 403 starvation, with a different trigger.
+      PlaneRadar's debug aircraft injection (`set prInjectAircraft`), landing while a real
+      PlaneRadar fetch is in flight, leaves internal heap fragmented. On that fetch's `GET 200`
+      the largest free block drops from ~45k to 31k and stays there for the boot. Every TLS
+      handshake then fails `-32512 SSL - Memory allocation failed`: PlaneRadar's own, Spotify's,
+      and every dataTask fetcher's (Stock, observed). A Stock quote fetch retries every 60 s and
+      never succeeds. Same failure class as X010 (TLS OOM at maxAlloc < handshake need), with a
+      new trigger. Observed only through the debug injector, but the allocation pattern it
+      exposes (a result-processing allocation surviving around a long-lived one) may be reachable
+      without it.
     risk: high
-    test_coverage: [T170, T_DTP_01]
+    test_coverage: [T_PRI_01, T170]
     notes: |
-      Added 2026-09-14. The mechanism is a reading from one raw-serial catch, not proof
-      (docs/verification/regression_suite/task697-reboot-inject-stock.md). Deciding experiment:
-      the same sequence with TASK-675 fixed or Spotify polling held off. Contributing defect:
-      TlsYieldGuard's default constructor records success unconditionally (TASK-700). T170 and
-      T_DTP_01 cover it only as a composite; single-operation tests for the hand-off are TASK-705.
-      User-facing: any device whose Spotify credentials fail TLS can stall Stock/Weather/Crypto/
-      PlaneRadar fetches.
+      Added 2026-09-14 (TASK-697). First written as "Spotify token-refresh failure starves the TLS
+      yield"; that reading was wrong and is corrected in
+      docs/verification/regression_suite/task697-reboot-inject-stock.md (the yield acked at once;
+      the heap lines were in the same logs). Mechanism still a reading: the exact match is two
+      failing captures. Next evidence: `get heap` between each T_PRI_01 command.
 
   - id: X069
     feature_a: serialdbg-001

@@ -1698,9 +1698,9 @@ features:
     cross_features:
       - app-interface-001
       - app-registry-001
-      - auth-001
+      - planeradar-001
       - stock-001
-    test_ids: [T170, T_DTP_01]
+    test_ids: [T170, T_DTP_01, T_TLS_01, T_SQI_01]
     dependencies:
       - app-interface-001
     notes: |
@@ -1711,12 +1711,11 @@ features:
       stress/soak harness). The shared tlsYield is also the no-PSRAM contention point — a Spotify
       403 starves every fetcher via it (project memory: tlsYield starvation; fixed by TASK-244's
       hard-backoff). data-task-001's resident stack is M-MEMBUDGET's Q2 dynamic-reclaim candidate.
-      2026-09-14: the same starvation recurs from a different trigger. After an in-session reboot,
-      Spotify's backoff restarts at 0 and its token refresh fails `-9984` every cycle (TASK-675's
-      pinned-root rot). A Stock fetch then waited ~60 s for the yield ack (TASK-697, matrix X068;
-      a reading, not proof). The default `TlsYieldGuard` records success even if `tlsYield()` timed
-      out (TASK-700). Instrument: `get dataRing` event ring (TASK-697). Primitive-operation tests for
-      the hand-off are TASK-705.
+      2026-09-14 (TASK-697, matrix X068): a PlaneRadar debug injection landing during an in-flight
+      PlaneRadar fetch drops the largest free block 45k to 31k; every TLS handshake then fails
+      `-32512`, dataTask's fetchers included. First misread as tlsYield starvation (corrected).
+      The default `TlsYieldGuard` records success even if `tlsYield()` timed out (TASK-700, a
+      separate defect). Instrument: `get dataRing`. Primitive-operation tests: TASK-705.
 
   - id: memplan-001
     name: Static app-memory overlay planner (build-time memory budgeting)

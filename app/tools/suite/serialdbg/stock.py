@@ -1516,7 +1516,7 @@ def t193(dut: Dut):
     pass_("T193", f"drilled={drilled!r}; auto-refresh fetched same symbol; chartLen={chart_len}")
 
 
-# ── T_SQI_01 — Stock quote fetch completes with Spotify provably idle ───────
+# ── T_SQI_01 — Stock quote fetch completes with bgPoll suspended ─────────────
 # TASK-705 primitive: stock_quote_fetch (O8's idle half). T170 already proves
 # the fetch completes; this id additionally holds Spotify idle for the WHOLE
 # wait via `_bgpoll_suspended` (bgPoll=0, the same custody helper T084/T169
@@ -1529,7 +1529,7 @@ def t_sqi_01(dut: Dut):
     """T_SQI_01: Stock quoteOkCount advances within 65s with Spotify's
     background poll held off the whole time. TASK-705 primitive:
     stock_quote_fetch."""
-    print("T_SQI_01  Quote fetch completes, Spotify provably idle")
+    print("T_SQI_01  Quote fetch completes, bgPoll suspended")
     with _bgpoll_suspended(dut):
         if not _switch_to_stock(dut):
             unmet("T_SQI_01", "could not switch to Stock")
@@ -1553,7 +1553,8 @@ def t_sqi_01(dut: Dut):
                          "65s with Spotify bgPoll held off the whole time")
         return
     pass_("T_SQI_01", f"quoteOkCount advanced past {before} — quote fetch "
-                      "completed with Spotify provably idle")
+                      "completed with bgPoll suspended (NOT idle: spotifyTask still "
+                      "runs a POLL after each TLS resume — DUT serial 2026-09-14)")
 
 
 TESTS = {

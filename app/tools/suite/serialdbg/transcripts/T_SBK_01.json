@@ -1,0 +1,97 @@
+{
+ "schema": 1,
+ "id": "T_SBK_01",
+ "elf": "d4f38250",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-14T10:40:03Z",
+ "generation": "145.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get backoff",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":3,\"nextPollMs\":40000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 1,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":0,\"nextPollMs\":5000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"1\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":1,\"nextPollMs\":10000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 2",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"2\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 3,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":2,\"nextPollMs\":20000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 6",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"6\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 4,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":6,\"nextPollMs\":60000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 9",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"9\"}"
+   ]
+  },
+  {
+   "cmd": "get backoff",
+   "nth": 5,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"backoff\",\"consecutiveFailures\":9,\"nextPollMs\":60000,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set backoff 3",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"backoff\",\"val\":\"3\"}"
+   ]
+  }
+ ]
+}

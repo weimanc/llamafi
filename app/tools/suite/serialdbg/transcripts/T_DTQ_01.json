@@ -1,0 +1,91 @@
+{
+ "schema": 1,
+ "id": "T_DTQ_01",
+ "elf": "d4f38250",
+ "build_env": "cyd2usb_winamp_debug",
+ "recorded_at": "2026-09-14T10:40:03Z",
+ "generation": "145.1",
+ "preamble": [],
+ "exchanges": [
+  {
+   "cmd": "get appId",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get shellBusy",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"shellBusy\",\"busy\":false,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set spotifyWedge 6000",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"spotifyWedge\",\"val\":\"6000\"}"
+   ]
+  },
+  {
+   "cmd": "set stockMode 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"stockMode\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "switchApp 6",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 0  heap=105756 maxAlloc=40948 minFree=44484",
+    "[shell] entered 6  heap=105724 maxAlloc=40948 minFree=44484",
+    "[shell] switch 0->6 suspend=1ms wipe=27ms init=41ms taskbar=12ms total=81ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":6}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 1,
+   "lines": [
+    "[W][perf] iter=125ms (worst path so far: shell.switch:165ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":6,\"name\":\"Stock\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get dataq",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"dataq\",\"ms\":132163,\"queueWaiting\":0,\"pendingMask\":0,\"inFlight\":-1,\"inFlightMs\":127662,\"wrPhase\":-1,\"wrPhaseMs\":0,\"wrEnqueues\":0,\"wrDrops\":0,\"yieldCount\":0,\"tlsStopped\":false,\"spAct\":0,\"spActMs\":129985,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "switchApp 0",
+   "nth": 0,
+   "lines": [
+    "[shell] leaving 6  heap=105724 maxAlloc=40948 minFree=44484",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=105724 maxAlloc=40948 minFree=44484",
+    "[shell] switch 6->0 suspend=1ms wipe=27ms init=37ms taskbar=12ms total=77ms",
+    "{\"ok\":true,\"cmd\":\"switchApp\",\"id\":0}"
+   ]
+  },
+  {
+   "cmd": "get appId",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=105ms (worst path so far: shell.switch:165ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"appId\",\"id\":0,\"name\":\"Spotify\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set spotifyWedge 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"spotifyWedge\",\"val\":\"0\"}"
+   ]
+  }
+ ]
+}

@@ -80,3 +80,37 @@ now has a measured cost: this wedge, ~22 Stock ids in an affected full run.
 
 Two harness findings on the way: `T170`'s failure path collects no `_diag_snapshot` (so no ring),
 and its failure diagnostics read Stock keys after leaving Stock, which TASK-637's guard now refuses.
+
+## CORRECTION, 2026-09-14 11:50 — the TLS-starvation reading above is WRONG
+
+The mechanism recorded in the previous section was read from one log, and the lines that
+contradict it were in the same log; I did not look for them. The heap lines were there.
+
+**What the raw serial actually shows, in both failing captures** (`c697_serial_3.log` 02:40, and
+`t705b_serial.log` 11:50, run inside TASK-705's combined selection):
+
+1. `T_PRI_01` runs `set prRange 25` (a settings save), then `set prClearInject 1`, then two
+   `set prInjectAircraft …` **while a real PlaneRadar fetch issued at switch-in is still in flight**.
+2. That fetch's `GET 200` lands, and the next heap line reads **`maxBlk=31k`**. It was 45–47k
+   before. It stays at 31k for the rest of the boot generation.
+3. Every TLS handshake after that fails at once with **`-32512 SSL - Memory allocation failed`**:
+   PlaneRadar's, Spotify's (`after -1: rc=-32512`) and Stock's (`spark GET -1 elapsed=104ms`,
+   straight after an immediate `tls yield — client stopped`). Stock retries every 60 s, so
+   `T170`'s 65 s window sees one or two failed attempts and no success.
+
+The Stock fetch was **not** starved of the TLS yield: the yield acked at once, both times. The
+"~60 s wait" in the previous section was Stock's 60 s retry cadence after a `-32512`, misread.
+Spotify's failing `-9984` refreshes (TASK-675) are real but coincidental to this failure.
+
+Passing tries in the same loop kept `maxBlk` at 33k or above at the Stock fetch (`c697_serial_1/2`).
+
+**Reading, still not proof:** interleaving PlaneRadar's injected-aircraft allocations with an
+in-flight real fetch's result processing, possibly with the settings save, fragments internal
+heap so the largest free block falls below a TLS handshake's contiguous need. That matches the
+sequence exactly in both captures, and the timing dependence: the injection has to land before
+the in-flight fetch returns. It is the X010 family (TLS OOM), with a new trigger.
+
+**What this changes:** TASK-697 is a heap-fragmentation defect around PlaneRadar injection, not a
+TLS-yield hand-off defect. TASK-700 (`TlsYieldGuard`) and TASK-675 remain real but are not its
+cause. The next evidence to collect is the largest free block across `T_PRI_01`'s steps
+(`get heap` between each command), and the PlaneRadar allocation that survives the result.
