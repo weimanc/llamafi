@@ -5426,6 +5426,80 @@ discriminator (proving the busy window was really open) before the skip can hone
 
 ---
 
+## TASK-705 primitives (TASK-697's coverage inventory)
+
+Six new ids, each declaring exactly one op from `suite/serialdbg/_meta.OPS`
+(`@meta(ops=(...))`) so `gate/check_primitive_coverage.py` can see a PRIMITIVE
+for it. Written host-side, no DUT run yet — see TASK-705's tasks.md row.
+
+### T_TLS_01 — [spotify-chrome-001] dataTask TLS yield acks promptly when Spotify idle
+
+- **Type**: integration (DUT)
+- **Feature(s)**: spotify-chrome-001
+- **Objective**: with Spotify idle (`bgPoll 0`) and no `spotifyWedge` armed, a Stock quote fetch's `tlsYield()` request (`get dataRing`'s `RING_YIELD_REQ` -> `RING_TLS_STOP_ACK` edge, matched by `arg`) is acked within `kPollPeriodMs` (5000ms, `spotifyTaskStorage.cpp:44`).
+- **Preconditions**: Spotify restorable; `get dataRing` present (firmware with the TASK-697 event ring) — else UNMET.
+- **Steps**: 1. `_bgpoll_suspended`. 2. Switch to Stock. 3. Poll `get dataRing` for the REQ/ACK pair. 4. Restore.
+- **Expected result**: ack latency <= 5000ms. UNMET if no REQ is seen (the switch never asked for a yield) or `get dataRing` is absent.
+- **Harness**: `run/test-targeted T_TLS_01`. Owner: VE.
+- **Status**: written (2026-09-14), DUT-unverified.
+
+### T_TLS_02 — [spotify-chrome-001] TLS yield ack latency tracks an armed spotifyWedge
+
+- **Type**: integration (DUT)
+- **Feature(s)**: spotify-chrome-001
+- **Objective**: `set spotifyWedge 4000` makes spotifyTask busy for the wedge duration; a concurrent Stock quote fetch's `tlsYield()` ack latency tracks that duration (>= wedge-500ms, <= wedge+5000ms), not an arbitrary short ack. This measures today's UNBOUNDED wait (tlsYield()'s 150s ceiling) — not a TASK-700 bound, which does not exist in firmware yet.
+- **Preconditions**: `get armed` lists `spotifyWedge` right after arming — else UNMET (the wedge was not really in the path).
+- **Steps**: 1. Arm `spotifyWedge`. 2. Switch to Stock. 3. Poll `get dataRing` for the REQ/ACK pair. 4. Restore (wedge auto-clears one-shot; `dut.injected` also disarms on exit).
+- **Expected result**: latency in `[wedge-500, wedge+5000]` ms.
+- **Harness**: `run/test-targeted T_TLS_02`. Owner: VE.
+- **Status**: written (2026-09-14), DUT-unverified.
+
+### T_DTQ_01 — [rig-001] dataTask queues a cross-app fetch behind one in flight
+
+- **Type**: integration (DUT)
+- **Feature(s)**: rig-001
+- **Objective**: dataTask's single shared queue accepts a PlaneRadar fetch while a Stock fetch is held in flight (`spotifyWedge` delaying its `tlsYield()`), observed as `queueWaiting>=1` while `inFlight==2` (stockquote) — not dropped, not double-dispatched — and both drain after the hold releases.
+- **Preconditions**: Spotify restorable; wedge duration 6000ms.
+- **Steps**: 1. Arm `spotifyWedge 6000`. 2. Switch to Stock; wait 1s; confirm `dataq.inFlight==2`. 3. Switch to PlaneRadar; confirm `dataq.queueWaiting>=1`. 4. Wait for `dataq.inFlight==-1 && queueWaiting==0` within wedge+15s. 5. Restore.
+- **Expected result**: both fetches observed queued/in-flight correctly and both drain.
+- **Harness**: `run/test-targeted T_DTQ_01`. Owner: VE.
+- **Status**: written (2026-09-14), DUT-unverified.
+
+### T_SBK_01 — [spotify-chrome-001] backoff nextPollMs follows nextWaitMs()'s doubling schedule
+
+- **Type**: integration (DUT)
+- **Feature(s)**: spotify-chrome-001
+- **Objective**: `get backoff`'s `nextPollMs` equals `nextWaitMs(consecutiveFailures)` = `min(5000 << min(cf,6), 60000)` (`spotifyTaskStorage.cpp:198-213,44-45`) for cf in {0,1,2,6,9} — the VALUE, not merely the `set`/`get` round trip T084 already proves.
+- **Preconditions**: `cf=0` must read `nextPollMs=5000`, else UNMET (a leaked `authErrorLatched` forces 60000 regardless of cf, and `set backoff` cannot clear that latch).
+- **Steps**: snapshot+restore `backoff`; for each cf, `set backoff <cf>`, `get backoff`, compare.
+- **Expected result**: exact formula match for every cf tried.
+- **Harness**: `run/test-targeted T_SBK_01`. Owner: VE.
+- **Status**: written (2026-09-14), DUT-unverified.
+
+### T_PR_07 — [planeradar-001] prClearInject re-arms a real PlaneRadar fetch
+
+- **Type**: integration (DUT)
+- **Feature(s)**: planeradar-001
+- **Objective**: `set prClearInject 1` backdates `_lastFetch` to `_forceNow()` (`planeRadarApp.h:353`, `.cpp:230`), so `tick()`'s poll gate (`.cpp:33`) fires a REAL enqueue (`get dataRing`'s `RING_ENQUEUE` with `arg=8`) within `prPollSec`+3s — not merely a display clear.
+- **Preconditions**: can switch to PlaneRadar; `get dataRing` present.
+- **Steps**: 1. Switch to PlaneRadar. 2. `set prClearInject 1`. 3. Poll `get dataRing` for `RING_ENQUEUE(arg=8)` within `prPollSec+3s`. 4. Restore.
+- **Expected result**: the enqueue event observed within the bound.
+- **Harness**: `run/test-targeted T_PR_07`. Owner: VE.
+- **Status**: written (2026-09-14), DUT-unverified.
+
+### T_SQI_01 — [stock-001] Stock quote fetch completes with Spotify provably idle
+
+- **Type**: integration (DUT)
+- **Feature(s)**: stock-001
+- **Objective**: as T170, but the whole 65s wait runs inside `_bgpoll_suspended` (`bgPoll 0`), so the completion is observed with Spotify's background poll provably out of the picture — TASK-697's reading is that Spotify BUSY, not idle, is what starves this path; this id is the idle control.
+- **Preconditions**: Stock reachable.
+- **Steps**: `_bgpoll_suspended`; switch to Stock; poll `quoteOkCount` for 65s; restore.
+- **Expected result**: `quoteOkCount` advances within 65s.
+- **Harness**: `run/test-targeted T_SQI_01`. Owner: VE.
+- **Status**: written (2026-09-14), DUT-unverified.
+
+---
+
 ## Entry Format
 
 ```

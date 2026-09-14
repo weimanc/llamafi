@@ -4127,6 +4127,312 @@ def t_err_07(dut: Dut):
         fail("T-ERR-07", f"err={err} cleared={cleared}")
 
 
+# ── T_TLS_01 / T_TLS_02 — dataTask TLS yield hand-off primitives ─────────────
+# TASK-705. TASK-697's reboot/inject/Stock wedge investigation read that a
+# spotifyTask kept permanently busy by back-to-back failing token refreshes
+# starves dataTask's TLS yield hand-off (spotifyTaskStorage.cpp's tlsYield(),
+# ~118-165). Nothing exercised that hand-off ALONE in either direction — every
+# existing id that touches it does so as a side effect of switching apps. These
+# two are the idle and busy primitives (`_meta.OPS['tls_yield_idle'/'busy']`).
+#
+# Both read `get dataRing` (TASK-697, dataTask.h's RING_YIELD_REQ=4 /
+# RING_TLS_STOP_ACK=5) and match a request to its ack by the shared `arg`
+# (tlsYieldReqCount) the firmware stamps on both events — the ring is oldest
+# -> newest and 32 entries deep, so a slow poll loop is the only way to miss
+# the pair, not a design gap in the matching itself.
+
+@meta(scope="spotify-chrome", scope_reason="tlsyield", cls="FEATURE", cls_reason=
+      "tls_yield_idle primitive (TASK-705). Not gating: it measures today's "
+      "normal idle hand-off, which TASK-697's own record treats as the healthy "
+      "case, not a regression the rest of the suite should stop on.",
+      ops=("tls_yield_idle",))
+def t_tls_01(dut: Dut):
+    """T_TLS_01: with Spotify idle (bgPoll off) and no spotifyWedge armed, a
+    Stock quote fetch's tlsYield() request is acked within one spotify poll
+    period. TASK-705 primitive: tls_yield_idle."""
+    print("T_TLS_01  TLS yield ack latency, Spotify idle")
+    if not _restore_spotify(dut):
+        unmet("T_TLS_01", "could not restore Spotify precondition")
+        return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with _bgpoll_suspended(dut):
+        r0 = dut.cmd("get dataRing", timeout=3.0)
+        if not r0.get("ok"):
+            unmet("T_TLS_01", f"get dataRing refused: {r0!r} — firmware "
+                               "without the TASK-697 event ring")
+            return
+        switched = _switch_to_stock(dut)
+        latency = None
+        try:
+            if not switched:
+                unmet("T_TLS_01", "could not switch to Stock to trigger the "
+                                  "quote fetch")
+                return
+            req_ms = req_arg = ack_ms = None
+            deadline = time.monotonic() + 15.0
+            while time.monotonic() < deadline and (req_ms is None or ack_ms is None):
+                r = dut.cmd("get dataRing", timeout=3.0)
+                for ev in r.get("events", []):
+                    if ev.get("ev") == 4 and req_ms is None:      # RING_YIELD_REQ
+                        req_ms, req_arg = ev.get("ms"), ev.get("arg")
+                    elif (ev.get("ev") == 5 and req_arg is not None
+                          and ev.get("arg") == req_arg and ack_ms is None):
+                        ack_ms = ev.get("ms")                     # RING_TLS_STOP_ACK
+                if req_ms is None or ack_ms is None:
+                    time.sleep(0.3)
+            if req_ms is None:
+                unmet("T_TLS_01", "no RING_YIELD_REQ observed within 15s — the "
+                                  "Stock switch never asked for a TLS yield")
+                return
+            if ack_ms is None:
+                fail("T_TLS_01", f"RING_YIELD_REQ (arg={req_arg}) at ms={req_ms} "
+                                  "was never followed by a matching "
+                                  "RING_TLS_STOP_ACK within 15s — spotifyTask "
+                                  "never acked the idle yield")
+                return
+            latency = (ack_ms - req_ms) & 0xFFFFFFFF   # millis() wrap-safe
+            # Bound: kPollPeriodMs (5000ms, spotifyTaskStorage.cpp:44) — the
+            # task's own normal poll cadence. tlsYield() pushes its request to
+            # the FRONT of the task's queue specifically so a caller does not
+            # wait behind that cadence (~118); an ack slower than one full
+            # normal poll period, while idle with no wedge armed, means the
+            # front-queue wake itself is broken. No tighter firmware-authored
+            # scheduling-latency constant exists on this build.
+            if latency > 5000:
+                fail("T_TLS_01", f"yield-ack latency {latency}ms > 5000ms "
+                                  "(kPollPeriodMs, spotifyTaskStorage.cpp:44) "
+                                  "while Spotify was idle and no spotifyWedge "
+                                  "was armed")
+                return
+        finally:
+            if switched:
+                _restore_from_stock(dut)
+    pass_("T_TLS_01", f"yield-ack latency {latency}ms <= 5000ms, Spotify idle")
+
+
+_TLS_WEDGE_MS = 4000   # comfortably below tlsYield()'s 150s ceiling
+                       # (spotifyTaskStorage.cpp's kTotalMs) and above ordinary
+                       # scheduling jitter, so the measured latency is
+                       # dominated by the wedge rather than noise
+
+
+@meta(scope="spotify-chrome", scope_reason="tlsyield", cls="FEATURE", cls_reason=
+      "tls_yield_busy primitive (TASK-705). Not gating: it measures today's "
+      "UNBOUNDED wait (tlsYield()'s 150s ceiling), which is TASK-697's own "
+      "read of expected shape, not a regression the rest of the suite should "
+      "stop on — TASK-700 owns giving dataTask fetchers a BOUNDED guard.",
+      ops=("tls_yield_busy",))
+def t_tls_02(dut: Dut):
+    """T_TLS_02: with spotifyTask made busy via `set spotifyWedge`, a Stock
+    quote fetch's tlsYield() ack latency tracks the wedge duration. TASK-705
+    primitive: tls_yield_busy."""
+    print("T_TLS_02  TLS yield ack latency tracks an armed spotifyWedge")
+    if not _restore_spotify(dut):
+        unmet("T_TLS_02", "could not restore Spotify precondition")
+        return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with dut.injected("spotifyWedge", _TLS_WEDGE_MS, clear_to=0):
+        armed = dut.get_val("armed", field="armed", timeout=3.0)
+        if "spotifyWedge" not in armed:
+            unmet("T_TLS_02", f"get armed did not list spotifyWedge right "
+                              f"after arming it (armed={armed!r}) — TASK-635's "
+                              "boundary check would fail this test if the "
+                              "wedge were left armed, so we UNMET instead of "
+                              "risking a false PASS")
+            return
+        r0 = dut.cmd("get dataRing", timeout=3.0)
+        if not r0.get("ok"):
+            unmet("T_TLS_02", f"get dataRing refused: {r0!r}")
+            return
+        switched = _switch_to_stock(dut)
+        latency = None
+        try:
+            if not switched:
+                unmet("T_TLS_02", "could not switch to Stock to trigger the "
+                                  "quote fetch")
+                return
+            req_ms = req_arg = ack_ms = None
+            deadline = time.monotonic() + (_TLS_WEDGE_MS / 1000.0) + 20.0
+            while time.monotonic() < deadline and (req_ms is None or ack_ms is None):
+                r = dut.cmd("get dataRing", timeout=3.0)
+                for ev in r.get("events", []):
+                    if ev.get("ev") == 4 and req_ms is None:
+                        req_ms, req_arg = ev.get("ms"), ev.get("arg")
+                    elif (ev.get("ev") == 5 and req_arg is not None
+                          and ev.get("arg") == req_arg and ack_ms is None):
+                        ack_ms = ev.get("ms")
+                if req_ms is None or ack_ms is None:
+                    time.sleep(0.3)
+            if req_ms is None:
+                unmet("T_TLS_02", "no RING_YIELD_REQ observed — the Stock "
+                                  "switch never asked for a TLS yield")
+                return
+            if ack_ms is None:
+                fail("T_TLS_02", f"RING_YIELD_REQ (arg={req_arg}) at "
+                                  f"ms={req_ms} never acked within "
+                                  f"{_TLS_WEDGE_MS/1000.0 + 20.0:.0f}s")
+                return
+            latency = (ack_ms - req_ms) & 0xFFFFFFFF
+            # The wedge fires on spotifyTask's NEXT dequeue
+            # (spotifyTaskStorage.cpp ~435), and tlsYield()'s own front-queued
+            # request IS that dequeue when nothing else raced it — so the ack
+            # latency should track the wedge duration, not merely exceed zero.
+            floor = _TLS_WEDGE_MS - 500   # scheduling slack, not itself a
+                                          # firmware constant
+            if latency < floor:
+                unmet("T_TLS_02", f"yield-ack latency {latency}ms < "
+                                  f"{floor}ms — the wedge does not appear to "
+                                  "have been in this request's path (raced by "
+                                  "a periodic dequeue consuming it first?)")
+                return
+            ceiling = _TLS_WEDGE_MS + 5000   # + T_TLS_01's idle-path bound as
+                                             # fetch-completion slack
+            if latency > ceiling:
+                fail("T_TLS_02", f"yield-ack latency {latency}ms > "
+                                  f"{ceiling}ms (wedge {_TLS_WEDGE_MS}ms + "
+                                  "5000ms fetch slack)")
+                return
+        finally:
+            if switched:
+                _restore_from_stock(dut)
+    pass_("T_TLS_02", f"yield-ack latency {latency}ms tracked the "
+                      f"{_TLS_WEDGE_MS}ms wedge")
+
+
+# ── T_DTQ_01 — dataTask queues a cross-app fetch behind one in flight ────────
+# TASK-705 primitive: datatask_cross_app_queue (O7's cross-app half). dataTask
+# has ONE shared request queue for every fetch type (dataTask.h's
+# DbgQueueState: one queueWaiting/inFlight pair for weather/crypto/stock/
+# teletext/planeradar/webradio alike) and serialises dispatch — taskBody sets
+# inFlight at dispatch start (RING_DISPATCH_START, dataTask.h:394) and does not
+# clear it until the fetch function returns. `set spotifyWedge` (TASK-430)
+# holds a Stock quote fetch's own tlsYield() call busy for a known duration, so
+# inFlight stays pinned to Stock (FetchType 2, `_FETCH_TYPE["stockquote"]`) for
+# that whole window — the hold this id needs to enqueue a SECOND app's fetch
+# behind it and observe it queued rather than dispatched or dropped.
+#
+# PlaneRadar's FetchType id is 8 (planeradar.py's PR_FETCH_TYPE, dataTask.h's
+# FetchType enum) — a literal here since this id lives outside planeradar.py.
+
+_DTQ_WEDGE_MS = 6000
+_PR_FETCH_TYPE_ID = 8
+
+
+@meta(scope="rig", scope_reason="datatask", cls="FEATURE", cls_reason=
+      "datatask_cross_app_queue primitive (TASK-705). Not gating: it exercises "
+      "a hold injected for the test's own purposes (spotifyWedge), not a "
+      "firmware regression the rest of the suite should stop on.",
+      ops=("datatask_cross_app_queue",))
+def t_dtq_01(dut: Dut):
+    """T_DTQ_01: a PlaneRadar fetch enqueued while a Stock fetch is held
+    in-flight (via spotifyWedge) is observed QUEUED, not dispatched or
+    dropped, and both complete after the hold releases. TASK-705 primitive:
+    datatask_cross_app_queue."""
+    print("T_DTQ_01  dataTask queues a cross-app fetch behind one in flight")
+    if not _restore_spotify(dut):
+        unmet("T_DTQ_01", "could not restore Spotify precondition")
+        return
+    _wait_shell_not_busy(dut, timeout_s=10.0)
+    with dut.injected("spotifyWedge", _DTQ_WEDGE_MS, clear_to=0):
+        switched_stock = _switch_to_stock(dut)
+        if not switched_stock:
+            unmet("T_DTQ_01", "could not switch to Stock to hold a fetch in "
+                              "flight")
+            return
+        # taskBody dispatches Stock's quote fetch and hits the wedge on its
+        # very next dequeue (spotifyTaskStorage.cpp ~435) — one second is
+        # ample margin for that to have happened.
+        time.sleep(1.0)
+        q = dut.cmd("get dataq", timeout=3.0)
+        if q.get("inFlight") != 2:
+            _restore_from_stock(dut)
+            unmet("T_DTQ_01", f"dataq inFlight={q.get('inFlight')!r}, "
+                              "expected 2 (stockquote) — the wedge did not "
+                              "hold the Stock fetch in flight as expected")
+            return
+        switched_pr = _switch_to(dut, "PlaneRadar", timeout=10.0)
+        if not switched_pr:
+            _restore_from_stock(dut)
+            unmet("T_DTQ_01", "could not switch to PlaneRadar to enqueue the "
+                              "cross-app fetch")
+            return
+        q2 = dut.cmd("get dataq", timeout=3.0)
+        queued = (q2.get("queueWaiting", 0) or 0) >= 1
+        if not queued:
+            _restore_spotify(dut)
+            fail("T_DTQ_01", f"dataq after switching to PlaneRadar while "
+                              f"Stock was in flight: {q2!r} — expected "
+                              "queueWaiting>=1 (the PlaneRadar fetch queued "
+                              "behind Stock)")
+            return
+        bound_s = (_DTQ_WEDGE_MS / 1000.0) + 15.0
+        deadline = time.monotonic() + bound_s
+        cleared = False
+        while time.monotonic() < deadline:
+            q3 = dut.cmd("get dataq", timeout=3.0)
+            if q3.get("inFlight") == -1 and (q3.get("queueWaiting", 0) or 0) == 0:
+                cleared = True
+                break
+            time.sleep(0.5)
+        _restore_spotify(dut)
+        if not cleared:
+            fail("T_DTQ_01", f"dataTask did not drain both fetches within "
+                              f"{bound_s:.0f}s of the wedge releasing")
+            return
+    pass_("T_DTQ_01", "PlaneRadar fetch queued behind an in-flight Stock "
+                      "fetch (queueWaiting>=1); both drained after the hold "
+                      "released")
+
+
+# ── T_SBK_01 — backoff nextPollMs follows nextWaitMs()'s doubling schedule ───
+# TASK-705 primitive: spotify_backoff (O2's schedule half). T084 (CORE) only
+# proves the `set`/`get backoff` round trip; it never checks the VALUE against
+# nextWaitMs()'s formula (spotifyTaskStorage.cpp:198-213):
+#
+#   shift    = min(consecutiveFailures, 6)
+#   interval = min(kPollPeriodMs << shift, kBackoffMaxMs)
+#            = min(5000 << shift, 60000)      (kPollPeriodMs=5000,
+#                                               kBackoffMaxMs=60000,
+#                                               spotifyTaskStorage.cpp:44-45)
+#
+# unless s_authErrorLatched, which forces kBackoffMaxMs regardless of shift —
+# `set backoff n` does not touch that latch, so a board with a leaked 403
+# makes this id's premise false already at cf=0; that is UNMET, not FAIL,
+# since it is a fact about prior state, not about the formula under test.
+
+def _next_wait_ms(cf: int) -> int:
+    shift = min(cf, 6)
+    return min(5000 << shift, 60000)
+
+
+@meta(scope="spotify-chrome", scope_reason="tlsyield", cls="FEATURE", cls_reason=
+      "spotify_backoff primitive (TASK-705). Not gating: it is new coverage "
+      "of the nextWaitMs() VALUE, which nothing in the corpus checked before; "
+      "it is not a regression the rest of the suite should stop on.",
+      ops=("spotify_backoff",))
+def t_sbk_01(dut: Dut):
+    """T_SBK_01: `get backoff`'s nextPollMs equals nextWaitMs(consecutiveFailures)
+    for several consecutiveFailures values. TASK-705 primitive:
+    spotify_backoff."""
+    print("T_SBK_01  backoff nextPollMs follows nextWaitMs()'s doubling schedule")
+    with dut.saved("backoff", field="consecutiveFailures", timeout=3.0):
+        for cf in (0, 1, 2, 6, 9):
+            dut.set_val("backoff", cf, timeout=3.0)
+            got = dut.get_int("backoff", field="nextPollMs", timeout=3.0)
+            want = _next_wait_ms(cf)
+            if cf == 0 and got != want:
+                unmet("T_SBK_01", f"cf=0 -> nextPollMs={got}, expected "
+                                  f"{want} — authErrorLatched appears stuck "
+                                  "from prior state (`set backoff` does not "
+                                  "clear it)")
+                return
+            if got != want:
+                fail("T_SBK_01", f"cf={cf} -> nextPollMs={got}, expected "
+                                  f"{want} = min(5000<<min(cf,6), 60000) "
+                                  "(spotifyTaskStorage.cpp:198-213)")
+                return
+    pass_("T_SBK_01", "nextPollMs matched nextWaitMs(cf) for cf in {0,1,2,6,9}")
+
 
 TESTS = {
     "T077": t077,
@@ -4239,6 +4545,10 @@ TESTS = {
     "T-ERR-05": t_err_05,
     "T-ERR-06": t_err_06,
     "T-ERR-07": t_err_07,
+    "T_TLS_01": t_tls_01,
+    "T_TLS_02": t_tls_02,
+    "T_DTQ_01": t_dtq_01,
+    "T_SBK_01": t_sbk_01,
 }
 
 

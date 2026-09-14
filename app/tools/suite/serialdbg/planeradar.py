@@ -5,9 +5,10 @@ import functools
 import time
 
 from lib.dut import Dut
-from lib.results import pass_, fail, skip
+from lib.results import pass_, fail, skip, unmet
 import coords as _c
 from app_ids_gen import APP_SLOT
+from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
     _restore_spotify, _switch_to, _wait_shell_not_busy, _bgpoll_suspended,
 )
@@ -512,6 +513,64 @@ def t_pri_01(dut: Dut):
                       f"decaying toward 0 (tau=2s)")
 
 
+# ── T_PR_07 — prClearInject re-arms a real PlaneRadar fetch ──────────────────
+# TASK-705 primitive: pr_clear_rearms_fetch. `set prClearInject 1` backdates
+# _lastFetch to _forceNow() = millis() - _pollMs() (planeRadarApp.h:353,
+# planeRadarApp.cpp:230), which makes tick()'s own poll gate
+# `now - _lastFetch >= _pollMs()` (planeRadarApp.cpp:33) TRUE on the very next
+# tick() call — so a real enqueue (a RING_ENQUEUE event with
+# arg=PlaneRadar's FetchType, 8) is expected within a couple of app ticks, not
+# a whole poll interval. Bound: the CURRENT g_settings.prPollSec (`get
+# prPollSec`) plus 3s scheduling slack — deliberately generous, since the
+# code's own arithmetic says the enqueue should be near-immediate.
+
+@meta(ops=("pr_clear_rearms_fetch",))
+def t_pr_07(dut: Dut):
+    """T_PR_07: `prClearInject 1` re-arms a REAL PlaneRadar fetch, not just a
+    display clear. TASK-705 primitive: pr_clear_rearms_fetch."""
+    print("T_PR_07  prClearInject re-arms a real fetch")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        unmet("T_PR_07", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    try:
+        poll_sec = dut.get_int("prPollSec", timeout=3.0)
+    except Exception:
+        poll_sec = 30   # PR_POLL_MAX_SEC fallback if the read itself fails
+    r0 = dut.cmd("get dataRing", timeout=3.0)
+    if not r0.get("ok"):
+        _restore_spotify(dut)
+        unmet("T_PR_07", f"get dataRing refused: {r0!r} — firmware without "
+                         "the TASK-697 event ring")
+        return
+    # `set prClearInject 1` IS the mutation under test — tracked via
+    # dut.injected() (R17) even though its clear_to is the same value: the
+    # injector's own disarm path, per _pr_inject_custody above, is re-issuing
+    # the same command, and PlaneRadarApp::_injected is already false here
+    # (T_PR_07 never armed prInjectAircraft), so the arm and clear are
+    # identical no-ops on exit by construction.
+    bound_s = poll_sec + 3.0
+    seen = False
+    with dut.injected("prClearInject", 1, clear_to=1):
+        deadline = time.monotonic() + bound_s
+        while time.monotonic() < deadline and not seen:
+            r = dut.cmd("get dataRing", timeout=3.0)
+            for ev in r.get("events", []):
+                if ev.get("ev") == 0 and ev.get("arg") == PR_FETCH_TYPE:   # RING_ENQUEUE
+                    seen = True
+                    break
+            if not seen:
+                time.sleep(0.5)
+    _restore_spotify(dut)
+    if not seen:
+        fail("T_PR_07", f"no RING_ENQUEUE(PlaneRadar, arg={PR_FETCH_TYPE}) "
+                        f"observed within {bound_s:.0f}s of prClearInject 1 "
+                        "— the clear did not re-arm a real fetch")
+        return
+    pass_("T_PR_07", f"RING_ENQUEUE(PlaneRadar) observed within {bound_s:.0f}s "
+                     "of prClearInject 1")
+
+
 TESTS = {
     "T_PR_01": t_pr_01,
     "T_PR_02": t_pr_02,
@@ -522,4 +581,5 @@ TESTS = {
     "T_PRM_01": t_prm_01,
     "T_PRM_02": t_prm_02,
     "T_PRI_01": t_pri_01,
+    "T_PR_07": t_pr_07,
 }

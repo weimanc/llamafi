@@ -1504,6 +1504,44 @@ def t193(dut: Dut):
     pass_("T193", f"drilled={drilled!r}; auto-refresh fetched same symbol; chartLen={chart_len}")
 
 
+# ── T_SQI_01 — Stock quote fetch completes with Spotify provably idle ───────
+# TASK-705 primitive: stock_quote_fetch (O8's idle half). T170 already proves
+# the fetch completes; this id additionally holds Spotify idle for the WHOLE
+# wait via `_bgpoll_suspended` (bgPoll=0, the same custody helper T084/T169
+# use) so the completion is observed with Spotify's own background poll
+# provably out of the picture — TASK-697's reading is that Spotify BUSY, not
+# idle, is what starves this path, so this id is the idle control.
+
+@meta(ops=("stock_quote_fetch",))
+def t_sqi_01(dut: Dut):
+    """T_SQI_01: Stock quoteOkCount advances within 65s with Spotify's
+    background poll held off the whole time. TASK-705 primitive:
+    stock_quote_fetch."""
+    print("T_SQI_01  Quote fetch completes, Spotify provably idle")
+    with _bgpoll_suspended(dut):
+        if not _switch_to_stock(dut):
+            unmet("T_SQI_01", "could not switch to Stock")
+            _restore_from_stock(dut)
+            return
+        try:
+            before = _stock_quote_ok_count(dut)
+        except DeviceReadError:
+            _restore_from_stock(dut)
+            raise
+        deadline = time.monotonic() + 65.0
+        advanced = False
+        while time.monotonic() < deadline:
+            if _stock_quote_ok_count(dut) > before:
+                advanced = True
+                break
+            time.sleep(2.0)
+        _restore_from_stock(dut)
+    if not advanced:
+        fail("T_SQI_01", f"quoteOkCount did not advance past {before} within "
+                         "65s with Spotify bgPoll held off the whole time")
+        return
+    pass_("T_SQI_01", f"quoteOkCount advanced past {before} — quote fetch "
+                      "completed with Spotify provably idle")
 
 
 TESTS = {
@@ -1534,4 +1572,5 @@ TESTS = {
     "T193": t193,
     "T_DTP_01": t_dtp_01,
     "T_DTP_02": t_dtp_02,
+    "T_SQI_01": t_sqi_01,
 }
