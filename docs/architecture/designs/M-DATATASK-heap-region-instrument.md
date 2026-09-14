@@ -1,7 +1,8 @@
 # Design — Heap-region instrument for TASK-697's 31k ceiling
 
 > Owner: Architect
-> Status: proposed
+> Status: accepted
+> Signed off by the human 2026-09-14 (Revision 2). The Option 3 experiment spec is NOT READY per @VE's final check (a capacity conflict with Spotify's persistent session); awaiting a human decision.
 > Date: 2026-09-14
 > Feeds: — (no ADR yet; this designs a probe, not a fix)
 > Tracked-as: TASK-697
@@ -265,15 +266,120 @@ rebuild is cheap enough to include it; (iii) only if Option 3 is inconclusive or
 5 and gate it in a later session. This is a proposal, not a decision — three items below are the
 human's to set, not this design's:
 
-1. **Option 3's reservation scope.** Size (~40-50 KB, per the `LOG_HEAP` comment's "~50-70 k
-   contiguous" handshake need) and placement are a real `app/mem_manifest.yaml` budget decision
-   against the `INTERNAL` ceiling (290 000 B) and headroom (60 000 B) — not this design's to set.
-2. **Sequencing.** One board — sessions are necessarily sequential, not concurrent, unless a second
-   board is made available. Proposed order above; confirm or reorder.
-3. **A DUT-time budget / stopping condition for TASK-697.** This investigation has now run: the 1 Hz
-   console-poll probe (0/4, perturbing), the `PrMotion[24]` eager-allocation A/B (5/8, refuted), and
-   Gate 0's two 8-try arms (perturbing, new corruption finding, no mechanism verdict) — three
-   inconclusive DUT sessions. This project's own precedent (`TASK-393`, downgraded P1→P2 after three
-   failed repro attempts) is directly on point. Is TASK-697 at, before, or past the point where a
-   comparable downgrade — pursue Option 3 as a practical close and stop chasing the named mechanism —
-   is the right call, versus continuing toward a Gate-1 verdict via Option 5?
+1. **Option 3's reservation scope.** Size/placement are a real `app/mem_manifest.yaml` budget
+   decision against the `INTERNAL` ceiling/headroom — not this design's to set.
+   **HUMAN RULING, 2026-09-14**: reservation first — Option 3's pre-registered A/B, with print-only
+   Option 1 folded in as a free control **only if the rebuild is cheap**. Scope is
+   **EXPERIMENT-ONLY**: debug build, behind a compile-time flag, **no `mem_manifest.yaml` change**.
+   A real sizing decision/ADR is only warranted if the A/B succeeds.
+2. **Sequencing.** One board — sessions are necessarily sequential.
+   **HUMAN RULING, 2026-09-14**: proposed order confirmed as stated above — Option 3's reservation
+   implemented, one session running Arm A then Arm B (+ Option 1's control if cheap), Option 5 held.
+3. **A DUT-time budget / stopping condition for TASK-697.**
+   **HUMAN RULING, 2026-09-14**: **this is TASK-697's last session.** If the reservation A/B is not
+   a clear 0/8 success (per the adopted decision rule above — 1-2/8 is INCONCLUSIVE, not a partial
+   win), **TASK-697 is downgraded to P2 and parked**, same disposition as the `TASK-393` precedent.
+
+## Option 3 experiment specification
+
+Named, not designed, until now. This is the mechanism the Developer builds against; EXPERIMENT-ONLY
+per the ruling above — no `mem_manifest.yaml` entry, debug build only.
+
+- **Flag**: `-DTLS_RESERVE_EXPERIMENT`, debug env only, same `PLATFORMIO_BUILD_FLAGS` mechanism as
+  Gate 0's `-DHEAP_REGION_DUMP_OFF` (opposite polarity: absent = today's behaviour, present = the
+  reservation compiles in).
+- **Size: 40 KB.** Derived from the evidence on record, not the `LOG_HEAP` comment's "~50-70 k"
+  alone: the FAIL/PASS boundary sits at `maxBlk`=31k (FAIL, every time) vs. ≥33k (PASS, observed
+  33/37/39/43k) — a real handshake has been observed to *succeed* at 33k, well under the comment's
+  conservative 50-70k. 40 KB clears the empirical 33k floor with margin, without reaching for the
+  unverified upper estimate, and matches `mem_manifest.yaml`'s own existing "~40 K mbedtls fetch
+  context + margin" headroom note — reusing a number this project already treats as the right order
+  of magnitude for one TLS context, not inventing a new one.
+- **When acquired**: `dataTask::begin()` (`dataTaskStorage.cpp`, right after `xQueueCreate`
+  succeeds, before `xTaskCreatePinnedToCore`) — before the dataTask loop, and therefore every
+  fetcher and every console-driven injection, can run at all. Nothing that could fragment the pool
+  has executed yet at this point in boot.
+- **Release/re-acquire choke point — corrected per @VE's re-check.** `spotifyTask::tlsYield()` /
+  `tlsResume()` are **not** a single choke point to hook inside of: verified by grep that they have
+  callers beyond the 9 dataTask fetchers — `app/src/audio/audioEngine.cpp` (`aeConnectFile`/
+  `aeStopFile`/`aeDrainEof`, WebRadio local-file playback, line ~437 `TlsYieldGuard g(...)`) and
+  `app/src/apps/webRadioApp.cpp` (its own `TlsYieldGuard _tlsGuard`, WebRadio-vs-Spotify TLS
+  coexistence). Baking the reserve/release into `tlsYield()`/`tlsResume()` (or into `TlsYieldGuard`'s
+  ctor/dtor) would silently reach those unrelated call sites too. **Instead**: a shared helper
+  function implements the reserve/release logic once, called explicitly at each of 9 dataTask call
+  sites, using two patterns (per @VE's direct verification, not assumed uniform):
+  - **8 RAII fetchers** — `fetchWeather` (478), `fetchCrypto` (518), `fetchStockQuote` (576),
+    `fetchStockChartWithRetry` (732), `fetchTeletext` (811), `fetchHeatmapQuote` (1073),
+    `fetchGeocode` (1643), `fetchWebRadioStations` (1713), each declaring
+    `spotifyTask::TlsYieldGuard tlsGuard;` — insert the release call on the line right after
+    `tlsGuard`'s declaration, and the re-acquire call right before the guard's scope closes (the
+    function's return points), not inside `TlsYieldGuard` itself.
+  - **`fetchPlaneRadar`, the one manual pair** (no RAII guard): release right after
+    `spotifyTask::tlsYield();` (`dataTaskStorage.cpp:1493`), re-acquire right before
+    `spotifyTask::tlsResume();` (`:1604`). No early return sits between the two (checked), so a
+    hand-written pair is as safe as the RAII fetchers' automatic one.
+- **Spotify's own client — now covered (§ Spotify confound fix below), not excluded.**
+- **Re-acquire failure**: log once (`LOG_W`), continue. Never block a task's own loop waiting for
+  the reservation to come back — a failed re-acquire degrades that one try back to today's
+  unprotected behaviour, it must not wedge dataTask's fetch queue or spotifyTask's poll cadence.
+- **Why the released span should get claimed by the handshake — reasoning, marked unverified,
+  corrected per @VE (good-fit, not best-fit)**: ESP-IDF's heap component is TLSF-based — a
+  segregated-fit allocator that picks from the smallest non-empty size class that still fits the
+  request (a *good-fit* approximation), not literal best-fit, and does not guarantee the single
+  largest free span is where a 40 KB+ request lands if other size-class-eligible blocks exist. This
+  weakens the causal story without weakening the A/B: a success shows the reservation changes the
+  outcome, not that it does so via this specific placement mechanism. Not verified against source (no
+  `.c` sources ship in this framework, per the earlier `find` check).
+- **Instrumentation and non-engagement, adopted from @VE's re-check by reference (not previously
+  adopted — corrected mis-citation)**: one `LOG_D` line per release and per re-acquire (`ok`,
+  timestamp). Per `M-DATATASK-heap-region-instrument-VE-review.md`, "Re-check of the Option 3 spec"
+  §1(b): a try whose log shows the reservation was never acquired at boot, or released but not
+  successfully re-acquired before the measured fetch, is excluded from that arm's count (recorded,
+  not forced into PASS/FAIL). **New condition**: if **3 or more of Arm B's 8 tries** are excluded
+  this way, the arm is **invalid, not merely smaller** — re-run Arm B in full (fresh flash) before
+  reading it; a silently-shrunk N must not be reported as the clear 0/8 the human's ruling requires.
+
+### Spotify confound fix
+
+As specified above (reservation held by default, released only around dataTask fetchers), the hold
+persists through Spotify's own active window — per @VE's re-check §2, a persistent 40 KB hold against
+a measured `freeInt` of ≈55 KB with a live Spotify session leaves it ≈15 KB, well under its own
+~50 KB need, worse than baseline. Arm B as originally specified tests "reservation + a squeezed
+Spotify," not the reservation in isolation, and could read a clean 0/8 on `T170` for the wrong reason.
+
+**Chosen fix: option (a), symmetric release** — extend the same release/re-acquire bracket to
+Spotify's own two TLS-needing call sites in `spotifyTaskStorage.cpp`: `doPoll()`, before
+`s_spotify->getCurrentlyPlaying(...)` (~line 253), and `doFetchQueue()`, before
+`s_spotify->getQueue(...)` (~line 239) — release immediately before each call, re-acquire
+immediately after it returns, same shared helper, same log line, same non-engagement treatment.
+Chosen over (b) (VE's own analysis shows "acquire when stopped, release when active" inverts the
+protection during the exact window PlaneRadar's injection needs it held) and (c) (a smaller
+reservation re-opens the timing-precision problem Gate 0 already failed to solve, without addressing
+the confound at all — Spotify's need is ~50 KB per the existing `LOG_HEAP` comment, so shrinking the
+reservation to dodge Spotify's squeeze would likely just stop protecting dataTask's own fetchers
+too). Symmetric release keeps the reservation held (protecting against PlaneRadar-injection
+fragmentation) at all times except the handful of brief windows bracketing an actual handshake,
+whichever client's — the same protective shape as the original per-fetcher design, generalised to
+both clients rather than favouring one. Two new call sites, not a change to `tlsYield()`/
+`tlsResume()`/`TlsYieldGuard`, so WebRadio's and the audio engine's uses stay untouched.
+
+**@VE's Spotify-`-32512` per-try count is kept as the detector, verbatim from the re-check** (§2):
+count `after -1: rc=-32512` occurrences per try in both arms; if the fix is sound, Arm B's rate should
+be comparable to Arm A's, not meaningfully higher. Apply the re-check's three-way decision rule
+(clean success / confounded-not-clean / evidence-against-a-larger-reservation) unchanged — this fix
+is expected to satisfy that rule's first branch, not replace the need to check it.
+
+## Arm build commands
+
+Same mechanism as Gate 0, `PLATFORMIO_BUILD_FLAGS`, Arm A run first per the adopted decision rule
+(§"Adopted: Option 3 pre-registered A/B" — don't read B if A doesn't reproduce {3,4,5}/8):
+
+```sh
+# Arm A (control, no reservation) — run first
+PLATFORMIO_BUILD_FLAGS= ./run/flash-debug
+LOG_FILE=<path> ./run/test-targeted T_PR_04,T_PRI_01,T170   # x8, fresh flash
+
+# Arm B (reservation in place) — only after Arm A reproduces {3,4,5}/8
+PLATFORMIO_BUILD_FLAGS=-DTLS_RESERVE_EXPERIMENT ./run/flash-debug
+LOG_FILE=<path> ./run/test-targeted T_PR_04,T_PRI_01,T170   # x8, fresh flash
+```

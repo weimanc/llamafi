@@ -423,3 +423,247 @@ above). No blocker. Required before the next DUT session:
 None of this blocks Option 3's A/B from proceeding as scoped in §3, and none of it invalidates
 Revision 2's central, well-evidenced conclusion — the interleaving is real, directly observed, and
 correctly identified as the print's own doing, not the integrity check's.
+
+---
+
+## Re-check of the Option 3 spec (2026-09-14)
+
+Human signed off Revision 2 (reservation first, experiment-only, last session — not a clean 0/8 →
+P2). Architect added "Option 3 experiment specification" (`Status: accepted`). Checked against this
+review's own §3 A/B before implementation. Documents only.
+
+### 1. Architect's three flagged items
+
+**(a) Every dataTask fetcher's bracket — verified directly, not taken on the doc's word.**
+`app/src/dataTaskStorage.cpp`: `fetchWeather` (478), `fetchCrypto` (518), `fetchStockQuote` (576),
+`fetchStockChartWithRetry` (732, Stock chart), `fetchTeletext` (811), `fetchHeatmapQuote` (1073,
+Stock heatmap), `fetchGeocode` (1643), `fetchWebRadioStations` (1713) — **8 of 9** use the RAII
+`spotifyTask::TlsYieldGuard tlsGuard;` (`app/src/spotifyTask.h:206`, constructor calls `tlsYield()`,
+destructor calls `tlsResume()`). **`fetchPlaneRadar` (1493-1604) is the one exception**: manual
+`spotifyTask::tlsYield()` at 1493 and `spotifyTask::tlsResume()` at 1604, no RAII guard — and this is
+the *only* fetcher the design's draft actually confirmed ("BP-031"), which makes it the
+least-representative example available, not a representative spot-check. Coverage is complete — all
+9 fetchers bracket their TLS work one way or the other, no fetcher fetches with Spotify's TLS still
+live and no reservation-release hook — but the mechanical wiring is **not** uniform: the 8 RAII
+fetchers need the reserve call inserted on the line right after `TlsYieldGuard tlsGuard;` and the
+re-acquire call inserted right before the guard's scope closes (nothing in `TlsYieldGuard` itself
+should change — it's used elsewhere in the tree beyond these 9 fetchers, e.g. the audio engine's
+file-play path per its own move-constructor comment, and baking reserve/release into the guard's
+ctor/dtor would reach those unrelated call sites too); `fetchPlaneRadar` needs its own manual
+insertion at both existing call sites, no guard scope to hook into. No early return sits between
+`fetchPlaneRadar`'s `tlsYield()`/`tlsResume()` pair (checked — the function runs straight through),
+so a manual release/re-acquire pair there is as safe as the RAII fetchers' automatic one, just written
+by hand. **Resolution:** Developer instruction — treat this as 9 call sites needing 9 pairs of manual
+insertions (2 lines each), not "wire the shared function into the bracket" as if the bracket were one
+uniform thing; list both patterns explicitly in the implementation notes so `fetchPlaneRadar` isn't
+mis-handled as if it had a guard.
+
+**(b) Reservation-never-engaged severity — the design mis-cites this as an adopted VE rule; it isn't
+yet. Deciding it now, as asked.** Checked this review's own §3 (this doc's "Re-view of Revision 2"
+section): it defines Arm-level success/inconclusive/failure/session-invalid entirely on the *FAIL
+rate*, and says nothing about a per-try engagement-failure exclusion. The design's "@VE's rule: ...
+exclude it from the 8-try count" is **not something VE said before now** — it is presented as adopted
+verbatim alongside things that genuinely are (the Gate 0 band, the A/B command/arms), and that
+juxtaposition is itself a finding: one rule in the "adopted from VE" material was not, in fact, from
+VE. **Ruling, pre-registered now:**
+- A try where the `LOG_D` engagement markers show the reservation was never acquired at boot, or was
+  released but not successfully re-acquired before the measured fetch, is **excluded from that arm's
+  count** (recorded, not forced into PASS/FAIL) — agreed with the design's proposal on the individual-
+  try question.
+- **New condition the design doesn't have:** if **3 or more of Arm B's 8 tries** are excluded this
+  way, the arm is **invalid, not merely smaller** — re-run Arm B in full (fresh flash) before reading
+  it. Reasoning: this review's own success bar (§3) is 0/8 specifically *because* N=8 has power only
+  for a clean sweep (P(0/8) under 1% against the ~40-50% baseline rate; P(0/5) is 3-5%, a materially
+  weaker claim). A same-session ruling of "the reservation succeeded" built on an eroded N would not
+  meet the bar the human's own "clear 0/8, not a partial win" ruling asked for. Given this is TASK-697's
+  **last session**, a silently-shrunk N producing an apparent 0/5 or 0/6 must not be reported as the
+  clear 0/8 the ruling requires — either re-run within the same session to recover N=8 evaluable tries,
+  or report to the human as "engagement was unreliable, no valid A/B result obtained," not as a success.
+
+**(c) Unverified TLSF-style placement reasoning — sufficient to spend the session on, with one
+correction.** The design's own framing ("best-fit-style allocator... marked unverified, a reasoning
+step") is honest about not being able to cite source (confirmed again: no `.c` sources ship). One
+correction worth folding in: ESP-IDF's heap component (public knowledge, not verifiable from this
+framework's shipped sources either) is TLSF-based — a segregated-fit allocator that picks a block from
+the smallest non-empty size class that still fits the request, which is a **good-fit** approximation,
+not literal best-fit, and does not guarantee the *single largest* free span is where a 40 KB-plus
+request lands if other free blocks also clear the size-class threshold. This weakens the *causal*
+story ("TLSF will prefer our released span specifically") without weakening the *experiment*: this
+review's own §3 already states a success would not establish which of (a)/(b)/(c) was happening, and
+that stands regardless of which allocator-placement story is right — the A/B's FAIL-rate comparison is
+mechanism-agnostic by design. **Sufficient to spend the session on**, provided the design doesn't
+upgrade "should preferentially place" to a confirmed mechanism if the A/B succeeds — a success shows
+the reservation changes the outcome, not that it does so via the TLSF story specifically. Add one line
+noting TLSF good-fit (not best-fit) as the actual allocator family, so a future reader doesn't cite
+the unverified reasoning as settled.
+
+### 2. Spotify contention — Arm B is confounded as specified; this is a rule, not advice
+
+Checked the mechanism against `TlsYieldGuard`'s actual semantics (`spotifyTask.h:206-`): `tlsYield()`
+**stops** Spotify's own TLS activity for the guard's lifetime; `tlsResume()` **resumes** it. So while
+any dataTask fetcher holds its bracket, Spotify is already paused by the pre-existing BP-031
+mechanism — the reservation's release (during that same window) cannot be grabbed by a concurrently-
+running Spotify handshake, because Spotify isn't running one then. The exposure is the *inverse*
+window: between dataTask fetches, when no fetcher's bracket is open, Spotify has resumed and the 40 KB
+reservation is held by default (per the "when acquired... before the dataTask loop... every fetcher
+and injection can run" framing, it's the *resting* state, released only transiently). Spotify's own
+client is admitted to need ~50 KB contiguous and was already observed failing `-32512` in FAIL tries
+at baseline; the coordinator's measured `freeInt` figures (≈105 k with no TLS session, ≈55 k with one)
+mean a persistent 40 KB hold leaves Spotify roughly **≈15 k** when it already has a session live —
+well under its own need, and worse than baseline. **This confirms the coordinator's concern is real,
+not hypothetical: Arm B, as specified, changes Spotify's own success rate, not just PlaneRadar's/
+Stock's fragmentation exposure — it is testing "reservation + a squeezed Spotify," not "reservation"
+in isolation.**
+
+This **does invalidate Arm B as a clean isolated treatment** for the question "does protecting one
+handshake-sized span fix the X010-family ceiling" — a rate change could be produced by the reservation
+working as intended, by Spotify backing off more (quieting the concurrent workload that fragments the
+heap in the first place, an artifact not a fix), or both, and the design as specified cannot tell them
+apart.
+
+Given constraints (last session, experiment-only, no `mem_manifest.yaml` change, Spotify's own code
+explicitly out of scope), extending the release bracket into `spotifyTask` itself is too large a
+change for this session, and reserving later/smaller re-opens exactly the timing-precision problem
+this design has already failed once (Gate 0) to solve non-invasively. The coordinator's third option —
+a pre-registered secondary observable — is the only one that fits the session's own constraints (zero
+firmware change: `-32512` already appears in existing log lines per Revision 2's own evidence
+section). **Pre-registered as a rule:**
+
+- For every evaluable try in both arms, count occurrences of `rc=-32512` attributable to **Spotify's**
+  own client (the `after -1: rc=-32512` shape already named in this document's evidence section,
+  distinct from PlaneRadar's/Stock's own `-32512` lines) in that try's raw serial log.
+- Compute each arm's mean Spotify-`-32512`-count-per-try.
+- **Decision consequence, stated as a rule:**
+  - Arm B reads 0/8 FAIL **and** its Spotify-`-32512` rate is not meaningfully higher than Arm A's
+    (no more than roughly double Arm A's per-try mean, and not present in every Arm B try where Arm A
+    had none) → **clean success**, reportable to the human as the clear 0/8 the ruling asked for.
+  - Arm B reads 0/8 FAIL **but** its Spotify-`-32512` rate is meaningfully higher (roughly doubled, or
+    present in every Arm B try against none in Arm A) → **confounded, not a clean success.** Report to
+    the human explicitly as "0/8 on T170, but confounded by increased Spotify TLS failure" — do **not**
+    let this silently satisfy the "clear 0/8" ruling, since the ruling's downstream consequence (a real
+    sizing decision/ADR) assumes the mechanism is protecting the fetch path, not degrading Spotify's.
+  - Arm B's Spotify-`-32512` rate increases **and** T170's FAIL rate does not read a clean 0/8 →
+    report as a reason **against** pursuing a larger reservation, not merely "inconclusive" — the
+    experiment would then show the approach costs Spotify without fixing Stock.
+
+### 3. Other threats to validity; readiness
+
+No other threat rises to blocking. Two worth naming: the reservation's release is a general release
+into the free pool, not a targeted hand-off to the fetcher that triggered it — a different concurrent
+allocator could claim it, which is a pre-existing property of any pool-based reservation and not
+specific to this design's flaws, just worth knowing before reading a "success" as proof the *intended*
+fetcher got the span. And Arm A/B's fresh-flash-per-arm protocol means the two arms still run at
+different points on the same board's boot/flash history, same as every prior A/B in this
+investigation — an accepted, already-standard limitation here, not a new one.
+
+**Readiness: READY WITH CHANGES**, all documents-only and small:
+1. Fold §1(a)'s two-pattern instruction (8 RAII insertions vs. `fetchPlaneRadar`'s manual pair) into
+   the spec so Developer doesn't treat the bracket as uniform.
+2. Fold §1(b)'s ruling in verbatim (exclude individual non-engaged tries; ≥3/8 excluded invalidates
+   and requires a re-run, not a smaller-N read) and correct the misattribution — this rule is new as
+   of this section, not something VE had already adopted.
+3. Add §1(c)'s one-line TLSF/good-fit correction to the placement-reasoning note.
+4. Add §2's Spotify-`-32512` secondary observable and its three-way decision rule to the spec verbatim
+   — this is the one required change with teeth: without it, a confounded 0/8 reads identically to a
+   clean one, and the human's ruling explicitly turns on "a clear 0/8," not any 0/8.
+
+None of these block starting implementation of the reservation itself — they're checks to run and
+rules to apply when Arm B's data comes back, not redesigns of the reservation mechanism.
+
+---
+
+## Final check — symmetric release (2026-09-14)
+
+### Persistent session — confirmed, exactly as the coordinator predicted
+
+Read `app/src/spotifyTaskStorage.cpp` directly. `doPoll()` (252-320) calls `client.stop()` **only**
+on `status == -1` (line 314, inside the failure branch); on `status == 200` or `204` (success) the
+client is left open — no `stop()` call anywhere on that path. `doFetchQueue()` (239-247) is the same
+shape: `client.stop()` only when `status < 0` (247). Confirms `cross_feature_matrix.yaml` X010's
+claim: Spotify's `WiFiClientSecure` session persists across successful polls. There are exactly five
+places this file calls `client.stop()`: init (355), `resetTls` (365), `doPoll`'s `-1` branch (314),
+`doFetchQueue`'s failure branch (247), and the `tlsYield()`-ack path inside `taskBody` (377, the same
+event every dataTask fetcher's bracket already triggers). **Every other moment — every successful
+poll or queue fetch — the client stays open, holding its own ~40 KB session.**
+
+Symmetric release's re-acquire, placed unconditionally right after `getCurrentlyPlaying`/`getQueue`
+returns, does not correspond to any of these five stop events on the success path — it is not
+re-acquiring when the client is stopped, it is attempting a fresh 40 KB contiguous malloc **while**
+Spotify's own ~40 KB session is still live, against a measured `freeInt` of only ≈55 KB with a session
+up. That is a malloc asking for ~73% of *all* free memory in one contiguous span, immediately after
+the coordinator's own measured squeeze — likely to fail outright on most successful-poll cycles, not
+merely "usually fail" as a probabilistic hedge. **The re-acquire point must be one of the five actual
+stop events, not the call's return.** Of those five, only one is already visible to dataTask's
+reservation logic without new plumbing into `spotifyTaskStorage.cpp`'s internals: the `tlsYield()`-ack
+at line 377 — which is the *same* event the original per-fetcher bracket already keys off of when
+another dataTask fetcher requests the yield.
+
+### The two goals conflict on this heap — stated plainly, as asked
+
+Tying re-acquire to a genuine stop event (rather than the call boundary) doesn't rescue the design —
+it sharpens the conflict instead of resolving it. If re-acquire only fires on an actual `client.stop()`
+event, the reservation is **un-held for the entire duration of every successful Spotify poll cycle** —
+which per this investigation's own evidence is precisely the state the boot is normally in when
+`T_PRI_01`'s injection race lands (a failure storm is the exception, not the trigger condition). If
+instead re-acquire fires unconditionally at the call boundary (as currently specified), it mostly just
+**fails** during that same state, for the arithmetic reason above — same practical non-engagement,
+reached by a failed malloc instead of a deliberate skip. **Neither placement lets the reservation stay
+reliably held through Spotify's ordinary, successful operating state**, because the conflict is
+capacity, not code placement: Spotify's persistent session (~40 KB) plus the reservation (40 KB) is
+≥80 KB against a total free pool that is only ≈55-105 KB depending on whether a session is up. No
+choice of call site changes that sum. **This is the finding the coordinator asked to check for: the
+two goals conflict on this heap, and no placement of the release/re-acquire calls resolves it — only
+either shrinking one side (a smaller reservation, which re-opens the problem VE-4/the earlier re-check
+already named: too small to protect dataTask's own fetchers) or accepting the confound (the original,
+non-symmetric design, monitored via the `-32512` secondary observable already pre-registered) avoids
+it.**
+
+**A consequence worth naming**: per this document's own §1(b) rule (exclude an unengaged try; ≥3/8
+excluded invalidates the arm and forces a re-run), a reservation that structurally fails to re-acquire
+through most of Spotify's normal polling will very likely **exclude most or all of Arm B's tries on
+its own**, before the FAIL-rate question is even reached — i.e., the ≥3/8 circuit-breaker this review
+already specified is likely to fire almost every time this spec is run as written, not as an edge
+case. Spending the *last* session on a mechanism whose own instrumentation is likely to invalidate
+itself is a real cost worth surfacing before Developer implements five new call sites in
+`spotifyTaskStorage.cpp` (outside the file this design otherwise touches).
+
+### Engagement observable — tightened per the coordinator's instruction
+
+This document's earlier engagement rule (§1(b)) only required the log to show acquire/release
+*events happened somewhere in the try*. That is not sufficient — a try can show a clean release at
+boot and a successful re-acquire ten seconds later and still have been **un-held at the exact
+PlaneRadar result/injection window that matters**. **Tightened requirement**: the reservation's live
+state (`HELD` / `RELEASED`) must be logged **at capture point 1 itself** (`heapRegionDump(1, ...)`,
+`dataTaskStorage.cpp:1602`, the existing post-result `maxBlk` reading) — piggybacked onto that
+existing line, not reconstructed after the fact from separate acquire/release timestamps elsewhere in
+the transcript. "Engaged," for the purpose of the exclusion rule, means **the point-1 line itself
+reports `HELD`** — a try showing `RELEASED` at point 1 is excluded from the count regardless of what
+the acquire/release log shows before or after it.
+
+### Verdict: **NOT READY**
+
+Not a documents-level nitpick — a structural conflict, stated per the coordinator's own framing. Before
+Developer implements the symmetric-release expansion (which also, per the coordinator's opening line,
+grows the diff beyond what the human signed off — five new call sites in a file the original ruling
+didn't scope):
+
+1. Take this conflict back to the human before implementing. The choice is theirs, not Architect's or
+   VE's: (a) drop symmetric release, run the **original** dataTask-only reservation, and accept Arm B
+   tests "reservation + a possibly-squeezed Spotify" — report the pre-registered `-32512` secondary
+   observable honestly per this document's existing three-way rule, rather than trying to engineer the
+   confound away; or (b) treat this finding itself — no code-only placement can hold 40 KB against
+   PlaneRadar's window without squeezing Spotify's persistent ~40 KB session on a heap this tight — as
+   satisfying the spirit of the human's own stopping condition (a mechanism that cannot be made to work
+   cleanly is not distinguishable from "not a clear win") and downgrade now, saving the last session.
+2. If the human chooses (a): drop the `doPoll`/`doFetchQueue` release/re-acquire additions entirely,
+   keep the original per-fetcher-only bracket, and keep the `-32512` observable as the confound
+   detector it was already specified to be.
+3. Either way: fold in the tightened engagement observable above (state logged at capture point 1,
+   not inferred from separate events) before Arm B is run at all — this applies regardless of which
+   fix path is chosen.
+
+Not rejecting Option 3 wholesale — the reservation-around-dataTask-fetchers mechanism itself is
+unaffected by this finding, and its own A/B (§3 of the prior re-check) remains valid. What's not ready
+is the symmetric-release *expansion* specifically, and it should not proceed to implementation without
+the human seeing this conflict first, per the coordinator's own note that it already expands signed-off
+scope.
