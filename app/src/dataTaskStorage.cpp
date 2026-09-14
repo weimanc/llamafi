@@ -344,12 +344,20 @@ static void tlsReserveRelease(const char* fetchTag) {
     LOG_D("tlsres", "[tlsres] release fetch=%s ms=%lu", fetchTag, millis());
 }
 
-// Called right before the fetcher resumes Spotify's TLS (RAII guard's scope
-// close / fetchPlaneRadar's manual tlsResume()). Single malloc attempt —
-// never retried, never blocks dataTask's own loop. On failure the reservation
-// simply stays absent for this cycle (today's unprotected behaviour); logged
-// once, not escalated.
+// Called right after a TLS session's actual teardown (session.end()), before
+// any result parsing that follows. Single malloc attempt — never retried,
+// never blocks dataTask's own loop. On failure the reservation simply stays
+// absent for this cycle (today's unprotected behaviour); logged once, not
+// escalated. IDEMPOTENT: a fetcher whose own teardown can run more than once
+// per release (fetchStockChartOnce(), called up to twice by
+// fetchStockChartWithRetry()'s retry) would otherwise leak the first
+// malloc'd block when a second reacquire overwrites s_tlsReserve — skip the
+// malloc and log "held" when already holding instead.
 static void tlsReserveReacquire(const char* fetchTag) {
+    if (s_tlsReserve) {
+        LOG_D("tlsres", "[tlsres] reacquire held fetch=%s ms=%lu", fetchTag, millis());
+        return;
+    }
     void* p = heap_caps_malloc(kTlsReserveBytes, MALLOC_CAP_8BIT);
     if (p) s_tlsReserve = p;
     LOG_D("tlsres", "[tlsres] reacquire %s fetch=%s ms=%lu",
@@ -507,6 +515,10 @@ static void httpFetchJsonBuffered(WiFiClientSecure& tls, const BufferedFetchCfg&
     HttpSession session(http, tls, cfg.url);   // TASK-512
     if (!session.ok()) {
         if (cfg.phaseSlot) *cfg.phaseSlot = -1;
+        session.end();   // begin() never opened a session — still balances the release below
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        tlsReserveReacquire(cfg.logTag);
+#endif
         parse(OPENHTTPS_BEGIN_FAILED, String());
         return;
     }
@@ -517,6 +529,15 @@ static void httpFetchJsonBuffered(WiFiClientSecure& tls, const BufferedFetchCfg&
     String body;
     if (code == 200) body = http.getString();
     session.end();            // TLS freed here (HTTP/1.0 close)
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // Shared teardown site for weather/crypto/teletext/geocode (@Architect
+    // correction, @VE-checked "4 callers"): right after session.end(), before
+    // parse(code, body) does any result handling. Each caller's own
+    // TlsYieldGuard release (right after the guard's declaration) pairs with
+    // exactly this one reacquire — fetchCrypto has no session.end() of its
+    // own; it funnels through here like the other three.
+    tlsReserveReacquire(cfg.logTag);
+#endif
     LOG_HEAP(cfg.logTag);
     if (cfg.phaseSlot && code == 200) *cfg.phaseSlot = 2;  // JSON parse
     parse(code, body);
@@ -576,9 +597,8 @@ static void fetchWeather() {
             LOG_W("dataTask.weather", "JSON parse error: %s", err.c_str());
         }
     });
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("weather");
-#endif
+    // Re-acquire happens inside httpFetchJsonBuffered() right after its own
+    // session.end(), per the corrected spec — not here.
 }
 
 static void fetchCrypto() {
@@ -644,9 +664,8 @@ static void fetchCrypto() {
             LOG_W("dataTask.crypto", "JSON parse error: %s", err.c_str());
         }
     });
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("crypto");
-#endif
+    // Re-acquire happens inside httpFetchJsonBuffered() right after its own
+    // session.end(), per the corrected spec — not here.
 }
 
 static void fetchStockQuote() {
@@ -673,6 +692,10 @@ static void fetchStockQuote() {
     s_stockQuoteProgress = 0;
     if (syms.length() == 0) {
         r.ok = true;                 // nothing configured — succeed empty
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        // No session ever opened on this path — still balances the release above.
+        tlsReserveReacquire("stockQuote");
+#endif
     } else {
         String url = String(STOCK_SPARK_URL) + syms + "&interval=1d&range=1d";
         WiFiClientSecure tls;
@@ -683,6 +706,10 @@ static void fetchStockQuote() {
         if (!session.ok()) {
             LOG_W("dataTask.stock", "spark http.begin failed");
             r.ok = false; r.errorCode = -100;
+            session.end();   // begin() never opened a session — still balances the release above
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+            tlsReserveReacquire("stockQuote");
+#endif
         } else {
             http.addHeader("User-Agent", "Mozilla/5.0");
             http.useHTTP10(true);    // identity encoding so getStream() yields clean JSON
@@ -693,6 +720,9 @@ static void fetchStockQuote() {
             if (code != 200) {
                 r.ok = false; r.errorCode = code;
                 session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+                tlsReserveReacquire("stockQuote");
+#endif
             } else {
                 // Wildcard filter: keep {chartPreviousClose, close} for every symbol key.
                 // Filtered payload ~614 B for 8 symbols; <1536> doc gives headroom.
@@ -703,6 +733,12 @@ static void fetchStockQuote() {
                 DeserializationError err = deserializeJson(doc, http.getStream(),
                                                DeserializationOption::Filter(filter));
                 session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+                // Right after this teardown — the stream had to stay open
+                // through deserializeJson() above, so this IS the actual
+                // session.end() for the success path.
+                tlsReserveReacquire("stockQuote");
+#endif
                 if (err) {
                     LOG_W("dataTask.stock", "spark JSON err: %s", err.c_str());
                     r.ok = false; r.errorCode = -90 - (int)err.code();
@@ -729,9 +765,6 @@ static void fetchStockQuote() {
     portEXIT_CRITICAL_SAFE(&s_stockQuoteMux);
     if (r.ok) LOG_D("dataTask.stock", "spark ok aapl=%.2f msft=%.2f", r.prices[0], r.prices[1]);
     LOG_HEAP("dataTask.stock");
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("stockQuote");
-#endif
 }
 
 // Single GET+parse attempt, shared by the by-ticker-index and by-symbol chart
@@ -751,6 +784,10 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
     if (!session.ok()) {
         LOG_W("dataTask.stock", "chart http.begin failed sym=%s", symbol);
         r.ok = false; r.errorCode = -100;
+        session.end();   // begin() never opened a session — still balances the release above
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        tlsReserveReacquire("stockChart");
+#endif
         return -100;
     }
     http.addHeader("User-Agent", "Mozilla/5.0");
@@ -763,6 +800,9 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
     if (code != 200) {
         r.ok = false; r.errorCode = code;
         session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        tlsReserveReacquire("stockChart");
+#endif
         return code;
     }
     LOG_D("dataTask.stock", "chart pre-json heap free=%uk maxBlk=%uk",
@@ -780,6 +820,11 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
     DeserializationError err = deserializeJson(doc, http.getStream(),
                                    DeserializationOption::Filter(filter));
     session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // Covers both the JSON-err and success outcomes below — both share this
+    // one teardown (the stream had to stay open through deserializeJson()).
+    tlsReserveReacquire("stockChart");
+#endif
     LOG_D("dataTask.stock", "chart post-json heap free=%uk maxBlk=%uk err=%s",
           (unsigned)(heap_caps_get_free_size(MALLOC_CAP_8BIT)          / 1024),
           (unsigned)(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024),
@@ -849,9 +894,9 @@ static void fetchStockChartWithRetry(const char* symbol, uint8_t rangeIdx, Fetch
     s_stockChartNew    = true;
     portEXIT_CRITICAL_SAFE(&s_stockChartMux);
     LOG_HEAP("dataTask.stock");
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("stockChart");
-#endif
+    // Re-acquire happens inside fetchStockChartOnce() right after each of
+    // its own session.end() calls (idempotent — a retry's second call is a
+    // no-op there, already held from the first) — not here.
 }
 
 static void fetchStockChart(uint8_t tickerIdx, uint8_t rangeIdx) {
@@ -1049,9 +1094,8 @@ static void fetchTeletext(uint16_t page, uint8_t sub) {
         s_teletextNew   = true;
         portEXIT_CRITICAL_SAFE(&s_teletextMux);
     });
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("teletext");
-#endif
+    // Re-acquire happens inside httpFetchJsonBuffered() right after its own
+    // session.end(), per the corrected spec — not here.
 }
 
 // Pre-allocated at startup (unfragmented heap) and reused per fetch cycle to avoid
@@ -1187,6 +1231,7 @@ static void fetchHeatmapQuote() {
         portENTER_CRITICAL_SAFE(&s_heatmapMux);
         s_heatmapResult = r; s_heatmapNew = true;
         portEXIT_CRITICAL_SAFE(&s_heatmapMux);
+        session.end();   // begin() never opened a session — still balances the release above
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
         tlsReserveReacquire("heatmap");
 #endif
@@ -1210,6 +1255,9 @@ static void fetchHeatmapQuote() {
     if (code != 200) {
         r.ok = false; r.errorCode = code;
         session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        tlsReserveReacquire("heatmap");
+#endif
     } else {
         // Filter: 4 fields per quote entry; raw payload ~54 kB → filtered ~2.4 kB.
         // s_heatmapDoc pre-allocated at startup (avoids malloc failure from heap
@@ -1224,6 +1272,12 @@ static void fetchHeatmapQuote() {
         DeserializationError err = deserializeJson(s_heatmapDoc, http.getStream(),
                                        DeserializationOption::Filter(filter));
         session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        // Covers both the JSON-err and success outcomes below — both share
+        // this one teardown (the stream had to stay open through
+        // deserializeJson()).
+        tlsReserveReacquire("heatmap");
+#endif
         if (err) {
             LOG_W("dataTask.stock", "heatmap JSON err: %s", err.c_str());
             r.ok = false; r.errorCode = -90 - (int)err.code();
@@ -1257,9 +1311,7 @@ static void fetchHeatmapQuote() {
     }
     portEXIT_CRITICAL_SAFE(&s_heatmapMux);
     LOG_HEAP("dataTask.stock");   // after heatmap TLS freed
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("heatmap");
-#endif
+    // Re-acquire happens right after each session.end() above — not here.
 }
 
 static void fetchStockChartBySym(const char* symbol, uint8_t rangeIdx) {
@@ -1304,6 +1356,10 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     HttpSession session(http, tls, url);   // TASK-512
     if (!session.ok()) {
         LOG_W("dataTask.webradio", "http.begin failed mirror=%s", mirror);
+        session.end();   // begin() never opened a session — still balances the release above
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        tlsReserveReacquire("webRadioStations");
+#endif
         return -1;
     }
     http.addHeader("User-Agent", "ESPSpotify/1.0");
@@ -1316,6 +1372,9 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
           mirror, code, (unsigned long)(millis() - t0));
     if (code != 200) {
         session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        tlsReserveReacquire("webRadioStations");
+#endif
         return code;
     }
 
@@ -1329,6 +1388,13 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     DeserializationError err = deserializeJson(doc, http.getStream(),
                                    DeserializationOption::Filter(filter));
     session.end();
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // fetchOneMirror() is called up to WR_MIRROR_COUNT * WR_FETCH_MAX_PAGES
+    // times per fetchWebRadioStations() cycle — tlsReserveReacquire() is
+    // idempotent, so only the first call after the top-level release
+    // actually re-mallocs; the rest log "held" and no-op.
+    tlsReserveReacquire("webRadioStations");
+#endif
     if (err) {
         strlcpy(s_webRadioResult.jsonErr, err.c_str(), sizeof(s_webRadioResult.jsonErr));
         LOG_W("dataTask.webradio", "JSON err mirror=%s: %s", mirror, err.c_str());
@@ -1631,6 +1697,11 @@ static void fetchPlaneRadar() {
     // skip-don't-retry per prFetchOnce's comment.
     if (code == 200 && !r.ok) {
         LOG_D("dataTask.planeradar", "parse rc=%d scanned=%u -> retry", r.errorCode, (unsigned)scanned);
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+        // @VE RETRY tag: the cascade is making a second attempt — lets the
+        // run tag this try, independent of whether retry2 also fires below.
+        LOG_D("tlsres", "[tlsres] retry fetch=planeradar ms=%lu", millis());
+#endif
         vTaskDelay(pdMS_TO_TICKS(300));
         PlaneRadarResult retryResult;   // fresh result — no stale partial state
         uint16_t retryScanned = 0;
@@ -1677,6 +1748,18 @@ static void fetchPlaneRadar() {
         }
     }
 
+#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // One release/re-acquire around the WHOLE retry cascade (@Architect
+    // correction, @VE-checked): re-acquire right after the LAST
+    // prFetchOnce() call returns, whichever attempt that was (first, retry,
+    // or retry2) — prFetchOnce() always tears its own session down
+    // (session.end(), explicit on the code!=200/success paths, the RAII
+    // destructor on the begin()-failed path) before returning here, so this
+    // is "right after teardown" for every path, evaluated exactly once
+    // regardless of how many attempts the cascade made. Placed before
+    // r.epoch/roster loop/publish/point 1, per the corrected spec.
+    tlsReserveReacquire("planeradar");
+#endif
     r.epoch = epoch;   // VE-PRL-6: echo the snapshot taken at enqueue time, not a later one
     r.fetchedRadiusNm = finalRadiusNm;   // TASK-378
     // TASK-361: 'scanned' is this cycle's FINAL attempt's true "ac" object
@@ -1718,15 +1801,14 @@ static void fetchPlaneRadar() {
     // symmetric release" — engagement observable): the reservation's ACTUAL
     // live state, logged right here, independent of HEAP_REGION_DUMP_OFF/
     // heapRegionDump() (both A/B arms build with -DHEAP_REGION_DUMP_OFF). One
-    // cheap single-line log, no heap dump.
+    // cheap single-line log, no heap dump. Re-acquire already ran above
+    // (right after the cascade's last teardown), so an engaged try reports
+    // HELD here, per @Architect's correction / @VE's check.
     tlsReservePoint1();
 #endif
     LOG_HEAP("dataTask.planeradar");
 #if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
     heapRegionDump(1, "planeradar");   // capture point 1: same-try "after" half, before tlsResume()
-#endif
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("planeradar");
 #endif
     spotifyTask::tlsResume();
 }
@@ -1819,9 +1901,8 @@ static void fetchGeocode() {
         s_geocodeNew    = true;
         portEXIT_CRITICAL_SAFE(&s_geocodeMux);
     });
-#if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
-    tlsReserveReacquire("geocode");
-#endif
+    // Re-acquire happens inside httpFetchJsonBuffered() right after its own
+    // session.end(), per the corrected spec — not here.
 }
 
 static void fetchWebRadioStations() {
@@ -1948,6 +2029,14 @@ static void fetchWebRadioStations() {
     s_dbgWrPhase = 2; s_dbgWrPhaseMs = millis();   // TASK-299: fetch pass complete
     LOG_HEAP("dataTask.webradio");
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
+    // Catch-all, not the primary site: fetchOneMirror() already re-acquires
+    // right after its own teardown (idempotent across its many calls per
+    // cycle). But two guards above (s_webRadioFetchAbort, the per-mirror
+    // maxBlk<WR_FETCH_MIN_TLS_BLOCK check) can `break` the outer loop before
+    // fetchOneMirror() is EVER called — no session, no teardown, no reacquire
+    // would otherwise fire, leaving the reservation released for the rest of
+    // boot. This call is the idempotent no-op on the common path (already
+    // held) and the only reacquire on those two early-abandon paths.
     tlsReserveReacquire("webRadioStations");
 #endif
 }
