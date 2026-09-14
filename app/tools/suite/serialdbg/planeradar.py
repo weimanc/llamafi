@@ -10,7 +10,7 @@ import coords as _c
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
-    _restore_spotify, _switch_to, _wait_shell_not_busy, _bgpoll_suspended,
+    _restore_spotify, _ring_events, _switch_to, _wait_shell_not_busy, _bgpoll_suspended,
 )
 
 
@@ -570,8 +570,7 @@ def t_pr_07(dut: Dut):
     with dut.injected("prClearInject", 1, clear_to=1):
         deadline = time.monotonic() + bound_s
         while time.monotonic() < deadline and not seen:
-            r = dut.cmd("get dataRing", timeout=3.0)
-            for ev in (r.get("events") or []):
+            for ev in _ring_events(dut):
                 if ev.get("ev") == 0 and ev.get("arg") == PR_FETCH_TYPE:   # RING_ENQUEUE
                     seen = True
                     break

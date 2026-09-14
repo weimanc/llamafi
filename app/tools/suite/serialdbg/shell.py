@@ -43,7 +43,7 @@ import coords as _c
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
-    _restore_spotify, _switch_to, _check_residue, _RESIDUE_DISPROOF,
+    _restore_spotify, _ring_events, _switch_to, _check_residue, _RESIDUE_DISPROOF,
     _wait_shell_not_busy,
     _diag_snapshot, _tap_and_wait_log, _do_drag, _get_scroll,
     _vs_drain_until_drag, _PLEDIT_X, _PLSTART_Y, _PLEND_Y,
@@ -4171,8 +4171,7 @@ def t_tls_01(dut: Dut):
             req_ms = req_arg = ack_ms = None
             deadline = time.monotonic() + 15.0
             while time.monotonic() < deadline and (req_ms is None or ack_ms is None):
-                r = dut.cmd("get dataRing", timeout=3.0)
-                for ev in (r.get("events") or []):
+                for ev in _ring_events(dut):
                     if ev.get("ev") == 4 and req_ms is None:      # RING_YIELD_REQ
                         req_ms, req_arg = ev.get("ms"), ev.get("arg")
                     elif (ev.get("ev") == 5 and req_arg is not None
@@ -4254,8 +4253,7 @@ def t_tls_02(dut: Dut):
             req_ms = req_arg = ack_ms = None
             deadline = time.monotonic() + (_TLS_WEDGE_MS / 1000.0) + 20.0
             while time.monotonic() < deadline and (req_ms is None or ack_ms is None):
-                r = dut.cmd("get dataRing", timeout=3.0)
-                for ev in (r.get("events") or []):
+                for ev in _ring_events(dut):
                     if ev.get("ev") == 4 and req_ms is None:
                         req_ms, req_arg = ev.get("ms"), ev.get("arg")
                     elif (ev.get("ev") == 5 and req_arg is not None
@@ -4318,7 +4316,7 @@ _DTQ_WEDGE_MS = 6000
 _PR_FETCH_TYPE_ID = 8
 
 
-@meta(scope="rig", scope_reason="datatask", cls="FEATURE", cls_reason=
+@meta(scope_reason="dataTask cross-app queue; no dataTask scope exists (TASK-612), so the module seed shell stands", cls="FEATURE", cls_reason=
       "datatask_cross_app_queue primitive (TASK-705). Not gating: it exercises "
       "a hold injected for the test's own purposes (spotifyWedge), not a "
       "firmware regression the rest of the suite should stop on.",
@@ -4357,7 +4355,8 @@ def t_dtq_01(dut: Dut):
                               "cross-app fetch")
             return
         q2 = dut.cmd("get dataq", timeout=3.0)
-        queued = (q2.get("queueWaiting") or 0) >= 1
+        # Typed (R18): a reply without the field raises BadField, never reads 0.
+        queued = dut.get_int("dataq", field="queueWaiting", timeout=3.0) >= 1
         if not queued:
             _restore_spotify(dut)
             fail("T_DTQ_01", f"dataq after switching to PlaneRadar while "
@@ -4369,8 +4368,10 @@ def t_dtq_01(dut: Dut):
         deadline = time.monotonic() + bound_s
         cleared = False
         while time.monotonic() < deadline:
-            q3 = dut.cmd("get dataq", timeout=3.0)
-            if q3.get("inFlight") == -1 and (q3.get("queueWaiting") or 0) == 0:
+            # Typed (R18): the drain condition must not be satisfiable by a
+            # reply that is missing the fields, as the earlier `or 0` form was.
+            if (dut.get_int("dataq", field="inFlight", timeout=3.0) == -1
+                    and dut.get_int("dataq", field="queueWaiting", timeout=3.0) == 0):
                 cleared = True
                 break
             time.sleep(0.5)

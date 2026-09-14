@@ -681,6 +681,21 @@ def _restore_spotify(dut: Dut, timeout: float = 3.0) -> bool:
     return r2.get("name") == "Spotify"
 
 
+def _ring_events(dut: Dut) -> list:
+    """`get dataRing`'s event list, typed (R18). A reply that is not ok, or
+    carries no `events` list, raises BadField, which the dispatcher grades a
+    contract FAIL. It is never read as "no events yet": an empty default here
+    would let a poll loop wait out its deadline on a broken reply and report
+    the wrong cause. Callers check firmware support (an ok reply) first and
+    UNMET on absence; this is for the polls after that."""
+    r = dut.cmd("get dataRing", timeout=3.0)
+    events = r.get("events")
+    if r.get("ok") is not True or not isinstance(events, list):
+        from lib.dut import BadField
+        raise BadField("dataRing", f"`get dataRing` gave no event list: {r!r}")
+    return events
+
+
 def _spotify_off(dut: Dut) -> bool:
     """True only when the firmware SAYS Spotify is compiled out (`get variant`
     -> spotify="off", a -DDISABLE_SPOTIFY build such as cyd2usb_player).
