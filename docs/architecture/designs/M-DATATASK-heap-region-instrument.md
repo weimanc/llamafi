@@ -1,8 +1,11 @@
 # Design — Heap-region instrument for TASK-697's 31k ceiling
 
 > Owner: Architect
-> Status: accepted
-> Signed off by the human 2026-09-14 (Revision 2). The Option 3 experiment spec is NOT READY per @VE's final check (a capacity conflict with Spotify's persistent session); awaiting a human decision.
+> Status: proposed
+> Revision 2 was accepted by human sign-off 2026-09-14. @VE's final check on the symmetric-release
+> spec found a capacity conflict (Spotify's persistent session + the reservation ≥ free heap); the
+> human ruled a treatment change (design the Spotify-session-idle option) on 2026-09-14, changing
+> Option 3's mechanism again — `Status` returns to `proposed` for fresh sign-off (see Revision 3).
 > Date: 2026-09-14
 > Feeds: — (no ADR yet; this designs a probe, not a fix)
 > Tracked-as: TASK-697
@@ -279,6 +282,70 @@ human's to set, not this design's:
    **HUMAN RULING, 2026-09-14**: **this is TASK-697's last session.** If the reservation A/B is not
    a clear 0/8 success (per the adopted decision rule above — 1-2/8 is INCONCLUSIVE, not a partial
    win), **TASK-697 is downgraded to P2 and parked**, same disposition as the `TASK-393` precedent.
+4. **Spotify capacity conflict (@VE's final check on symmetric release).** Holding a 40 KB
+   reservation *and* Spotify's own persistent session simultaneously can exceed free heap regardless
+   of placement — not a tuning problem, a capacity one.
+   **HUMAN RULING, 2026-09-14**: design the Spotify-session-idle option now (Spotify stops its TLS
+   client when idle instead of holding a session between polls), A/B'd on the TASK-697 sequence,
+   poll-latency cost measured. Ruling 3 (last session; not clear → P2) still stands. **See "Revision
+   3 — premise check" below: this ruling's premise does not hold for the failing scenario as
+   observed** — reported before further design, per the coordinator's instruction.
+
+## Revision 3 — premise check against evidence, before designing the Spotify-session option
+
+@VE's capacity-conflict finding assumes Spotify holds a persistent TLS session between polls
+("Spotify's own client is admitted to need ~50 KB contiguous... a persistent 40 KB hold leaves
+Spotify roughly ≈15 k when it already has a session live"). @VE separately found `client.stop()`
+fires on `doPoll()`'s and `doFetchQueue()`'s own failure paths (`spotifyTaskStorage.cpp` ~314, ~247).
+TASK-675 (deferred) means Spotify's token refresh fails `-9984` at every boot — so the premise
+("a session live") needed checking against the actual failing runs, not assumed from the general
+case. Checked directly: for every try, all `[D][spotify.poll]`/`[D][spotify.queue]` lines in the
+window from `T_PR_04`'s reboot to `T170`'s completion, specifically whether any poll or queue call
+ever returned `200`/`204` (a real success, `spotify.poll] ok`/`"204 no track"`) — the only way a
+session stays open past one cycle, since every non-success branch calls `client.stop()`.
+
+| try | verdict (L697) | any Spotify 200/204 in the window? |
+|---|---|---|
+| 1 | FAIL | **no** |
+| 4 | FAIL | **no** |
+| 5 | FAIL | **no** |
+| 8 | FAIL | **no** |
+| 2 | PASS | **no** |
+| 3 | PASS | **no** |
+| 6 | PASS | **no** |
+| 7 | PASS | **no** |
+
+Zero occurrences of `spotify.poll] ok`/`"204 no track"` across all 8 `L697_*.log` tries — confirmed
+by direct grep (`grep -c`), not sampling. Every poll fails `-1` (`HTTPC_CONNECTION_REFUSED` while the
+pool is intact, `-32512` once it's fragmented), and every failure branch calls `client.stop()`
+(`spotifyTaskStorage.cpp:314`/`:247`, confirmed present on every failing GET in the logs). Re-checked
+against all 8 `G0OFF_*.log` tries (Gate 0's un-instrumented control arm, same sequence, different
+session) — **also zero** successes. **16 of 16 tries checked show no live Spotify session at any
+point in the `T_PR_04`→`T170` window.**
+
+**Finding (i): the capacity conflict does not apply to the failing scenario as observed.** Spotify
+never successfully holds a session in this window in any of the 16 tries checked — TASK-675's
+`-9984` failure means every attempted refresh fails before a session could be established, regardless
+of heap state. The 40 KB-reservation-plus-persistent-Spotify-session capacity conflict @VE found is
+real in general (and would matter once TASK-675 is fixed), but it is not present in the sequence this
+A/B actually runs. **This reopens the original, non-symmetric reservation (dataTask-only, Spotify not
+touched) as a clean treatment for this specific scenario** — there is no persistent Spotify session
+for a dataTask-favouring hold to squeeze.
+
+**Finding (ii): "close Spotify's session when idle" would change nothing in the failing scenario.**
+The session is already closed — every poll's failure path already calls `client.stop()`, in every
+try checked. An idle-close mechanism has no session to close in this window; it cannot move `T170`'s
+FAIL rate one way or the other here, because the state it changes (persistent session → closed when
+idle) is not the state this scenario is ever in.
+
+**Consequence for this design**: designing the Spotify-session-idle mechanism per the human's ruling
+would build a treatment aimed at a condition this specific A/B does not exercise. The
+`Option 3 experiment specification` below is therefore **reverted to the dataTask-only reservation**
+(Revision 2's original scope, before the symmetric-release fix) rather than extended to Spotify's
+client — consistent with finding (i). This is put to the coordinator/human before proceeding further,
+per instruction; if TASK-675 is ever fixed (or Spotify's polling is otherwise made to succeed), the
+capacity conflict and the idle-close mechanism both become live questions again, but not for this
+session's A/B.
 
 ## Option 3 experiment specification
 
@@ -318,7 +385,12 @@ per the ruling above — no `mem_manifest.yaml` entry, debug build only.
     `spotifyTask::tlsYield();` (`dataTaskStorage.cpp:1493`), re-acquire right before
     `spotifyTask::tlsResume();` (`:1604`). No early return sits between the two (checked), so a
     hand-written pair is as safe as the RAII fetchers' automatic one.
-- **Spotify's own client — now covered (§ Spotify confound fix below), not excluded.**
+- **Spotify's own client — NOT covered, reverted per Revision 3's premise check.** The symmetric-
+  release fix below (§ Spotify confound fix) is superseded: 16/16 checked tries show Spotify never
+  holds a live session in the `T_PR_04`→`T170` window this A/B runs (TASK-675's `-9984` fails every
+  refresh attempt before a session forms), so there is nothing for a dataTask-favouring hold to
+  squeeze *in this scenario*, and no reservation-side mechanism is needed on Spotify's call sites for
+  this experiment. Only the 9 dataTask call sites above are wired.
 - **Re-acquire failure**: log once (`LOG_W`), continue. Never block a task's own loop waiting for
   the reservation to come back — a failed re-acquire degrades that one try back to today's
   unprotected behaviour, it must not wedge dataTask's fetch queue or spotifyTask's poll cadence.
@@ -339,35 +411,22 @@ per the ruling above — no `mem_manifest.yaml` entry, debug build only.
   this way, the arm is **invalid, not merely smaller** — re-run Arm B in full (fresh flash) before
   reading it; a silently-shrunk N must not be reported as the clear 0/8 the human's ruling requires.
 
-### Spotify confound fix
+### Spotify confound fix — SUPERSEDED by Revision 3's premise check, kept for history
 
-As specified above (reservation held by default, released only around dataTask fetchers), the hold
-persists through Spotify's own active window — per @VE's re-check §2, a persistent 40 KB hold against
-a measured `freeInt` of ≈55 KB with a live Spotify session leaves it ≈15 KB, well under its own
-~50 KB need, worse than baseline. Arm B as originally specified tests "reservation + a squeezed
-Spotify," not the reservation in isolation, and could read a clean 0/8 on `T170` for the wrong reason.
+Designed to fix a capacity conflict (a persistent 40 KB hold squeezing a live Spotify session) by
+extending the release/re-acquire bracket to Spotify's own two call sites in `spotifyTaskStorage.cpp`
+(`doPoll()` before `s_spotify->getCurrentlyPlaying(...)` ~253, `doFetchQueue()` before
+`s_spotify->getQueue(...)` ~239), chosen over holding-only-while-idle (inverts protection during the
+injection window) and a smaller reservation (re-opens Gate 0's timing-precision problem). **Not
+needed for this A/B**: Revision 3 found Spotify never holds a live session in the failing sequence at
+all (TASK-675), so there is no squeeze to fix here. Retained as a design if TASK-675 is ever fixed and
+Spotify's polling starts succeeding during this sequence — not wired for the current experiment.
 
-**Chosen fix: option (a), symmetric release** — extend the same release/re-acquire bracket to
-Spotify's own two TLS-needing call sites in `spotifyTaskStorage.cpp`: `doPoll()`, before
-`s_spotify->getCurrentlyPlaying(...)` (~line 253), and `doFetchQueue()`, before
-`s_spotify->getQueue(...)` (~line 239) — release immediately before each call, re-acquire
-immediately after it returns, same shared helper, same log line, same non-engagement treatment.
-Chosen over (b) (VE's own analysis shows "acquire when stopped, release when active" inverts the
-protection during the exact window PlaneRadar's injection needs it held) and (c) (a smaller
-reservation re-opens the timing-precision problem Gate 0 already failed to solve, without addressing
-the confound at all — Spotify's need is ~50 KB per the existing `LOG_HEAP` comment, so shrinking the
-reservation to dodge Spotify's squeeze would likely just stop protecting dataTask's own fetchers
-too). Symmetric release keeps the reservation held (protecting against PlaneRadar-injection
-fragmentation) at all times except the handful of brief windows bracketing an actual handshake,
-whichever client's — the same protective shape as the original per-fetcher design, generalised to
-both clients rather than favouring one. Two new call sites, not a change to `tlsYield()`/
-`tlsResume()`/`TlsYieldGuard`, so WebRadio's and the audio engine's uses stay untouched.
-
-**@VE's Spotify-`-32512` per-try count is kept as the detector, verbatim from the re-check** (§2):
-count `after -1: rc=-32512` occurrences per try in both arms; if the fix is sound, Arm B's rate should
-be comparable to Arm A's, not meaningfully higher. Apply the re-check's three-way decision rule
-(clean success / confounded-not-clean / evidence-against-a-larger-reservation) unchanged — this fix
-is expected to satisfy that rule's first branch, not replace the need to check it.
+**@VE's Spotify-`-32512`-per-try count is kept anyway, as a cheap sanity check, not a confound fix**:
+count `after -1: rc=-32512` occurrences per try in both arms. Expected near-zero in both arms per
+Revision 3's finding (no live session means little exposure either way); a non-trivial count in
+either arm would itself be worth a second look, since it would mean this scenario's Spotify behaviour
+changed between when Revision 3's evidence was gathered and when the A/B runs.
 
 ## Arm build commands
 

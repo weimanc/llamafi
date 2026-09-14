@@ -667,3 +667,92 @@ unaffected by this finding, and its own A/B (§3 of the prior re-check) remains 
 is the symmetric-release *expansion* specifically, and it should not proceed to implementation without
 the human seeing this conflict first, per the coordinator's own note that it already expands signed-off
 scope.
+
+---
+
+## Re-check after the premise check (2026-09-14)
+
+### Premise verified independently — confirmed true
+
+Grepped all 16 raw logs directly (`L697_1-8.log`, `G0OFF_1-8.log`, the scratchpad copies), not taking
+Revision 3's table on faith: `grep -oE 'status=-?[0-9]+'` across all 16 files returns **only
+`status=-1`, 64 occurrences, zero `status=200` or `status=204`**; a second, independent pattern
+(`[spotify.poll] (ok|204)`, the exact text `doPoll()` logs only on a real success) also returns
+**zero matches across all 16 files**. Both checks agree with Revision 3's table exactly: no Spotify
+poll or queue call succeeds anywhere in the `T_PR_04`→`T170` window, in any of the 16 tries checked.
+Since every non-success branch in `spotifyTaskStorage.cpp` calls `client.stop()` (confirmed in the
+prior check: `doPoll` line 314, `doFetchQueue` line 247), zero successes means zero surviving sessions
+— **the capacity-conflict finding from the previous check does not apply to this specific A/B's
+sequence, confirmed independently, not just accepted on the design doc's word.** The design's reversion
+to the dataTask-only reservation is sound on this evidence.
+
+### The confound detector needed redefining — the coordinator's concern is correct
+
+The previously pre-registered detector (count `-32512` occurrences per try) would misfire exactly as
+the coordinator describes: Spotify fails in *every* try in *both* arms regardless of the reservation
+(TASK-675 guarantees that) — the only thing the reservation can plausibly change is *which* failure
+Spotify hits first (a slow `-9984` cert-chain failure after a real network round trip, or a fast
+`-32512` allocation failure before any network I/O happens at all) and *how long that cycle takes*, not
+*whether* Spotify succeeds. Counting `-32512` would grade a pure error-code relabelling as "confounded"
+even when nothing about Spotify's actual behaviour — its outcome, its resource footprint after the
+attempt — changed at all. **Redefined rule, replacing the `-32512`-count detector:**
+
+- **(b) Success count — the hard invalidator.** Expected 0 in both arms, every try (per the premise
+  check above). **Any try in either arm showing a real `200`/`204`** (the same text-match used above)
+  **invalidates that arm's run outright** — it means the premise this reversion rests on (TASK-675
+  fails every refresh, no session ever forms) has stopped holding, the capacity conflict from the
+  prior check becomes live again, and the run must stop and be reported to the human before reading
+  any FAIL-rate result. This is not a statistical judgement call — one success is sufficient, because
+  it falsifies the premise the whole reversion depends on.
+- **(c) Elapsed-time shape — the real confound detector.** A `-9984` failure is a completed network
+  round trip (measured in this evidence chain at ~4.2-4.3 s per queue attempt, e.g. `status=-1
+  elapsed=4239-4262ms` in `L697_1.log`); a `-32512` failure is an allocation failure that can occur
+  before any socket I/O, near-instant. **Per try, per arm**: compute each Spotify poll/queue attempt's
+  `elapsed=` value from the log and classify it slow-shape (≈4 s+, a real attempt that reached the
+  network) or fast-shape (a few hundred ms or less, consistent with failing before I/O). **A
+  systematic shift in which shape dominates between Arm A and Arm B — not the error-code text itself —
+  is the confound**: if Arm B's attempts turn fast-shape where Arm A's matching attempts were
+  slow-shape, Spotify's cycle duration through the window changed, and cycle-duration is exactly the
+  variable this investigation's own CORRECTION section already showed to be load-bearing for whether
+  the injection race lands where it does. Use a qualitative, order-of-magnitude threshold (seconds vs.
+  sub-second), not a percentage cutoff — the same honesty-at-small-N discipline already applied to
+  Gate 0's rate band elsewhere in this review.
+- **(a) Attempt count — informational, not a standalone invalidator.** Count poll+queue GETs per try
+  in each arm and report it alongside (c); a faster failure cycle can fit more attempts in the same
+  window even with no confound at all, so attempt count alone proves nothing — it corroborates (c)
+  when both move together (more attempts *and* a fast-shape shift is stronger evidence than either
+  alone) and should not be read in isolation.
+
+**Consequence, stated as a rule**: Arm B reads a **clean success** only if it hits 0/8 FAIL on `T170`
+(this document's original §3 rule), **no success appears in either arm** (rule (b)), **and** no
+systematic fast-shape shift appears in Arm B relative to Arm A (rule (c), qualitative). A fast-shape
+shift with an otherwise-clean 0/8 is **confounded, not clean** — report both numbers to the human, do
+not silently pass it as the ruling's "clear 0/8."
+
+### Restated for this design — engagement observable and the invalidation rule
+
+Unchanged from the prior check, restated because the design reverted to the dataTask-only mechanism
+these apply to directly: the reservation's live state must be logged as `HELD`/`RELEASED` **at capture
+point 1 itself** (`heapRegionDump(1, ...)`, `dataTaskStorage.cpp:1602`), not reconstructed from
+separate acquire/release timestamps — "engaged" means the point-1 line reports `HELD`. A try whose
+point-1 line reports `RELEASED` is excluded from that arm's count (recorded, not forced into
+PASS/FAIL); if **3 or more of Arm B's 8 tries** are excluded this way, the arm is **invalid, not
+merely smaller**, and must be re-run in full before being read — a silently-shrunk N must not stand in
+for the clear 0/8 the human's ruling requires.
+
+### Verdict: **READY WITH CHANGES**
+
+Premise holds under independent check — no objection to reverting to the dataTask-only reservation.
+Required before Arm B is run:
+1. Fold the redefined three-part confound rule (§ above: success-count hard invalidator, elapsed-time-
+   shape as the real detector, attempt-count as corroborating context only) into the design doc,
+   replacing the raw `-32512`-count rule verbatim.
+2. Keep the point-1 `HELD`/`RELEASED` engagement observable and the ≥3/8 invalidation rule as specified
+   — both restated above, unaffected by this premise check.
+3. **For the human**: nothing new to decide beyond what Revision 2's ruling already covered — the
+   premise check resolves the symmetric-release question without reopening scope, since the reversion
+   stays inside the originally-signed-off dataTask-only mechanism. Flag one contingency for the
+   record, not a decision needed now: if a success ever appears in either arm (rule (b)), that
+   re-opens the capacity-conflict finding from the prior check and the symmetric-release question
+   comes back — the human does not need to decide this in advance, only know the run will stop and
+   escalate if it happens rather than pushing through.
