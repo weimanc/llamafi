@@ -50,6 +50,66 @@ from app_ids_gen import APP_ORDER, DISPLAY
 CLASSES = ("RIG", "HEALTH", "CORE", "APP", "FEATURE")
 EFFECTS = ("read-only", "mutating", "resetting")
 
+# ---------------------------------------------------------- the ops vocabulary
+#
+# TASK-705. `ops` is a FOURTH, entirely OPT-IN axis — unlike cls/scope/effect
+# it has no seed: an undeclared id carries no ops, and that is never a finding
+# (`gate/check_primitive_coverage.py` reports the undeclared count but does not
+# fail on it). It exists to answer a question scope/cls/effect cannot: not
+# "which app" or "how disruptive", but "which PRIMITIVE OPERATION, out of a
+# closed list, does this id's body actually exercise" — so a coverage gate can
+# tell a real gap (an op nothing tests) from a hole nobody wrote down.
+#
+# Opened by the TASK-697 reboot/inject/Stock wedge investigation
+# (docs/verification/regression_suite/task697-reboot-inject-stock.md), whose
+# read-only coverage inventory named nine primitive operations along that
+# composite's causal chain — a reboot, Spotify's backoff schedule and its
+# token-refresh failure, dataTask's TLS yield hand-off (idle and busy), a
+# PlaneRadar injection and its clear, dataTask's cross-app queue serialisation,
+# and a Stock quote fetch. The vocabulary is CLOSED (a typo or a new op both
+# fail loudly, `gate/check_primitive_coverage.py`'s P2) and grows only by
+# adding a row here with its one-line definition.
+OPS = {
+    "reboot_ready":
+        "the board reaches a ready, addressable state after an in-session "
+        "reboot — the composite precondition every [REBOOT] id depends on.",
+    "spotify_backoff":
+        "spotifyTask's poll-interval schedule as a function of "
+        "consecutiveFailures — nextWaitMs()'s doubling/cap formula "
+        "(spotifyTaskStorage.cpp ~198-213), not merely the set/get round trip.",
+    "spotify_token_refresh_fail":
+        "a Spotify token refresh fails against a live TLS session (TASK-675's "
+        "pin rot is today's live instance). NOT DRIVABLE today — cmdSet.cpp's "
+        "certbreak table (~707-729) excludes spotifyTask.",
+    "tls_yield_idle":
+        "a dataTask fetcher's tlsYield()/tlsTryYield() request is acked by "
+        "spotifyTask while spotifyTask is idle (no request armed to keep it "
+        "busy) — the RING_YIELD_REQ -> RING_TLS_STOP_ACK edge, `get dataRing`.",
+    "tls_yield_busy":
+        "the same TLS yield hand-off while spotifyTask is made busy (`set "
+        "spotifyWedge <ms>`, TASK-430) — the ack latency tracks the busy "
+        "window instead of acking promptly. This is TASK-697's own shape.",
+    "pr_inject":
+        "PlaneRadar's synthetic-aircraft injection (`set prInjectAircraft`) "
+        "and the offset decay/settle behaviour it drives.",
+    "pr_clear_rearms_fetch":
+        "`set prClearInject 1` does not merely clear the display — it "
+        "backdates PlaneRadarApp's _lastFetch so tick()'s own poll gate fires "
+        "a REAL fetch enqueue on a subsequent tick (planeRadarApp.cpp ~27-34, "
+        "268-273).",
+    "datatask_cross_app_queue":
+        "dataTask's single shared request queue accepts a second app's fetch "
+        "while a first app's fetch is still dispatched (inFlight) — the "
+        "request is observed QUEUED (queueWaiting/pendingMask), not dropped or "
+        "double-dispatched, and both complete after release.",
+    "stock_quote_fetch":
+        "a Stock quote fetch, once triggered, actually completes "
+        "(quoteOkCount advances) within its bound.",
+}
+
+#: Tuple form, in definition order — what `meta(ops=...)` and the gate iterate.
+OPS_ORDER = tuple(OPS)
+
 #: scope values that are not an app. `spotify-chrome` is deliberately NOT
 #: `spotify`: a case-only distinction against APP_ORDER's `Spotify` is a defect
 #: in a CLI value (design §13.3) — one `.lower()` anywhere in a resolver and the
@@ -69,7 +129,8 @@ DEFAULT_EFFECT = "mutating"
 
 def meta(cls: str = None, cls_reason: str = None,
          scope: str = None, scope_reason: str = None,
-         effect: str = None, effect_reason: str = None):
+         effect: str = None, effect_reason: str = None,
+         ops: tuple = None):
     """Declare metadata on a test function. Everything is optional; whatever is
     given overrides the seed for that axis, and a `scope`/`effect` override must
     carry its `*_reason`.
@@ -88,6 +149,19 @@ def meta(cls: str = None, cls_reason: str = None,
     failure mean the ids after it cannot be trusted. `gate/check_test_meta.py`
     requires one on every RIG/HEALTH/CORE id and rejects a short one; if you
     cannot write the sentence, the id is FEATURE and that is the finding.
+
+    `ops` (TASK-705) is a tuple of names from `OPS` — the PRIMITIVE OPERATIONS
+    this id's body actually exercises. Unlike the three axes above it has no
+    seed and is OPT-IN: an undeclared id carries no ops (`()`), and that is
+    never a finding — most ids exercise nothing in the closed vocabulary.
+    Declaring it must be TRUE for the body: `gate/check_primitive_coverage.py`
+    does not check truth, only that every declared op is IN `OPS` (P2) and that
+    every op in `OPS` has at least one id declaring it ALONE, i.e. a PRIMITIVE
+    (P1), or is on the dated ledger. A composite id declares 2+ ops; each of
+    those must itself have a primitive or ledger row (P3).
+
+        @meta(ops=("stock_quote_fetch",))
+        def t172(dut): ...
     """
     d = {}
     if cls is not None:
@@ -102,6 +176,8 @@ def meta(cls: str = None, cls_reason: str = None,
         d["effect"] = effect
     if effect_reason is not None:
         d["effect_reason"] = effect_reason
+    if ops is not None:
+        d["ops"] = tuple(ops)
 
     def _wrap(fn):
         # Set the attribute; do NOT wrap. fn.__name__/inspect must keep working
@@ -256,12 +332,15 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
     cls = decl.get("cls", seed_cls(scope))
     effect_seed = seed_effect(fn)
     effect = decl.get("effect", effect_seed)
+    ops = tuple(decl.get("ops", ()) or ())
 
     return {
         "id": test_id,
         "cls": cls,
         "scope": scope,
         "effect": effect,
+        "ops": ops,
+        "ops_declared": "ops" in decl,
         "module": module_basename,
         "scope_seed": scope_seed,
         "scope_seeded_by": how,

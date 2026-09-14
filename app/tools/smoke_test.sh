@@ -345,6 +345,22 @@ if ! "$PYTHON" gate/check_gating_offline.py; then
     exit 1
 fi
 
+# 4a-ter. TASK-705 — every primitive operation in _meta.OPS (opened from
+# TASK-697's coverage inventory) has an id declaring it ALONE, or a dated row on
+# docs/verification/primitive_coverage_exceptions.md. A composite id covering
+# several ops does not excuse a missing primitive for any one of them — that is
+# exactly the gap TASK-697's own investigation found. Blocking at zero except the
+# one ledgered op (spotify_token_refresh_fail — cmdSet.cpp's certbreak table
+# excludes spotifyTask, owner TASK-675).
+if ! "$PYTHON" gate/test_check_primitive_coverage.py; then
+    echo "FAIL: test_check_primitive_coverage.py (TASK-705 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_primitive_coverage.py; then
+    echo "FAIL: check_primitive_coverage.py (TASK-705 primitive coverage) FAILED" >&2
+    exit 1
+fi
+
 # 4a-bis. ADR-067/R51 — no DUT entry point flashes, and none restores (TASK-633).
 # Blocking at ZERO with NO ledger: there is nothing to shrink from, and a single
 # re-introduced restore re-creates the exact obstruction ADR-067 removed — a
