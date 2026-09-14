@@ -138,6 +138,12 @@ def t169(dut: Dut):
 # removed by TASK-660.
 
 
+# TASK-705: declares stock_quote_fetch. Its whole oracle IS a quote fetch
+# completing (quoteOkCount advancing) within 65s — exactly the op's
+# definition, TRUE for the body as written; no other op in OPS applies (it
+# does not hold Spotify idle, so it is not the idle-control variant T_SQI_01
+# adds).
+@meta(ops=("stock_quote_fetch",))
 def t170(dut: Dut):
     """T170 (L2): quote fetch completes after Stock switch-in; quoteOkCount advances within 65 s."""
     print("T170  Quote fetch completes after switch-in")
@@ -210,6 +216,12 @@ def t170(dut: Dut):
 # shape TASK-645 used for `get boardId`. Until that run they are written, not
 # passing, and must not be cited as evidence of anything.
 
+# TASK-705: declares stock_quote_fetch. Its completion oracle
+# (_quote_count_advanced) is deliberately the SAME "a quote fetch completed"
+# claim T170 makes — the id's own comment says the atom is observed
+# alongside, not instead of, that completion — so the op is TRUE for this
+# body too, even though the atom-domain assertion itself is not in OPS.
+@meta(ops=("stock_quote_fetch",))
 def t_dtp_01(dut: Dut):
     """T_DTP_01: stockQuoteProgress leaves its -1 sentinel across a quote fetch,
     stays inside its {0, -1} busy-flag domain, and returns to -1.

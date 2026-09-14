@@ -124,6 +124,13 @@ def t_pr_03(dut: Dut):
     pass_("T_PR_03", f"range sequence 5->{seen} confirmed")
 
 
+# TASK-705: declares reboot_ready — this [REBOOT] id's own subject
+# (prRange persistence) is not itself in _meta.OPS, so reboot_ready is the
+# only op TRUE for this body; the harness's own Dut._wait_for_ready() is what
+# actually satisfies the op's PRIMITIVE requirement (see
+# gate/check_primitive_coverage.py's HARNESS_PRIMITIVES), this declaration is
+# composite bookkeeping, not what clears P1 for the op.
+@meta(ops=("reboot_ready",))
 def t_pr_04(dut: Dut):
     """T_PR_04 (exit criterion 2b) [REBOOT]: range preset persists across reboot.
     Sets a distinctive non-default preset (25 km — default is 10 km per init()'s
@@ -270,6 +277,9 @@ def t_pr_06(dut: Dut):
 # inFlight (keep in sync with the enum; -1 = idle).
 PR_FETCH_TYPE = 8
 
+# TASK-705: declares reboot_ready — same reasoning as T_PR_04 above: its own
+# subject (prPollSec round-trip/clamp/persistence) is not in _meta.OPS.
+@meta(ops=("reboot_ready",))
 def t_prm_01(dut: Dut):
     """T_PRM_01 (TASK-355) [REBOOT]: prPollSec slider value round-trips via dbg
     set/get at 1 / 10 / 30 (full slider range: min / default / max), clamps an
@@ -430,6 +440,12 @@ def _pr_inject_custody(fn):
     return wrapper
 
 
+# TASK-705: declares pr_inject. This id's whole subject IS the injected
+# continuity pair's offset decay/settle behaviour — exactly `_meta.OPS`'s
+# definition — and nothing else in the closed vocabulary (it does not touch
+# prClearInject's re-arm-a-real-fetch behaviour; _pr_inject_custody's own
+# clear-on-exit is restore bookkeeping, not an assertion).
+@meta(ops=("pr_inject",))
 @_pr_inject_custody
 def t_pri_01(dut: Dut):
     """T_PRI_01 (TASK-357): dr-damped(tau=2) offset continuity + decay via the
@@ -555,7 +571,7 @@ def t_pr_07(dut: Dut):
         deadline = time.monotonic() + bound_s
         while time.monotonic() < deadline and not seen:
             r = dut.cmd("get dataRing", timeout=3.0)
-            for ev in r.get("events", []):
+            for ev in (r.get("events") or []):
                 if ev.get("ev") == 0 and ev.get("arg") == PR_FETCH_TYPE:   # RING_ENQUEUE
                     seen = True
                     break

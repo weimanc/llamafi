@@ -4172,7 +4172,7 @@ def t_tls_01(dut: Dut):
             deadline = time.monotonic() + 15.0
             while time.monotonic() < deadline and (req_ms is None or ack_ms is None):
                 r = dut.cmd("get dataRing", timeout=3.0)
-                for ev in r.get("events", []):
+                for ev in (r.get("events") or []):
                     if ev.get("ev") == 4 and req_ms is None:      # RING_YIELD_REQ
                         req_ms, req_arg = ev.get("ms"), ev.get("arg")
                     elif (ev.get("ev") == 5 and req_arg is not None
@@ -4255,7 +4255,7 @@ def t_tls_02(dut: Dut):
             deadline = time.monotonic() + (_TLS_WEDGE_MS / 1000.0) + 20.0
             while time.monotonic() < deadline and (req_ms is None or ack_ms is None):
                 r = dut.cmd("get dataRing", timeout=3.0)
-                for ev in r.get("events", []):
+                for ev in (r.get("events") or []):
                     if ev.get("ev") == 4 and req_ms is None:
                         req_ms, req_arg = ev.get("ms"), ev.get("arg")
                     elif (ev.get("ev") == 5 and req_arg is not None
@@ -4357,7 +4357,7 @@ def t_dtq_01(dut: Dut):
                               "cross-app fetch")
             return
         q2 = dut.cmd("get dataq", timeout=3.0)
-        queued = (q2.get("queueWaiting", 0) or 0) >= 1
+        queued = (q2.get("queueWaiting") or 0) >= 1
         if not queued:
             _restore_spotify(dut)
             fail("T_DTQ_01", f"dataq after switching to PlaneRadar while "
@@ -4370,7 +4370,7 @@ def t_dtq_01(dut: Dut):
         cleared = False
         while time.monotonic() < deadline:
             q3 = dut.cmd("get dataq", timeout=3.0)
-            if q3.get("inFlight") == -1 and (q3.get("queueWaiting", 0) or 0) == 0:
+            if q3.get("inFlight") == -1 and (q3.get("queueWaiting") or 0) == 0:
                 cleared = True
                 break
             time.sleep(0.5)
