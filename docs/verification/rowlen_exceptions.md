@@ -62,7 +62,6 @@ Owner = the task whose row this is, i.e. the one that can decide what the pointe
 | `docs/project/tasks.md` | `TASK-462` | 579 chars — carries the investigation note for the `cmdGet`/`cmdSet` table | TASK-462 | 2026-09-05 |
 | `docs/project/tasks.md` | `TASK-549` | 787 chars — carries the §10 OQ-B pricing and hand-off narrative | TASK-549 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-564` | 742 chars — enumerates the seven per-phase deadlines | TASK-564 | 2026-09-05 |
-| `docs/project/tasks-harness2.md` | `TASK-566` | 2 019 chars — the landed-inert record for the class-order switch | TASK-566 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-567` | 765 chars — the 187-site `skip()` adjudication split, counted in the row | TASK-567 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-574` | 823 chars — the 74 masked-FAIL `skip()` sites, described inline | TASK-574 | 2026-09-05 |
 | `docs/project/tasks-harness2.md` | `TASK-575` | 1 361 chars — the `_TeeSerial` defect and its fix, in the row | TASK-575 | 2026-09-05 |

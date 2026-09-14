@@ -150,7 +150,8 @@ PORT=/dev/ttyUSB1 ./run/test-targeted T080,T083
 | `RIGWATCH` | unset (0) | `1` turns on rigwatch (TASK-677) — kernel-event daemon, harness stamps, DUT-line timestamps, the artifact's `rig` section. Set in `run/local.env`, not inline — see below |
 | `DUT_BY_PATH` | auto (first CH340 by-id) | Which DUT node rigwatch resolves to a USB topology port for kernel-log filtering. Only matters with two CH340s attached |
 | `RIG_EVENTS` | `/tmp/spotify-mon-rig-events.jsonl` | Where rigwatch's kernel + harness events are appended |
-| `DUT_SHUFFLE_SEED` | unset | Same as `runner.py --shuffle-family SEED` (TASK-636) — no wrapper change needed, `run/test`/`run/test-targeted` inherit it like `DUT_CLASS_ORDER`. Refused together with `DUT_CLASS_ORDER=1`/`--class-order`. See "Per-family shuffle" below |
+| `DUT_CLASS_ORDER` | `1` under `run/test`, unset elsewhere | TASK-566 class order: HEALTH gate first, classes ascending, a CORE FAIL/UNMET makes APP/FEATURE ids NOT-RUN. `run/test` turns it on by human ruling 2026-09-14 ([A/B](../verification/regression_suite/task566-interleaved-ab.md)); `0` forces registry order. Other entry points leave it off |
+| `DUT_SHUFFLE_SEED` | unset | Same as `runner.py --shuffle-family SEED` (TASK-636) — no wrapper change needed, `run/test`/`run/test-targeted` inherit it like `DUT_CLASS_ORDER`. Refused together with `DUT_CLASS_ORDER=1`/`--class-order` — so under `run/test`, which now sets it, pass `DUT_CLASS_ORDER=0` too. See "Per-family shuffle" below |
 
 ---
 

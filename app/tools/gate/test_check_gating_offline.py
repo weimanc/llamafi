@@ -257,8 +257,11 @@ def test_ledger_and_live():
     check("C10: the shipped ledger parses clean", lerrs == [], lerrs)
     check("C11: the live tree is clean against its ledger",
           C.evaluate(live, ledger)[0] == [], C.evaluate(live, ledger)[0])
-    check("C12: TASK-617's exit criterion is NOT met — and the gate says so "
-          "rather than a document", len(ids) > 0, ids)
+    # Inverted 2026-09-14: T_BI_03's demotion took the live count to zero. The
+    # arm now pins the MET state, so a new gating id that needs the network
+    # fails here as a regression of TASK-617 (ii), not only as a ledger row.
+    check("C12: TASK-617's exit criterion (ii) is MET — no gating id needs the "
+          "outside world", len(ids) == 0, ids)
 
 
 def main():

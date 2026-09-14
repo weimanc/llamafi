@@ -22,14 +22,14 @@ instead of by a literal id list — either a scope name or the path of the file
 you changed. `--class`/`--upto` are deliberately NOT implemented: @PM cut both
 from TASK-570 on all three reviewers' recommendation (design §20).
 
-CLASS ORDERING (TASK-566, M-TESTARCH §4) LANDS HERE BUT IS **OFF BY DEFAULT**.
-`--class-order` (or `DUT_CLASS_ORDER=1`) runs the HEALTH gate first, executes
-classes ascending, records blocked ids as `NOT-RUN` and exits 4 on a HEALTH
-failure. Without it this file behaves EXACTLY as it did before: registry order,
-no health phase, no blocking, exit 0/1/3. That is deliberate — @PM's ruling on
-the TASK-566 row puts the inert landing, the order diff and the baseline in this
-block and HOLDS the switch itself until TASK-557 closes or signs off, with @VE's
-three preconditions (§18.6) on top. `--order-diff` prints what the switch WOULD
+CLASS ORDERING (TASK-566, M-TESTARCH §4). **ON for `run/test`** since the human
+ruling of 2026-09-14 (interleaved A/B: task566-interleaved-ab.md). `run/test`
+exports `DUT_CLASS_ORDER=1` unless the caller set it; this file's own default is
+still off, so every other entry point (test-targeted, player-gate, test-sync)
+keeps registry order, since the A/B did not measure them. `--class-order` (or
+`DUT_CLASS_ORDER=1`) runs the HEALTH gate first, executes classes ascending,
+records blocked ids as `NOT-RUN` and exits 4 on a HEALTH failure. Without it:
+registry order, no health phase, no blocking, exit 0/1/3. `--order-diff` prints what the switch WOULD
 change, with no port and no DUT (EC-G9).
 
 THE HEALTH PHASE ALONE (TASK-597, E-13) IS A SEPARATE SWITCH, also off by
@@ -289,12 +289,12 @@ def main():
                         "wrong with the board a minute ago' (M-TESTARCH §5 E4).")
     p.add_argument("--class-order", action="store_true",
                    default=os.environ.get("DUT_CLASS_ORDER", "") == "1",
-                   help="THE ORDER SWITCH, and it is HELD (TASK-566 row, @VE "
-                        "§18.6). Runs the HEALTH gate first, executes classes "
-                        "ascending, records blocked ids NOT-RUN and exits 4 on a "
-                        "HEALTH failure. OFF by default: this suite has measured "
-                        "order-dependence (TASK-553) and TASK-557 is unresolved. "
-                        "Use --order-diff to see what it would change.")
+                   help="THE ORDER SWITCH (TASK-566). Runs the HEALTH gate first, "
+                        "executes classes ascending, records blocked ids NOT-RUN "
+                        "and exits 4 on a HEALTH failure. run/test turns it on "
+                        "(human ruling 2026-09-14); other entry points leave it "
+                        "off. DUT_CLASS_ORDER=0 forces it off. Use --order-diff "
+                        "to see what it changes.")
     p.add_argument("--health-phase", action="store_true",
                    default=os.environ.get("DUT_HEALTH_PHASE", "") == "1",
                    help="TASK-597: run the HEALTH class (T_DH_01..03) as a "

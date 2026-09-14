@@ -1259,15 +1259,15 @@ def t_bi_02(dut: Dut):
 
 # ── T_BI_03 — suspend() clears drag state mid-switch ─────────────────────────
 
-@meta(cls="CORE", cls_reason=
-      "Drag state that survives an app switch contaminates every later gesture in "
-      "the run — taskbar scroll, PLEDIT scroll, volume drag — with a drag a previous "
-      "test began. `suspend()` clearing it is what makes gesture tests independent "
-      "of their predecessors, and this is the only id that asserts it. Only the "
-      "`dragState` half carries the class; the `scrollOffset >= 0` half is a vacuous "
-      "bound (WP-C, S8) and proves nothing. Its precondition needs a live Spotify "
-      "queue of >= 2, which under TASK-243's 403 it does not get — an R36/TASK-626 "
-      "case, listed there, not a reason to demote the claim.")
+@meta(cls="FEATURE", cls_reason=
+      "DEMOTED from CORE by human ruling 2026-09-14 (TASK-617 exit criterion ii). "
+      "The claim is still worth having: drag state that survives an app switch "
+      "would contaminate later gestures, and this is the only id asserting "
+      "`suspend()` clears it. But its precondition waits on a live Spotify queue "
+      "of >= 2, which TASK-243's 403 withholds, and a gating class must not depend "
+      "on an outside service (R36). Re-promotion path, left open: point the "
+      "precondition at `set queue N`, which satisfies `wait_for_queue(min_count=2)` "
+      "on hardware (TASK-634 session A §1.5).")
 def t_bi_03(dut: Dut):
     """T_BI_03: suspend() resets dragState; resume() re-enables PLEDIT after Spotify→Clock→Spotify."""
     # Precondition: Spotify active, queue ≥ 2 items for scroll tests.

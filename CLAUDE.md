@@ -143,6 +143,8 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
                                #   reset destroys the wedge you were diagnosing (TASK-426) —
                                #   read run/monitor-read FIRST. (TASK-565, M-TESTARCH §5 E4)
 ./run/test                    # full DUT validation loop (BP-020; verifies the build, refuses exit 3)
+                              #   CLASS ORDER ON since 2026-09-14 (TASK-566): HEALTH, then CORE, then
+                              #   FEATURE; a CORE FAIL makes FEATURE NOT-RUN. DUT_CLASS_ORDER=0 = registry order
                               #   RECORD_DIR=<dir> writes one replay transcript per id (TASK-671)
 ./run/test-targeted T1,T2     # targeted loop for a specific feature
 ./run/test-targeted --scope X # targeted loop by SCOPE — an app name, one of

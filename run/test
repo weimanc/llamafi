@@ -2,7 +2,8 @@
 # run/test — full DUT validation loop (BP-020)
 # Runs full serialdbg suite. VERIFIES the board is on the debug build and REFUSES
 # (exit 3) if it is not. It does NOT flash and it does NOT restore — ADR-067.
-# Usage: ./run/test
+# Usage: ./run/test                       (class order ON — TASK-566, ruled 2026-09-14)
+#        DUT_CLASS_ORDER=0 ./run/test     (registry order, for a comparison run)
 #        BOOT_WAIT=12 ./run/test
 #        PORT=/dev/ttyUSB1 ./run/test
 #        LOG_FILE=/tmp/serial.log ./run/test   (TASK-386: captures raw LOG_D/LOG_W
@@ -117,6 +118,15 @@ _RECORD_ARGS=()
 if [ -n "${RECORD_DIR:-}" ]; then
   _RECORD_ARGS=(--record "$(realpath -m "$RECORD_DIR")")
 fi
+# TASK-566: the class-order switch is ON for the full suite, by human ruling
+# 2026-09-14, on the interleaved A/B (docs/verification/regression_suite/
+# task566-interleaved-ab.md: 0 ids worse, 2 better, 0 NOT-RUN). HEALTH runs
+# first, then classes ascending, and a CORE FAIL/UNMET makes the APP/FEATURE
+# ids NOT-RUN. DUT_CLASS_ORDER=0 restores registry order for one run. Only
+# this entry point flips: the A/B measured run/test's full selection, not
+# test-targeted's explicit id lists or player-gate's legs.
+export DUT_CLASS_ORDER="${DUT_CLASS_ORDER:-1}"
+echo "[test] class order: $([ "$DUT_CLASS_ORDER" = 1 ] && echo ON || echo "OFF (DUT_CLASS_ORDER=$DUT_CLASS_ORDER)")"
 _RUNNER_OUT="$(mktemp)"
 (cd "$PIO_DIR" && "$VENV_PY" tools/suite/serialdbg/runner.py --port "$PORT" "${_LOG_ARGS[@]}" "${_RECORD_ARGS[@]}" | tee "$_RUNNER_OUT") \
   || _TEST_RC=$?

@@ -28,6 +28,12 @@ have not been taken.
 > decision: `T_BI_03`'s open question was answered YES on hardware, so it is now a small suite
 > change, not a ruling.
 >
+> **Update 2026-09-14 — THE GATE READS ZERO. TASK-617's criterion (ii) is MET.** `T_BI_03`
+> was demoted from CORE to FEATURE by human ruling, with a written reason. That is the first of
+> this file's two exits, chosen over the injection route (`set queue N`), which stays open as a
+> re-promotion path. No rows remain. The file stays because the gate's ledger path is fixed and
+> the history below is the record of how the count fell.
+>
 > **Update 2026-09-13 (TASK-617).** The two `T-CDWN-02` rows are gone. `set shellBusy 1`
 > (`armedInjectors.h`'s `shellBusy` entry, M-HARNESS2 R14) raises `shell::state().busy` through
 > the exact field and `busySetMs` stamp a real enqueue uses, with no app fetch anywhere in the
@@ -146,7 +152,6 @@ would decide it by attrition. `since` = the date the row was opened.
 
 | id | kind | why it is not resolved today | owner | since |
 |---|---|---|---|---|
-| `T_BI_03` | network-helper | `wait_for_queue(min_count=2)` needs a live Spotify queue, which TASK-243's permanent 403 prevents. **Question ANSWERED on hardware 2026-09-07 (TASK-634 session A §1.5): `set queue N` DOES satisfy `wait_for_queue(min_count=2)` — YES, and with no class change.** So this row no longer needs a ruling; it needs the small suite change that points the helper at the injection, after which the row is deleted. It is the one row here that is a work item, not a decision. | TASK-617 | 2026-09-05 |
 
 ## How a row leaves
 
