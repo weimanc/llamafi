@@ -1,7 +1,8 @@
 # Design — Heap-region instrument for TASK-697's 31k ceiling
 
 > Owner: Architect
-> Status: proposed
+> Status: accepted
+> **HUMAN SIGN-OFF 2026-09-14 (Revision 3):** run the dataTask-only 40 KB reservation A/B as TASK-697's last session, under @VE's "Re-check after the premise check" rules. Not a clean 0/8 → P2.
 > Revision 2 was accepted by human sign-off 2026-09-14. @VE's final check on the symmetric-release
 > spec found a capacity conflict (Spotify's persistent session + the reservation ≥ free heap); the
 > human ruled a treatment change (design the Spotify-session-idle option) on 2026-09-14, changing
