@@ -515,7 +515,6 @@ static void httpFetchJsonBuffered(WiFiClientSecure& tls, const BufferedFetchCfg&
     HttpSession session(http, tls, cfg.url);   // TASK-512
     if (!session.ok()) {
         if (cfg.phaseSlot) *cfg.phaseSlot = -1;
-        session.end();   // begin() never opened a session — still balances the release below
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
         tlsReserveReacquire(cfg.logTag);
 #endif
@@ -706,7 +705,6 @@ static void fetchStockQuote() {
         if (!session.ok()) {
             LOG_W("dataTask.stock", "spark http.begin failed");
             r.ok = false; r.errorCode = -100;
-            session.end();   // begin() never opened a session — still balances the release above
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
             tlsReserveReacquire("stockQuote");
 #endif
@@ -784,7 +782,6 @@ static int fetchStockChartOnce(const char* symbol, uint8_t rangeIdx, FetchType c
     if (!session.ok()) {
         LOG_W("dataTask.stock", "chart http.begin failed sym=%s", symbol);
         r.ok = false; r.errorCode = -100;
-        session.end();   // begin() never opened a session — still balances the release above
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
         tlsReserveReacquire("stockChart");
 #endif
@@ -1231,7 +1228,6 @@ static void fetchHeatmapQuote() {
         portENTER_CRITICAL_SAFE(&s_heatmapMux);
         s_heatmapResult = r; s_heatmapNew = true;
         portEXIT_CRITICAL_SAFE(&s_heatmapMux);
-        session.end();   // begin() never opened a session — still balances the release above
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
         tlsReserveReacquire("heatmap");
 #endif
@@ -1356,7 +1352,6 @@ static int fetchOneMirror(const char* mirror, const char* country, uint8_t bitra
     HttpSession session(http, tls, url);   // TASK-512
     if (!session.ok()) {
         LOG_W("dataTask.webradio", "http.begin failed mirror=%s", mirror);
-        session.end();   // begin() never opened a session — still balances the release above
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
         tlsReserveReacquire("webRadioStations");
 #endif
