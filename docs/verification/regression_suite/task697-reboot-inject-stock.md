@@ -165,3 +165,44 @@ task that answers the console included, for the length of the walk. `heap_caps_p
 is small by comparison. The design's pre-named fallbacks: move the dump off dataTask onto a
 lower-priority task via a lock-free ring, or accept "cannot observe non-invasively". A third option
 the gate result suggests: drop the integrity walk (Option D) and re-run Gate 0 with the print only.
+
+## Option 3 A/B (pre-registered), 2026-09-16 18:49–20:48 — Arm B INVALID and CONFOUNDED; TASK-697 → P2
+
+One commit (`a93535d5`), board `d48afcc8eed0`, `run/test-targeted T_PR_04,T_PRI_01,T170`, 8 tries per
+arm, fresh flash per arm, control first. Arm A = `-DHEAP_REGION_DUMP_OFF`; Arm B adds
+`-DTLS_RESERVE_EXPERIMENT` (40 KB reserved in `dataTask::begin()`, released around each fetcher's
+TLS work, re-acquired right after each session teardown).
+
+| | Arm A (control) | Arm B (reservation) |
+|---|---|---|
+| `T170` FAIL | **3 / 8** — in the {3,4,5} band, control valid | **0 / 8** |
+| `[tlsres] point1` | n/a | **RELEASED in 8/8** |
+| re-acquire | n/a | **FAIL 33/33** (no `ok`, no `held`) |
+| Spotify failure elapsed (median of 32/33 samples) | **4076 ms** | **748 ms** |
+| `-32512` per try | 0–20 | **76** |
+| Spotify successes | 0 | 0 (hard invalidator not triggered) |
+
+**Verdict under the pre-registered rules — both failure conditions fired:**
+
+1. **INVALID (engagement).** @VE's rule: engaged = the block HELD at capture point 1; ≥3/8
+   non-engaged invalidates the arm. It read RELEASED in 8 of 8, because **every re-acquire failed**:
+   once the reservation is released for the first fetch, no 40 KB contiguous span exists to take
+   back. Arm B therefore tested "a 40 KB block held from boot until the first fetch", not the
+   specified treatment.
+2. **CONFOUNDED (timing shape).** Spotify's failures went from ~4.1 s (`-9984`, a real round trip)
+   to ~0.75 s, with 76 `-32512` per try against 0–20 in the control. Arm B starved every other
+   allocation, exactly the behavioural confound the rule was written to catch.
+
+**Per the human's stopping condition (2026-09-14): not a clear 0/8 → TASK-697 is downgraded to P2
+and parked.**
+
+### The lead this leaves, for whoever picks it up
+
+`T170` passed **8 of 8** in Arm B against a valid **3 of 8** control. Even in its degenerate form —
+one contiguous 40 KB span guaranteed at boot and handed to the first fetch that asks — the Stock
+fetch never hit the wedge. That is consistent with the whole failure being about *one contiguous
+span existing when a handshake needs it*, and it is the first treatment that moved the number at
+all. It is not a fix: it made everything else fail faster and more often, and the arm is invalid on
+its own terms. A real fix would have to own the span for the TLS client's lifetime rather than
+gamble on re-acquiring it — a pooled/preallocated mbedTLS buffer, sized from
+`app/mem_manifest.yaml`, decided in an ADR, not a probe flag. Filed as TASK-708.
