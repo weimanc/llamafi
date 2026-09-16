@@ -61,6 +61,30 @@ R20's exit ("per-family shuffled runs produce the canonical verdict set") is **m
 `planeradar` is non-stationary on its own before order is involved: `T_PR_05` times out and
 `T_PRM_01` read `prPollSec=1 after reboot, expected 30`.
 
+## Second `player` shuffle, seed 7, 2026-09-16 21:02 — board reflashed to `95e8ebe0`
+
+Same selection (`--scope LocalPlayer`, 24 ids, `DUT_SHUFFLE_SEED=7 ./run/test-targeted --scope
+LocalPlayer` — the wrapper only accepts the env-var form; `--shuffle-family SEED` as a CLI arg to
+`run/test-targeted` is not supported and errors out before touching the DUT, board reboot handshake
+notwithstanding). 22 of 24 ids moved
+([artifact](../../../app/tools/.runs/run-20260916T210200-167530-33cb2e57.json)): `T_PLR_15`,
+`T_PLR_12` FAIL; `T_PLR_06`, `T_PLR_24` PASS.
+
+Compared with the two 2026-09-13 canonicals (both agree `T_PLR_12`, `T_PLR_15` FAIL): this
+seed-7 shuffle reproduces the **canonical** verdict on `T_PLR_12` — the opposite of what the
+seed-42 shuffle showed (`T_PLR_12` PASS at position 16 there). `T_PLR_06`, flagged
+ORDER-DEPENDENT under seed 42 (PASS→FAIL), is back to PASS here, matching canonical.
+
+**Reading: `T_PLR_12`/`T_PLR_06` are not a stable, seed-independent order-dependence — they flip
+depending on which specific permutation ran.** `T_PLR_12`'s own failure text is a heap-residual
+check (`heap did not return to baseline: +55364B`), which is the same shape of symptom TASK-697
+is chasing (post-activity heap fragmentation, cause not yet named). The working hypothesis is that
+these two ids are heap-state-dependent flake, gated by *which* ids happened to run immediately
+before them rather than by "shuffled vs canonical" as a category — consistent with TASK-697's
+open lead, not a separate order-dependence bug. This still leaves R20's "reproduces the canonical
+verdict set" criterion **unmet for `player`**, but for a different reason than first assumed:
+not a clean order-dependent test, but the same unresolved heap issue surfacing under more seeds.
+
 **A finding for TASK-697:** `T_PRM_02` (shuffled) reported `spotifyTask activity stamp went
 306382ms stale (>120s)` under continuous PlaneRadar fetching. A spotifyTask that stops making
 progress is what TASK-697's code reading predicts: `tlsYield()` can wait 150 s, and `TlsYieldGuard`
