@@ -65,3 +65,20 @@ R20's exit ("per-family shuffled runs produce the canonical verdict set") is **m
 306382ms stale (>120s)` under continuous PlaneRadar fetching. A spotifyTask that stops making
 progress is what TASK-697's code reading predicts: `tlsYield()` can wait 150 s, and `TlsYieldGuard`
 records success unconditionally. Recorded as a correlation, not a cause.
+
+## Third canonical run, `planeradar` only, 2026-09-16 20:42 — board reflashed to `95e8ebe0`
+
+`DUT_SHUFFLE_SEED=42 ./run/test-targeted --scope PlaneRadar` (no `--shuffle-family`, so this is a
+third *canonical*-order data point, not a shuffle): `T_PR_05` FAIL, `T_PRM_02` FAIL, `T_PRM_01`
+PASS ([artifact](../../../app/tools/.runs/run-20260916T204215-155994-3294ec82.json)).
+
+Across all three canonical runs now on record: `T_PR_05` FAIL 2/3, `T_PRM_02` FAIL 2/3, `T_PRM_01`
+FAIL 1/3 — no two canonical runs agree with each other on the failing set. Both `T_PR_05` and
+`T_PRM_02` carry `[NETWORK][SLOW]` tags (`TimeoutError: no JSON response within 3.0s`); this reads
+as fetch-latency flake independent of run order, not as evidence for or against order-dependence.
+**`planeradar` cannot supply the "two agreeing canonical runs" precondition the shuffle comparison
+needs, and a fourth run is unlikely to change that** — the instability is upstream of the shuffle
+question. Filing this as a decision point for the human rather than spending more DUT time chasing
+canonical agreement: either declare these two ids' network-timeout flake out of scope for R20's
+per-family criterion (they'd need their own flake declaration / retry budget, `gate/check_flake_class.py`
+territory), or accept `planeradar` as a standing exception to the exit clause.
