@@ -85,6 +85,25 @@ open lead, not a separate order-dependence bug. This still leaves R20's "reprodu
 verdict set" criterion **unmet for `player`**, but for a different reason than first assumed:
 not a clean order-dependent test, but the same unresolved heap issue surfacing under more seeds.
 
+## Second `webradio` shuffle, seed 7, 2026-09-16 21:07 — same board/flash as above
+
+`DUT_SHUFFLE_SEED=7 ./run/test-targeted --scope WebRadio`, 25 ids, 23 moved
+([artifact](../../../app/tools/.runs/run-20260916T210729-170639-6639fd40.json)). `T_WR_TLS_01`
+FAIL (as in every run on record so far — a standing network/TLS issue, TASK-675 territory, not
+order-related); `T237` **PASS**, matching canonical and the opposite of what seed 42 showed
+(`T237` FAIL there). Same flip-by-permutation pattern as `player`'s `T_PLR_12`/`T_PLR_06` above,
+not a stable seed-independent order-dependence.
+
+**Two families, same shape.** `player` and `webradio` both produced an ORDER-DEPENDENT candidate
+under seed 42 that reverted to the canonical verdict under seed 7. Read together with `planeradar`'s
+canonical instability (three canonical runs, no two agreeing) this now looks like one thing across
+all three non-`clock` families: state-dependent flake sensitive to exactly which ids ran
+immediately before, surfacing differently depending on the specific permutation — not a
+deterministic bug in any one test's ordering assumption. R20's exit clause needs a decision on
+what to do with that reading (declare a flake class vs. treat as TASK-697's unresolved lead vs.
+run enough seeds to bound it statistically) rather than more single shuffles at new seeds, which
+keep reproducing the same ambiguity.
+
 **A finding for TASK-697:** `T_PRM_02` (shuffled) reported `spotifyTask activity stamp went
 306382ms stale (>120s)` under continuous PlaneRadar fetching. A spotifyTask that stops making
 progress is what TASK-697's code reading predicts: `tlsYield()` can wait 150 s, and `TlsYieldGuard`
