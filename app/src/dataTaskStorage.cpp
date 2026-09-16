@@ -262,16 +262,19 @@ private:
 // Reserved band -120..-129: TLS-layer sentinels (see dataTask.h).
 static constexpr int CERT_VERIFY_FAILED = -120;
 
-#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+#if defined(SERIAL_DEBUG) && defined(HEAP_REGION_DUMP_ON)
 // TASK-697 (M-DATATASK-heap-region-instrument): per-region heap dump at the
 // three capture points the design doc names. COMPILE-TIME gate only — never
 // a runtime `set` toggle, per the design's Gate 0 protocol: a runtime toggle
 // would still execute heap_caps_print_heap_info()/_check_integrity_all() and
 // only suppress the print, which doesn't test the perturbation the gate
-// exists to bound. `-DHEAP_REGION_DUMP_OFF` (added to a build's
-// build_flags) removes this whole block — and every call site below, also
-// `#if`-guarded — so that build carries none of these symbols (T089-style
-// absence, verified by `strings`/`nm`, not just "doesn't print").
+// exists to bound. OPT-IN since 2026-09-16: Gate 0 measured this dump
+// perturbing the board (its ~1.5 KB in ~19 writes interleaves byte-level
+// with console replies on the shared UART), so an ordinary debug build
+// must not carry it. `-DHEAP_REGION_DUMP_ON` (added to a build's
+// build_flags) compiles this block in, along with every call site below,
+// also `#if`-guarded; without it the build carries none of these symbols
+// (T089-style absence, verified by `strings`/`nm`, not just "doesn't print").
 //
 // Cost: NOT MEASURED here — this is a host-only change with no DUT/serial
 // access, so `get stacks` (DUT-only) couldn't be run. heap_caps_print_heap_
@@ -309,9 +312,9 @@ static void heapRegionDump(int point, const char* fetchTag) {
 // specification" / Revision 3, dataTask-only — the symmetric Spotify-side
 // hooks are SUPERSEDED, not implemented). EXPERIMENT-ONLY: behind this flag
 // only, debug build, no mem_manifest.yaml entry — independent of
-// HEAP_REGION_DUMP_OFF/heapRegionDump() above (Gate 0 found that instrument
+// HEAP_REGION_DUMP_ON/heapRegionDump() above (Gate 0 found that instrument
 // itself perturbing; both A/B arms of this experiment build with
-// -DHEAP_REGION_DUMP_OFF, so heapRegionDump() never fires here).
+// the dump is opt-in via -DHEAP_REGION_DUMP_ON, so heapRegionDump() never fires in an ordinary build).
 //
 // A 40 KB span, malloc'd once at dataTask::begin() (before the task loop —
 // and therefore every fetcher/injection — can run at all) and held for the
@@ -368,7 +371,7 @@ static void tlsReserveReacquire(const char* fetchTag) {
 // "Final check — symmetric release" §"Engagement observable"): logs the
 // reservation's actual live state, single line, cheap (no heap dump), at
 // capture point 1 (right after fetchPlaneRadar publishes its result) —
-// independent of HEAP_REGION_DUMP_OFF/heapRegionDump(). A try whose point1
+// independent of HEAP_REGION_DUMP_ON/heapRegionDump(). A try whose point1
 // line reports RELEASED is excluded from that arm's count by whoever reads
 // the transcript (not enforced in firmware).
 static void tlsReservePoint1() {
@@ -389,7 +392,7 @@ static int certSentinel(WiFiClientSecure& tls, int code) {
     if (code < 0) {
         char ebuf[8];   // text unused; lastError() is the int accessor
         int lastErr = tls.lastError(ebuf, sizeof(ebuf));
-#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+#if defined(SERIAL_DEBUG) && defined(HEAP_REGION_DUMP_ON)
         // Capture point 2 (design doc): -0x7F00/-32512 is
         // MBEDTLS_ERR_SSL_ALLOC_FAILED, the X010/X068 SSL-OOM sentinel
         // ITSELF — not a proxy threshold to tune (design doc open question
@@ -1669,7 +1672,7 @@ static void fetchPlaneRadar() {
     // prFetchOnce()'s own TLS handshake begins below.
     tlsReserveRelease("planeradar");
 #endif
-#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+#if defined(SERIAL_DEBUG) && defined(HEAP_REGION_DUMP_ON)
     heapRegionDump(0, "planeradar");   // capture point 0: same-try "before" half
 #endif
 
@@ -1794,15 +1797,15 @@ static void fetchPlaneRadar() {
 #if defined(SERIAL_DEBUG) && defined(TLS_RESERVE_EXPERIMENT)
     // Capture point 1 (@VE "Re-check after the premise check" / "Final check —
     // symmetric release" — engagement observable): the reservation's ACTUAL
-    // live state, logged right here, independent of HEAP_REGION_DUMP_OFF/
-    // heapRegionDump() (both A/B arms build with -DHEAP_REGION_DUMP_OFF). One
+    // live state, logged right here, independent of HEAP_REGION_DUMP_ON/
+    // heapRegionDump() (neither A/B arm built with -DHEAP_REGION_DUMP_ON). One
     // cheap single-line log, no heap dump. Re-acquire already ran above
     // (right after the cascade's last teardown), so an engaged try reports
     // HELD here, per @Architect's correction / @VE's check.
     tlsReservePoint1();
 #endif
     LOG_HEAP("dataTask.planeradar");
-#if defined(SERIAL_DEBUG) && !defined(HEAP_REGION_DUMP_OFF)
+#if defined(SERIAL_DEBUG) && defined(HEAP_REGION_DUMP_ON)
     heapRegionDump(1, "planeradar");   // capture point 1: same-try "after" half, before tlsResume()
 #endif
     spotifyTask::tlsResume();

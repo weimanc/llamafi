@@ -515,3 +515,12 @@ LOG_FILE=<path> ./run/test-targeted T_PR_04,T_PRI_01,T170   # x8, fresh flash
 PLATFORMIO_BUILD_FLAGS=-DTLS_RESERVE_EXPERIMENT ./run/flash-debug
 LOG_FILE=<path> ./run/test-targeted T_PR_04,T_PRI_01,T170   # x8, fresh flash
 ```
+
+## Addendum 2026-09-16 — the dump flag's polarity is inverted (opt-in)
+
+Gate 0 measured the per-region dump perturbing the board, so carrying it in every debug build was
+wrong: an ordinary `./run/flash-debug` would have shipped an instrument known to corrupt console
+replies. The flag is now **`-DHEAP_REGION_DUMP_ON`**, absent by default, and `HEAP_REGION_DUMP_OFF`
+no longer exists. The A/B arms in the Option 3 session were built before this change and are
+unaffected: neither arm carried the dump either way (both passed the OFF flag, verified by
+`strings`).
