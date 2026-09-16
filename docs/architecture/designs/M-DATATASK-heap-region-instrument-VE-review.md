@@ -756,3 +756,67 @@ Required before Arm B is run:
    re-opens the capacity-conflict finding from the prior check and the symmetric-release question
    comes back — the human does not need to decide this in advance, only know the run will stop and
    escalate if it happens rather than pushing through.
+
+---
+
+## Check of the corrected re-acquire placement (2026-09-14)
+
+Read the corrected spec and verified against `app/src/dataTaskStorage.cpp` directly, not the doc's
+paraphrase.
+
+**1. Point 1 is now valid; ≥3/8 rule unchanged.** Confirmed `prFetchOnce` (1425-1479): the success
+path's `session.end()` is at **1476**, after `prParseStream` — matches the doc's citation exactly, and
+nothing else (no further TLS work, no other `session.end()`) sits between the retry cascade's last
+`prFetchOnce()` return and `r.epoch = epoch;`/the roster loop/publish/point 1. Reacquiring once, right
+after the cascade's last `session.end()` returns control to `fetchPlaneRadar()`, therefore does land
+before point 1 as claimed — a correctly-engaged try will log `HELD` there. The ≥3/8-excluded-invalidates
+rule needs no change; it was always about whether `HELD` appears at point 1, and this correction is
+what makes that outcome achievable rather than structurally impossible.
+
+**2. Retry-cascade exposure is a real, separate threat — pre-registered as a rule.** Architect's own
+choice (one release/reacquire bracket for the whole cascade, not per-attempt) is correct given each
+retry needs its own clean connect span too — but it means a try containing a retry has a **longer**
+released window than a clean single-shot try: the first attempt's connect-through-`session.end()`,
+*plus* the 300 ms `vTaskDelay` between attempts, *plus* a second attempt's connect-through-`session.end()`
+(and a third, for retry2), all released before one reacquire. `task697-reboot-inject-stock.md`'s FAIL
+evidence already includes a retry (`parse rc=-92 ... -> retry`) — so retry-containing tries are not a
+hypothetical edge case, they appear in the exact evidence this design is built on. **Rule**: tag every
+try where the log shows a retry or retry2 fired (`"-> retry"` / `"retry also failed"`) as `RETRY` in
+the run record. Retry-tagged tries **stay in the primary FAIL-rate count** — retries are real operating
+behaviour, not an instrument artifact, and excluding them would understate real-world exposure — but
+must be reported as a labelled sub-count (e.g. "0/8 FAIL, 1 of which RETRY-tagged") rather than folded
+in silently. **If a RETRY-tagged try in Arm B is the one that FAILs**, report that distinctly from a
+FAIL on a clean try: it points at the already-named structural gap (release held across the whole
+cascade, including inter-attempt delay) rather than a generic mechanism failure, and that distinction
+matters for whether a next step is "make the reservation bigger/stickier" or "shrink the released
+window per retry attempt" (a design question, not read off the rate alone).
+
+**3. Anything else — one citation to fix before Developer re-implements the 8-RAII side.** Grepped
+every `session.end()` in the file and mapped each to its enclosing function: `fetchCrypto` (518) has
+**no `session.end()` of its own** — it calls the shared `httpFetchJsonBuffered` exactly like weather/
+teletext/geocode (confirmed reading `fetchCrypto`'s body: it passes a `BufferedFetchCfg` into
+`httpFetchJsonBuffered`, same as the other three). The doc's "four fetchers that hand-roll their own
+session (crypto, stockQuote, stockChartOnce, heatmap)" is wrong about crypto specifically — it belongs
+with weather/teletext/geocode under the single `httpFetchJsonBuffered:454` insertion (four callers,
+not three), not among the hand-rolled fetchers. The actual hand-rolled count is **three** fetchers,
+**six** individual sites: `fetchStockQuote` (615, 625), `fetchStockChartOnce` (682, 699),
+`fetchHeatmapQuote` (1106, 1120) — not "crypto/stockQuote/stockChartOnce/heatmap, five sites." Low risk
+on its own (the shared-function insertion already covers crypto correctly regardless of the prose), but
+worth fixing before Developer re-implements: as worded, a literal read sends them hunting for a
+`session.end()` inside `fetchCrypto` that doesn't exist, or invites a redundant, separately-inserted
+reserve/release pair wrapped around `fetchCrypto`'s call into `httpFetchJsonBuffered` — double-bracketing
+one reservation is exactly the kind of edge case the "log once, continue" single-outstanding model
+wasn't designed to be exercised against.
+
+### Verdict: **READY WITH CHANGES**
+
+1. Fold the RETRY-tagging rule (§2) into the design doc as a required part of the run record and
+   reporting, not left to be reconstructed from the raw log after the fact.
+2. Correct the fetcher/site-count citation (§3): crypto moves to the `httpFetchJsonBuffered` group
+   (four callers), the hand-rolled group is stockQuote/stockChartOnce/heatmap only (six sites, not
+   five) — a one-paragraph fix, not a design change.
+3. No change needed to the ≥3/8 engagement-invalidation rule or to point 1's placement — both are
+   correct as corrected.
+
+Nothing here blocks Developer re-implementing against the corrected spec once (1) and (2) land in the
+doc; neither changes the mechanism, only its bookkeeping and reporting.

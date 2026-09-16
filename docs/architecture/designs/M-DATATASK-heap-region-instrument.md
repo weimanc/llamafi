@@ -380,12 +380,84 @@ per the ruling above — no `mem_manifest.yaml` entry, debug build only.
     `fetchStockChartWithRetry` (732), `fetchTeletext` (811), `fetchHeatmapQuote` (1073),
     `fetchGeocode` (1643), `fetchWebRadioStations` (1713), each declaring
     `spotifyTask::TlsYieldGuard tlsGuard;` — insert the release call on the line right after
-    `tlsGuard`'s declaration, and the re-acquire call right before the guard's scope closes (the
-    function's return points), not inside `TlsYieldGuard` itself.
-  - **`fetchPlaneRadar`, the one manual pair** (no RAII guard): release right after
-    `spotifyTask::tlsYield();` (`dataTaskStorage.cpp:1493`), re-acquire right before
-    `spotifyTask::tlsResume();` (`:1604`). No early return sits between the two (checked), so a
-    hand-written pair is as safe as the RAII fetchers' automatic one.
+    `tlsGuard`'s declaration. **Re-acquire correction, dated 2026-09-14 (after Developer-flagged
+    conflict, below)**: **not** "right before the guard's scope closes" (that wording, as
+    implemented in `3b67867a`, put re-acquire after result publish and after capture point 1 for
+    `fetchPlaneRadar`, and the equivalent late spot for every other fetcher) — re-acquire
+    **immediately after that call's own `session.end()`**, the point each fetcher already frees its
+    TLS session at, not the guard's outer scope. Confirmed the pattern generalises: `fetchStockChartOnce`
+    (the retry-wrapped body `fetchStockChartWithRetry` calls) parses the response
+    (`deserializeJson(...)`, ~line 694) *before* `session.end()` (~line 697) — the same "parse-then-
+    close" shape as `prFetchOnce` below — and the codebase already logs heap state right after that
+    `session.end()` in more than one place (`httpFetchJsonBuffered:455`, `fetchStockChartOnce`'s own
+    "chart post-json heap" line right after its `session.end()`), so "re-acquire right after
+    `session.end()`" matches an idiom already present, not a new one. `httpFetchJsonBuffered`
+    (weather/teletext/geocode's shared transport, `:442-459`) needs exactly **one** insertion — right
+    after its own `session.end()` (`:454`), before `parse(code, body)` (`:457`) — covering all three
+    of its callers at once; the four fetchers that hand-roll their own session (crypto, stockQuote,
+    stockChartOnce, heatmap) each need the insertion at their own `session.end()` call site(s)
+    individually (heatmap and stockChart each have two, one per branch).
+  - **`fetchPlaneRadar`/`prFetchOnce`, the one manual pair** (no RAII guard) — **corrected placement,
+    with the evidence that drove it, below.**
+### Correction, dated 2026-09-14 (after Developer-flagged conflict) — `fetchPlaneRadar` re-acquire placement
+
+Developer (`3b67867a`) implemented release at `dataTaskStorage.cpp:1493` (right after
+`spotifyTask::tlsYield();`, matching spec) but re-acquire *after* capture point 1 — right before
+`tlsResume()` at `:1604` — because that was this doc's literal wording. Flagged correctly: point 1
+sits inside the released window by construction, so it logs `RELEASED` on every try, and @VE's rule
+(≥3/8 non-`HELD` at point 1 → Arm B invalid) would invalidate every Arm B run regardless of whether
+the mechanism is engaging correctly.
+
+**Where the evidence puts the drop to 31k.** `prFetchOnce` (`:1425-1479`): `WiFiClientSecure
+tls`/`HTTPClient http`/`HttpSession session` construct and connect at `:1441-1446`; `certSentinel(tls,
+http.GET())` at `:1456`; on success, `prParseStream(http.getStream(), r, scanned)` **parses the body
+while the session is still open** at `:1475`; `session.end()` — TLS actually freed — comes *after*
+parsing, at `:1476`. `task697-reboot-inject-stock.md`'s CORRECTION section: "`T_PRI_01` runs
+[injection commands] while a real PlaneRadar fetch... is still in flight. That fetch's `GET 200`
+lands, **and the next heap line reads `maxBlk=31k`**." That "next heap line" is `fetchPlaneRadar`'s
+own end-of-function `LOG_HEAP("dataTask.planeradar")` (the second one, after the retry cascade and
+result publish) — which runs *after* `prFetchOnce`'s `session.end()` at `:1476` has already executed.
+So: the 31k reading is taken **after** teardown, consistent with the coordinator's framing — while
+the TLS session is open (`:1441` through `:1476`), it occupies the released span, so the
+concurrently-running injection allocations (on the loop task, landing during this same window per
+the "necessary but not sufficient, timing decides" finding) **cannot** land inside it; they fragment
+*other* free space instead. The exposure is specifically the gap between `session.end()` (`:1476`)
+and whenever re-acquire actually runs — during which the just-freed TLS span sits as ordinary,
+un-earmarked free memory, indistinguishable from anywhere else a subsequent allocation could claim
+it (including a retry's own next `WiFiClientSecure`, if one fires, or leftover injection-processing
+still landing after the GET 200 returns but before boot's other activity settles).
+
+**Corrected re-acquire point**: immediately after the **last** `session.end()` call in the retry
+cascade actually executes — i.e., right after whichever of `prFetchOnce`'s (first attempt / retry /
+retry2) calls is the final one to return in `fetchPlaneRadar()` — **before** `r.epoch = epoch;`, the
+roster-building loop, the result publish (`s_planeRadarResult = r`), and capture point 1. **Not**
+reacquired after every individual `session.end()` inside `prFetchOnce` itself: the cascade needs the
+reservation to stay *released* across a retry's own fresh `WiFiClientSecure`/handshake too (each
+retry is its own connect, needing the same clean span), so release/reacquire brackets the **whole
+cascade as one unit** — released once before the first attempt (already correct, at `:1493`,
+outside `prFetchOnce`), reacquired once after the cascade's last `session.end()` returns control to
+`fetchPlaneRadar()`, not per-attempt.
+
+**Point 1 with this placement**: with reacquire moved ahead of the roster loop/publish, capture
+point 1 (still positioned right after `s_planeRadarResult = r` is published, unchanged) now runs
+*after* the reservation has already been reacquired in a correctly-engaged try — **it should log
+`HELD`**, confirming @VE's engagement rule as originally intended. A `RELEASED` reading at point 1
+after this correction is real signal (reacquire's single malloc attempt failed, per the existing
+"log once, continue" handling) rather than a placement artifact.
+
+**Within sign-off.** The signed-off spec's own words already said re-acquire goes "right after the
+fetch's session is torn down (`session.end()`/equivalent)" — the implementation in `3b67867a` read
+that as "at the end of the guard's/function's scope" rather than literally at `session.end()`'s call
+site, for every one of the 9 wired fetchers, not `fetchPlaneRadar` alone. This is a precision
+correction to match the spec's own stated intent, not a new design decision — `Status` stays
+`accepted`, no fresh sign-off needed. One scope note for the coordinator: the corrected placement
+touches **more individual call sites** than the original wording implied (one shared insertion in
+`httpFetchJsonBuffered` plus five separate `session.end()` sites across
+crypto/stockQuote/stockChartOnce/heatmap, rather than "one re-acquire per guard scope") — more
+precise, not more invasive (still 9 fetchers, still `TLS_RESERVE_EXPERIMENT`-gated, still no change
+to `mem_manifest.yaml` or to `tlsYield`/`tlsResume`/`TlsYieldGuard`), so this doesn't rise to a
+substance change, but the Developer should know the site count grew before re-implementing.
+
 - **Spotify's own client — NOT covered, reverted per Revision 3's premise check.** The symmetric-
   release fix below (§ Spotify confound fix) is superseded: 16/16 checked tries show Spotify never
   holds a live session in the `T_PR_04`→`T170` window this A/B runs (TASK-675's `-9984` fails every
