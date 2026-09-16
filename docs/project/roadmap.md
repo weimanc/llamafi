@@ -1602,12 +1602,29 @@ accepted risk was typographically indistinguishable from a satisfied criterion. 
 BP-075**: a criterion's disposition is now MET / CITED / ACCEPTED / DEFERRED-UNMET, and `PASS` stays
 a property of a test id against its own assertion.
 
-**Board:** [tasks-harness2.md](tasks-harness2.md) — 67 rows across phases 0–5, the single scheduling
+**Board:** [tasks-harness2.md](tasks-harness2.md) — 91 rows across phases 0–5, the single scheduling
 surface. **Reasoning:** [PM programme decision](M-HARNESS2-PM-review.md). Do not re-derive either here.
 
-**Status: IN PROGRESS — Phases 0 and 1 COMPLETE (32 rows), Phase 2's hardware session executed,
-30 rows live (2026-09-09: Phase 4's TASK-638 and Phase 5's TASK-671 DONE; the runtime R34 gate
-runs on 193 recorded transcripts; the falsifier taxonomy is ruled).**
+**Status 2026-09-16: IN PROGRESS — Phases 0, 1 and 2 COMPLETE; Phase 3 ENTERED on a human waiver
+and 5 of its 6 rows closed; 29 rows live.** The headline of the last week is that **the class-order
+switch is flipped for `run/test`** (TASK-566): HEALTH first, then CORE, then FEATURE, with a CORE
+failure making the rest NOT-RUN. The human ruled on an interleaved A/B at one commit —
+[record](../verification/regression_suite/task566-interleaved-ab.md) — that made 0 ids worse and 2
+better, after all three of @VE's preconditions were met. TASK-617's own criteria went with it, once
+`T_BI_03` was demoted out of CORE and `T-CDWN-02` was made to gate offline through `set shellBusy`.
+
+Armed device state is now enumerable and checked at every test boundary (TASK-635, R14): the first
+full run caught four ids leaking an injector, each failing the test that armed it rather than the
+ids after it. Per-family shuffling exists (TASK-636) and `clock` reproduces its canonical verdict
+set; `player`, `planeradar` and `webradio` do not yet, which is Phase 3's one remaining exit clause.
+
+**The week's honest negative:** TASK-697, a post-reboot heap fragmentation that costs ~22 Stock ids
+on an affected full run, was chased through four DUT sessions and **parked at P2 without a named
+cause** under a stopping condition the human set in advance. Two published readings of it were
+retracted against the evidence that refuted them. What it produced instead: a reproducible
+signature, a gate (Gate 0) that stopped a perturbing instrument from being believed, and a lead
+(TASK-708). The programme's own gates did the work they exist to do, including against the
+programme.
 
 - **Phase 1 met every exit criterion**, all of them counts rather than judgements: ids with no
   reachable `fail()` = 0, gating ids whose precondition needs the network = 0 (blocking, 3 ledgered
