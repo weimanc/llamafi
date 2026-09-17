@@ -659,6 +659,19 @@ void cmdGet(const char *args) {
                   "\"mode\":%d,\"last\":true}\n", mi);
     return;
   }
+  // TASK-703 (ADR-063 D3 key-by-key review): NOT identity-guarded — same
+  // player-slot shape as WebRadio's exception below (appShell.h's g_appTicks
+  // note). spotifyDisplay->dbgGet is WinampDisplay, the ONE shared PLEDIT/
+  // taskbar-drag/marquee widget object all three player modes (Spotify/
+  // WebRadio/LocalPlayer) draw through — its keys (dragState, scrollOffset,
+  // pleditRepaints, wrMarquee, ...) have no single "owning" AppId to guard
+  // against; gating them to AppId::Spotify would wrongly refuse the exact
+  // same reads while WebRadio or LocalPlayer is the active player mode.
+  // spotifyTask::dbg_get's keys (backoff/heap/snapshot/queue/bgPoll) are the
+  // background poll + PLEDIT-feed snapshot, which — like WebRadio's audio
+  // engine — keeps running and stays observable while a different app owns
+  // the screen; that is the whole reason `get queue`/`set queue N` can seed
+  // PLEDIT rows for a test that never navigates to the player at all.
   if ((spotifyDisplay && spotifyDisplay->dbgGet(args, buf, sizeof(buf)))
       || spotifyTask::dbg_get(args, buf, sizeof(buf))) {
     // buf[0]=='\0' means the owner used multi-part Serial.printf directly.
