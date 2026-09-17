@@ -556,4 +556,20 @@ if ! "$PYTHON" gate/check_production_symbols.py; then
     exit 1
 fi
 
+# ── TASK-696 — argparse `%`-interpolation sweep. Python 3.14 (system
+# `python3`, what this script runs under) validates a `help=` string's `%`
+# at add_argument()/add_parser() TIME, not at --help render time like the
+# venv's 3.12 — TASK-636 hit this once already. An AST sweep, not a grep:
+# it resolves __doc__ slicing, %-format-before-assignment (the safe
+# sdwrite_repro.py shape) and f-strings, and knows description=/epilog=
+# only interpolate when '%(prog)' literally appears in the text.
+if ! "$PYTHON" gate/test_check_argparse_percent.py; then
+    echo "FAIL: test_check_argparse_percent.py (TASK-696 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_argparse_percent.py; then
+    echo "FAIL: check_argparse_percent.py (TASK-696 argparse '%' sweep) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"
