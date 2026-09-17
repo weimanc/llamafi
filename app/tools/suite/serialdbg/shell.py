@@ -3978,8 +3978,9 @@ def t_err_01(dut: Dut):
       "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. A per-app ownership "
       "rule for one indicator: the error is hidden while another app is active and "
       "restored on return. Local by construction — it is a statement about which app "
-      "owns a bar. WP-C C-16 also applies: hardcoded `switchApp 1`/`switchApp 0` "
-      "with no `ok` check, so a failed switch reads the previous app's state.")
+      "owns a bar. WP-C C-16 (FIXED): switched from hardcoded `switchApp 1`/"
+      "`switchApp 0` with no `ok` check to `APP_SLOT[...]` lookups that `skip()` "
+      "on a failed switch instead of silently reading the previous app's state.")
 def t_err_02(dut: Dut):
     """T-ERR-02 (X018+X019): error owned by app — hidden while another app is active
     (active-only limitation), restored on return to the errored app."""
@@ -3990,10 +3991,16 @@ def t_err_02(dut: Dut):
     with _bgpoll_suspended(dut):
         dut.cmd("set lastHttp 403")            # 403 poll → Spotify error
         before = _get_active_error(dut)        # Spotify active → active true
-        dut.cmd("switchApp 1")                 # Clock (offline, hasError()==false)
+        r_away = dut.cmd(f"switchApp {APP_SLOT['Clock']}")  # offline, hasError()==false
+        if not r_away.get("ok"):
+            dut.cmd("set lastHttp 200")
+            skip("T-ERR-02", f"switchApp Clock failed: {r_away}"); return
         time.sleep(0.4)
         away = _get_active_error(dut)          # active false, but spotifyAuthError still true
-        dut.cmd("switchApp 0")                 # back to Spotify
+        r_back = dut.cmd(f"switchApp {APP_SLOT['Spotify']}")  # back to Spotify
+        if not r_back.get("ok"):
+            dut.cmd("set lastHttp 200")
+            skip("T-ERR-02", f"switchApp Spotify failed: {r_back}"); return
         time.sleep(0.4)
         back = _get_active_error(dut)          # active true again (state survived)
         dut.cmd("set lastHttp 200")            # restore
@@ -4082,18 +4089,28 @@ def t_err_05(dut: Dut):
       "TASK-591, approved 2026-09-04. DEMOTED from a SEEDED CORE. It asserts offline "
       "apps never report `connecting`, which is a weak negative — `connecting` "
       "defaults false, so it asserts a default was not overwritten — and a local "
-      "one. Hardcoded `conn(1)`/`conn(4)` with no `ok` check on the switch means a "
-      "failed switch reads the previous app's state (WP-C C-16).")
+      "one. WP-C C-16 (FIXED): switched from hardcoded `conn(1)`/`conn(4)` with "
+      "no `ok` check to `APP_SLOT[...]` lookups that `skip()` on a failed switch "
+      "instead of silently reading the previous app's state.")
 def t_err_06(dut: Dut):
     """T-ERR-06: offline apps never report connecting. Network apps (Weather/Crypto/Stock/
     Teletext) wire isConnecting() to their first-fetch; offline apps (Clock/Matrix) keep the
     default false — guards the 'offline apps stay default-false' invariant."""
     print("T-ERR-06  offline apps report connecting=false")
     def conn(app_id):
-        dut.cmd(f"switchApp {app_id}"); time.sleep(0.5)
-        return dut.cmd("get activeError").get("connecting")
-    clock  = conn(1)   # Clock — offline
-    matrix = conn(4)   # Matrix — offline
+        r = dut.cmd(f"switchApp {app_id}")
+        if not r.get("ok"):
+            return None, r
+        time.sleep(0.5)
+        return dut.cmd("get activeError").get("connecting"), r
+    clock, r_clock = conn(APP_SLOT["Clock"])
+    if not r_clock.get("ok"):
+        _restore_spotify(dut)
+        skip("T-ERR-06", f"switchApp Clock failed: {r_clock}"); return
+    matrix, r_matrix = conn(APP_SLOT["Matrix"])
+    if not r_matrix.get("ok"):
+        _restore_spotify(dut)
+        skip("T-ERR-06", f"switchApp Matrix failed: {r_matrix}"); return
     _restore_spotify(dut)
     ok = (clock is False and matrix is False)
     if ok:
