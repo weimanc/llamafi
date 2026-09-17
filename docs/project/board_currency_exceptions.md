@@ -85,3 +85,5 @@ failure**.
 | `docs/project/tasks.md` | `TASK-660` | uncited-closure | pre-rule closure, uncited; the log offers `bd38844` | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-679` | stale-open | the only commit naming it is its own filing (`7f24f9f`, "file TASK-679 …"), the docstring's case 2 — no work has landed; B4 retires this row when the status changes | TASK-679 | 2026-09-11 |
 | `docs/project/tasks-harness2.md` | `TASK-682` | stale-open | the only commit naming it is the board reconciliation that filed it (`30fe518`, "…TASK-682"), the docstring's case 2 — no work has landed; B4 retires this row when the status changes | TASK-682 | 2026-09-12 |
+| `docs/project/tasks.md` | `TASK-710` | stale-open | the only commit naming it is TASK-693's triage that filed it (`6a0f3144`), the docstring's case 2 — no work has landed; B4 retires this row when the status changes | TASK-710 | 2026-09-17 |
+| `docs/project/tasks.md` | `TASK-711` | stale-open | the only commit naming it is TASK-693's triage that filed it (`6a0f3144`), the docstring's case 2 — no work has landed; B4 retires this row when the status changes | TASK-711 | 2026-09-17 |
