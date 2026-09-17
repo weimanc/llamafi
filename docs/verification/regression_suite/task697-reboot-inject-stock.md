@@ -221,3 +221,45 @@ for R20 — not a new probe, just ordinary DUT test runs that happened to land o
 None of these were declared flaky (deliberately — same reasoning `flaky.yaml` already applied to
 `T_PR_05`: retrying would launder the evidence). Full detail:
 [task636-first-shuffle-player.md](task636-first-shuffle-player.md).
+
+## TASK-708 OQ1 diagnostic, 2026-09-17 20:14–19:19 (human-authorized) — permanent-reserve REJECTED, new failure mode found
+
+Protocol per [M-DATATASK-tls-buffer-lifetime.md](../../architecture/designs/M-DATATASK-tls-buffer-lifetime.md)'s
+OQ1: `-DTLS_RESERVE_PERMANENT` added (2 lines, `dataTaskStorage.cpp::tlsReserveRelease()` becomes a
+no-op — `tlsReserveReacquire()` needed no change, its existing "already held" branch is the only one
+ever taken once release stops freeing anything). 8 tries/arm, fresh flash per arm, control first,
+same `T_PR_04,T_PRI_01,T170` sequence and board (`d48afcc8eed0`) as Revision 3.
+
+| | Arm A (plain control) | Arm B (`TLS_RESERVE_PERMANENT`) |
+|---|---|---|
+| `T170` FAIL | **1 / 8** | **8 / 8** |
+| `lfbInt` at health-phase | 42996–49140 (varies) | **40948, identical in all 8** |
+| Failure text | `quoteOkCount did not advance within 65 s — no quote fetch was ever in flight, fetchFailed='?' fetchErrorCode='?'` | **same text, all 8** |
+
+**Neither arm reproduced TASK-697's own signature** (`maxBlk=31k` + 18×`-32512`, per the OFF-arm
+baseline at line 153 above) — every `lfbInt` reading this session, in both arms, stayed comfortably
+above the 31k danger zone (Arm B's own worst case is 40948, ~10k above it). This session's failures
+are a **different, previously-unlabelled mode**: `fetchFailed`/`fetchErrorCode` never even got set,
+meaning the fetch never reached the point where either field is written — not a TLS/heap error at
+all, something upstream of it. `M-DATATASK-PROGRESS.md` already names this exact blind spot
+(`quoteOkCount did not advance` can't distinguish "never started" from "stuck mid-fetch").
+
+**What this settles.** OQ1 as designed can't confirm or refute its original hypothesis (dataTask's
+own churn causing the classic fragmentation signature), because the classic signature didn't fire in
+either arm this session. But it produced a clean, deterministic, unrelated result: **holding the 40
+KB reservation for the entire run — never releasing it, exactly what TASK-708's "own it for the
+client's lifetime" framing proposed — turns a 1/8 failure rate into 8/8**, with `lfbInt` pinned
+identically across every try (the mechanism is working exactly as designed: the memory really is
+held, continuously). Since a real dedicated arena (the design doc's F3 option) has the *same*
+standing cost as this crude decoy — 40 KB permanently unavailable to everything else, for the whole
+session, not just while a fetch is in flight — **this result argues against F3 as scoped, not just
+against this simplified stand-in for it.** Revision 3's own caution ("holding otherwise starved
+everything else") is no longer a worry from a broken degenerate arm; it is now a directly measured,
+8/8-reproducible cost of the "hold it permanently" strategy in general.
+
+**Not investigated further this session** (per the human's original stopping-condition precedent —
+this is exactly the kind of new, unexplained failure mode that has cost this task multiple sessions
+before): why the new failure mode exists, whether it is heap-pressure-adjacent despite the healthy
+`lfbInt` reading, or whether it is a `dataTask`-loop-timing effect of the boot-time malloc itself
+delaying task creation. Recorded as a finding for whoever next picks up TASK-708 or TASK-697, not
+chased here.

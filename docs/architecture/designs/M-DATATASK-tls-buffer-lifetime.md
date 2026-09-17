@@ -1,10 +1,18 @@
 # Design — M-DATATASK: own the dataTask TLS buffer for the client's lifetime (TASK-708)
 
 > Owner: Architect
-> Status: proposed
+> Status: rejected
 > [VE-reviewed 2026-09-17](M-DATATASK-tls-buffer-lifetime-VE-review.md):
 > READY for human sign-off on scheduling OQ1 only; F3 implementation is a
-> separate, later gate not covered by this sign-off
+> separate, later gate not covered by this sign-off.
+> **OQ1 run 2026-09-17, human-authorized: F3 REJECTED.** Permanently holding
+> the reservation (F3's exact standing cost, not just this crude stand-in
+> for it) turned a 1/8 Stock-fetch failure rate into 8/8, deterministically.
+> Neither arm reproduced TASK-697's own fragmentation signature this
+> session, so OQ1's original churn hypothesis is neither confirmed nor
+> refuted — but F3 itself is rejected on its own newly-measured cost,
+> independent of that question. See "OQ1 result" below and
+> `task697-reboot-inject-stock.md`'s matching section.
 > Date: 2026-09-17
 > Feeds: TASK-708 (the lead left by TASK-697, PARKED at P2)
 > Tracked-as: TASK-708
@@ -172,7 +180,7 @@ site's own `WiFiClientSecure tls;` declaration exactly as ADR-029/A5
 require, and does not trip this checker at all — F2 is listed to show why
 "just share the object" fails, not because F3 pays the same cost.
 
-### F3 — Single shared mbedTLS arena via a task-identity-gated allocator hook (LEAN)
+### F3 — Single shared mbedTLS arena via a task-identity-gated allocator hook (REJECTED — see "OQ1 result" below)
 Revisit M-HEAP-FRAGMENTATION's Option C1, narrowed to dataTask's own
 population: install a `mbedtls_platform_set_calloc_free` hook that, when called from
 dataTask's own task context (`xTaskGetCurrentTaskHandle()` compared against
@@ -264,13 +272,42 @@ of my published readings that the evidence later refuted").
   sites, not a runtime trace) is genuinely unaffected before relying on
   that claim in review.
 
+## OQ1 result, 2026-09-17 (human-authorized) — F3 rejected
+
+`-DTLS_RESERVE_PERMANENT` added per the OQ1 protocol above (2 lines,
+`tlsReserveRelease()` becomes a no-op). 8 tries/arm, fresh flash per arm,
+control first, same `T_PR_04,T_PRI_01,T170` sequence and board as Revision 3.
+
+| | Arm A (control) | Arm B (permanent-reserve) |
+|---|---|---|
+| `T170` FAIL | 1/8 | **8/8** |
+| `lfbInt` | 42996–49140 | **40948, identical every try** |
+
+Neither arm reproduced TASK-697's own `maxBlk=31k`/`-32512` signature — every
+`lfbInt` this session stayed well clear of the 31k danger zone, so OQ1's
+original churn-vs-contention question is **not settled either way**. But the
+result rejects F3 on a different, cleaner basis: holding the reservation for
+the run's full lifetime — F3's exact standing cost, not an artifact of this
+crude stand-in — turned a 1/8 failure into a deterministic 8/8. A real
+mbedTLS arena has the same permanent 40 KB cost this decoy does; this result
+argues against F3 as a strategy, not just against this measurement of it.
+Full detail, including the new failure signature's text and what it rules
+out: [task697-reboot-inject-stock.md](../../verification/regression_suite/task697-reboot-inject-stock.md#task-708-oq1-diagnostic-2026-09-17-201419-19-human-authorized--permanent-reserve-rejected-new-failure-mode-found).
+
+Not investigated further this session (per the same stopping-condition
+discipline TASK-697 was parked under): why the new failure mode exists, or
+whether some *smaller/narrower* reservation would avoid it while still
+buying dataTask's fetches a stable pool. That would be a new design, not a
+patch to this one — F3 as specified here is rejected, not revised.
+
 ## Exit criteria
 
-Not an implementation plan — this design's own exit criterion is a human
-decision on whether to schedule OQ1's confirming experiment (new DUT time,
-against a task the human parked) before any code lands. If OQ1 is not
-scheduled, this design stays `proposed` and TASK-708 stays open with no
-change to TASK-697's P2/parked status.
+Met. F3 is `rejected` per the OQ1 result above. TASK-708 stays open only if
+someone proposes a genuinely different mechanism (e.g., a smaller reserved
+span, or scoping the hold to just the fetch window rather than the whole
+run) — that would need its own design doc, not a re-opening of this one.
+TASK-697 stays PARKED at P2, unaffected by this result (OQ1 was scoped to
+TASK-708's lead, not to re-litigating TASK-697 itself).
 
 ## Registers
 

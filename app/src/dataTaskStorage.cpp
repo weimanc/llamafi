@@ -339,12 +339,26 @@ static void tlsReserveBoot() {
 // declaration line, or fetchPlaneRadar's manual tlsYield()), freeing the
 // reserved span back to the pool so that fetcher's own TLS handshake can
 // claim clean, unfragmented headroom.
+//
+// TASK-708 OQ1: -DTLS_RESERVE_PERMANENT makes this a no-op, so the boot
+// reservation is never given up for the rest of the run — tlsReserveReacquire
+// below needs no matching change, since its existing "already held, log and
+// return" branch (never reached under the un-gated flag, because release
+// really freed it) becomes the only branch it ever takes once release stops
+// freeing anything. Tests the opposite of Revision 3's release/reacquire
+// dance, which failed 33/33 on reacquire — isolates dataTask's own
+// fetch-churn hypothesis from the reacquire-race Revision 3 already broke.
 static void tlsReserveRelease(const char* fetchTag) {
+#if defined(TLS_RESERVE_PERMANENT)
+    LOG_D("tlsres", "[tlsres] release SKIPPED (permanent) fetch=%s ms=%lu", fetchTag, millis());
+    return;
+#else
     if (s_tlsReserve) {
         heap_caps_free(s_tlsReserve);
         s_tlsReserve = nullptr;
     }
     LOG_D("tlsres", "[tlsres] release fetch=%s ms=%lu", fetchTag, millis());
+#endif
 }
 
 // Called right after a TLS session's actual teardown (session.end()), before
