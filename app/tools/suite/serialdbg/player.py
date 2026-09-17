@@ -1570,7 +1570,7 @@ def t_plr_26(dut: Dut):
     # driver's DTR-reset detection in _wait_for_ready() handles the reconnect.
     dut.send("reboot")
     time.sleep(0.3)
-    dut._wait_for_ready()
+    dut.reboot_and_wait()
 
     if not _enter_player(dut, "T_PLR_26"):
         return

@@ -39,6 +39,26 @@ import threading
 import time
 from typing import Optional
 
+# C-17: this codebase's host tooling has an undeclared Python >= 3.12 floor.
+# suite/serialdbg/shell.py uses PEP 701 nested same-type quotes inside an
+# f-string (e.g. f"...{APP_SLOT["Spotify"]}..."), which only *parses* on
+# 3.12+ — on 3.11 the import of shell.py raises a bare SyntaxError with no
+# hint that a Python version, not a typo, is the cause. lib/dut.py is the one
+# module every suite body and every entry point (runner.py, the gate scripts,
+# the family modules) imports before anything else, so this is the earliest
+# place to turn that SyntaxError into a legible message. Bump this alongside
+# any future syntax that raises the real minimum.
+if sys.version_info < (3, 12):
+    raise RuntimeError(
+        f"esp_spotify host tooling requires Python >= 3.12 (found "
+        f"{sys.version_info.major}.{sys.version_info.minor}). "
+        f"suite/serialdbg/shell.py uses PEP 701 nested same-type quotes in "
+        f"f-strings, which do not parse on older interpreters — that shows up "
+        f"as a bare SyntaxError deep in an import with no version hint, which "
+        f"is why this check exists (C-17). Use the project venv "
+        f"(~/proj/esp/venv, or VENV_PY=/path/to/python3) rather than the "
+        f"system interpreter.")
+
 try:
     import serial
 except ImportError:
@@ -1150,6 +1170,19 @@ class Dut:
         self.ser.reset_input_buffer()
         print(f"  [Dut] DUT ready. gen={self.gen_tag()} "
               f"last-phase={self.last_phase()}", flush=True)
+
+    def reboot_and_wait(self):
+        """Public alias for `_wait_for_ready()` (H-17).
+
+        This is the only reboot-settle primitive Dut has: it detects the CH341
+        DTR-reset boot signature and blocks until the DUT reaches steady state
+        (WiFi up + first successful poll + queue fetch), retrying once via
+        `reconnect` if the startup poll fails. Suite bodies that need to wait
+        out a deliberate `dut.send("reboot")` — a persistence test is the
+        prototypical case — should call this, not the private method, which
+        stays as the internal name `__init__` itself uses. No behavior change:
+        this is a visibility-only wrapper."""
+        return self._wait_for_ready()
 
     def _wait_for_bootphase_6(self) -> bool:
         """Advance the boot-phase state machine to `[bootphase] 6 ready`.

@@ -148,7 +148,7 @@ def t_pr_04(dut: Dut):
         return
     dut.send("reboot")
     time.sleep(0.3)   # let the reset actually happen before we start reading for it
-    dut._wait_for_ready()
+    dut.reboot_and_wait()
     if not _switch_to(dut, "PlaneRadar", timeout=15.0):
         fail("T_PR_04", "could not switch to PlaneRadar after reboot")
         _restore_spotify(dut)
@@ -312,7 +312,7 @@ def t_prm_01(dut: Dut):
     # Persistence leg (T_PR_04 idiom): 30 is distinctive vs the default 10.
     dut.send("reboot")
     time.sleep(0.3)   # let the reset actually happen before we start reading for it
-    dut._wait_for_ready()
+    dut.reboot_and_wait()
     r_post = dut.cmd("get prPollSec", timeout=3.0)
     dut.cmd("set prPollSec 10", timeout=3.0)   # restore default
     if r_post.get("val") != 30:
