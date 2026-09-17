@@ -5,6 +5,7 @@
 #include "debug/serialConsole/cmdSet.h"
 #include "debug/timeInject.h"             // dbgTimeSet/Thaw (ADR-064 D5)
 #include "debug/armedInjectors.h"         // ARMED_INJECTORS_TABLE (TASK-635, M-HARNESS2 R14)
+#include "debug/casRetry.h"               // kCasRetryCookie — single definition (TASK-704)
 
 #ifdef SERIAL_DEBUG
 #include <Arduino.h>
@@ -41,7 +42,6 @@ void persistPlayerMode(uint8_t mode);     // main.cpp — TASK-260/M-PLAYER-STAT
 // once this became its own translation unit).
 extern uint32_t g_casRetryCookie;
 extern uint32_t g_casRetryOff;
-static constexpr uint32_t kCasRetryCookie = 0x426AB1FEu;
 
 // TASK-635 (M-HARNESS2 R14 / armedInjectors.h): the one new byte of state
 // this task adds. mb_arena_active() is also true during real playback, so

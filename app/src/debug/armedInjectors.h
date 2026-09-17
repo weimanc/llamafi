@@ -40,11 +40,12 @@
 
 // TASK-426 A/B cookie pair (boot/boot.cpp, RTC_NOINIT_ATTR) — declared
 // extern here rather than pulling in boot.cpp's setup()-scoped
-// casRetryDisabled() (static inline, not exported). Value must stay in
-// lockstep with boot.cpp's kCasRetryCookie / cmdSet.cpp's copy.
+// casRetryDisabled() (static inline, not exported). kCasRetryCookie is the
+// single shared definition in debug/casRetry.h (TASK-704) — no more
+// keeping a separate copy in lockstep by comment.
+#include "debug/casRetry.h"
 extern uint32_t g_casRetryCookie;
 extern uint32_t g_casRetryOff;
-static constexpr uint32_t kArmedInjCasRetryCookie = 0x426AB1FEu;
 
 // TASK-635's one new byte (cmdSet.cpp) — set/cleared by `set arenaHold`.
 extern bool s_consoleArenaHold;
@@ -72,7 +73,7 @@ static inline bool dbgArmedGeocode() {
     s_consoleArenaHold,                                                      \
     (mb_arena_release(), s_consoleArenaHold = false))                        \
   X(casRetryOff,                                                             \
-    (g_casRetryCookie == kArmedInjCasRetryCookie && g_casRetryOff != 0),     \
+    (g_casRetryCookie == kCasRetryCookie && g_casRetryOff != 0),            \
     (g_casRetryCookie = 0))                                                  \
   X(certbreak,                                                               \
     (dataTask::debugPeekCertBreak() >= 0),                                   \

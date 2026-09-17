@@ -111,8 +111,10 @@ void spotifyRefreshToken(const char *refreshToken);                             
 // here from main.cpp, verbatim; only used by setup()'s WiFi cascade below.
 // See main.cpp's note at the old definition site for the RTC_NOINIT_ATTR
 // rationale (must survive the SOFTWARE reset that starts a debug run).
+// kCasRetryCookie itself lives in debug/casRetry.h (TASK-704) — the single
+// definition shared with cmdSet.cpp and armedInjectors.h.
 #ifdef SERIAL_DEBUG
-static constexpr uint32_t kCasRetryCookie = 0x426AB1FEu;
+#include "debug/casRetry.h"
 RTC_NOINIT_ATTR uint32_t g_casRetryCookie;
 RTC_NOINIT_ATTR uint32_t g_casRetryOff;
 static inline bool casRetryDisabled() {
