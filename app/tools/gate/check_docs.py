@@ -635,6 +635,16 @@ STATUS_COL_RE = re.compile(r"^\**\s*(?:status|result|outcome)\s*\**$", re.I)
 STATUS_FIELD_RE = re.compile(r"\*\*Status\*\*\s*:\s*([^\n]*)")
 HEADING_ID_RE = re.compile(r"^#{2,6}\s+`?([A-Za-z0-9_]+)`?\b")
 BINDING_RE = re.compile(r"`?(impl|resv|blocked)`?\b")
+#: B-13/TASK-614: a status declared inline in PROSE — a cross-reference table
+#: cell listing several ids' bindings, not the id's own row/heading — used to
+#: be invisible to both C6.1 and C6.3 (the parser only ever read cells[0] or a
+#: `### id` heading). `T_AE_04` `impl` in test_plan.md's X050 row is the case
+#: that surfaced it: the id has a real body but no canonical entry, so a
+#: genuine future drift there would go undetected in both directions. This
+#: catches the `` `ID` `status` `` shape wherever it appears (table cell or
+#: narrative), as an ADDITIONAL entry alongside any canonical one — it never
+#: removes or overrides a canonical entry, only adds a resolution source.
+INLINE_BINDING_RE = re.compile(r"`(" + TEST_ID_RE.pattern + r")`\s*`(impl|resv|blocked)`")
 SEP_CELL_RE = re.compile(r":?-{2,}:?")
 LEDGER_REL = "docs/verification/id_binding_exceptions.md"
 
@@ -768,6 +778,14 @@ def doc_test_entries(c: Corpus) -> dict[str, list[tuple[str, str, bool]]]:
             fm = STATUS_FIELD_RE.search(block)
             status = fm.group(1).strip() if (fm and scan_status) else ""
             entries.setdefault(m.group(1), []).append((f"{rel}:{i}", status, scan_status))
+        # Inline prose declarations (B-13): a cross-reference cell can name an
+        # id's binding without that id owning the row/heading. Additive only —
+        # see INLINE_BINDING_RE's comment.
+        for i, line in enumerate(lines, 1):
+            for im in INLINE_BINDING_RE.finditer(line):
+                tid = im.group(1)
+                status = im.group(2) if scan_status else ""
+                entries.setdefault(tid, []).append((f"{rel}:{i}", status, scan_status))
     return entries
 
 

@@ -378,5 +378,14 @@ def main():
     return 0 if ok_count == args.cycles else 1
 
 
+#: TASK-614/B-13: registers T_AE_04 with check_docs.py's C6 test-id-binding
+#: scanner (test_registries() in app/tools/gate/check_docs.py). This module is
+#: a standalone harness invoked via run/ae04, never dispatched through
+#: app/tools/suite/runner.py's TESTS registry — the dict below changes no
+#: runtime behavior, it only makes the id resolve as bound to a body, matching
+#: the `impl` status test_plan.md already declares for it (X050 row).
+TESTS = {"T_AE_04": main}
+
+
 if __name__ == "__main__":
     sys.exit(main())
