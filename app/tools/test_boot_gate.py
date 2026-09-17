@@ -308,6 +308,62 @@ def tee_setattr_tests():
     check("generation counter survives the setattr change", tee.gen_tag(), "7.1")
 
 
+# ── TASK-698: expecting_reboot suppresses the false UNEXPECTED alarm ────────
+
+def _captured(fn):
+    """Run fn(), returning what it printed to stdout. No pytest here — this
+    file runs as a plain script, so capture is hand-rolled like the rest of
+    it (BP-068's stub-the-serial idiom, one level up)."""
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        fn()
+    return buf.getvalue()
+
+
+def expecting_reboot_tests():
+    """`_TeeSerial` used to print "UNEXPECTED: the board reset mid-session"
+    for EVERY boot after the first, with no awareness that some test ids
+    (effect="resetting", e.g. T_PR_04) deliberately reboot the board as part
+    of what they assert. The dispatch loop now arms `expecting_reboot` before
+    such an id and clears it right after; readline() must honour that flag
+    without touching the boot_count INCREMENT, which stays unconditional."""
+
+    # (a) A second boot marked expected must NOT print the alarm.
+    tee = d._TeeSerial(_PhaseSer(["[bootphase] 0 first",
+                                  "[bootphase] 0 second"]), run_id="3")
+    tee.readline()  # boot_count -> 1, never "UNEXPECTED" regardless
+    tee.expecting_reboot = True
+    out = _captured(tee.readline)  # boot_count -> 2, expected this time
+    check("expected reboot -> boot_count still increments", tee.boot_count, 2)
+    check("expected reboot -> no UNEXPECTED alarm", "UNEXPECTED" in out, False)
+    check("expected reboot -> still logs the observation",
+          "[bootphase] 0 observed" in out, True)
+
+    # (b) Regression guard: a second boot NOT marked expected still alarms,
+    # exactly as before this change.
+    tee = d._TeeSerial(_PhaseSer(["[bootphase] 0 first",
+                                  "[bootphase] 0 second"]), run_id="4")
+    tee.readline()
+    out = _captured(tee.readline)  # expecting_reboot defaults False -> real alarm
+    check("unexpected reboot -> boot_count still increments", tee.boot_count, 2)
+    check("unexpected reboot -> UNEXPECTED alarm fires", "UNEXPECTED" in out, True)
+
+    # (c) The flag is per-boot, not sticky: clearing it after one
+    # resetting-effect test must not leave a later boot silently suppressed.
+    tee = d._TeeSerial(_PhaseSer(["[bootphase] 0 a",
+                                  "[bootphase] 0 b",
+                                  "[bootphase] 0 c"]), run_id="5")
+    tee.readline()                       # gen 1, never alarms
+    tee.expecting_reboot = True
+    tee.readline()                       # gen 2, expected -> quiet
+    tee.expecting_reboot = False         # dispatch loop's `finally` clears it
+    out = _captured(tee.readline)        # gen 3, NOT armed -> must alarm
+    check("flag is per-boot, not sticky", "UNEXPECTED" in out, True)
+    check("flag left cleared reads False", tee.expecting_reboot, False)
+
+
 def production_constant_tests() -> None:
     """The values _fast_readiness() shrinks, asserted at their real sizes.
 
@@ -370,6 +426,10 @@ def main() -> int:
     print()
     print("TASK-575 — _TeeSerial forwards attribute assignment")
     tee_setattr_tests()
+
+    print()
+    print("TASK-698 — expecting_reboot suppresses the false UNEXPECTED alarm")
+    expecting_reboot_tests()
 
     print()
     if _failures:

@@ -710,6 +710,15 @@ def main():
         except TimeoutError:
             pass
 
+        # TASK-698: an id whose effect is "resetting" deliberately reboots the
+        # board as part of what it asserts (T_PR_04, T_PRM_01, T_PLR_26, …).
+        # Arm _TeeSerial's expectation before running it so its own
+        # `[bootphase] 0` prints a plain observation, not a false
+        # "UNEXPECTED" alarm — and disarm unconditionally afterward so the
+        # flag never leaks onto the next (non-resetting) id.
+        _effect = all_meta.get(tid, {}).get("effect") if all_meta else None
+        _expects_reboot = _effect == "resetting"
+
         def _once_body(tid=tid):
             # TASK-671: the exception-to-verdict arms live in lib/dispatch.py so
             # the replay-driven gates run the SAME mapping this loop does.
@@ -741,7 +750,11 @@ def main():
                     print(f"[record] {tid}: save failed: {e}")
             else:
                 _once_body(tid)
-        run_with_flake_retry(tid, _once)
+        dut.ser.expecting_reboot = _expects_reboot
+        try:
+            run_with_flake_retry(tid, _once)
+        finally:
+            dut.ser.expecting_reboot = False
         time.sleep(0.5)
 
     def _exit_snapshot():

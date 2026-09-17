@@ -558,7 +558,7 @@ class _TeeSerial:
     # for why. Adding state to this class means adding its name here, or the
     # assignment in __init__ ends up on the pyserial object instead.
     _OWN_ATTRS = frozenset({"_ser", "_log", "_ring", "run_id", "boot_count",
-                            "_ts_sidecar_path"})
+                            "_ts_sidecar_path", "expecting_reboot"})
 
     #: TASK-677 / PROP-011 §5 P0 deliverable B. Off by default (public
     #: checkout, RIGWATCH unset): zero behaviour change, not even the sidecar
@@ -603,6 +603,16 @@ class _TeeSerial:
         # before delegating; deliberately out of scope here.
         self.run_id = run_id or "?"
         self.boot_count = 0
+        # TASK-698. Set by the dispatch loop immediately before it invokes a
+        # test whose `effect` is "resetting" (it deliberately reboots the
+        # board as part of what it asserts), cleared in a `finally` right
+        # after. readline() below consults this instead of the bare
+        # `boot_count == 1` test, so a DELIBERATE reboot prints a plain
+        # observation and a real mid-session reset still prints the alarm.
+        # Does not affect the boot_count INCREMENT, which stays unconditional
+        # — this is a labeling change only, other code depends on the raw
+        # count being accurate.
+        self.expecting_reboot = False
 
     def readline(self, *a, **kw):
         line = self._ser.readline(*a, **kw)
@@ -637,9 +647,13 @@ class _TeeSerial:
             # confound rather than an event.
             if "[bootphase] 0" in text:
                 self.boot_count += 1
+                # TASK-698: a reset the CURRENTLY RUNNING test deliberately
+                # triggers (effect="resetting", e.g. T_PR_04) is not an
+                # alarm — only a boot the dispatch loop did not arm for is.
+                unexpected = self.boot_count != 1 and not self.expecting_reboot
                 print(f"  [Dut] gen={self.gen_tag()} — [bootphase] 0 observed"
-                      + ("" if self.boot_count == 1 else
-                         "  << UNEXPECTED: the board reset mid-session"),
+                      + ("  << UNEXPECTED: the board reset mid-session"
+                         if unexpected else ""),
                       flush=True)
         return line
 
