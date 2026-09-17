@@ -31,6 +31,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import _case_runner  # noqa: E402
 
 import check_board_currency as C                          # noqa: E402
 
@@ -458,19 +459,7 @@ CASES = [
 
 
 def main() -> int:
-    failed = 0
-    for name, fn in CASES:
-        try:
-            fn()
-            print(f"  PASS  {name}")
-        except AssertionError as e:
-            failed += 1
-            print(f"  FAIL  {name}: {e}")
-        except Exception as e:  # noqa: BLE001
-            failed += 1
-            print(f"  ERROR {name}: {type(e).__name__}: {e}")
-    print(f"test_check_board_currency: {len(CASES) - failed}/{len(CASES)} passed")
-    return 1 if failed else 0
+    return _case_runner.run_cases("test_check_board_currency", CASES)
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
+import _case_runner  # noqa: E402
 
 import check_test_meta as C                            # noqa: E402
 from suite.serialdbg import _meta                      # noqa: E402
@@ -404,19 +405,7 @@ CASES = [
 
 
 def main() -> int:
-    failed = 0
-    for name, fn in CASES:
-        try:
-            fn()
-            print(f"  PASS  {name}")
-        except AssertionError as e:
-            failed += 1
-            print(f"  FAIL  {name}: {e}")
-        except Exception as e:  # noqa: BLE001
-            failed += 1
-            print(f"  ERROR {name}: {type(e).__name__}: {e}")
-    print(f"test_check_test_meta: {len(CASES) - failed}/{len(CASES)} passed")
-    return 1 if failed else 0
+    return _case_runner.run_cases("test_check_test_meta", CASES)
 
 
 if __name__ == "__main__":
