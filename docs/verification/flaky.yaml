@@ -252,7 +252,9 @@ candidates: []
 # `run/test` artifacts in app/tools/.runs/ (2026-09-06 … 2026-09-13, all
 # cyd2usb_winamp_debug). All three candidates are REMOVED, none promoted:
 #   T169        PASS 8/8. Not flaky on any recorded evidence; the note was folklore.
-#   T_WR_TLS_01 FAIL 8/8. Deterministic, not a flake. Owned by TASK-693.
+#   T_WR_TLS_01 FAIL 8/8. Deterministic, not a flake. Owned by TASK-711
+#               (2026-09-17: not a cert-pin issue, host-checked clean —
+#               narrows to a heap guard or TASK-284 mirror truncation).
 #   T_PR_05     P P F S P F F F. Non-stationary, but the four FAILs since 09-12
 #               fall in the boot generation after T_PR_04's reboot, where
 #               TASK-697 wedges fetches. That is an order/timing defect with an
