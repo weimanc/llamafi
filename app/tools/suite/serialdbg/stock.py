@@ -453,7 +453,9 @@ def t175(dut: Dut):
         skip("T175", "drill-in did not fire (fetchFailed?) — cannot test back navigation")
         _restore_from_stock(dut)
         return
-    # Tap back button: x=10 < ST_CHART_BACK_W(30), y=7 < ST_CHART_HEADER_H(18).
+    # Tap back button: x=10 < ST_CHART_BACK_W*2(60) (G-18: the firmware's hit
+    # test at stockApp.cpp:112 is ST_CHART_BACK_W*2, not ST_CHART_BACK_W —
+    # the zone is twice the #define's value), y=7 < ST_CHART_HEADER_H(18).
     dut.set_cooldown_zero()
     dut.cmd("tap 10 7", timeout=3.0)
     time.sleep(0.2)
@@ -530,7 +532,18 @@ def t177(dut: Dut):
     dut.cmd("tap 184 7", timeout=3.0)
     time.sleep(0.2)
     r_rng = _stock_get(dut, "stockChartRange")
-    # lastChartFetch resets to 0 on tab change, then advances when enqueue fires.
+    # G-18: this comment used to claim "lastChartFetch resets to 0 on tab
+    # change, then advances when enqueue fires" — false. stockApp.cpp:124 sets
+    # `_s.lastChartFetch = millis()` directly (a nonzero value) in the same
+    # branch that fires the tab-change enqueue; nothing resets it to 0 here
+    # (the only reset site is the `triggerFetch` debug injector at :224).
+    # NOTE: this makes the `> 0` poll below vacuous — lastChartFetch is
+    # already nonzero (from AAPL's initial drill-in fetch a few lines up, at
+    # minimum) before this poll loop starts, so it cannot meaningfully fail
+    # on a tab change that never re-fetches. A real assertion would need a
+    # DELTA (a baseline read before the tap, compared after), not an
+    # absolute `> 0` — left as a comment rather than guessing at the
+    # replacement assertion (host-only pass, no DUT to verify a rewrite against).
     deadline = time.monotonic() + 5.0
     fetched = False
     while time.monotonic() < deadline:
