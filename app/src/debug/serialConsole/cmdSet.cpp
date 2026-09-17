@@ -222,6 +222,15 @@ void cmdSet(const char *args) {
                   epoch, freeze ? "true" : "false");
     return;
   }
+  // TASK-703 (ADR-063 D3 review, `set` path): NOT identity-guarded. plLoad/
+  // plPlay/plCursor/fbOpen/fbSelect/fbCancel below are the write-side
+  // counterpart of TASK-415/416/418 (ADR-059 D12) — the same "drive
+  // LocalPlayer's index/browser/order deterministically without a real tap,
+  // and without needing LocalPlayer to be the on-screen app" contract as
+  // their `get` siblings (plCount/plMem/plRow/fbState/plOrder/plCursor,
+  // cmdGet.cpp). dbgLoad() force-allocates the playlist index and
+  // dbgPlayRow()/dbgFbOpen() etc. drive real audio-engine/file-browser calls
+  // regardless of currentAppId — deliberate, not an oversight.
   if (strncmp(args, "plLoad", 6) == 0 && (args[6] == '\0' || args[6] == ' ')) {
     const char *path = (args[6] == ' ' && args[7] != '\0') ? args + 7 : "";
     if (!*path) {
@@ -732,28 +741,67 @@ void cmdSet(const char *args) {
                   "\"error\":\"unknown app\",\"app\":\"%s\"}\n", val);
     return;
   }
+  // TASK-703 (ADR-063 D3 review): NOT identity-guarded — same player-slot
+  // reasoning as the matching `get` delegation in cmdGet.cpp (spotifyDisplay
+  // is the shared WinampDisplay widget; spotifyTask's background poll runs
+  // regardless of the active app). See that comment for the full "why".
   if ((spotifyDisplay && spotifyDisplay->dbgSet(var, val))
       || spotifyTask::dbg_set(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
+  // TASK-703 (ADR-063 D3 extended to `set`): Stock owns every key
+  // stockDbgSet answers (StockAppState is private to this app, and
+  // triggerHeatmap draws to the screen immediately) — same guard shape as
+  // cmdGet.cpp's stockDbgGet call. No Stock key is in dbgKeyReachableInactive.
   if (stockDbgSet(var, val)) {
+    if (!dbgAppIsActive(AppId::Stock)) {
+      dbgRefuseInactive("set", var, AppId::Stock);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
+  // TASK-703: same guard as cmdGet.cpp's teletextDbgGet call. No Teletext
+  // key is in dbgKeyReachableInactive.
   if (teletextDbgSet(var, val)) {
+    if (!dbgAppIsActive(AppId::Teletext)) {
+      dbgRefuseInactive("set", var, AppId::Teletext);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
+  // TASK-703: same guard as cmdGet.cpp's planeRadarDbgGet call, including the
+  // dbgKeyReachableInactive() escape — `prPollSec` is already declared
+  // reachable inactive there (persisted setting, T_PRM_01: "No app switch
+  // needed: `set/get prPollSec` dispatch to the file-scope state",
+  // app/tools/suite/serialdbg/planeradar.py) and the harness exercises the
+  // `set` side the same way; every other PlaneRadar key (prRange,
+  // prInjectAircraft, triggerPlaneRadarFetch, ...) is only ever driven after
+  // switching to PlaneRadar (same file), so guarding them is safe.
   if (planeRadarDbgSet(var, val)) {
+    if (!dbgAppIsActive(AppId::PlaneRadar) && !dbgKeyReachableInactive(var)) {
+      dbgRefuseInactive("set", var, AppId::PlaneRadar);
+      return;
+    }
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
     return;
   }
   // TASK-501: WINAMP_DISPLAY is unconditionally defined — no #ifdef needed.
+  // TASK-703 (ADR-063 D3 review): NOT identity-guarded — same player-slot
+  // exception as cmdGet.cpp's webRadioDbgGet call (WebRadio keeps playing
+  // in the background regardless of the active app, so its debug surface
+  // must stay reachable off-screen too). CROSS-APP-RISK NOTE for the next
+  // auditor: wrEject/wrPlay/wrStop/wrNext/wrPrev/wrUrl/wrDeadUrls mutate the
+  // single shared audio engine (and wrEject calls switchApp(AppId::Spotify)
+  // outright) — firing one of these while a non-player app is on screen is
+  // exactly as safe/unsafe as the real always-on background player already
+  // is, not a new hole this guard would have closed.
   if (webRadioDbgSet(var, val)) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\","
                   "\"var\":\"%s\",\"val\":\"%s\"}\n", var, val);
@@ -788,6 +836,19 @@ void cmdSet(const char *args) {
     Serial.printf("{\"ok\":true,\"cmd\":\"set\",\"var\":\"ldrRaw\",\"val\":%d}\n", v);
     return;
   }
+  // TASK-703: UNRESOLVED — needs a human call, see task board. fmt24h/dateFmt
+  // are edited in production ONLY from Settings > Time (settings/
+  // timeSection.h writes g_settings.fmt24h/dateFmt directly, in-process —
+  // this debug command is never in that path), yet the resume-if-active
+  // trick below is Clock-specific and there is no `get fmt24h`/`get dateFmt`
+  // debug key to check for an existing off-screen-access precedent against.
+  // No test in app/tools/suite exercises `set fmt24h`/`set dateFmt` today
+  // (checked 2026-09-17), so there is no runtime evidence either way for
+  // which AppId (Settings? Clock? neither?) a guard should key on. Contrast
+  // with clockStyle/nixieTheme/vfdTheme below, which DO have a live
+  // Clock-active test precedent (clock.py's _switch_to_clock) and are
+  // guarded accordingly.
+  //
   // WIRE2-G2 (§6 debug hooks, W-7): 12h/24h toggle. Mirrors clockStyle below,
   // incl. the resume-if-current-app repaint trick for Clock.
   if (strcmp(var, "fmt24h") == 0) {
@@ -823,7 +884,21 @@ void cmdSet(const char *args) {
                   "\"name\":\"%s\"}\n", idx, kDF[idx]);
     return;
   }
+  // TASK-703 (ADR-063 D3 extended to `set`): clockStyle/nixieTheme/vfdTheme
+  // are guarded to AppId::Clock, mirroring cmdGet.cpp's `get clockStyle`
+  // guard. Settings > Applications also writes these fields directly
+  // in-process (settings/appsSection.h's row-tap cycle) — but that path
+  // never goes through this debug command, so guarding it does not touch
+  // production behavior; it only scopes the debug/test entry point.
+  // app/tools/suite/serialdbg/clock.py's every `set clockStyle`/`set
+  // nixieTheme`/`set vfdTheme` call is already preceded by
+  // `_switch_to_clock()` (T_CLK_03-08), so this guard is a no-op for the
+  // existing suite, not a behavior change for it.
   if (strcmp(var, "clockStyle") == 0) {
+    if (!dbgAppIsActive(AppId::Clock)) {
+      dbgRefuseInactive("set", "clockStyle", AppId::Clock);
+      return;
+    }
     static const char* kSN[] = {"digital","flip","nixie","vfd"};
     int idx = -1;
     for (int i = 0; i < 4; i++) if (strcmp(val, kSN[i]) == 0) { idx = i; break; }
@@ -848,6 +923,11 @@ void cmdSet(const char *args) {
     return;
   }
   if (strcmp(var, "nixieTheme") == 0 || strcmp(var, "vfdTheme") == 0) {
+    // TASK-703: same AppId::Clock guard as clockStyle above, same reasoning.
+    if (!dbgAppIsActive(AppId::Clock)) {
+      dbgRefuseInactive("set", var, AppId::Clock);
+      return;
+    }
     // M-CLOCK-THEMES (TASK-345): same name/index tables as appsSection.h's
     // cycle rows and the M-CLOCK-NIXIE.md/M-CLOCK-VFD.md theme tables.
     bool isNixie = (strcmp(var, "nixieTheme") == 0);
@@ -869,6 +949,12 @@ void cmdSet(const char *args) {
                   var, idx, names[idx]);
     return;
   }
+  // TASK-703 (ADR-063 D3 review): NOT identity-guarded — deliberately, same
+  // player-slot exception as playerBind/`get player` (cmdGet.cpp): this is a
+  // shared player-slot setting, not owned by whichever of Spotify/WebRadio/
+  // LocalPlayer happens to be active. The comment below ("Pure persist (no
+  // app switch)") already says this is meant to work regardless of what's
+  // on screen.
   if (strcmp(var, "playerMode") == 0) {   // TASK-260/413 (VE: agent-driven persist/boot tests)
     static const char* kPmNames[] = { "Spotify", "WebRadio", "Player" };
     int idx = -1;
@@ -889,6 +975,13 @@ void cmdSet(const char *args) {
                   idx, kPmNames[idx]);
     return;
   }
+  // TASK-703 (ADR-063 D3 review): already handles the active-app question
+  // itself — the "active <i>" sub-form below branches on
+  // `currentAppId == AppId::PlaneRadar` and only calls the app instance's
+  // drawing helper in that case, otherwise falling back to a
+  // Settings-storage-only mirror+persist. No blanket dbgAppIsActive() guard
+  // is added on top of that; it would either duplicate the existing branch
+  // or break the (deliberately supported) Settings-side write.
   if (strcmp(var, "prloc") == 0) {
     // M-PR-LOCATIONS (TASK-319): two sub-forms sharing the "prloc" var, both
     // carrying more tokens than the generic var/val split above captures —
