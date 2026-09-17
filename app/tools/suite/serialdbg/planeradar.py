@@ -6,7 +6,6 @@ import time
 
 from lib.dut import Dut
 from lib.results import pass_, fail, skip, unmet
-import coords as _c
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._meta import meta
 from suite.serialdbg._helpers import (
