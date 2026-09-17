@@ -14263,7 +14263,7 @@ it helps in isolation.
 **Second DUT gate attempt, isolated retry (2026-08-04, later still) — same inconclusive result, on
 a different station this time.** Per PM direction to re-run the gate isolated from TASK-393's
 Spotify-present confound and against a station with an actual TASK-391 failure track record:
-targeted single-station soak (`test_webradio_long_soak.py`, 30 min each leg) against **Radio 10**
+targeted single-station soak (`webradio_long_soak.py`, 30 min each leg) against **Radio 10**
 (`http://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10.mp3`), on the
 **noSpotify** build for the cleanest possible isolation. Before leg: temporarily reverted just
 `webRadioApp.h` to its pre-fix state (`git checkout b0adc8d~1 -- app/src/webRadioApp.h`, working
@@ -14471,7 +14471,7 @@ editing session, or an explicit `**Deferred, not filed:**` marker line** (search
 free-form "flagging for..." prose) so a future audit — or grep — doesn't have to re-derive
 which notes are gaps vs. already-actioned vs. deliberately dropped.
 
-### TASK-397 — long single-station WebRadio soak tool (`test_webradio_long_soak.py`)
+### TASK-397 — long single-station WebRadio soak tool (`webradio_long_soak.py`)
 
 **Filed 2026-08-04, TASK-393 follow-up.** Building a soak tool to catch a genuine TASK-393
 recurrence on real hardware, with instrumentation captured at the moment it happens — the thing

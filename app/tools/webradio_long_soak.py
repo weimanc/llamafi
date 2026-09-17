@@ -63,10 +63,18 @@ forced on, silently risking a soak where the terminal-retry mechanism under
 test was itself disabled by a stale persisted setting.
 
 Usage:
-    python3 test_webradio_long_soak.py --port /dev/ttyUSB0 --hours 4
+    python3 webradio_long_soak.py --port /dev/ttyUSB0 --hours 4
         [--station-name "SLAM! DANCE CLASSICS"] [--report-out PATH] [--raw-log PATH]
 Exit 0 always (observational, not a pass/fail gate) unless the DUT never
 becomes ready or no station can be resolved.
+
+TASK-614/F-12: renamed off the `test_*` prefix. This was filed as a test but
+never was one — no verdict line, no non-zero exit on any anomaly path (DUT
+silence, render freeze, stuck mechanism, unexpected boot marker all just
+increment a counter and keep running), and nothing in the tree ever invoked
+it — no `run/*` wrapper, no registry, no glob-based discovery. It is a
+manually-run recurrence-watch instrument for TASK-393; the `test_*` name was
+misleading about what failure a run represents. Behavior is unchanged.
 """
 import re
 import sys

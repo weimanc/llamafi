@@ -37,7 +37,7 @@ Static audit only, per rubric §5: no flash, no `run/test*`, no `run/wr-gate`, n
 under `app/tools/` (rubric §5 / amendment A1); `webradio.py`, `_helpers.py`,
 `coords.py`, `_meta.py`, `_order.py`, `runner.py`, `lib/dut.py`,
 `lib/results.py`, `screendump.py`, `test_adr045_gate.py`,
-`test_webradio_soak.py`, `test_webradio_long_soak.py`, `test_ae04_teardown.py`,
+`test_webradio_soak.py`, `webradio_long_soak.py`, `test_ae04_teardown.py`,
 `run/wr-gate`, `run/wr-soak`, `run/ae04`, `flaky.yaml`, `test_plan.md` and the
 firmware under `app/src/` were **read**, never imported or executed.
 
@@ -55,7 +55,7 @@ the id in column two, and no section is headed with a bare id.
    directly.
 2. **This family has the most out-of-registry harnesses in the repo** —
    `run/wr-gate` → `test_adr045_gate.py`, `run/wr-soak` →
-   `test_webradio_soak.py`, `test_webradio_long_soak.py` (no `run/` entry at
+   `test_webradio_soak.py`, `webradio_long_soak.py` (no `run/` entry at
    all), and `run/ae04` → `test_ae04_teardown.py`, which carries `T_AE_04`, an id
    with **no registry entry** (WP-B **B-13**). §7 grades all four as tests. §8
    answers what the M-WEBRADIO close actually proved.
@@ -462,7 +462,7 @@ provided the arena balanced. That is a defensible scope decision, stated in the
 right place; it is also the reason a green `run/wr-soak` is not playback
 evidence.
 
-### 7.3 `test_webradio_long_soak.py` (no `run/` entry point) — **HOLLOW**
+### 7.3 `webradio_long_soak.py` (no `run/` entry point) — **HOLLOW**
 
 **It cannot fail.** `main()` runs to the end of the requested duration, counts
 anomalies, writes a JSON report and returns — there is no `sys.exit(1)` on any
@@ -632,7 +632,7 @@ claimed; **P3** hygiene.
 | **F-8** | **P2** | **All three flake declarations and call sites in this family are mismatched, in both directions — a third instance of WP-C C-7.** `flaky.yaml:72` declares `T_WR_COEX_01` and `:95` declares `T_WR_VOL_03`, and **neither body ever calls `flake()`** — both `fail()` — so `run_with_flake_retry` never fires and the mandated retry never happens. Conversely `T_WR_EJECT_01` **does** call `flake()` and is **not** declared, so `lib/results.flake()` rewrites it to `FAIL: UNDECLARED flake — no entry for T_WR_EJECT_01 …`: a bookkeeping failure message on a TLS assertion. `T_WR_TLS_01` sits in `candidates:`, which is not a declaration. | `flaky.yaml:72-108`, `:159-161`; `webradio.py:429` (the module's only `flake()`); `lib/results.py:175-199`, `:205-233` | Make the two declared ids' failure paths call `flake()` (or delete the declarations — and see **F-4** first, since the declared root cause is probably wrong), and declare `T_WR_EJECT_01` or convert it to `fail()`. |
 | **F-11** | **P2** | **`T_WR_VIS_03` and `T_WR_VIS_05` drive Spotify end to end and are scoped `WebRadio`.** Both are Spotify regression guards (the synthetic VU path; Spotify's tap-cycle never reaching SPECTRUM), and both carry the module-seeded `scope=WebRadio` — no `@meta(...)` appears anywhere in this file. `./run/test-targeted --scope Spotify` therefore misses both. The mechanism exists and is used two modules away (`player.py:1750`, `:1757`). WebRadio instance of WP-E **E-5**. | §0's command output; `webradio.py:1431-1466`, `:1516-1547`; `_meta.py:22`; `player.py:1750` | `@meta(scope="Spotify", scope_reason="cross-mode")` on both. |
 | **F-5** | **P2** | **Fourteen ids select station index 0 and none of them records what station that was.** `get wrStation <idx>` returns name, bitrate and URL and is called by **no** suite file; nor does anything read the country/`bitrateCap` settings that decide the list's content — the cap is a server-side `&bitrateMax=` query parameter, so changing it changes which stations exist at all. Combined with TASK-284 truncation (a 1-station list passes every `count >= 1` gate a 30-station list passes, and `T_WR_TLS_01` annotates truncation into its pass string rather than failing), two runs of this family are not comparable across a settings change, silently. | `webRadioApp.cpp:729-744`; `dataTaskStorage.cpp:1043-1058`; `webradio.py:1174`; no hits for `wrStation`/`bitrateCap` under `app/tools/suite/` | Log `get wrStation 0` (name + bitrate) and the configured cap/country into every fetch-dependent id's pass detail, so a result carries the population it was measured on. |
-| **F-12** | **P3** | **`test_webradio_long_soak.py` is an instrument filed as a test and can never fail.** No verdict line and no non-zero exit on any anomaly path — DUT silence, render freeze, mechanism-stuck and an unexpected boot marker all just increment a counter and write a JSON report while the soak continues. It has no `run/` entry point, so nothing schedules it; but it sits in `app/tools/` under a `test_*` name beside scripts whose exit code *is* the verdict. | `test_webradio_long_soak.py:495-655`; §7.3 | Rename it out of the `test_*` namespace (`probe/` per M-TOOLING, or `wr_recurrence_watch.py`), or give it an exit code and a `run/` entry so its anomalies gate something. |
+| **F-12** | **P3** | **`webradio_long_soak.py` is an instrument filed as a test and can never fail.** No verdict line and no non-zero exit on any anomaly path — DUT silence, render freeze, mechanism-stuck and an unexpected boot marker all just increment a counter and write a JSON report while the soak continues. It has no `run/` entry point, so nothing schedules it; but it sits in `app/tools/` under a `test_*` name beside scripts whose exit code *is* the verdict. | `webradio_long_soak.py:495-655`; §7.3 | Rename it out of the `test_*` namespace (`probe/` per M-TOOLING, or `wr_recurrence_watch.py`), or give it an exit code and a `run/` entry so its anomalies gate something. |
 
 ### 9.5 Hygiene — S10 / S11 / S13
 
@@ -675,7 +675,7 @@ to the verdict count.
 |---|---|
 | SOUND | `test_webradio_soak.py` (`run/wr-soak`), `test_ae04_teardown.py` (`run/ae04`) |
 | WEAK | `test_adr045_gate.py` (`run/wr-gate`) |
-| HOLLOW | `test_webradio_long_soak.py` (no `run/` entry) |
+| HOLLOW | `webradio_long_soak.py` (no `run/` entry) |
 | BROKEN | — |
 
 Worth stating plainly: **the two best-engineered tests in this package's whole

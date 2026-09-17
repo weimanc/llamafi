@@ -555,7 +555,7 @@ Seven registry ids appear in a standalone `app/tools/*.py`. Reading each occurre
 | `T_PLR_13` | `test_fbrowser_player.py` | **YES** — "TASK-416 / T_PLR_13 (**playback half**)" | `test_fbrowser_player.py:2`; registry body `player.py:783` |
 | `T_PLR_25` | `test_playorder_player.py` | **YES** — "TASK-418 / T_PLR_25 (**playback half**)" | `test_playorder_player.py:2`; registry body in `player.py` |
 | `T_PMT_04` | `test_fbrowser_player.py:227`, `test_playorder_player.py:172`, `test_class_order.py:263`, `sd_health_probe.py:5`, `test_triage_context.py` | no — comments and a host-test fixture string | cited lines |
-| `T237` | `test_webradio_long_soak.py:433,482` | no — prose | cited lines |
+| `T237` | `webradio_long_soak.py:433,482` | no — prose | cited lines |
 | `T088` | `coords.py:135` | no — a comment explaining a coordinate | `coords.py:135` |
 | `T_PR_06` | `pr_delta_smoke.py:11` | no — prose | `pr_delta_smoke.py:11` |
 | `T_PLR_20` | `test_playorder_player.py:9` | no — prose naming what the gate covers | `test_playorder_player.py:9` |

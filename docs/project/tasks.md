@@ -1316,7 +1316,7 @@ noticed, before touching anything else — that's the instrumentation this inves
 each time.
 
 **Update (TASK-397 4-hour unattended soak, 2026-08-04, 05:20:40–09:20:55):** ran the purpose-built
-`test_webradio_long_soak.py` v2 (see TASK-397 for its own build history) against the single real
+`webradio_long_soak.py` v2 (see TASK-397 for its own build history) against the single real
 target station (`SLAM! DANCE CLASSICS`, `http://stream.slam.nl/WEB15_MP3`), no Spotify present
 (`cyd2usb_winamp_debug_noSpotify`), `wrAutoSkip` confirmed on throughout. **Result: 14401.9s
 (4h00m02s) elapsed, 0 anomalies, `status=complete`.** `wrState` stayed `2` (PLAYING) for the entire
@@ -1345,7 +1345,7 @@ would move this from "not reproduced" to "confirmed."
 
 **Update (Spotify-present 4-hour soak, 2026-08-04, 11:40:13–15:40:14) — did not reproduce the
 render-freeze, but found a large, separate, well-evidenced connect-reliability finding.** Added a
-`--spotify-present` flag to `test_webradio_long_soak.py` (skips the `set bgPoll 0` disable, leaving
+`--spotify-present` flag to `webradio_long_soak.py` (skips the `set bgPoll 0` disable, leaving
 Spotify's background polling active as a concurrent TLS user — the one condition from the original
 human sighting the noSpotify-build runs above don't cover). Flashed the regular
 `cyd2usb_winamp_debug` build (Spotify enabled, TASK-243's Premium lapse means `bgPoll` is
@@ -1455,7 +1455,7 @@ that the freeze magnitude is real data, not a deferred theoretical.
 
 **Post-TASK-398 soak, 2026-08-05 (2h, Spotify-present, `--spotify-present` flag, SLAM! DANCE
 CLASSICS, `cyd2usb_winamp_debug`) — sixth repro attempt overall, first since TASK-398 landed.**
-Run via `test_webradio_long_soak.py` in the background while unrelated host-side implementation
+Run via `webradio_long_soak.py` in the background while unrelated host-side implementation
 work (TASK-400/401) proceeded in parallel. **Result: 0 anomalies, `status=complete`, 7200s
 elapsed.** `render_age` never climbed in lockstep with `uptime` at any point (the render-freeze
 detector correctly never fired) — same disposition as all five prior attempts, still unreproduced.
@@ -1499,7 +1499,7 @@ going unchecked. The one genuinely missing piece was `_lastAttemptMs` itself —
 field, a live catch couldn't tell whether the terminal-retry gate's `>= WR_TERMINAL_RETRY_MS` term
 was the one holding it back from the other three ANDed conditions. Added `sinceAttemptMs`
 (`millis() - _lastAttemptMs`) to `get wrSkip`'s JSON output — SERIAL_DEBUG-only, zero new static
-storage (computed inline), `run/check` 6/6 clean. `test_webradio_long_soak.py` already snapshots
+storage (computed inline), `run/check` 6/6 clean. `webradio_long_soak.py` already snapshots
 `get wrSkip` on every anomaly capture (line 322), so the next anomaly report picks this field up
 for free with no tool changes. Net effect: the four gating conditions in `tick()`'s terminal-retry
 check (`webRadioApp.h:863-874` — `autoSkip`, `pendingAction`, `state`, elapsed-vs-30s) are now all
