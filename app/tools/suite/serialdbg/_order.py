@@ -448,10 +448,14 @@ EDGE_ADJUDICATION = {
                   "exposure is UNCHANGED by the switch, where before the "
                   "demotion the switch decreased it. Still listed: the order "
                   "sensitivity is a property of the body, not of the class."),
-    "T165": ("ORDER-SENSITIVE",
-             "Requires tbScrollOffset==0 and SKIPs when a predecessor left it "
-             "non-zero. A silent non-result, never a red — the failure mode "
-             "TASK-574 is cataloguing elsewhere."),
+    "T165": ("DISMISSED",
+             "C-19 correction (was ORDER-SENSITIVE): `_tb_precondition` "
+             "(_helpers.py:849) itself calls `_tb_set_offset(dut, 0)` before "
+             "the body's own `baseline != 0` check ever runs, so the body "
+             "establishes its own precondition — the cited `skip()` at "
+             "shell.py:2628-2633 for a predecessor-left-nonzero offset is "
+             "unreachable in registry order. See t165's own cls_reason "
+             "(shell.py) for the same correction."),
     "T173": ("ORDER-SENSITIVE",
              "Needs lastQuoteFetch != 0, i.e. a predecessor must ALREADY have "
              "fetched; SKIPs otherwise. The inverse dependency to T178's, and it "
@@ -700,6 +704,25 @@ EDGE_ADJUDICATION = {
     "T_PR_05": ("DISMISSED",
                 "`set triggerPlaneRadarFetch 1` is the same fire-once action "
                 "shape (planeRadarApp.cpp:229-241)."),
+    # H-15 / H-6 (M-TESTQUAL-H-audit-data-apps-review.md): not scanner-detected
+    # (`_TASK635_INJECTOR_FIELDS`-shaped exclusions and the boot-scoped latch
+    # below are both outside edge_shape()'s regex/AST patterns), added by hand
+    # as one of the "three real dependencies this corpus has" the scanner
+    # cannot see. Registry indices 0-25 (the 26 data-app ids) otherwise carry
+    # no _order.py entries at all.
+    "T_PR_02": ("VACUITY",
+                "`isConnecting()` is `!_everHadResult` (planeRadarApp.h:244,278), "
+                "set true by the first successful poll OR any injection, reset "
+                "only by `init()`/`_setActiveLoc()`. T_PR_01 at index 17 is "
+                "PlaneRadar's first entry, so `init()` runs there; by T_PR_02 at "
+                "18, resume()'s enqueue plus a drained result can pre-satisfy "
+                "`connecting == false` within one tick — on any third-or-later "
+                "entry the term is pre-satisfied outright. What the id proves is "
+                "'a fetch has resolved since boot', not 'within one poll of app "
+                "entry'; the render half of exit criterion 1 has no oracle at "
+                "all (`prAircraftCount` only interpolated into the pass "
+                "string). The same latch is the baseline gate in T_PR_05:180 "
+                "and T_PRM_02:349."),
     "T_WR_EJECT_02": ("DISMISSED",
                        "`get appId` (webradio.py) confirms THIS body's own "
                        "`_webradio_enter_with_stations` call landed — self, not "
