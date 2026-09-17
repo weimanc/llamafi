@@ -682,8 +682,8 @@ void setWebRadioActive(bool active) {
   if (active) s_resetTlsPending = true;
 }
 
-void tlsYield() {
-  if (!s_tlsYieldedSem || !reqQueue) return;
+bool tlsYield() {
+  if (!s_tlsYieldedSem || !reqQueue) return true;
 
   // TASK-287: only the requester that actually flips TLS from running to
   // stopped needs to wait — a concurrent second caller (count already >0,
@@ -694,7 +694,7 @@ void tlsYield() {
   needWait = !s_tlsStopped;
   s_tlsYieldReqCount++;
   portEXIT_CRITICAL(&s_tlsYieldMux);
-  if (!needWait) return;
+  if (!needWait) return true;
 
 #ifdef SERIAL_DEBUG
   dataTask::dbgRingPush(dataTask::RING_YIELD_REQ, (int16_t)s_tlsYieldReqCount);
@@ -722,7 +722,7 @@ void tlsYield() {
 #ifdef SERIAL_DEBUG
       dataTask::dbgRingPush(dataTask::RING_YIELD_ACK, (int16_t)s_tlsYieldReqCount);
 #endif
-      return;
+      return true;
     }
     // TASK-287: a concurrent tlsYield() call already consumed the one give()
     // spotifyTask issues per stop event and set s_tlsStopped — stop waiting
@@ -731,19 +731,32 @@ void tlsYield() {
 #ifdef SERIAL_DEBUG
       dataTask::dbgRingPush(dataTask::RING_YIELD_ACK, (int16_t)s_tlsYieldReqCount);
 #endif
-      return;
+      return true;
     }
     esp_task_wdt_reset();
   }
-  // TASK-697: the 150 s ceiling elapsed with no ack — unlike tlsTryYield()
-  // below, this path does NOT roll back s_tlsYieldReqCount (see the reading
-  // note in the TASK-697 commit): the increment above stands, relying on the
-  // caller's eventual tlsResume() (TlsYieldGuard's destructor always calls
-  // it, unconditionally) to rebalance it. Recorded so a run that hits this
-  // ceiling shows up as a timeout event, not silence.
+  // TASK-700: the 150 s ceiling elapsed with no ack. Previously this path
+  // left s_tlsYieldReqCount incremented forever, relying on TlsYieldGuard's
+  // destructor to unconditionally call tlsResume() and rebalance it — that
+  // assumption is gone now that ok_ reflects this function's real return
+  // value (a failed guard's destructor no longer calls tlsResume() at all).
+  // Roll back the same way tlsTryYield() does below, with the same race
+  // check: the ack can still land in the gap between the last semaphore
+  // check above and here, in which case this caller legitimately holds the
+  // yield and must be treated as a success (no rollback, return true).
+  portENTER_CRITICAL(&s_tlsYieldMux);
+  bool ackedAtTheWire = s_tlsStopped;
+  if (!ackedAtTheWire && s_tlsYieldReqCount > 0) s_tlsYieldReqCount--;
+  uint8_t countAfter = s_tlsYieldReqCount;
+  portEXIT_CRITICAL(&s_tlsYieldMux);
+  if (!ackedAtTheWire) {
+    LOG_W("spotify.tls", "tls yield timed out after 150000ms — ref count rolled back, no yield granted");
+  }
 #ifdef SERIAL_DEBUG
-  dataTask::dbgRingPush(dataTask::RING_YIELD_TIMEOUT, (int16_t)s_tlsYieldReqCount);
+  dataTask::dbgRingPush(ackedAtTheWire ? dataTask::RING_YIELD_ACK : dataTask::RING_YIELD_TIMEOUT,
+                         (int16_t)countAfter);
 #endif
+  return ackedAtTheWire;
 }
 
 // TASK-430: bounded non-blocking sibling of tlsYield() above — same

@@ -174,7 +174,12 @@ size_t stackSizeBytes();
 // task acks (up to 5 s). Must be followed by tlsResume(); the task spins
 // (20 ms ticks) holding the yield until that call.
 // Used by every HTTPS fetch in dataTask (heatmap, crypto, stock quote/chart).
-void tlsYield();
+// TASK-700: returns true if the yield was actually granted (task acked the
+// stop), false if the 150 s ceiling elapsed with no ack. Mirrors
+// tlsTryYield()'s contract below — on false, the ref-count increment made
+// while waiting has already been rolled back, and the caller must NOT call
+// tlsResume().
+bool tlsYield();
 void tlsResume();
 
 // TASK-430: bounded non-blocking variant of tlsYield(). Same ref-counted
@@ -205,7 +210,11 @@ bool    tlsStoppedFlag();
 // compiler instead of by review (TASK-222 found two places review missed it).
 class TlsYieldGuard {
 public:
-    TlsYieldGuard() { tlsYield(); ok_ = true; }
+    // TASK-700: ok_ now encodes tlsYield()'s real success/failure contract,
+    // matching the bounded variant below — previously hardcoded true, which
+    // let the destructor call tlsResume() even after a 150 s timeout with no
+    // ack (a guarded fetcher could then proceed as if it held TLS).
+    TlsYieldGuard() { ok_ = tlsYield(); }
     // TASK-430 bounded variant: on failure, no yield was granted, so the
     // destructor must not resume — ok_ encodes tlsTryYield()'s contract.
     explicit TlsYieldGuard(uint32_t timeoutMs) { ok_ = tlsTryYield(timeoutMs); }
