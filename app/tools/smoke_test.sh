@@ -540,4 +540,20 @@ if ! "$PYTHON" suite/test_busy05_guard.py; then
     exit 1
 fi
 
+# ── TASK-707 — production ELF carries zero SERIAL_DEBUG symbols (T089,
+# docs/verification/test_plan.md), automated: an `nm` over the linked symbol
+# table, not a `strings`/`grep` text scan (see the checker's docstring for
+# why). Negative suite first (BP-068); the live check needs BOTH ELFs already
+# built (cyd2usb_winamp + cyd2usb_winamp_debug, gate 1's env matrix builds
+# both earlier in run/check) and refuses cleanly if either is missing — it
+# never builds, flashes, or opens a serial port itself.
+if ! "$PYTHON" gate/test_check_production_symbols.py; then
+    echo "FAIL: test_check_production_symbols.py (TASK-707 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_production_symbols.py; then
+    echo "FAIL: check_production_symbols.py (TASK-707 / T089 production-symbol gate) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"

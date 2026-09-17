@@ -953,7 +953,7 @@ not forced here.
 - **Preconditions**: Clean `pio run -e cyd2usb_winamp` build completed.
 - **Steps**: `grep -c SERIAL_DEBUG .pio/build/cyd2usb_winamp/firmware.elf` → expect 0. Also verify flash size does not regress vs. pre-M-SERIALDBG baseline (check `pio run` output for flash % used).
 - **Expected result**: Zero SERIAL_DEBUG symbol occurrences in ELF. Flash usage ≤ pre-SERIALDBG baseline + 0.1% (boot line adds `esp_app_get_description()` call — quantify in exit criteria when boot line guard decision is made per ADR-021 AC-4).
-- **Status**: passed (2026-05-17). `strings firmware.elf | grep -c SERIAL_DEBUG` → 0. Flash: 52.8% (1,385,429 B / 2,621,440 B). Owner: VE.
+- **Status**: AUTOMATED (TASK-707). No longer a one-time manual check — `app/tools/gate/check_production_symbols.py` (`nm -C` over the linked symbol table, not a `strings`/`grep` text scan; negative suite `test_check_production_symbols.py`) runs as a `smoke_test.sh` step in every `run/check`. It checks a curated marker-symbol list (debug-console `cmd*` handlers + `dbgTime*`, chosen because their whole definition sits inside one file-spanning `#ifdef SERIAL_DEBUG`) against both `cyd2usb_winamp` (must be 0/N) and `cyd2usb_winamp_debug` (must be N/N, proving the check can tell the builds apart). Original one-time result kept for history: passed 2026-05-17, `strings firmware.elf | grep -c SERIAL_DEBUG` → 0, flash 52.8% (1,385,429 B / 2,621,440 B). Owner: VE.
 
 ---
 
