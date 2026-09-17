@@ -11,6 +11,10 @@
 #   ./run/check-teletext-api
 #
 # Exits 0 on success, 1 on any assertion failure or network error.
+#
+# TASK-614/A-19: does not source run/lib.sh — it's Python, lib.sh is bash,
+# and this script needs none of its DUT/port/monitor helpers anyway (pure
+# host-side HTTP fetch, no board involved).
 
 import sys
 import re

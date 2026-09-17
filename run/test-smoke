@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # run/test-smoke — smoke preset (< 2 min), confirms basic shell health
 # Runs the always-passing subset. Use after any refactor as a quick sanity check.
+#
+# TASK-614/A-19: this list is hand-curated and NOT derivable from the
+# registry's cls/scope metadata — checked 2026-09-17: it's 6 CORE + 5
+# FEATURE ids spanning four different scopes (shell, taskbar,
+# spotify-chrome, Settings). No single cls or scope value picks out this
+# set; it was chosen for fast, reliably-passing coverage of the taskbar/
+# app-switch/settings surfaces a refactor is most likely to disturb, not
+# for membership in one metadata bucket. If that ever stops being true
+# (e.g. a `smoke` scope or a `@meta(smoke=True)` tag gets added), wire it
+# in here instead of hand-editing this string.
 set -euo pipefail
 SMOKE="T080,T083,T091,T092,T133,T147,T148,T162,T-SET-01,T-SET-02,T-SET-08"
 TESTS="$SMOKE" exec "$(dirname "$0")/test-targeted" "$@"

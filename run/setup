@@ -7,6 +7,11 @@ Writes WiFi and/or Spotify credentials to app/data/, then offers
 
 No venv required — stdlib only.
 Redirect URI required in Spotify dashboard: http://127.0.0.1:8888/callback/
+
+TASK-614/A-19: does not source run/lib.sh — it's Python, lib.sh is bash.
+This wizard never opens the serial port itself either (it writes files
+under app/data/ and, at the end, offers to shell out to run/spiffs push,
+which does its own lib.sh sourcing).
 """
 import base64
 import getpass

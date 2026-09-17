@@ -18,6 +18,9 @@
 # this script and host mbedTLS both passed it. A host gate cannot observe a
 # device-side verifier; PATCH-TLS-2 makes the board name its own reason.
 #
+# TASK-614/A-19: does not source run/lib.sh — it's Python, lib.sh is bash,
+# and this preflight is pure host-side TLS/openssl, no port or board touch.
+#
 # ENDPOINTS are DERIVED from the firmware where the firmware has the list —
 # the radio-browser mirrors come from `kRadioBrowserMirrors[]` in
 # dataTaskStorage.cpp, so this table can no longer test mirrors the firmware
