@@ -1,13 +1,19 @@
 # M-HARNESS2 + WP-Z — test-harness remediation programme
 
 > Owner: **Project Manager**
-> Status **2026-09-16**: **Phases 0, 1, 2 COMPLETE. Phase 3 ENTERED on a human waiver** (TASK-575
-> §4 clause 2 short by `T_PLR_15`, `T_WR_TLS_01`), **5/6 rows closed** (604, 592, 605, 635, 636;
-> 594 PARTIAL). **The class-order switch is FLIPPED for `run/test`** (human ruling 2026-09-14 on
+> Status **2026-09-17**: **Phases 0, 1, 2 COMPLETE. Phase 3 CLOSED** (entered on a human waiver,
+> TASK-575 §4 clause 2 short by `T_PLR_15`, `T_WR_TLS_01`); **6/6 rows closed** (604, 592, 605, 635,
+> 636, 594). **The class-order switch is FLIPPED for `run/test`** (human ruling 2026-09-14 on
 > the [interleaved A/B](../verification/regression_suite/task566-interleaved-ab.md): 0 ids worse, 2
 > better; TASK-566 DONE), and TASK-617's exit criteria are met (`T_BI_03` demoted to FEATURE).
-> **Phase 3 exit still owes one clause:** per-family shuffled runs reproducing the canonical verdict
-> set (`clock` does; `player`, `planeradar`, `webradio` do not yet). **TASK-697 is PARKED at P2**
+> **Phase 3's per-family-shuffle clause is CLOSED BY EXCEPTION, not met** (human ruling 2026-09-17):
+> `clock` reproduces the canonical verdict set; `player`, `planeradar`, `webradio` do not, and a
+> second shuffle-seed campaign (2026-09-16/17) traced all three to the same shape — TASK-697/708's
+> unresolved heap issue, not a fixed order-dependence bug. Accepted as a standing exception tracked
+> against TASK-708 rather than a Phase 3 blocker; revisit when TASK-708 closes. **TASK-594 CLOSED**
+> 2026-09-17 (human ruling): `T_WX_04` accepted as standalone/first-in-family-only by design
+> (latched `weatherReady`, never re-armed) — not a defect to keep chasing.
+> **TASK-697 is PARKED at P2**
 > (2026-09-16, the human's stopping condition): heap fragmentation, cause never named, four DUT
 > sessions; its lead is TASK-708. It still costs ~22 Stock ids on a full run when it fires.
 > **Phase 4: 638 DONE, 637 PARTIAL** (shell half DUT-verified; repaint counter unbuilt → TASK-702,
@@ -269,7 +275,7 @@ because it carries a gate's authority.
 | TASK-635 | P2 | **DONE 2026-09-13** (`1a9cbfc6`) — host + DUT (§5 of the design): `get armed`/`set injclear 1` verified; one full run, R14 newly fails 4 ids (`T_PRI_01` prInject, `T_PLR_08/19/24` bgPollOff on fail paths) | armed device state enumerable; boundary check attributes the leak to the arming test — [R14](../verification/M-HARNESS2-requirements.md) |
 | TASK-592 | P2 | **DONE 2026-09-13** (`c5d8ebb`) — `readiness` + `unrestored` shapes, own-body scope; 44 new candidates all adjudicated (split with the old 19: EDGE 1 / ORDER-SENSITIVE 25 / VACUITY 2 / DISMISSED 35). Untracked leaks found → TASK-695 | add the readiness-skip and unrestored-set scanners to the edge enumeration — [B-4](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-636 | P2 | **DONE 2026-09-13** (`c98ed284`) — capability `8b4ac9d`; first pair run on `player` ([record](../verification/regression_suite/task636-first-shuffle-player.md)): 2 candidates (`T_PLR_12`, `T_PLR_06`), one false flag → TASK-699. **2026-09-17: second-seed reruns on `player`/`webradio` show `T_PLR_12`/`T_PLR_06`/`T237` flip by seed, not stable order-dependence — same shape as TASK-697/708's unresolved heap issue, not declared flaky (same reasoning as `T_PR_05` in `flaky.yaml`). `planeradar`'s own canonical runs still disagree with each other (3 runs, no two agree) — R20's per-family exit clause remains unmet for all three non-`clock` families, now understood as one open question (TASK-708) rather than three** | per-family shuffle and the `ORDER-DEPENDENT` outcome — [R20/R21](../verification/M-HARNESS2-requirements.md) |
-| TASK-594 | P2 | **PARTIAL 2026-09-13** (`48b011bd`) — SKIP→`unmet()` naming the predecessor. DUT: `T_CX_04` PASS in family order; `T_WX_04` hit the OTHER skip (`weatherReady=true immediately`), so it still yields no verdict in-suite | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-594 | P2 | **DONE 2026-09-17** (`48b011bd` + doc close-out) — SKIP→`unmet()` naming the predecessor. DUT: `T_CX_04` PASS in family order; `T_WX_04` hit the OTHER skip (`weatherReady=true immediately`), so it still yields no verdict in-suite. **Human ruling 2026-09-17: accepted — `T_WX_04` is standalone/first-in-family-only by design (latched `weatherReady`, never re-armed); not a defect to keep chasing.** `test_plan.md` updated to say so explicitly | two ids whose own predecessors destroy their precondition — [B-3](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-604 | P2 | **DONE 2026-09-13** (`5669705`) — `@meta(scope=…)` on `T_PLR_17`/`18`, `T_WR_VIS_03`/`05`, `T182`; only 5 of the claimed 6 ids exist | six ids drive a different app than their record says — [E-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-605 | P2 | **DONE 2026-09-13** (`4f8f91b`) — DUT: `T_PLR_18` PASS cold and in-suite; transcript re-recorded. `T_WR_ERR_04` already retired (TASK-603) | two ids reach their app only because of what ran before them — [E-11](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 
@@ -349,11 +355,11 @@ reading each row's leading status token, not carried forward.
 | 0 — decisions | 6 | 6 | 0 | ~1 | **DISCHARGED 2026-09-04** |
 | 1 — host-only foundation | 27 | 27 | 0 | ~28.5 | **COMPLETE 2026-09-06** — every exit criterion met; the wall-clock one regressed to 98.8 s on 2026-09-12 and was restored to **70.0 s of 90** by TASK-684 the same day. `run/check-docs` 1.1 s of 15 |
 | 2 — the 80-minute session | 12 | 12 | 0 | ~6 | **COMPLETE 2026-09-12** — session executed 2026-09-07, stop criterion did not fire; the remainder closed 2026-09-12. **No longer gates Phase 3 or 5** |
-| 3 — order and state hygiene | 6 | 5 | 1 | ~7.5 | **ENTERED 2026-09-13 on a human waiver.** 604, 592, 605, 635, 636 DONE; 594 PARTIAL. **TASK-617 exit criteria MET and the switch FLIPPED 2026-09-14** (TASK-566 DONE). Exit still owed: per-family shuffles reproduce the canonical set (`clock` only so far) |
+| 3 — order and state hygiene | 6 | 6 | 0 | ~8.5 | **CLOSED 2026-09-17** (entered 2026-09-13 on a human waiver). 604, 592, 605, 635, 636, 594 all DONE. **TASK-617 exit criteria MET and the switch FLIPPED 2026-09-14** (TASK-566 DONE). **Shuffle clause CLOSED BY EXCEPTION 2026-09-17** (human ruling): only `clock` reproduces the canonical set; `player`/`planeradar`/`webradio` traced to TASK-697/708's heap issue and accepted as a standing exception rather than a blocker — revisit when TASK-708 closes |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
 | rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 18 | 10 | 8 | — | **557 DONE 2026-09-12 — it gates nothing now**; **566 DONE 2026-09-14 — the class-order switch is flipped for `run/test`**; 564/567 remain; **573 CLOSED 2026-09-12 — it was fixed on 2026-09-02 and the row was never reconciled; TASK-566 loses its last named blocker**; 574 is the remaining gate defect; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
-| 5 — ratchets | 18 | 1 | 17 | ~30 | blocked on Phase 3. **610, 614, 615, 672–674 are unblocked** — they do not inherit the phase entry; 671 landed |
-| **total** | **91** | **62** | **29** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
+| 5 — ratchets | 18 | 1 | 17 | ~30 | **Phase 3 closed 2026-09-17, so the phase-entry block is lifted** — not yet started as a phase (no PM entry scheduling it). **610, 614, 615, 672–674 were already unblocked** — they never inherited the phase entry; 671 landed |
+| **total** | **91** | **63** | **28** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
 
 **The phases still ahead are not equally blocked.** Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615/672–674/676 need **nothing but hands**. Everything else

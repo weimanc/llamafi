@@ -1303,14 +1303,25 @@ T_WX_05 requires network access to `api.open-meteo.com` (or current `host_overri
 - **Type**: integration (DUT)
 - **Feature(s)**: weather-001
 - **Objective**: `weatherReady=false` immediately after first switch-in, confirming `"---"` is displayed before dataTask fetch completes.
-- **Preconditions**: Weather app never shown in this DUT session (first switch-in since boot). If `weatherReady` is already true, test SKIPs.
+- **Preconditions**: Weather app never shown in this DUT session (first switch-in since boot). If `weatherReady` is already true, `unmet()`s naming the predecessor (TASK-594) rather than SKIP.
 - **Steps**:
   1. `get weatherReady` → assert `ready=false` (precondition).
   2. Switch to Weather. Immediately `get weatherReady`.
   3. Assert `ready=false`.
 - **Expected result**: `ready=false` at step 3 — pre-fetch state confirmed.
 - **Harness**: `run_serialdbg_tests.py --tests T_WX_04`. Owner: VE.
-- **Status**: written (2026-05-25). Run at start of session for valid precondition.
+- **Status**: written (2026-05-25). **CANNOT PRODUCE A VERDICT IN FULL-SUITE ORDER — accepted 2026-09-17
+  (TASK-594, human ruling).** `weatherReady` is a one-way latch never re-armed
+  (`weatherApp.h`), and its own family predecessors `T_WX_01`/`T_WX_03` always visit
+  Weather first in registry order, so this id's precondition is always already gone by
+  the time it runs. TASK-594 fixed the *reporting* of that case (`unmet()`, not a
+  false-green `skip()` — see `_order.EDGE_ADJUDICATION["T_WX_04"]`), but a DUT check
+  (2026-09-13) showed the id can also exit through its *other* SKIP branch
+  (`weatherReady=true immediately` — the fetch legitimately outran the check), so a
+  full-suite run never actually reaches step 3's assertion either way. **Only verifiable
+  standalone or first in its family**: `run/test-targeted T_WX_04` (alone, or
+  `SCOPE=... T_WX_04,T_WX_01,...` with T_WX_04 ordered first). Not a defect to keep
+  chasing — the same accepted-limitation treatment as its crypto sibling `T_CX_04`.
 
 ### T_WX_05 — [weather-001] Weather data arrives from dataTask
 
