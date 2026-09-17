@@ -206,3 +206,18 @@ all. It is not a fix: it made everything else fail faster and more often, and th
 its own terms. A real fix would have to own the span for the TLS client's lifetime rather than
 gamble on re-acquiring it — a pooled/preallocated mbedTLS buffer, sized from
 `app/mem_manifest.yaml`, decided in an ADR, not a probe flag. Filed as TASK-708.
+
+### Corroborating evidence, 2026-09-16/17 (TASK-636 shuffle campaign, no new DUT session)
+
+Three more ids surfaced the same shape while running the (unrelated) per-family shuffle campaign
+for R20 — not a new probe, just ordinary DUT test runs that happened to land on it:
+
+- `T_PLR_12` — its own failure text is a heap-residual check ("heap did not return to baseline"),
+  and it flipped PASS (seed 42) / FAIL (seed 7) purely by which ids ran immediately before it.
+- `T_PLR_06` — one leg's only failure mode is the same tlsYield-timing symptom as the
+  already-declared-flaky `T_PLR_07`.
+- `T237` — raised a bare comms `TimeoutError` under one shuffle seed only, not the other.
+
+None of these were declared flaky (deliberately — same reasoning `flaky.yaml` already applied to
+`T_PR_05`: retrying would launder the evidence). Full detail:
+[task636-first-shuffle-player.md](task636-first-shuffle-player.md).

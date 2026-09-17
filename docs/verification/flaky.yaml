@@ -258,3 +258,21 @@ candidates: []
 #               TASK-697 wedges fetches. That is an order/timing defect with an
 #               owner; declaring it a flake would retry it into a FLAKY-PASS and
 #               hide TASK-697's clearest symptom.
+#
+# Same ruling extended 2026-09-17 (TASK-636 second-shuffle campaign) to three
+# more ids, on the same reasoning as T_PR_05 above — NOT declared:
+#   T_PLR_12    FAILs on a heap-residual check ("heap did not return to
+#               baseline"); PASSed under seed 42, FAILed under seed 7 — flips
+#               by permutation, not a fixed regression, but the failure text
+#               is TASK-708's own symptom shape (no contiguous span owned for
+#               the client's lifetime). Owned by TASK-708.
+#   T_PLR_06    One leg's only failure mode ("no TLS-reset log line within
+#               8s") is the same underlying tlsYield timing as the already-
+#               declared T_PLR_07 — but declaring it here would retry away
+#               TASK-708's evidence exactly like T_PR_05 would. Owned by
+#               TASK-708.
+#   T237        Raised a bare comms TimeoutError under seed 42 only (PASS at
+#               position 16 -> TimeoutError at position 5), consistent with
+#               the same post-activity heap pressure. Owned by TASK-708.
+# See docs/verification/regression_suite/task636-first-shuffle-player.md and
+# docs/verification/regression_suite/task697-reboot-inject-stock.md.
