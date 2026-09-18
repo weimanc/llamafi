@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """test_check_gating_offline.py — the negative suite for TASK-626 / R36.
 
-BP-068. Three subjects, and the middle one is the reason this file is long:
+BP-068. Four subjects, and the middle two are the reason this file is long:
 
   A. the checker FIRES on each of the four dependences, through a HELPER — the
      shape a body-level grep misses and the only reason the closure walk exists.
@@ -17,6 +17,11 @@ BP-068. Three subjects, and the middle one is the reason this file is long:
      A gate that cannot be shown to stay quiet is a gate that will be turned off.
   C. the live tree — the eight ids, the zero, and the ledger arithmetic — so the
      numbers in the ledger document are the gate's own and cannot drift from it.
+  D. the RUNTIME arm (TASK-674): synthetic transcripts exercise the same three
+     properties R36's requirements-doc rulings insist on for a runtime gate —
+     fires on a genuine recorded dependence, stays quiet on a clean recording
+     and on a FEATURE id, and a stale ledger row over a (now-clean) runtime
+     finding is itself a failure, exactly like the static arm's C3.
 
 No DUT, no serial port, no network.
 
@@ -36,6 +41,8 @@ sys.path.insert(0, TOOLS)
 sys.path.insert(0, HERE)
 
 import check_gating_offline as C                                    # noqa: E402
+from lib import replay as RP                                        # noqa: E402
+from app_ids_gen import APP_SLOT                                    # noqa: E402
 
 FAILURES: list = []
 
@@ -264,10 +271,128 @@ def test_ledger_and_live():
           "outside world", len(ids) == 0, ids)
 
 
+def _transcript(tid, cmds):
+    """A minimal Transcript with one exchange per `cmds` entry, in order."""
+    t = RP.Transcript(tid, elf="deadbeef", build_env="test", recorded_at="now",
+                      gen="0")
+    for cmd in cmds:
+        t.add(cmd, ["{\"ok\":true}"])
+    return t
+
+
+def _dump(tmpdir, transcripts: dict):
+    for tid, t in transcripts.items():
+        t.save(os.path.join(tmpdir, f"{tid}.json"))
+
+
+def test_runtime_arm():
+    print("D. the runtime arm (TASK-674)")
+
+    # D1: a genuine recorded dependence FIRES — no closure, read straight off
+    # the transcript's own command set.
+    tmp = tempfile.mkdtemp(prefix="gateoff_rt_")
+    try:
+        _dump(tmp, {"T-RT-01": _transcript(
+            "T-RT-01", ["get shellBusy", "get chartLen", "tap 10 10"])})
+        transcripts, errs = C.load_transcripts(tmp)
+        check("D1a: the transcript loads with no errors", errs == [], errs)
+        meta = {"T-RT-01": {"cls": "CORE"}}
+        found = C.runtime_findings(meta, transcripts)
+        check("D1b: a recorded `get chartLen` fires network-key",
+              [k for k, _t, _m in found] == ["network-key"], found)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # D2: the clean case — no network key or app switch anywhere in the
+    # recording — stays quiet.
+    tmp = tempfile.mkdtemp(prefix="gateoff_rt_")
+    try:
+        _dump(tmp, {"T-RT-02": _transcript(
+            "T-RT-02", ["get shellBusy", "tap 10 10",
+                        f"switchApp {APP_SLOT['Clock']}"])})
+        transcripts, _ = C.load_transcripts(tmp)
+        found = C.runtime_findings({"T-RT-02": {"cls": "CORE"}}, transcripts)
+        check("D2: a clean recording (incl. a switch to a PASSIVE app) is quiet",
+              found == [], found)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # D3: `switchApp <slot>` resolved through the SAME codegen the firmware and
+    # suite use (`app_ids_gen.APP_SLOT`), not a hand-kept name table — fires
+    # when the slot names a NETWORK_APPS app.
+    tmp = tempfile.mkdtemp(prefix="gateoff_rt_")
+    try:
+        _dump(tmp, {"T-RT-03": _transcript(
+            "T-RT-03", [f"switchApp {APP_SLOT['Weather']}"])})
+        transcripts, _ = C.load_transcripts(tmp)
+        found = C.runtime_findings({"T-RT-03": {"cls": "HEALTH"}}, transcripts)
+        check("D3: a recorded switchApp to Weather fires network-app",
+              [k for k, _t, _m in found] == ["network-app"], found)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # D4: a FEATURE id may depend on whatever it likes — same rule as B2, at
+    # runtime.
+    tmp = tempfile.mkdtemp(prefix="gateoff_rt_")
+    try:
+        _dump(tmp, {"T-RT-04": _transcript("T-RT-04", ["get chartLen"])})
+        transcripts, _ = C.load_transcripts(tmp)
+        found = C.runtime_findings({"T-RT-04": {"cls": "FEATURE"}}, transcripts)
+        check("D4: a FEATURE id's recorded network key is not policed",
+              found == [], found)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # D5: an id with NO transcript contributes nothing — it is a census line
+    # (UNRECORDED), never a finding. `runtime_findings` must not synthesise
+    # one from meta alone.
+    found = C.runtime_findings({"T-RT-05": {"cls": "CORE"}}, {})
+    check("D5: an unrecorded gating id is not a finding", found == [], found)
+
+    # D6: a runtime-only finding is caught by the SAME ledger/evaluate path as
+    # the static arm — one requirement, one ledger, not a parallel mechanism.
+    rt_found = [("network-key", "T-RT-06", "…")]
+    check("D6a: an unledgered runtime finding fails",
+          len(C.evaluate(rt_found, {})[0]) == 1, C.evaluate(rt_found, {}))
+    led = {("network-key", "T-RT-06"): "l:1"}
+    check("D6b: a ledgered runtime finding passes",
+          C.evaluate(rt_found, led)[0] == [], C.evaluate(rt_found, led))
+
+    # D7: a stale ledger row over a runtime finding that no longer occurs is
+    # itself a failure — the ledger can only shrink, same as C3.
+    check("D7: a stale row for a runtime-only kind fails as STALE",
+          len(C.evaluate([], led)[0]) == 1, C.evaluate([], led))
+
+    # D8: a transcript file whose recorded id does not match its filename is
+    # refused by the loader (same shape check_can_go_red's loader makes).
+    tmp = tempfile.mkdtemp(prefix="gateoff_rt_")
+    try:
+        _transcript("T-WRONG-ID", ["get chartLen"]).save(
+            os.path.join(tmp, "T-RT-08.json"))
+        transcripts, errs = C.load_transcripts(tmp)
+        check("D8: a filename/id mismatch is refused, not silently accepted",
+              transcripts == {} and len(errs) == 1, (transcripts, errs))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # D9: the live corpus's runtime arm is clean against the shipped ledger —
+    # same invariant as C11, for the mechanism that reads transcripts instead
+    # of source.
+    live_meta = C._load_meta()
+    live_transcripts, live_errs = C.load_transcripts()
+    check("D9a: the shipped transcript corpus loads with no errors",
+          live_errs == [], live_errs)
+    live_rt = C.runtime_findings(live_meta, live_transcripts)
+    ledger, _ = C.parse_ledger()
+    check("D9b: the live runtime arm is clean against the shipped ledger",
+          C.evaluate(live_rt, ledger)[0] == [], C.evaluate(live_rt, ledger)[0])
+
+
 def main():
     test_fires()
     test_stays_quiet()
     test_ledger_and_live()
+    test_runtime_arm()
     print()
     if FAILURES:
         print(f"FAIL: test_check_gating_offline.py — {len(FAILURES)} arm(s) "

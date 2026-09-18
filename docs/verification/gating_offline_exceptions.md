@@ -44,8 +44,17 @@ have not been taken.
 
 ## What the gate looks at
 
-For each gating id it walks the body and every same-package helper it reaches, and reports four
-kinds. The closure walk is the point — every id below reaches its dependence through a helper
+**Two arms since 2026-09-19 (TASK-674), one ledger.** The static arm below is the original: a
+closure walk over the body's call graph. The **runtime arm** asks N1 and N3 of the id's *recorded*
+command set instead — `app/tools/suite/serialdbg/transcripts/<id>.json`, the literal commands the
+body issued and got answered on a healthy run — so neither a hand-kept list nor an
+over-approximating closure stands between the question and the evidence. It reads **zero** on the
+current corpus (17 of 24 gating ids recorded; the other 7 are a census line, never a finding — a
+host gate cannot demand a board session). Both arms share this ledger, one `(kind, id)` key space
+and one exit code. Mechanism and its stated residual: `app/tools/gate/check_gating_offline.py:51`.
+
+For each gating id the static arm walks the body and every same-package helper it reaches, and
+reports four kinds. The closure walk is the point — every id below reaches its dependence through a helper
 (`_wait_chart_complete`, `_poll_chart_len_positive`, `_stock_ok_count`, `wait_for_queue`), so a grep
 over the body sees none of them. That is how seven CORE ids became network-dependent with nobody
 writing it down.
