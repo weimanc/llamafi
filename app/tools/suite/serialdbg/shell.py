@@ -3988,22 +3988,18 @@ def t_err_02(dut: Dut):
     if not _restore_spotify(dut):
         skip("T-ERR-02", "could not restore Spotify"); return
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    with _bgpoll_suspended(dut):
-        dut.cmd("set lastHttp 403")            # 403 poll → Spotify error
+    with _bgpoll_suspended(dut), dut.injected("lastHttp", 403, clear_to=200):
         before = _get_active_error(dut)        # Spotify active → active true
         r_away = dut.cmd(f"switchApp {APP_SLOT['Clock']}")  # offline, hasError()==false
         if not r_away.get("ok"):
-            dut.cmd("set lastHttp 200")
             skip("T-ERR-02", f"switchApp Clock failed: {r_away}"); return
         time.sleep(0.4)
         away = _get_active_error(dut)          # active false, but spotifyAuthError still true
         r_back = dut.cmd(f"switchApp {APP_SLOT['Spotify']}")  # back to Spotify
         if not r_back.get("ok"):
-            dut.cmd("set lastHttp 200")
             skip("T-ERR-02", f"switchApp Spotify failed: {r_back}"); return
         time.sleep(0.4)
         back = _get_active_error(dut)          # active true again (state survived)
-        dut.cmd("set lastHttp 200")            # restore
     _restore_spotify(dut)
     ok = (before.get("active") is True
           and away.get("active") is False and away.get("spotifyAuthError") is True
