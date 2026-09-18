@@ -14,6 +14,27 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. **Last archive pass: 2026-08-15** — 80 closed entries / 7 561 lines swept out, and the M-WINAMP-PLAYER board split into its own file (see below). `tasks.md` went 9 787 → ~1 200 lines. Verified: 480 distinct task ids across the three files, no duplicates, none lost. Note for the next pass: result/resolution sub-sections are `###`-level in this project and must travel with their parent task — splitting on heading level alone orphans them. Prior pass: 2026-08-07 (moved 7 fully-closed milestone sections — M-CERT-ERRCODE remainder, M-APP-ORDER, M-WEBRADIO-WINAMP-UI, M-WEBRADIO-REAL-VIS, M-PR-LOCATIONS, M-MEMPLAN hygiene, M-CEEFAX — 2,513 lines — see archive file for the batch note). Prior pass: 2026-07-12 (TASK-143..313 range, 149 entries).
 
+> **PM sync 2026-09-17/18 (orchestrated subagent chain, human-directed, one at a time).** 30 commits
+> landed on master, all gates green throughout (`check_docs` 7/7, `check_board_currency` clean).
+> **DONE**: TASK-707 (T089 automated via `nm`), TASK-700 (`TlsYieldGuard` bool contract — filed
+> TASK-709 for the identical pattern in `fetchPlaneRadar()`, not fixed under this task's scope),
+> TASK-696 (argparse `%` sweep + gate), TASK-698 (`_TeeSerial` reboot-mislabeling fix), TASK-704
+> (`kCasRetryCookie` triple-mirror dedupe), TASK-693 (triaged with real evidence — filed TASK-710/711
+> with concrete leads, not just re-filed). **PARTIAL**: TASK-615 (4/7 named fixes landed, 3 correctly
+> deferred with reasons — one needs extending a closed vocabulary, one needs a 7-step retirement
+> process out of scope, one is a human call), TASK-614 (4/5 landed, 1 correctly flagged as a
+> different task's stale ruling rather than executed under this one), TASK-703 (identity guard
+> extended to Stock/Teletext/PlaneRadar/Clock's `set` path — the highest-stakes change of the
+> session, no DUT to verify against, independently reviewed against real test-suite evidence before
+> trusting it; 2 keys left honestly `UNRESOLVED`). **DESIGNED + VE-reviewed**: TASK-708 (rejected —
+> its own OQ1 diagnostic ran on real hardware, permanent-reserve 8/8 FAIL vs 1/8 control), TASK-706
+> (ready for sign-off), TASK-702 (a genuine scope conflict between two already-made ADR decisions,
+> not a technical pick — needs a human ruling among 4 named options). TASK-610 correctly left
+> untouched: its own cost estimate names a DUT run this session didn't have. Two self-caught process
+> lessons worth keeping: `check_board_currency.py` is a SEPARATE gate from `check_docs.py` and must
+> be run explicitly after every board edit (missed once, fixed after); `run/flash-debug` rebuilds
+> internally, so a custom `PLATFORMIO_BUILD_FLAGS` must be exported in the SAME command as the flash
+> call or it silently reflashes without the flag.
 > **PM sync 2026-09-09 (the Fable credit session, items 1–4 of the human's hard list).** Landed on
 > master, all gates green: **TASK-671** R34 at runtime (`check_can_go_red.py`, 193 transcripts, 9-row
 > ledger) with the four-static-gates design and TASK-672/673/674 filed; **TASK-641** falsifier
@@ -218,7 +239,7 @@ the board to re-derive what is already written down.
 | TASK-703 | P2 | **PARTIAL — key-by-key review done both paths** | `get`'s Spotify/WebRadio/LocalPlayer gap was already covered by existing player-slot exceptions (documented). `set` now guards Stock/Teletext/PlaneRadar + Clock's style/theme keys; player-slot apps documented as exceptions. fmt24h/dateFmt left `UNRESOLVED` — see commit. |
 | TASK-704 | P3 | **DONE 2026-09-17** | `kCasRetryCookie` exported to new `debug/casRetry.h`, all 3 sites now include it (`65080cdc`). |
 | TASK-705 | P2 | **PARTIAL 2026-09-14** — gate at zero. DUT: `T_TLS_01`, `T_SBK_01`, `T_PR_07`, `T_SQI_01` PASS; `T_TLS_02`/`T_DTQ_01` UNMET (wedge missed the yield path). can-go-red: `T_TLS_01`/`T_SQI_01`/`T_PR_07` never red by assertion; transcripts held. `bgPoll 0` ≠ idle |
-| TASK-706 | P3 | **DESIGN PROPOSED 2026-09-17, VE-reviewed, READY for sign-off** — [design](../architecture/designs/M-DATATASK-result-staleness-rule.md) | dataTask result for a switched-away app has no stated rule (no discard/coalesce). Write the rule (ADR-level), then the primitive test. |
+| TASK-706 | P3 | **REVISED 2026-09-18** after independent Opus review found v1 NOT READY — [design](../architecture/designs/M-DATATASK-result-staleness-rule.md) now READY (drain-at-resume, not time-bound) | dataTask result for a switched-away app has no stated rule (no discard/coalesce). Write the rule (ADR-level), then the primitive test. |
 | TASK-707 | P3 | **DONE 2026-09-17** (`a965ab4d`) | T089 automated: `gate/check_production_symbols.py` runs `nm -C` over cyd2usb_winamp's linked symbols (curated marker list, not `strings`/grep), sanity-checked against cyd2usb_winamp_debug, wired into `smoke_test.sh`. |
 | TASK-708 | P2 | **REJECTED 2026-09-17** — [design](../architecture/designs/M-DATATASK-tls-buffer-lifetime.md) | own a contiguous TLS buffer for the client's lifetime, ADR-level — TASK-697's lead |
 | TASK-709 | P2 | **OPEN — filed 2026-09-17** | `fetchPlaneRadar()` (`dataTaskStorage.cpp:1680`) discards raw `tlsYield()`'s bool, then unconditionally `tlsResume()`s at `~1825` — same stranded-yield pattern TASK-700 fixed in `TlsYieldGuard`. Needs a DUT-verified fallback decision on yield failure; out of TASK-700's scope. |
