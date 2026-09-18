@@ -14,6 +14,27 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. **Last archive pass: 2026-08-15** — 80 closed entries / 7 561 lines swept out, and the M-WINAMP-PLAYER board split into its own file (see below). `tasks.md` went 9 787 → ~1 200 lines. Verified: 480 distinct task ids across the three files, no duplicates, none lost. Note for the next pass: result/resolution sub-sections are `###`-level in this project and must travel with their parent task — splitting on heading level alone orphans them. Prior pass: 2026-08-07 (moved 7 fully-closed milestone sections — M-CERT-ERRCODE remainder, M-APP-ORDER, M-WEBRADIO-WINAMP-UI, M-WEBRADIO-REAL-VIS, M-PR-LOCATIONS, M-MEMPLAN hygiene, M-CEEFAX — 2,513 lines — see archive file for the batch note). Prior pass: 2026-07-12 (TASK-143..313 range, 149 entries).
 
+> **PM sync 2026-09-18 (DUT verification + two independent-review catches, same day as the chain
+> above).** TASK-706's design was itself revised once — an independent Opus/Architect review found
+> its first draft's mechanism wrong (severity mischaracterized, no design-space section, a live
+> counterexample to its own stated escape hatch) before any human saw it — then accepted and
+> implemented: PlaneRadar/Weather/Crypto/Stock quote+chart `resume()`-drain, Teletext page-identity
+> check, both firmware envs build clean. DUT-verified the same day: `T_PR_08` failed once on a
+> guessed firmware value (fixed to match `T_PR_05`'s already-proven pattern), then passed — but the
+> pass was investigated rather than trusted (its own output showed the forced-fail credits were
+> never consumed), which surfaced an apparent P1 board-wedging bug, filed as **TASK-712**. A second
+> independent review, requested BEFORE any DUT time was spent on TASK-712's own pre-registered
+> protocol, found the wedge's premise was never established — `inFlightMs`, a field already
+> captured but never checked, proves mechanically (given `taskBody()`'s strictly serial dispatch)
+> that no single call could have been stuck. Downgraded same-day, P1→P3, **zero DUT time spent
+> chasing a bug that most likely never existed**. TASK-706 itself lands as PARTIAL-DUT, not DONE —
+> its own primitive test's away-window was too short to actually observe the drain it exists to
+> test, wedge or no wedge. TASK-703 also reached PARTIAL this session (both `get`/`set` guard paths
+> reviewed; 2 keys — `fmt24h`/`dateFmt` — left honestly `UNRESOLVED`, no precedent to check them
+> against). Net: two separate independent-review catches in one day, both before a human was asked
+> to sign off on the thing being caught — a design error and a false-alarm bug report. Full trail:
+> TASK-706/712's rows and linked docs; `docs/verification/task712-planeradar-wedge-protocol.md`
+> keeps the record of the false alarm and how it was caught, not deleted once resolved.
 > **PM sync 2026-09-17/18 (orchestrated subagent chain, human-directed, one at a time).** 30 commits
 > landed on master, all gates green throughout (`check_docs` 7/7, `check_board_currency` clean).
 > **DONE**: TASK-707 (T089 automated via `nm`), TASK-700 (`TlsYieldGuard` bool contract — filed

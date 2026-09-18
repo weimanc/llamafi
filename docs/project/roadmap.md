@@ -1665,13 +1665,31 @@ therefore lifted** (not yet scheduled as a phase, but no longer gated). Full det
 this paragraph is a pointer, not a repeat.
 
 **Blocked on:** nothing, at the phase level — TASK-557 closed 2026-09-12 (DUT1's micro-USB
-connector, EXP-039) and Phase 3's own blocker discharged as above. Live open threads needing a human
-call: **TASK-706** (a dataTask result-staleness rule, designed + VE-reviewed, ready for sign-off),
-**TASK-702** (ADR-063 D4's repaint signal — a genuine scope conflict between two already-made
-decisions, not a technical pick, [note](../architecture/designs/M-SHELL-repaint-signal-scope-tension.md)),
-and **TASK-610** (a 26→11 test-id consolidation whose own cost estimate names a DUT run not yet
-scheduled). Phase 4's render half shipped 2026-09-09 (TASK-638, ADR-064 as built); its guard-gap half
-(TASK-703) landed 2026-09-17 with 2 keys left honestly `UNRESOLVED` rather than guessed. **Deps:**
+connector, EXP-039) and Phase 3's own blocker discharged as above.
+
+**Status 2026-09-18 update — TASK-706 implemented and DUT-verified for real, not just designed;
+one false alarm caught and corrected same-day.** TASK-706's design was itself revised once
+(an independent Opus/Architect review found its first draft's mechanism wrong before any human saw
+it — see the design doc's own revision history) before being accepted and implemented across
+PlaneRadar/Weather/Crypto/Stock quote+chart (`resume()`-drain) and Teletext (page-identity check).
+DUT-tested the same day: its primitive test (`T_PR_08`) failed on first run on a guessed firmware
+value, was fixed to match an already-proven pattern, then passed — but the pass was investigated
+rather than trusted, which surfaced what looked like a P1 board-wedging bug (`TASK-712`,
+`dataTask` apparently stuck for 300s+). **A second independent review, requested before any DUT
+time was spent on the wedge, found the premise was never actually established** by the evidence
+cited for it, using a field already captured but never checked (`inFlightMs`) — re-deriving its raw
+values proved mechanically that no single call could have been stuck, and the finding was
+downgraded same-day with zero DUT time spent chasing a bug that most likely never existed. Net for
+the night: real firmware behavior change, DUT-verified as far as time allowed, with both a design
+error and a false alarm caught by independent review before either reached a human sign-off
+decision — full trail in `tasks.md`'s TASK-706/712 rows and their linked docs.
+
+Live open threads still needing a human call: **TASK-702** (ADR-063 D4's repaint signal — a genuine
+scope conflict between two already-made decisions, not a technical pick,
+[note](../architecture/designs/M-SHELL-repaint-signal-scope-tension.md)), and **TASK-610** (a 26→11
+test-id consolidation whose own cost estimate names a DUT run not yet scheduled). Phase 4's render
+half shipped 2026-09-09 (TASK-638, ADR-064 as built); its guard-gap half (TASK-703) is PARTIAL
+(both `get`/`set` paths reviewed, 2 keys left honestly `UNRESOLVED` rather than guessed). **Deps:**
 M-TESTARCH · **Risk:** the same one M-TESTARCH carries and it is now demonstrated rather than
 theorised — the instrument under repair produced four days of green gates while two of its own
 headline mechanisms were dead.
