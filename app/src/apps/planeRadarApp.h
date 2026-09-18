@@ -296,7 +296,10 @@ private:
     unsigned long _lastGoodMs     = 0;
     long          _lastAgeDrawSec = -1;
     char          _lastAction[16] = {};
-    uint8_t       _locEpoch       = 0;   // VE-PRL-6: bumped by _setActiveLoc(), echoed via enqueuePlaneRadar()
+    uint8_t       _locEpoch       = 0;   // VE-PRL-6: bumped by _setActiveLoc(); also on every
+                                          // resume() (TASK-706) as a belt-and-suspenders reject
+                                          // of a pre-suspend fetch landing late. Echoed via
+                                          // enqueuePlaneRadar().
 
     dataTask::PlaneRadarResult _result;
     PrRendered _prev[dataTask::PR_MAX_AIRCRAFT];

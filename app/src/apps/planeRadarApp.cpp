@@ -15,6 +15,21 @@ void PlaneRadarApp::init() {
 }
 
 void PlaneRadarApp::resume() {
+    // TASK-706 (M-DATATASK-result-staleness-rule, rule item 1): drain any
+    // PlaneRadarResult parked in the mailbox from before this resume() —
+    // mirrors stockApp.cpp's triggerFetch drain exactly — and bump
+    // _locEpoch so that even a fetch that lands a moment later, answering a
+    // request issued before suspend, is rejected by the existing epoch
+    // check in tick() (belt and suspenders: this is the correctness-bearing
+    // case, not merely cosmetic — see the design doc's Severity section).
+    // Must run before _applyRangeSetting()/_requestFetch() below so the new
+    // epoch is what gets echoed into the fetch this resume() (re-)enqueues.
+    {
+        dataTask::PlaneRadarResult stale;
+        dataTask::pollPlaneRadar(&stale);
+    }
+    _locEpoch++;
+
     // Bug found 2026-07-11 (TASK-308 fix 2): range is the one g_settings.pr*
     // field that was cached (_presetIdx) and only re-applied in init(), not
     // resume() — see _applyRangeSetting(). Mirrors AquariumApp::resume()'s
