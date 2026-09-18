@@ -5498,6 +5498,18 @@ for it. Written host-side, no DUT run yet — see TASK-705's tasks.md row.
 - **Harness**: `run/test-targeted T_PR_07`. Owner: VE.
 - **Status**: written (2026-09-14), DUT-unverified.
 
+### T_PR_08 — [planeradar-001] resume() drain discards a pre-switch dataTask result
+
+- **Type**: integration (DUT)
+- **Feature(s)**: planeradar-001
+- **Objective**: TASK-706 primitive test for `docs/architecture/designs/M-DATATASK-result-staleness-rule.md` rule item 1 — a `PlaneRadarResult` that parks in the dataTask mailbox while PlaneRadar is suspended must be drained-and-discarded by the next `resume()`, not popped and rendered as fresh by the first post-resume `tick()`.
+- **Preconditions**: can switch to PlaneRadar; `prForceParseFail`/`triggerPlaneRadarFetch` present (TASK-361).
+- **Steps**: 1. Switch to PlaneRadar. 2. `set prForceParseFail 3` (arms a fully network-free synthetic fetch/retry/retry2 cascade, `errorCode=-92`). 3. `set triggerPlaneRadarFetch 1` to fire it immediately. 4. Switch away to Spotify right away, before this session's own `tick()` can drain it — the request is still processed by dataTask in the background and parks in the mailbox while suspended. 5. Wait ~2s. 6. Switch back to PlaneRadar. 7. `get prLastHttp`.
+- **Expected result**: `prLastHttp` is not `-92` after the away-and-back — the pre-switch forced-fail result was not surfaced as this session's answer.
+- **Known gaps, named honestly**: does not assert the design doc's other two PlaneRadar-specific checks (age readout not reading "0s"; `_locEpoch` changing across resume) — neither has an existing `dbgGet` exposure, and adding one was judged out of this test's scope (TASK-706 asked for the rule plus one primitive test, not new instrumentation). The `prLastHttp` check is used as the observable proxy for both the drain and the epoch-bump's effect. Also carries an acknowledged (not eliminated) ordering race between arming the synthetic fetch and switching away — see the test body's own comment for the reasoning.
+- **Harness**: `run/test-targeted T_PR_08`. Owner: VE.
+- **Status**: written (2026-09-18), **never run — no DUT/serial access in the environment that wrote it**. Host-syntax-checked only (`ast.parse`); do not treat as DUT-verified until an actual run records a result.
+
 ### T_SQI_01 — [stock-001] Stock quote fetch completes with Spotify provably idle
 
 - **Type**: integration (DUT)

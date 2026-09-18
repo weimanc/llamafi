@@ -585,6 +585,138 @@ def t_pr_07(dut: Dut):
                      "of prClearInject 1")
 
 
+# ── T_PR_08 — resume() drain discards a pre-switch dataTask result ──────────
+# TASK-706 primitive test
+# (docs/architecture/designs/M-DATATASK-result-staleness-rule.md, rule item
+# 1 / "The primitive test"). NEVER RUN AGAINST REAL HARDWARE: this id was
+# written, host-syntax-checked (ast.parse) and registered below in the same
+# pass as the resume()-drain fix it exercises, but this environment has no
+# DUT/serial access — PASS/FAIL has never been observed. Treat it as
+# "written, host-syntax-checked, never executed", not as verified.
+#
+# WHY PLANERADAR: of the five types the design's rule covers (PlaneRadar,
+# Teletext, Weather, Crypto, Stock quote/chart), PlaneRadar is the only one
+# with an existing test hook that lands a result in the REAL dataTask
+# mailbox without live network — `set prForceParseFail <n>` (TASK-361) forces
+# prFetchOnce()'s entire fetch/retry/retry2 cascade to report a synthetic
+# ok=false/errorCode=-92 result (dataTaskStorage.cpp's "FORCED synthetic
+# parse failure" branch), and `set triggerPlaneRadarFetch 1` fires it
+# immediately instead of waiting out the poll cadence. This is NOT the same
+# as `prInjectAircraft`/T_PR_06's `_injected` flag — that bypasses
+# pollPlaneRadar()/tick()'s fetch path entirely (planeRadarApp.cpp:37/52
+# guard on `!_injected`), so it would never reach resume()'s drain no matter
+# what the drain does. Weather/Crypto/Stock quote/chart have no equivalent
+# network-free mailbox injector at all (only debugInjectGeocode()/
+# debugInjectWebRadioResult() exist, and Geocode/WebRadio are explicitly out
+# of this design's scope) — a test for one of those types would have to wait
+# on a real fetch, same as T_WX_05/T_PR_02 already do elsewhere in this
+# suite, which is a fine pattern here but not a *cleaner* injection surface
+# than PlaneRadar's forced-parse-fail hook.
+#
+# ORDERING RACE, ACKNOWLEDGED NOT ELIMINATED: the forced result must land in
+# the mailbox AFTER we've switched away (so it parks, undrained, exactly the
+# scenario the design's rule is about) rather than before (where
+# PlaneRadarApp::tick(), still running because we're still the active app,
+# would just poll and consume it immediately like any ordinary fetch,
+# proving nothing about resume()'s drain). The switch-away command is sent
+# immediately after arming+firing the synthetic fetch; the forced path has
+# no network RTT, so in practice the enqueue is still sitting in dataTask's
+# queue (not yet serviced) when the switch lands. Same category of
+# best-effort timing T_PR_07 above already accepts for its own injection.
+#
+# NOT ASSERTED HERE (design doc also asks for these, but no debug surface
+# exists to observe them, and none is being added as part of this test):
+#   - "the age readout does not read 0s for a result predating the switch"
+#     — the on-screen age text (planeRadarApp.cpp:596-598, `_lastAgeDrawSec`)
+#     has no dbgGet exposure; asserting it would need either a screendump
+#     (DUT-only, unavailable here) or a new debug getter, which is outside
+#     this test's own scope (TASK-706 asked for the rule + one primitive
+#     test, not a new instrumentation surface).
+#   - "_locEpoch changed across resume" — _locEpoch is private app state
+#     with no dbgGet key. The forced-fail result's errorCode (-92) not
+#     surfacing as `prLastHttp` after the away-and-back (asserted below) is
+#     the observable proxy: it proves the pre-switch result was discarded,
+#     which is the epoch-bump's whole purpose (planeRadarApp.cpp resume(),
+#     "belt and suspenders" comment) even though the epoch counter itself
+#     can't be read back directly.
+def t_pr_08(dut: Dut):
+    """T_PR_08 (TASK-706 primitive, M-DATATASK-result-staleness-rule rule
+    item 1): a PlaneRadarResult that parks in the dataTask mailbox while
+    PlaneRadar is suspended must not be surfaced by the next tick() after
+    resume() — it must be drained-and-discarded, not read as fresh.
+
+    NEVER RUN AGAINST REAL HARDWARE in this environment (no DUT/serial
+    access) — written and host-syntax-checked only. See the module-level
+    comment above this function for the injection-surface rationale, the
+    acknowledged ordering race, and what the design doc's other two
+    PlaneRadar-specific assertions (age readout, _locEpoch) would need that
+    doesn't exist today.
+    """
+    print("T_PR_08  resume() drain discards a pre-switch PlaneRadar result")
+    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        unmet("T_PR_08", "could not switch to PlaneRadar")
+        _restore_spotify(dut)
+        return
+    _wait_shell_not_busy(dut, timeout_s=5.0)
+
+    with dut.injected("prForceParseFail", 3, clear_to=0):
+        try:
+            fp_count = dut.get_int("prForceParseFail", timeout=3.0)
+        except Exception as e:
+            unmet("T_PR_08", f"prForceParseFail did not arm: {e}")
+            _restore_spotify(dut)
+            return
+        if fp_count <= 0:
+            unmet("T_PR_08", f"prForceParseFail read back {fp_count}, expected > 0")
+            _restore_spotify(dut)
+            return
+        # Fire immediately (don't wait out the poll cadence) then leave RIGHT
+        # AWAY — see the ordering-race note above. Fire-once action, no
+        # backing field (_order.py's TRIGGER-VERB FIELDS note), but R17's
+        # restore-manager ratchet wants every `set` wrapped regardless —
+        # `clear_to=0` matches the `triggerHeatmap` precedent in
+        # docs/verification/unrestored_mutations_ratchet.md.
+        with dut.injected("triggerPlaneRadarFetch", 1, clear_to=0):
+            pass
+        if not _restore_spotify(dut):
+            fail("T_PR_08", "PlaneRadar->Spotify switch-away failed mid-test")
+            return
+
+        # Generous vs. the real HTTP timeouts this forced path deliberately
+        # bypasses — the synthetic result should land in well under a second.
+        time.sleep(2.0)
+
+        if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+            unmet("T_PR_08", "could not switch back to PlaneRadar")
+            return
+        # Give resume()'s drain + the fresh fetch it re-enqueues a moment.
+        time.sleep(0.5)
+        try:
+            http_val = dut.get_int("prLastHttp", timeout=3.0)
+        except Exception as e:
+            unmet("T_PR_08", f"prLastHttp unreadable after away-and-back: {e}")
+            _restore_spotify(dut)
+            return
+        try:
+            fp_left = dut.get_int("prForceParseFail", timeout=3.0)
+        except Exception:
+            fp_left = None
+    # `with` exit clears any still-armed prForceParseFail credits while
+    # PlaneRadar is still active (required — the key is not reachable while
+    # inactive, so this MUST run before the switch-away below).
+    _restore_spotify(dut)
+
+    if http_val == -92:
+        fail("T_PR_08", f"prLastHttp=-92 after away-and-back — the pre-switch "
+                        "forced-fail result was surfaced as this session's "
+                        "answer; resume() did not drain the parked mailbox "
+                        "result")
+        return
+    pass_("T_PR_08", f"prLastHttp={http_val!r}, prForceParseFail credits left="
+                     f"{fp_left!r} after away-and-back — the pre-switch "
+                     "forced-fail (-92) result was not surfaced as fresh")
+
+
 TESTS = {
     "T_PR_01": t_pr_01,
     "T_PR_02": t_pr_02,
@@ -596,4 +728,5 @@ TESTS = {
     "T_PRM_02": t_prm_02,
     "T_PRI_01": t_pri_01,
     "T_PR_07": t_pr_07,
+    "T_PR_08": t_pr_08,
 }

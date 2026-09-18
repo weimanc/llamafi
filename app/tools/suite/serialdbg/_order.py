@@ -598,6 +598,15 @@ EDGE_ADJUDICATION = {
                   "`set fetchErrCount` unconditionally resets the counter to 0 "
                   "(stockApp.cpp:234-235) regardless of the value written — "
                   "converges to the one state every later reader expects."),
+    "T_PR_08": ("DISMISSED",
+                "`set triggerPlaneRadarFetch 1` (planeradar.py, TASK-706) is "
+                "the same TRIGGER-VERB FIELD noted above — planeRadarApp.cpp's "
+                "`triggerPlaneRadarFetch` handler (~244-248) backdates "
+                "_lastFetch and clears _pendingFetch, then returns; nothing "
+                "named `triggerPlaneRadarFetch` is left armed for a successor "
+                "to inherit. The test's own `prForceParseFail` credits are "
+                "tracked via `dut.injected(..., clear_to=0)`, not this field, "
+                "and cleared on every exit path."),
     "T091": ("DISMISSED",
              "`set backoff 3` is the seed for the exact mechanism under test — "
              "`reconnect` resetting `consecutiveFailures` — so the passing path "
