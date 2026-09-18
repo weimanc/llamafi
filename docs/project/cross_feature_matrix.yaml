@@ -1806,3 +1806,36 @@ interactions:
       confirmed refusal, exceptions and `get appTicks`. Remaining coverage is TASK-703.
       Side effect: failure diagnostics that read an app's keys after leaving it now get
       `inactiveApp` (T170's `fetchFailed='?'`, TASK-701).
+
+  - id: X070
+    feature_a: app-interface-001
+    feature_b: data-task-001
+    interaction_type: shared_state
+    description: |
+      No consumer of a `dataTask` fetch result (Weather, Crypto, Stock quote, Stock chart,
+      PlaneRadar; Teletext partially) discriminated a result's AGE at the app-switch boundary —
+      only whether it answered the currently-relevant request (stockChart's symbol/rangeIdx,
+      planeRadar's epoch, geocode's seq). A result that parked in dataTask's single-slot
+      mailbox while an app was suspended, then got popped by that app's first tick() after
+      resume(), was for the right identity but had arrived a while ago while nobody was
+      watching — displayed as if it just happened. For PlaneRadar this was not merely cosmetic:
+      _lastGoodMs/_lastInterpMs are stamped at drain time, so a stale pop rendered the age
+      readout as "0s old" and dead-reckoned aircraft forward from the wrong instant. Teletext's
+      unchecked `result.page` copy could also retarget which page the app believed it was
+      viewing. TASK-706's design
+      (docs/architecture/designs/M-DATATASK-result-staleness-rule.md) closes this: every app
+      drains its dataTask mailbox and clears its outstanding-request flag in resume(), before
+      its first post-resume tick() can read anything stale (PlaneRadar additionally bumps
+      _locEpoch on every resume, not only on an actual location change; Teletext's page-identity
+      check is independent of the resume-drain items and wired up on its own).
+    risk: medium
+    test_coverage: [T_PR_08]
+    notes: |
+      Added 2026-09-18 (TASK-706 implementation). Registered per the design doc's own Exit
+      criteria ("Developer completes/corrects at implementation per the usual reservation
+      split"). T_PR_08 is written and host-syntax-checked only — never run against a DUT in the
+      environment that implemented this (no serial access there). Spotify (stale-proof,
+      continuously-polling) and WebRadio's station list are explicitly out of scope per the
+      design doc's "What this does NOT change" section. Stock's sub-view residual (List <->
+      Chart-detail while foreground, no resume() call) is a named open question (OQ2) in the
+      design doc, not closed by this entry.
