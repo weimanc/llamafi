@@ -8,11 +8,16 @@ void WeatherApp::init() {
 }
 
 void WeatherApp::resume() {
-  // WIRE2-G4 resume-diff (StockApp pattern): coords changed in Settings
-  // while we were away → zero the fetch timestamp so the next tick
-  // refetches immediately with the new location.
-  if (g_settings.lat != _cfgLat || g_settings.lon != _cfgLon)
-    _s.lastDataFetch = 0;
+  // TASK-706 (M-DATATASK-result-staleness-rule, rule item 3): drain any
+  // WeatherResult parked in the mailbox from before this resume() so it
+  // can't be popped by the next tick() and stamped as fetched-now. This
+  // supersedes the old WIRE2-G4 coord-diff gate below — the reset now runs
+  // on every resume, not only when settings changed underneath us, since a
+  // parked-but-undrained result would otherwise be treated as satisfying
+  // whatever request is still outstanding.
+  dataTask::WeatherResult stale;
+  dataTask::pollWeather(&stale);
+  _s.lastDataFetch = 0;
   repaintWeather();
 }
 

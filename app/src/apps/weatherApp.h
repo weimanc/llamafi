@@ -61,10 +61,17 @@ private:
   bool            _wxErr = false;
   bool            _dataReady = false;
   float           _cfgLat = 0.0f;   // WIRE2-G4: coords snapshotted at each
-  float           _cfgLon = 0.0f;   //   enqueue; resume() diffs vs g_settings
+  float           _cfgLon = 0.0f;   //   enqueue. TASK-706: resume() no longer
+                                     //   diffs these against g_settings — it
+                                     //   now unconditionally drains+refetches
+                                     //   on every resume, which subsumes the
+                                     //   coord-change case. Left in place: any
+                                     //   future resume-time diagnostics that
+                                     //   want "did the coords actually change"
+                                     //   can still read them.
 
-  // WIRE2-G4: single enqueue path — snapshot g_settings coords for the
-  // resume-diff and hand them to dataTask (which re-snapshots under mux).
+  // WIRE2-G4: single enqueue path — snapshot g_settings coords and hand them
+  // to dataTask (which re-snapshots under mux).
   void enqueueWx();
   void weatherDrawChrome();
   void repaintWeatherValues();

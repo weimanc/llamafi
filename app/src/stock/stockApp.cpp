@@ -33,6 +33,27 @@ void StockApp::init() {
 }
 
 void StockApp::resume() {
+  // TASK-706 (M-DATATASK-result-staleness-rule, rule items 3 & 4): drain
+  // both of StockApp's mailboxes on every ordinary resume(), unconditionally
+  // — the same discard `dbgSet`'s "triggerFetch" handler already does below
+  // for its debug-injected reset path (TASK-300), now also on the real
+  // resume boundary it was one line short of covering. Runs regardless of
+  // which subView is active: a result can park from a chart that was
+  // visible before this app was suspended even if the user backed out to
+  // List first, and a quote result can equally park while the chart was in
+  // view. Reset both fetch gates so the next tick() re-enqueues rather than
+  // treating the drained-and-discarded slot as already satisfied.
+  {
+    dataTask::StockQuoteResult staleQuote;
+    dataTask::pollStockQuote(&staleQuote);
+  }
+  {
+    dataTask::StockChartResult staleChart;
+    dataTask::pollStockChart(&staleChart);
+  }
+  _s.lastQuoteFetch = 0;
+  _s.lastChartFetch = 0;
+
   bool changed = false;
   for (int i = 0; i < 8; i++) {
     if (strcmp(_s.tickers[i], g_settings.stockTickers[i]) != 0) {

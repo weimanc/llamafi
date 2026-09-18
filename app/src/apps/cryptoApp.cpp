@@ -40,6 +40,14 @@ void CryptoApp::resume() {
   dataTask::configureCrypto(
       const_cast<const char(*)[16]>(g_settings.cryptoCoins),
       g_settings.cryptoCcy);
+  // TASK-706 (M-DATATASK-result-staleness-rule, rule item 3): drain any
+  // CryptoResult parked in the mailbox from before this resume() — without
+  // this, the pre-existing "force fresh fetch on next tick" reset below
+  // only stops a *new* fetch being suppressed; it does nothing about a
+  // result already sitting in the mailbox, which cryptoTick()'s poll would
+  // still pop and render as fresh.
+  dataTask::CryptoResult stale;
+  dataTask::pollCrypto(&stale);
   repaintCrypto();
   _s.lastCryptoFetch = 0;  // force fresh fetch on next tick
 }
