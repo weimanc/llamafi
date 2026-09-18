@@ -42,7 +42,7 @@ catch `NoAnswer` and let the loop's own deadline be the verdict; never catch `Ba
 |---|---|---|---|
 | `suite/serialdbg/shell.py` | 47 | TASK-596 | 2026-09-04 |
 | `suite/serialdbg/player.py` | 37 | TASK-596 | 2026-09-05 |
-| `suite/serialdbg/webradio.py` | 33 | TASK-596 | 2026-09-05 |
+| `suite/serialdbg/webradio.py` | 29 | TASK-596 | 2026-09-18 |
 | `suite/serialdbg/teletext.py` | 9 | TASK-596 | 2026-09-04 |
 | `suite/serialdbg/planeradar.py` | 8 | TASK-596 | 2026-09-04 |
 | `suite/serialdbg/clock.py` | 2 | TASK-596 | 2026-09-04 |

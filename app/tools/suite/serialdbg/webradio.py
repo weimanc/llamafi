@@ -610,8 +610,20 @@ def t_wr_heap_01(dut: Dut):
         return
     # Query heap values via firmware command — avoids serial log capture race.
     r = dut.cmd("get wrHeap", timeout=3.0)
-    free_b = r.get("initFree", 0)
-    min_b  = r.get("initMin", 0)
+    # TASK-676: read what the device actually answered before deciding
+    # anything is a zero — a refused/dropped reply used to default straight
+    # to 0/0 and get filed as "not stored?", indistinguishable from a
+    # legitimately-zero (never happens on real hardware) reading.
+    if not r.get("ok"):
+        fail("T_WR_HEAP_01", f"get wrHeap refused: {r}")
+        return
+    if "initFree" not in r or "initMin" not in r:
+        fail("T_WR_HEAP_01", f"get wrHeap reply missing initFree/initMin: {r}")
+        return
+    free_b, min_b = r["initFree"], r["initMin"]
+    if not isinstance(free_b, int) or not isinstance(min_b, int):
+        fail("T_WR_HEAP_01", f"get wrHeap initFree/initMin not integers: {r}")
+        return
     if free_b == 0 and min_b == 0:
         skip("T_WR_HEAP_01", "get wrHeap returned zeros (init values not stored?)")
         return
@@ -634,7 +646,14 @@ def t_wr_heap_02(dut: Dut):
     # dut.cmd("get appId") can consume the "HEAP post-fetch" serial line.
     _restore_spotify(dut)
     time.sleep(0.2)
-    dut.cmd("set bgPoll 0", timeout=2.0)
+    r_bg0 = dut.cmd("set bgPoll 0", timeout=2.0)
+    # TASK-676: a refused bgPoll suspend is not a reason to press on and trust
+    # the heap sample anyway — this id's claim is specifically about the
+    # heap AFTER TLS is torn down with bgPoll suspended, and a device that
+    # refuses the suspend has contradicted that precondition outright.
+    if not r_bg0.get("ok"):
+        fail("T_WR_HEAP_02", f"set bgPoll 0 refused: {r_bg0}")
+        return
     dut.set_cooldown_zero()
     # TASK-414: WebRadio is entered via the taskbar player-slot cycle now
     # (eject no longer switches apps — ADR-059 D6). Still no WebRadio taskbar
@@ -651,10 +670,22 @@ def t_wr_heap_02(dut: Dut):
         if m:
             free_b, min_b = int(m.group(1)), int(m.group(2))
     if free_b == 0 and min_b == 0:
-        # Fallback: query via firmware command (works even if log line was missed)
+        # Fallback: query via firmware command (works even if log line was missed).
+        # TASK-676: same fix as T_WR_HEAP_01 — a refused/dropped reply here
+        # used to default straight to 0/0 and fall into the same "not
+        # captured" skip as a genuinely missed log line, indistinguishable
+        # from a device that flatly refused the question.
         r = dut.cmd("get wrHeap", timeout=3.0)
-        free_b = r.get("fetchFree", 0)
-        min_b  = r.get("fetchMin", 0)
+        if not r.get("ok"):
+            fail("T_WR_HEAP_02", f"get wrHeap refused: {r}")
+            return
+        if "fetchFree" not in r or "fetchMin" not in r:
+            fail("T_WR_HEAP_02", f"get wrHeap reply missing fetchFree/fetchMin: {r}")
+            return
+        free_b, min_b = r["fetchFree"], r["fetchMin"]
+        if not isinstance(free_b, int) or not isinstance(min_b, int):
+            fail("T_WR_HEAP_02", f"get wrHeap fetchFree/fetchMin not integers: {r}")
+            return
     if free_b == 0 and min_b == 0:
         skip("T_WR_HEAP_02", "HEAP post-fetch not captured (log missed and get wrHeap=0)")
         return

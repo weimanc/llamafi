@@ -68,8 +68,14 @@ def t077(dut: Dut):
     r = dut.cmd(f"tap {_c.tap_posbar()[0]} {_gap_y}")
     hit = r.get("hit", "")
     action = r.get("action", "")
-    if hit in ("TRANSPORT", "POSBAR", "VOLUME"):
-        fail("T077", f"unexpected hit={hit} action={action}")
+    # TASK-676: assert the POSITIVE claim the recorded healthy reply makes
+    # (hit=="DEADZONE", action=="FORCE_POLL"), not a blacklist of three bad
+    # names. A blacklist passes on ANY other string — including a perturbed
+    # "DEADZONE~"/"FORCE_POLL~" — which is exactly why this body could never
+    # go red on its own subject before.
+    if hit != "DEADZONE" or action != "FORCE_POLL":
+        fail("T077", f"expected hit=DEADZONE action=FORCE_POLL, got "
+                     f"hit={hit} action={action}")
     else:
         pass_("T077", f"hit={hit} action={action}")
 
@@ -1629,7 +1635,24 @@ def t_wx_05(dut: Dut):
     ready = False
     while time.monotonic() < deadline:
         r = dut.cmd("get weatherReady", timeout=3.0)
-        if r.get("ok") and r.get("ready") is True:
+        # TASK-676: a malformed or refused reply to THIS question is a finding
+        # on the spot, not a reason to poll again — the untyped r.get(...)
+        # defaults used to make a refused/dropped reply look identical to
+        # "not ready yet" and retry straight into a transcript-miss accident
+        # instead of a claim about what the device actually said.
+        if not r.get("ok"):
+            _restore_spotify(dut)
+            fail("T_WX_05", f"get weatherReady refused: {r}")
+            return
+        if "ready" not in r:
+            _restore_spotify(dut)
+            fail("T_WX_05", f"get weatherReady reply carries no 'ready' field: {r}")
+            return
+        if not isinstance(r["ready"], bool):
+            _restore_spotify(dut)
+            fail("T_WX_05", f"get weatherReady 'ready' field is not boolean: {r}")
+            return
+        if r["ready"]:
             ready = True
             break
         time.sleep(2.0)
@@ -1807,7 +1830,24 @@ def t_cx_05(dut: Dut):
     ready = False
     while time.monotonic() < deadline:
         r = dut.cmd("get cryptoReady", timeout=3.0)
-        if r.get("ok") and r.get("ready") is True:
+        # TASK-676: a malformed or refused reply to THIS question is a finding
+        # on the spot, not a reason to poll again — the untyped r.get(...)
+        # defaults used to make a refused/dropped reply look identical to
+        # "not ready yet" and retry straight into a transcript-miss accident
+        # instead of a claim about what the device actually said.
+        if not r.get("ok"):
+            _restore_spotify(dut)
+            fail("T_CX_05", f"get cryptoReady refused: {r}")
+            return
+        if "ready" not in r:
+            _restore_spotify(dut)
+            fail("T_CX_05", f"get cryptoReady reply carries no 'ready' field: {r}")
+            return
+        if not isinstance(r["ready"], bool):
+            _restore_spotify(dut)
+            fail("T_CX_05", f"get cryptoReady 'ready' field is not boolean: {r}")
+            return
+        if r["ready"]:
             ready = True
             break
         time.sleep(2.0)

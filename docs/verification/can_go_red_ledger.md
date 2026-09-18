@@ -42,17 +42,25 @@ is stale or unhealthy for it — and are printed with a re-record instruction, n
 |---|---|---|---|---|
 | `T-BUSY-01b` | RED-WITHOUT-ASSERTION | every non-pass exit is `skip()`; red only via contract/accident. Since TASK-624 the right verdict is `unmet()` — same row as the static ledger | TASK-615 | 2026-09-09 |
 | `T091` | RED-WITHOUT-ASSERTION | as `T084`, red only via contract/accident | TASK-595 | 2026-09-09 |
-| `T077` | RED-WITHOUT-ASSERTION | red only through a crash arm (accident 7): raw `cmd()` reads, no `fail()` reached under any poison | TASK-676 | 2026-09-09 |
-| `T_CX_05` | RED-WITHOUT-ASSERTION | accident-only (40): the body breaks on a bad reply, never asserts on it | TASK-676 | 2026-09-09 |
-| `T_WR_HEAP_01` | RED-WITHOUT-ASSERTION | accident-only (52) | TASK-676 | 2026-09-09 |
-| `T_WR_HEAP_02` | RED-WITHOUT-ASSERTION | accident-only (49) | TASK-676 | 2026-09-09 |
-| `T_WX_05` | RED-WITHOUT-ASSERTION | accident-only (60) | TASK-676 | 2026-09-09 |
 | `T170` | RED-WITHOUT-ASSERTION | newly VISIBLE 2026-09-12: TASK-575's run refreshed 194 transcripts, and a healthy recording sweeps where a `BASELINE-NOT-PASS` one was skipped. Not a new defect — newly measurable | TASK-688 | 2026-09-12 |
 | `T176` | RED-WITHOUT-ASSERTION | as `T170` — exposed by the 2026-09-12 transcript refresh, not introduced by it | TASK-688 | 2026-09-12 |
 | `T188` | RED-WITHOUT-ASSERTION | as `T170` | TASK-688 | 2026-09-12 |
 | `T_CLK_SIG_01` | RED-WITHOUT-ASSERTION | as `T170`; 41 replays over 5 exchanges, zero assertions on its subject. TASK-638 landed the id; the oracle is what is missing | TASK-688 | 2026-09-12 |
 
-**8 rows** (first recording, 2026-09-09, 9 rows; `T204` removed 2026-09-14 — see below).
+**6 rows** (first recording, 2026-09-09, 9 rows; `T204` removed 2026-09-14 — see below; `T077`/`T_CX_05`/`T_WR_HEAP_01`/`T_WR_HEAP_02`/`T_WX_05` fixed to assert and removed 2026-09-18, TASK-676).
+
+**`T_WR_HEAP_02`'s numeric claim is still not falsifiable by this sweep — recorded here because
+its row leaving the table would otherwise hide that (2026-09-18, TASK-676).** The id's subject
+(`HEAP post-fetch free=… min=…` ≥ 30 KB) is parsed out of a raw serial LOG line, and
+`poison_transcript` (app/tools/lib/canfail.py:234-238) rewrites only lines that parse as a JSON
+object: PERTURB/DROP/REFUSE cannot move that number, and SILENCE can only delete the whole
+exchange. What went red under poison, and what took the row out, is the id's *precondition* — a
+refused `set bgPoll 0`, which contradicts the "bgPoll suspended, TLS torn down" premise the heap
+sample is only meaningful under. That is a real assertion on a real claim, and it is not the
+30 KB floor. Falsifying the floor needs the value to arrive as a JSON field (the `get wrHeap`
+fallback already reads one, but the log line wins on every healthy path so the fallback is dead
+code there) or a poison that rewrites log text. Neither is scheduled; this is the standing note
+that it is owed.
 
 **`T204` removed 2026-09-14 (TASK-697).** TASK-697 added `_diag_snapshot`'s `get dataRing` call
 (app/tools/suite/serialdbg/_helpers.py) ahead of where `T204`'s recorded transcript diverges from
