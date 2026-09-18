@@ -1650,12 +1650,31 @@ resting on an `UNOBSERVABLE` id while carrying a PASS; each ratchet count printe
 developers already run **and falling across two consecutive milestones** — a ratchet that reads the
 same number twice is cut, not carried.
 
-**Blocked on:** ~~TASK-557~~ (CLOSED 2026-09-12 — DUT1's micro-USB connector, EXP-039); what remains is
-**Phase 2's remainder** (582, 588, 595, 597), which gates Phase 3 and,
-through it, Phase 5 — the same pin that holds M-TESTARCH's order switch. Phase 4's render half
-shipped 2026-09-09 (TASK-638, ADR-064 as built). **Deps:** M-TESTARCH · **Risk:** the same one M-TESTARCH carries and
-it is now demonstrated rather than theorised — the instrument under repair produced four days of
-green gates while two of its own headline mechanisms were dead.
+**Status 2026-09-17/18 update — Phase 3 CLOSED, superseding the 2026-09-16 paragraph above.**
+Phase 3's one remaining exit clause (per-family shuffle reproducing the canonical verdict set) is
+**closed by human exception, not met**: `clock` reproduces it; `player`/`planeradar`/`webradio`
+don't, and a second shuffle-seed campaign traced all three to the same shape — TASK-697/708's
+unresolved heap issue, not independent order-dependence bugs — so it's tracked as one open question
+(TASK-708) rather than a standing Phase 3 blocker. **TASK-708 itself has since been designed,
+VE-reviewed, and its diagnostic (OQ1) run on real hardware: REJECTED** on hard evidence — a
+permanent TLS-buffer reservation went 8/8 FAIL against a 1/8 control, deterministically. TASK-697
+stays PARKED at P2, unaffected. TASK-594 (`T_WX_04`) also closed by human ruling the same session:
+accepted as standalone-only by design, not a defect. **Phase 5's "blocked on Phase 3" condition is
+therefore lifted** (not yet scheduled as a phase, but no longer gated). Full detail:
+[tasks-harness2.md](tasks-harness2.md)'s status header and Totals table, which are authoritative —
+this paragraph is a pointer, not a repeat.
+
+**Blocked on:** nothing, at the phase level — TASK-557 closed 2026-09-12 (DUT1's micro-USB
+connector, EXP-039) and Phase 3's own blocker discharged as above. Live open threads needing a human
+call: **TASK-706** (a dataTask result-staleness rule, designed + VE-reviewed, ready for sign-off),
+**TASK-702** (ADR-063 D4's repaint signal — a genuine scope conflict between two already-made
+decisions, not a technical pick, [note](../architecture/designs/M-SHELL-repaint-signal-scope-tension.md)),
+and **TASK-610** (a 26→11 test-id consolidation whose own cost estimate names a DUT run not yet
+scheduled). Phase 4's render half shipped 2026-09-09 (TASK-638, ADR-064 as built); its guard-gap half
+(TASK-703) landed 2026-09-17 with 2 keys left honestly `UNRESOLVED` rather than guessed. **Deps:**
+M-TESTARCH · **Risk:** the same one M-TESTARCH carries and it is now demonstrated rather than
+theorised — the instrument under repair produced four days of green gates while two of its own
+headline mechanisms were dead.
 
 ---
 
