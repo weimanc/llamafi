@@ -310,8 +310,13 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 
 ## Phase 5 — the ratchets (open-ended, delta-scoped)
 
-**Entry:** Phases 1 and 3. **Blocked at phase level by Phase 3**, whose own remaining gate is now
-TASK-575's owed full `run/test` pass (TASK-557 DONE and Phase 2 COMPLETE, both 2026-09-12).
+**Entry:** Phases 1 and 3 — **both satisfied, phase-level gate lifted 2026-09-18** (Phase 1
+COMPLETE 2026-09-06; Phase 3 CLOSED 2026-09-17; TASK-575, Phase 3's own last-named gate, DONE
+2026-09-14, "nothing further owed"). Reconciled 2026-09-18: TASK-607/606/599/612 and TASK-641's
+execution half were still marked "BLOCKED — phase entry" citing Phase 2/3 as open, which they no
+longer are — each row's only OTHER named blocker (TASK-608/609, both DONE) was already clear.
+Unblocked below; downstream rows (TASK-640/613/601/642/643) stay blocked on their own named
+predecessor, not on phase entry.
 **Exit:** each ratchet count is printed by the thing developers already run, and has fallen across
 two consecutive milestones.
 **Stop criterion:** any ratchet whose count is unchanged across two consecutive milestones is
@@ -322,17 +327,17 @@ ratchet's clothes.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-607 | P3 | BLOCKED — **phase entry (Phase 3, itself gated on the Phase 2 remainder)**; its row predecessor TASK-608 is DONE | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
+| TASK-607 | P3 | **OPEN — unblocked 2026-09-18** (phase entry cleared; predecessor TASK-608 DONE) | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
 | TASK-640 | P3 | BLOCKED — TASK-607 | classify all synchronisation sleeps, publish the three counts, then set the floor — [R23](../verification/M-HARNESS2-requirements.md) |
-| TASK-606 | P3 | BLOCKED — phase entry | mirror-equality gate, pairs generated wherever the symbol is already generated — [R42](../verification/M-HARNESS2-requirements.md) |
+| TASK-606 | P3 | **OPEN — unblocked 2026-09-18** (phase entry cleared) | mirror-equality gate, pairs generated wherever the symbol is already generated — [R42](../verification/M-HARNESS2-requirements.md) |
 | TASK-613 | P3 | BLOCKED — TASK-606 | a numeric bound in an assertion **you touch** cites its origin — delta-scoped only — [R44](../verification/M-HARNESS2-requirements.md) |
-| TASK-599 | P2 | BLOCKED — **phase entry (Phase 3, itself gated on the Phase 2 remainder)**; its row predecessor TASK-609 is DONE | one session layer; migrate the four bypassing harnesses — [R47](../verification/M-HARNESS2-requirements.md) |
-| TASK-641 | P3 | **PARTIAL 2026-09-08** (`9f70a6e`, design + spike); execution BLOCKED on **phase entry (Phase 2 remainder)**; **RULED accepted 2026-09-09** | read-key set (transcript-first, static `APPROX` fallback); author declares key ROLE and oracle SHAPE — [R1](../verification/M-HARNESS2-requirements.md), [taxonomy](../architecture/designs/M-HARNESS2-falsifier-taxonomy.md) |
+| TASK-599 | P2 | **OPEN — unblocked 2026-09-18** (phase entry cleared; predecessor TASK-609 DONE) | one session layer; migrate the four bypassing harnesses — [R47](../verification/M-HARNESS2-requirements.md) |
+| TASK-641 | P3 | **PARTIAL** (`9f70a6e`, design + spike, RULED accepted 2026-09-09); **execution unblocked 2026-09-18** (phase entry cleared) | read-key set (transcript-first, static `APPROX` fallback); author declares key ROLE and oracle SHAPE — [R1](../verification/M-HARNESS2-requirements.md), [taxonomy](../architecture/designs/M-HARNESS2-falsifier-taxonomy.md) |
 | TASK-642 | P3 | BLOCKED — TASK-641; **design filed 2026-09-08** | falsifier: replay half derived from declared shapes, physical half with an enforced expiry — [R9](../verification/M-HARNESS2-requirements.md), [taxonomy §7](../architecture/designs/M-HARNESS2-falsifier-taxonomy.md) |
 | TASK-643 | P3 | BLOCKED — TASK-642; **design filed 2026-09-08** | driver runs the expected-verdict matrix (baseline + one arm per key); POLL shape = freeze + time dilation, **measured on T_MA_03**; a miss is inconclusive and names its constraint — [R10](../verification/M-HARNESS2-requirements.md), [taxonomy §4–5](../architecture/designs/M-HARNESS2-falsifier-taxonomy.md) |
 | TASK-601 | P2 | BLOCKED — TASK-599 | the TLS preflight runs from every entry point, not one — [A-5](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-610 | P3 | OPEN — unblocked | collapse 26 ids to about 11 behaviours — [B-16](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
-| TASK-612 | P3 | BLOCKED — phase entry | scope resolution for the 55 % of the tree it cannot reach — [B-9](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
+| TASK-612 | P3 | **OPEN — unblocked 2026-09-18** (phase entry cleared) | scope resolution for the 55 % of the tree it cannot reach — [B-9](../verification/reviews/M-TESTQUAL-Z-findings-review.md) |
 | TASK-614 | P3 | **PARTIAL** (`04d337a4`,`0205ab46`,`a422224d`,`35125bfc`,`baf14fae`): B-13/F-12/A-16/A-19 done; A-17 done except `mem_layout.py` — TASK-619's consume-or-delete ruling is stale (TASK-606 still BLOCKED), not TASK-614's call | registry and tooling honesty — [B-13](../verification/reviews/M-TESTQUAL-Z-findings-review.md) … |
 | TASK-615 | P3 | **PARTIAL** (`fdec892b`,`feba353b`,`2ad37b18`,`1ac97bc1`): H-17/C-17/C-19/H-15(partial)/C-16/G-18 done; C-20 (retire T_BI_04) and H-15's T_PRI_01 row deferred, need a human call | small correctness debts — [H-17](../verification/reviews/M-TESTQUAL-Z-findings-review.md) … |
 | TASK-671 | P2 | **DONE 2026-09-09** (`c444071`, `0399324`; 193 transcripts, 9-row ledger; `run/check` 63.1 s warm, the sweep is 22 s of it) | R34 at runtime: `check_can_go_red.py` executes each recorded body against its poisoned transcript; reds graded assertion/contract/accident/policy — [design](../architecture/designs/M-HARNESS2-runtime-gates.md) |
@@ -358,7 +363,7 @@ reading each row's leading status token, not carried forward.
 | 3 — order and state hygiene | 6 | 6 | 0 | ~8.5 | **CLOSED 2026-09-17** (entered 2026-09-13 on a human waiver). 604, 592, 605, 635, 636, 594 all DONE. **TASK-617 exit criteria MET and the switch FLIPPED 2026-09-14** (TASK-566 DONE). **Shuffle clause CLOSED BY EXCEPTION 2026-09-17** (human ruling): only `clock` reproduces the canonical set; `player`/`planeradar`/`webradio` traced to TASK-697/708's heap issue and accepted as a standing exception rather than a blocker — revisit when TASK-708 closes |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
 | rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 18 | 10 | 8 | — | **557 DONE 2026-09-12 — it gates nothing now**; **566 DONE 2026-09-14 — the class-order switch is flipped for `run/test`**; 564/567 remain; **573 CLOSED 2026-09-12 — it was fixed on 2026-09-02 and the row was never reconciled; TASK-566 loses its last named blocker**; 574 is the remaining gate defect; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
-| 5 — ratchets | 18 | 1 | 17 | ~30 | **Phase 3 closed 2026-09-17, so the phase-entry block is lifted** — not yet started as a phase (no PM entry scheduling it). **610, 614, 615, 672–674 were already unblocked** — they never inherited the phase entry; 671 landed |
+| 5 — ratchets | 18 | 1 | 17 | ~30 | **Phase-entry block reconciled 2026-09-18**: 607/606/599/612 and 641's execution half were still marked BLOCKED citing Phase 2/3 as open — corrected, all now OPEN. With 610/614/615/676 (already open) that's **9 of 17 live rows actionable now**. 672–674 need TASK-671's recording checked separately (671 itself is DONE, not re-verified here); 640/613/601/642/643 (5) stay blocked on their own named predecessor, not phase entry |
 | **total** | **91** | **63** | **28** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
 
 **The phases still ahead are not equally blocked.** Phase 4's
