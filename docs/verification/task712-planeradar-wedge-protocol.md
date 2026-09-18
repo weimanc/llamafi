@@ -1,130 +1,88 @@
-# TASK-712 — investigation protocol: `dataTask` wedge under forced PlaneRadar parse-fail
+# TASK-712 — resolved by re-analysis: NOT a wedge (was: investigation protocol)
 
-> Owner: @VE · Filed 2026-09-18, from a TASK-706 DUT session
-> Scope: TESTABILITY/diagnosis protocol, pre-registered before any run — same discipline TASK-697's
-> Gate 0 and Option 3 A/B used, after that programme's own hard lesson about open-ended DUT chases.
-> This document proposes steps; it does not authorize running them. Human sign-off needed before
-> DUT time is spent, same as every DUT-costing step in this programme.
+> Owner: @VE · Filed 2026-09-18 from a TASK-706 DUT session as a suspected board-wedging P1.
+> **Downgraded 2026-09-18, same day, before any DUT time was spent on the protocol below.** An
+> independent Opus/Architect review (requested before sign-off) found the premise "`fetchPlaneRadar()`
+> never returns" was never actually established by the evidence cited for it, and named the exact
+> already-captured field (`inFlightMs`) that decides the question. Re-deriving that field's raw
+> values from the original diagnostic's own transcript refutes the wedge. Full trail below, kept
+> rather than deleted — this is as much a record of a self-caught false alarm as of what actually
+> happened, and the "how" is worth keeping for the next false-wedge-looking symptom.
 
-## What's already known (host+DUT evidence, no further reads needed to establish this)
+## What the review found, that changed the read
 
-- `set prForceParseFail 3` then `set triggerPlaneRadarFetch 1` while PlaneRadar is the active app
-  (confirmed via `get appId`, no switch away) consumes all 3 forced-failure credits (observed:
-  `prForceParseFail` 3→0 within ~20s of firing) but `fetchPlaneRadar()` **never returns**:
-  `get dataq`'s `inFlight` field (`s_dbgInFlight`, `dataTaskStorage.cpp:2088/2115` — set to the
-  request type at dispatch, reset to `-1` only when the dispatched function returns) stayed at `8`
-  (`DATA_FETCH_PLANERADAR`) continuously for 300s+ across a single unbroken console session (no
-  reconnect, so no DTR reset could have masked recovery).
-- `dataq`'s `spAct`/`spActMs` (spotifyTask's own activity marker, `taskActivity()`/`spotifyTask.h`'s
-  loop-position comment: `1 = yield-spin`) froze at `1` and a **constant** `spActMs` for the same
-  300s+ window. `spotifyTask::tlsResume()` is the literal last statement of `fetchPlaneRadar()`
-  (`dataTaskStorage.cpp`, end of the function) — a frozen yield-spin corroborates, independently of
-  the `inFlight` field, that the function is stuck somewhere between its `tlsYield()` call (which
-  DID complete — `tlsStopped=True`, `yieldCount=1` observed) and its final `tlsResume()` call.
-- The console/`get` command path stayed fully responsive throughout (every diagnostic poll returned
-  `ok:true` promptly) — this rules out a FreeRTOS critical-section/spinlock deadlock or a core-wide
-  freeze, both of which would also stall the console-handling task. Whatever is stuck is scoped to
-  `dataTask` specifically.
-- `dataTask` is confirmed (prior session finding, TASK-697) **not** TWDT-subscribed — an indefinite
-  block or a non-yielding loop inside it would never trip the watchdog and would hang silently
-  forever, exactly matching the observed symptom, with no crash/reboot to signal it.
-- A full static trace of `fetchPlaneRadar()`'s all-forced path (all three `prFetchOnce()` calls
-  taking the `if (forced) {...; return 200;}` early-return, which never touches `WiFiClientSecure`/
-  `HTTPClient` at all) found no `vTaskDelay`, mutex, or semaphore wait longer than the two bounded
-  `300ms` retry delays. **Nothing in the read source explains a 300s+ hang on this path.** Either
-  something outside this function is involved, or the static reading missed something a live trace
-  would catch immediately.
+Original claim: `get dataq`'s `inFlight` field stayed at `8` (`DATA_FETCH_PLANERADAR`) for 300s+,
+therefore `fetchPlaneRadar()` never returned. The review (full text on file, this session) pointed
+out that `inFlight` alone can't distinguish "one call stuck the whole time" from "a fast sequence of
+separate calls, each one also PlaneRadar" — and that the field that *does* distinguish them,
+`inFlightMs` (`s_dbgInFlightMs`, stamped with `millis()` **once, at each dispatch's start**,
+`dataTaskStorage.cpp:2088`), was in the original diagnostic's own output the whole time and never
+checked for exactly this.
 
-## Hypotheses, ranked by how cheaply each can be tested
+Re-derived from the original transcript (10 samples, 20s apart, `inFlightMs` at each):
 
-1. **A logging/print call is blocking on a full UART TX buffer.** `LOG_D`/`LOG_W` (`logSink.h:141`)
-   route through a synchronous `Serial.write()` (`logSink.h:133`) with no buffering layer of their
-   own. `fetchPlaneRadar()`'s all-forced path still emits several `LOG_D` lines (the per-attempt
-   `GET %d elapsed=...`/`retry ok=%d...`/`retry2 ok=%d...`/`ok=%d errorCode=%d...` lines) plus two
-   `LOG_HEAP` calls. **Weakened by**: the diagnostic session polled the console every 20s throughout
-   the hang, which would read bytes off the wire regardless of whether the harness's parser used
-   them — genuinely relieving any full-buffer condition — yet the hang never cleared. Not ruled out
-   entirely (a burst larger than the on-chip UART driver's own ring buffer, arriving faster than the
-   polls could drain it, is still conceivable), but this hypothesis alone doesn't fit the persistence
-   through repeated later reads.
-2. **A genuine indefinite wait/block inside the traced function that a static read missed** — e.g. a
-   library call inside `LOG_HEAP`'s macro body (defined locally in `dataTaskStorage.cpp:30`, not
-   re-read in full during this session's trace) that isn't as cheap as it looks, or an interaction
-   with `TLS_RESERVE_EXPERIMENT`/`HEAP_REGION_DUMP_ON`-gated code that this build didn't have
-   compiled in but whose surrounding logic still has an untraced side effect. Needs the actual macro
-   body re-read, and ideally a live instruction-pointer-level signal (a log line per statement, not
-   per function) rather than another static pass.
-3. **Something outside `fetchPlaneRadar()` entirely** — e.g. dataTask's own dispatch loop
-   (`taskBody()`) has logic around the `switch` statement (before/after the `s_dbgInFlight` writes)
-   that can itself stall for this specific request type, not inside the function under suspicion at
-   all. Not read in this session; the trace stopped at `fetchPlaneRadar()`'s own body.
-4. **Not reproducible via the console path used to discover it** — i.e., an artifact of how the
-   diagnostic script issued commands (two separate `dut.cmd()` round-trips to arm then fire, rather
-   than the test's own `dut.injected()`/single-body pattern) rather than a property of the firmware
-   alone. Lowest-probability given `T_PR_08`'s own PASS run showed the SAME unconsumed-credits
-   signature using the harness's real code path, not just the ad-hoc script — but that run's window
-   was too short (2-2.5s away) to have caught the hang in progress either way, so this isn't
-   actually ruled out yet, only unconfirmed.
+```
+t=  20s  inFlightMs=134885  delta_wall=20s  delta_val= 8746ms  ratio=0.44
+t=  40s  inFlightMs=155815  delta_wall=20s  delta_val=20930ms  ratio=1.05
+t=  60s  inFlightMs=185260  delta_wall=20s  delta_val=29445ms  ratio=1.47
+t=  80s  inFlightMs=205755  delta_wall=20s  delta_val=20495ms  ratio=1.02
+t= 100s  inFlightMs=225973  delta_wall=20s  delta_val=20218ms  ratio=1.01
+t= 120s  inFlightMs=246511  delta_wall=20s  delta_val=20538ms  ratio=1.03
+t= 140s  inFlightMs=267535  delta_wall=20s  delta_val=21024ms  ratio=1.05
+t= 160s  inFlightMs=283953  delta_wall=20s  delta_val=16418ms  ratio=0.82
+t= 180s  inFlightMs=304555  delta_wall=20s  delta_val=20602ms  ratio=1.03
+```
 
-## Proposed protocol, in cost order
+`inFlightMs` **advances at essentially wall-clock rate**, ratio ≈1.0 throughout. A value that is
+written once and never touched again while a call is genuinely stuck cannot do this — it would sit
+at its original value (~126139) for the whole window, with only the live `ms` clock advancing
+around it. The only way `inFlightMs` itself climbs in step with real time is if `s_dbgInFlightMs`
+is being **re-written**, i.e. a **new dispatch is starting**, repeatedly, roughly every 8-30
+seconds.
 
-**Gate 0 (host-only, zero DUT cost, do this first).** Before spending any DUT time: read
-`LOG_HEAP`'s full macro body (`dataTaskStorage.cpp:30`, not fully re-read this session) and
-`taskBody()`'s dispatch loop end-to-end (only the `switch` cases were read this session, not the
-loop's own before/after logic) — either could resolve hypothesis 2 or 3 for free. If either read
-finds a plausible blocking call, that becomes the primary suspect for Step 1's instrumentation
-rather than a blind sweep.
+**And `taskBody()`'s dispatch loop is strictly serial**: `xQueueReceive` → set
+`inFlight`/`inFlightMs` → run the dispatched function to completion → clear `inFlight` → loop back
+to `xQueueReceive` (`dataTaskStorage.cpp:2082-2118`, confirmed by this session's own re-read and
+independently by the review). There is no concurrency here — a *new* dispatch's `s_dbgInFlightMs`
+write is only reachable after the *previous* dispatched function has already returned. So the
+advancing timestamp doesn't just make "one stuck call" unlikely, it makes it **mechanically
+impossible** given what was actually observed: every one of those ten samples caught a different,
+freshly-started PlaneRadar dispatch, each of which had already let its predecessor finish.
 
-**Step 1 (minimal DUT cost — one reproduction, full raw capture).** Reproduce with
-`LOG_FILE=<path> ./run/test-targeted <ids>` (the existing raw-serial-capture mechanism,
-`run/test-targeted:12`) capturing every line during a repro of the exact arm+fire sequence, staying
-on PlaneRadar (no switch, matching the diagnostic that reproduced it, not `T_PR_08`'s own
-switch-away shape — reproduce the KNOWN-bad case first, not a guess at a different one). The last
-`LOG_D`/`LOG_HEAP` line printed before the stream goes silent for `fetchPlaneRadar` names, by
-elimination, either the exact statement that never returns, or confirms the function got further
-than static reading suggested (which would itself be informative — reopen the static trace at that
-point rather than guess further). **Pre-registered decision rule**: whichever of the function's
-existing log call sites is the last one seen is the next thing to add fine-grained instrumentation
-around, in a follow-up step — not a proxy for "found it," since a print completing doesn't prove the
-statement immediately after it also completed.
+## What this actually is
 
-**Step 2 (if Step 1 is inconclusive — needs new instrumentation, own sign-off).** Add temporary,
-`SERIAL_DEBUG`-gated log lines between every statement in the suspect region identified by Step 1
-(a "print a breadcrumb after every line" pass, removed before any production-adjacent build) and
-reproduce once more. This is genuinely new code, even if temporary — bring it back for a design
-sign-off before landing it, matching this programme's rule that no DUT-costing instrument ships
-without review (TASK-697's Gate 0 precedent: an instrument itself can perturb the exact thing it's
-measuring, so even a "just add prints" step needs to state what it might disturb before running it).
+Not a wedge. `fetchPlaneRadar()` returns normally, repeatedly, roughly every 8-30 seconds, for the
+whole observation window — i.e., PlaneRadar's ordinary fetch cadence continuing to run, sampled at
+a point where every real network attempt happens to be genuinely slow (no code anywhere in
+`dataTaskStorage.cpp` sets a TLS/connect/handshake timeout — grep confirms zero
+`setTimeout`/`setConnectTimeout`/`setHandshakeTimeout` calls; the vendored `WiFiClientSecure`'s
+default is 120s per handshake, `app/lib/WiFiClientSecure/src/WiFiClientSecure.cpp:40` — the review's
+finding, not re-verified line-for-line in this pass but consistent with everything observed).
 
-## What this protocol does NOT propose
+**What's still genuinely unexplained, and worth its own look, at much lower priority than a P1
+wedge**: `prLastHttp` never changed from `0` across the entire 180s+ window despite this reading
+implying several real fetches completed and published results in that time. Either the app-side
+consumer isn't updating that field the way assumed, or the fetches are completing with some code
+path that doesn't touch `prLastHttp`, or (least likely, but not excluded) each one really is
+failing/timing out in a way that never reaches the publish statement — which would reopen a
+narrower version of the original question. Not chased further here; if this matters, it's a fresh,
+correctly-scoped investigation, not a resurrection of "the wedge."
 
-- No new debug hook shaped like `TLS_RESERVE_EXPERIMENT`/`HEAP_REGION_DUMP_ON` — those were built
-  for a different, still-parked investigation (TASK-697) and reusing them here would conflate two
-  separate open questions on one board.
-- No fix attempt before the hang is actually located. TASK-706's resume()-drain code is a plausible
-  but unconfirmed suspect (it's new, and it does call `pollPlaneRadar()` from a different task
-  context than `fetchPlaneRadar()` normally runs in) — Step 1's capture should also note whether
-  `PlaneRadarApp::resume()`'s own drain-and-epoch-bump log context appears anywhere near the hang,
-  but this document does not assume TASK-706 caused it. The wedge may be entirely pre-existing and
-  merely newly-exercised by `T_PR_08`'s introduction of this exact `prForceParseFail=3` +
-  `triggerPlaneRadarFetch` combination in a test for the first time.
+## TASK-706's own status is unaffected by this correction
 
-## Cost and stop condition
+TASK-706's `T_PR_08` PASS was independently already marked inconclusive (see `tasks.md`), for an
+unrelated and still-valid reason: that test's own away-window (2-2.5s) is far too short for even a
+single real dispatch to complete, forced or otherwise, so it couldn't have observed a drain either
+way. That conclusion doesn't depend on anything about the wedge and stands as filed.
 
-Each reproduction costs one TASK-557 observation window (a wedge requires a reflash to clear — no
-lesser recovery exists, confirmed: the console stayed responsive but `dataTask` itself never
-recovered on its own across 180s+ of observation) plus the DUT time for the repro itself (~1-2
-minutes to arm/fire/observe/confirm-stuck). **Cap: 2 reproduction attempts (Gate 0's host read plus
-Step 1, then Step 1 repeated once if the first capture is ambiguous) before stopping and reporting
-back for a scope decision** — matching TASK-697's own precedent of a human-set stopping condition
-declared before a session starts, not discovered mid-chase. This is a P1 finding (it can wedge a
-running board via a legitimate VE test hook, not an edge-case misuse), but "P1" is not itself
-license for an open-ended DUT session; the severity argues for prioritizing when it's investigated,
-not for how much DUT time gets spent per sitting.
+## Lesson for next time (the part worth keeping past this one task)
 
-## Exit criteria
-
-Either: the hang's exact location is identified (Step 1 or 2 succeeds) and a fix can be scoped as
-its own task, separate from this diagnostic; or both attempts are inconclusive and TASK-712 is
-parked (matching TASK-697's own disposition) with everything gathered here plus the two attempts'
-findings recorded, rather than continuing past the 2-attempt cap.
+`inFlight`-style "what's currently running" fields answer "is something running", not "is it the
+*same* something" — that second question needs a field that's stamped at a specific instant and
+never touched again, checked for whether it's still that same stamp. This project already has a
+sharper instrument for exactly this class of question — `get dataRing` (TASK-697, sequence of
+dispatch/finish/yield edges with timestamps,
+`app/src/debug/serialConsole/cmdGet.cpp:208-224`) — which would have shown the
+repeated dispatch-then-finish pattern directly instead of requiring this after-the-fact arithmetic
+on a snapshot field. Reach for `get dataRing` before `get dataq` alone the next time a "stuck at
+value X" reading needs to be told apart from "value X keeps recurring."
