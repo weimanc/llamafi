@@ -671,13 +671,20 @@ def t_pr_08(dut: Dut):
             _restore_spotify(dut)
             return
         # Fire immediately (don't wait out the poll cadence) then leave RIGHT
-        # AWAY — see the ordering-race note above. Fire-once action, no
-        # backing field (_order.py's TRIGGER-VERB FIELDS note), but R17's
-        # restore-manager ratchet wants every `set` wrapped regardless —
-        # `clear_to=0` matches the `triggerHeatmap` precedent in
-        # docs/verification/unrestored_mutations_ratchet.md.
-        with dut.injected("triggerPlaneRadarFetch", 1, clear_to=0):
-            pass
+        # AWAY — see the ordering-race note above. TASK-706 DUT run
+        # (2026-09-18) found `clear_to=0` here does NOT work: the firmware's
+        # handler is `strcmp(var,"triggerPlaneRadarFetch")==0 &&
+        # strcmp(val,"1")==0` (planeRadarApp.cpp:244) — it matches ONLY
+        # val="1"; a value of "0" never matches and falls through to
+        # "unknown var". This is exactly the class of guessed clearing value
+        # the ratchet doc's own history warns about (write-only trigger
+        # flags "should not be converted ahead of the session that measures
+        # them, because a clearing value nobody has observed working is a
+        # second guess wearing a manager's clothes"). Matches T_PR_05's own
+        # established, DUT-verified pattern for this exact variable: a bare
+        # `set`, no restore — there is nothing to restore, since firing it
+        # leaves no state a clear could meaningfully reverse.
+        dut.cmd("set triggerPlaneRadarFetch 1", timeout=3.0)
         if not _restore_spotify(dut):
             fail("T_PR_08", "PlaneRadar->Spotify switch-away failed mid-test")
             return

@@ -73,7 +73,7 @@ A snapshot that cannot be read raises **before** the body runs â€” `NoAnswer` â†
 | `suite/serialdbg/stock.py` | 40 | TASK-602 | 2026-09-05 |
 | `suite/serialdbg/shell.py` | 22 | TASK-615 | 2026-09-18 |
 | `suite/serialdbg/player.py` | 32 | TASK-695 | 2026-09-13 |
-| `suite/serialdbg/planeradar.py` | 24 | TASK-602 | 2026-09-05 |
+| `suite/serialdbg/planeradar.py` | 25 | TASK-706 | 2026-09-18 |
 | `suite/serialdbg/clock.py` | 12 | TASK-602 | 2026-09-05 |
 | `suite/serialdbg/teletext.py` | 1 | TASK-695 | 2026-09-13 |
 | `suite/serialdbg/_helpers.py` | 2 | TASK-602 | 2026-09-05 |
