@@ -84,6 +84,20 @@ bool NosTeletextSource::poll(dataTask::TeletextState* out) {
     if (dataTask::pollTeletext(&result)) {
         _pendingFetch = false;
         if (result.ready) {
+            // TASK-706 (M-DATATASK-result-staleness-rule): a result parked
+            // since before the user navigated to a different page (back-nav
+            // mid-fetch, or an app-switch away and back) can still be ready
+            // and still be for the *same identity slot*, but for a page we
+            // are no longer viewing/requesting. Accepting it unconditionally
+            // would silently retarget _st.page — and, via the caller,
+            // g_settings.teletextPage — to a page the user never asked for.
+            // Same pattern as stockChart.cpp's symbol/rangeIdx identity
+            // check; treat a mismatch exactly like "no fresh result yet".
+            if (result.page != out->page) {
+                LOG_D("teletext", "drop stale result page=%u (viewing %u)",
+                      (unsigned)result.page, (unsigned)out->page);
+                return false;
+            }
             *out   = result;
             _ttErr = false;   // TASK-246: success clears red
             _ready = true;
