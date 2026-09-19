@@ -6,6 +6,7 @@ import time
 from lib.dut import BadField, Dut
 import coords as _c
 from lib.results import pass_, fail, unmet
+from suite.serialdbg._meta import meta
 
 
 def _switch_to_clock(dut: Dut) -> bool:
@@ -21,6 +22,7 @@ def _restore_spotify_from_clock(dut: Dut):
     dut.cmd("switchApp 0")
     time.sleep(0.5)
 
+@meta(oracle={"appId": "SNAPSHOT"}, falsifier="replay")
 def t_clk_01(dut: Dut):
     """T_CLK_01: switchApp(1) switches to Clock."""
     tid = "T_CLK_01"
@@ -36,6 +38,7 @@ def t_clk_01(dut: Dut):
     pass_(tid, "appId=1 confirmed after switchApp")
 
 
+@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
 def t_clk_03(dut: Dut):
     """T_CLK_03: set clockStyle flip — device accepts, readback matches."""
     tid = "T_CLK_03"
@@ -52,6 +55,7 @@ def t_clk_03(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "flip set + readback OK")
 
+@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
 def t_clk_04(dut: Dut):
     """T_CLK_04: set clockStyle nixie — device accepts, readback matches."""
     tid = "T_CLK_04"
@@ -68,6 +72,7 @@ def t_clk_04(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "nixie set + readback OK")
 
+@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
 def t_clk_05(dut: Dut):
     """T_CLK_05: set clockStyle vfd — device accepts, readback matches."""
     tid = "T_CLK_05"
@@ -84,6 +89,7 @@ def t_clk_05(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "vfd set + readback OK")
 
+@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
 def t_clk_06(dut: Dut):
     """T_CLK_06: set clockStyle by numeric index 0..3."""
     tid = "T_CLK_06"
@@ -102,6 +108,7 @@ def t_clk_06(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "all 4 styles accessible by numeric index")
 
+@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
 def t_clk_07(dut: Dut):
     """T_CLK_07: invalid clockStyle value is rejected."""
     tid = "T_CLK_07"
@@ -117,6 +124,8 @@ def t_clk_07(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "bad values rejected with ok=false")
 
+@meta(oracle={"clockStyle.saved": "SNAPSHOT", "clockStyle.name": "SNAPSHOT"},
+      falsifier="replay")
 def t_clk_08(dut: Dut):
     """T_CLK_08: `set clockStyle` reports that SettingsStorage::save() succeeded.
 
@@ -158,6 +167,7 @@ def t_clk_08(dut: Dut):
     pass_(tid, "set clockStyle nixie -> saved=true, and the value reads back")
 
 
+@meta(oracle={"appId": "SNAPSHOT"}, premise=("clockStyle",), falsifier="replay")
 def t_clk_10(dut: Dut):
     """T_CLK_10: appId stays Clock=1 while VFD style is active."""
     tid = "T_CLK_10"
@@ -171,6 +181,16 @@ def t_clk_10(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "appId=1 confirmed with VFD style active")
 
+# NOT declared (TASK-641). The claim here is a heap comparison across two
+# `info` replies (`r0.get("heap")` / `r1.get("heap")`), but `info` is not a
+# `get <key>`/`set <key>` command — `gen_read_keys.py`'s extractor (and the
+# transcript-key regex behind it, `_GETSET_RE`) only recognises those two
+# verbs, so a bare `info` reply's fields have no representable key in the
+# generated read set at all. Forcing `oracle={"heap": ...}` here would fail
+# the gate's "declared key must be in the generated set" arm for a reason
+# that has nothing to do with this id's authorship — it is a real gap in the
+# generator's vocabulary, not a gap in this declaration, and is reported as
+# such rather than papered over with an undeclared-but-true claim.
 def t_clk_11(dut: Dut):
     """T_CLK_11: heap stable after cycling all 4 styles twice."""
     tid = "T_CLK_11"
@@ -191,6 +211,7 @@ def t_clk_11(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, f"heap stable — leak={leak}B (before={h0} after={h1})")
 
+@meta(oracle={"appId": "SNAPSHOT"}, falsifier="replay")
 def t_clk_12(dut: Dut):
     """T_CLK_12: switchApp Clock→Spotify — device stable, Spotify app active."""
     tid = "T_CLK_12"
@@ -215,6 +236,14 @@ def _sig_field(r: dict, name: str) -> int:
     return int(r[name])
 
 
+# The can-go-red ledger (docs/verification/can_go_red_ledger.md) carries this
+# id as RED-WITHOUT-ASSERTION — poisoned replays never turned it FAIL because
+# no mutation the sweep tried touched anything this body's verdict depends
+# on. This declaration says what the oracle SHOULD be per the body below
+# (the `sig` fields checked at line 249); it is not itself evidence that a
+# replay/mutation run confirms it — that is TASK-643's driver, not built here.
+@meta(oracle={"sig.inkCount": "SNAPSHOT", "sig.distinctColors": "SNAPSHOT"},
+      premise=("idle",), falsifier="replay")
 def t_clk_sig_01(dut: Dut):
     """T_CLK_SIG_01: the Clock canvas is DRAWN — ink and distinct colours over
     the panel readback (ADR-064 D3), the structural assertion H-2 lacked.

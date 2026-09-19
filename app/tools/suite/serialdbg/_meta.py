@@ -110,6 +110,24 @@ OPS = {
 #: Tuple form, in definition order — what `meta(ops=...)` and the gate iterate.
 OPS_ORDER = tuple(OPS)
 
+# ------------------------------------------------- the falsifier vocabulary
+#
+# TASK-641 (docs/architecture/designs/M-HARNESS2-falsifier-taxonomy.md §2/§3/
+# §7). Two more closed enums, on top of cls/scope/effect/ops:
+#
+#   ROLE  — of each key a body reads: ORACLE (the read the claim is about),
+#           PREMISE (a precondition established before asserting), or the
+#           default INCIDENTAL (read, but the verdict must not depend on it).
+#           There is no ROLES tuple to validate against, because role is not
+#           a value the author writes down — it is WHICH of `meta()`'s two
+#           dicts a key is placed in. An undeclared key is INCIDENTAL by
+#           construction (§2): that is deliberate, not a hole — a forgotten
+#           oracle key is caught later by the control arm going FAIL
+#           (OVER-DEPENDENT), not silently accepted.
+#   SHAPE — declared per ORACLE key, fixes which mutation operator a future
+#           driver (TASK-643, not built here) would use against it.
+SHAPES = ("SNAPSHOT", "POLL", "TRANSITION", "EVENT", "ABSENCE", "PHYSICAL", "NONE")
+
 #: scope values that are not an app. `spotify-chrome` is deliberately NOT
 #: `spotify`: a case-only distinction against APP_ORDER's `Spotify` is a defect
 #: in a CLI value (design §13.3) — one `.lower()` anywhere in a resolver and the
@@ -130,7 +148,9 @@ DEFAULT_EFFECT = "mutating"
 def meta(cls: str = None, cls_reason: str = None,
          scope: str = None, scope_reason: str = None,
          effect: str = None, effect_reason: str = None,
-         ops: tuple = None):
+         ops: tuple = None,
+         oracle: dict = None, premise: "set | tuple" = None,
+         falsifier: str = None):
     """Declare metadata on a test function. Everything is optional; whatever is
     given overrides the seed for that axis, and a `scope`/`effect` override must
     carry its `*_reason`.
@@ -162,6 +182,38 @@ def meta(cls: str = None, cls_reason: str = None,
 
         @meta(ops=("stock_quote_fetch",))
         def t172(dut): ...
+
+    `oracle`/`premise`/`falsifier` (TASK-641, design §7) are a THIRD,
+    independently opt-in group — a body may declare `ops` without them or
+    vice versa. Like `ops` they have no seed: an id with none of the three is
+    entirely unrepresented in the falsifier record, and that is never itself
+    a finding (most of the corpus predates this axis). What IS checked, by
+    `gate/check_test_meta.py`, is that whatever IS declared is true and
+    well-formed:
+
+      * `oracle` maps a key (or `key.field`, when one command's reply carries
+        several independently-assertable fields — e.g. `"sig.inkCount"`) to a
+        SHAPE from the closed `SHAPES` enum. It must be the read the claim is
+        actually about, and it must be a key this id's body really reads —
+        the gate checks the `key` part (before any `.field`) against the
+        GENERATED set in `app/gen/read_keys.py`, not the author's word, for
+        the same reason `ops` is checked against `OPS`: a declaration that
+        names a read the body does not make is worse than no declaration.
+      * `premise` is a set of key names the body reads as a PRECONDITION
+        before its oracle assertion means anything (e.g. `appId` before a
+        style readback would mean anything). No shape — a precondition is
+        not itself mutated by a shape-specific operator in this design.
+      * `falsifier` is `"replay"` (the driver, TASK-643, confirms it against
+        a recorded transcript) or `"physical: <what>; expires <ISO date>"`
+        when nothing on the host can exercise it (SD eject, audible output,
+        a real fetch). An expired physical falsifier is a gate failure, the
+        same rule `flaky.yaml`'s `review_by` already enforces (F8).
+
+    None of this builds the mutation driver or its verdict matrix (TASK-643)
+    — only makes the claim expressible and checkable ahead of it.
+
+        @meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
+        def t_clk_03(dut): ...
     """
     d = {}
     if cls is not None:
@@ -178,6 +230,12 @@ def meta(cls: str = None, cls_reason: str = None,
         d["effect_reason"] = effect_reason
     if ops is not None:
         d["ops"] = tuple(ops)
+    if oracle is not None:
+        d["oracle"] = dict(oracle)
+    if premise is not None:
+        d["premise"] = tuple(sorted(premise))
+    if falsifier is not None:
+        d["falsifier"] = falsifier
 
     def _wrap(fn):
         # Set the attribute; do NOT wrap. fn.__name__/inspect must keep working
@@ -333,6 +391,9 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
     effect_seed = seed_effect(fn)
     effect = decl.get("effect", effect_seed)
     ops = tuple(decl.get("ops", ()) or ())
+    oracle = dict(decl.get("oracle", {}) or {})
+    premise = tuple(decl.get("premise", ()) or ())
+    falsifier = decl.get("falsifier")
 
     return {
         "id": test_id,
@@ -341,6 +402,12 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
         "effect": effect,
         "ops": ops,
         "ops_declared": "ops" in decl,
+        "oracle": oracle,
+        "oracle_declared": "oracle" in decl,
+        "premise": premise,
+        "premise_declared": "premise" in decl,
+        "falsifier": falsifier,
+        "falsifier_declared": "falsifier" in decl,
         "module": module_basename,
         "scope_seed": scope_seed,
         "scope_seeded_by": how,

@@ -45,11 +45,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.dirname(HERE)
 ROOT = os.path.dirname(os.path.dirname(TOOLS))
 sys.path.insert(0, TOOLS)
+sys.path.insert(0, os.path.join(ROOT, "app", "gen"))
 
 from app_ids_gen import APP_ORDER                     # noqa: E402
 import suite.serialdbg as _suite                      # noqa: E402
 from suite.serialdbg import _meta                     # noqa: E402
 from suite.serialdbg import _order                    # noqa: E402
+from read_keys import READ_KEYS as _READ_KEYS         # noqa: E402 (generated, TASK-641)
 
 
 # ── R35: a class is DECLARED for every gating id, never defaulted (TASK-591) ──
@@ -183,6 +185,94 @@ def evaluate_gating_classes(records: dict, ledger=None, gating=None) -> list:
     return out
 
 
+# ── TASK-641: the falsifier record (oracle/premise/falsifier, §7) ───────────
+#
+# WHY THIS EXISTS. §7 adds a second declaration surface next to (cls, scope,
+# effect): which of a body's reads is the ORACLE the claim is about, which is
+# a PREMISE, and (by omission) which is INCIDENTAL. Two things fail silently
+# if nothing checks them, the same way the (cls, scope, effect) record did
+# before this file existed:
+#
+#   * a shape or falsifier value outside its closed enum has no operator a
+#     future driver (TASK-643) could run against it — it would just never
+#     fire, and nobody would notice until AC4's confirmed-share number came
+#     back wrong for a reason nobody could find by reading the record;
+#   * a declared ORACLE key that the body does not actually read is worse
+#     than no declaration at all — it tells a future reader (and a future
+#     driver) to falsify a read that never happens. Checked against the
+#     GENERATED set in app/gen/read_keys.py, the same way `ops` is checked
+#     against `OPS` (P2) rather than trusted on the author's word;
+#   * an expired `physical` falsifier is exactly `flaky.yaml`'s expired
+#     `review_by` (F8) wearing a different name — a record that is no longer
+#     backed by anything current must fail loudly, not sit there looking
+#     confirmed.
+#
+# APPROX ids (`read_keys.py`'s static-walk fallback, no transcript): the same
+# check applies. APPROX's incompleteness is UNDER-approximation only — a
+# dynamic (f-string) read is listed as `unresolved`, never silently dropped,
+# and every key the static walk DOES resolve to a literal is a real read the
+# same way a transcript-derived key is. So a missing ORACLE key on an APPROX
+# id is still evidence of a bad declaration, not a gate artifact — the
+# finding just adds a one-line hint pointing at the weaker evidence, in case
+# re-running the walk (or recording a transcript) is the actual fix.
+_PHYSICAL_RE = re.compile(r"^physical:.+;\s*expires\s+(\d{4}-\d{2}-\d{2})\s*$")
+
+
+def evaluate_falsifiers(records: dict, read_keys: dict = None, today=None) -> list:
+    """Pure: records -> findings. `read_keys` defaults to the generated
+    `app/gen/read_keys.py::READ_KEYS`; `today` to `date.today()` — both
+    overridable so the negative suite can drive small fixtures without a
+    real transcript or the system clock."""
+    read_keys = read_keys if read_keys is not None else _READ_KEYS
+    today = today if today is not None else datetime.date.today()
+    out: list = []
+
+    for tid in sorted(records):
+        r = records[tid]
+        oracle = r.get("oracle") or {}
+        falsifier = r.get("falsifier")
+
+        for key, shape in sorted(oracle.items()):
+            if shape not in _meta.SHAPES:
+                out.append(
+                    f"{tid}: oracle {key!r} declares shape {shape!r}, not in "
+                    f"{_meta.SHAPES} — a shape outside the enum names no "
+                    f"mutation operator, so nothing could ever falsify it "
+                    f"(M-HARNESS2 §3)")
+
+        rk = read_keys.get(tid)
+        known = {k for _kind, k in (rk or {}).get("keys", [])}
+        for key in sorted(oracle):
+            base = key.split(".", 1)[0]
+            if base not in known:
+                hint = (" (id is APPROX in read_keys.py — the static walk may "
+                         "simply not have resolved this read yet; re-check "
+                         "the body, or record a transcript)"
+                         if rk and rk.get("status") == "APPROX" else "")
+                out.append(
+                    f"{tid}: oracle key {key!r} is not in the generated read "
+                    f"set for this id{hint} — the record names a read the "
+                    f"body does not make (M-HARNESS2 §2)")
+
+        if falsifier and falsifier != "replay":
+            m = _PHYSICAL_RE.match(falsifier)
+            if not m:
+                out.append(
+                    f"{tid}: falsifier {falsifier!r} is neither 'replay' nor "
+                    f"'physical: <what>; expires YYYY-MM-DD' (M-HARNESS2 §7)")
+            else:
+                expires = datetime.date.fromisoformat(m.group(1))
+                if today > expires:
+                    days = (today - expires).days
+                    out.append(
+                        f"{tid}: physical falsifier expired {expires} — passed "
+                        f"{days} day(s) ago. Rule mirrored from flaky.yaml's "
+                        f"review_by (F8): an entry past its review date is a "
+                        f"FAIL until re-justified, not a silent pass "
+                        f"(M-HARNESS2 §3 / PM §4.1)")
+    return out
+
+
 def evaluate(records: dict, scopes=None, classes=None, effects=None) -> list:
     """Pure: records -> list of findings. Takes the enums as arguments so the
     negative suite can mutate them without touching the module."""
@@ -299,6 +389,9 @@ def main() -> int:
     ledger, ledger_errors = parse_ledger()
     findings += evaluate_gating_classes(records, ledger) + ledger_errors
 
+    # TASK-641 — the falsifier record (oracle/premise/falsifier, §7).
+    findings += evaluate_falsifiers(records)
+
     # The file -> scope map (§13.4). The GLOB is the specification, not
     # app/src/apps/: Stock and Aquarium predate that directory.
     try:
@@ -342,6 +435,10 @@ def main() -> int:
     print(f"  gating ({'/'.join(GATING)}): {len(gating_ids)} ids, "
           f"{len(reasoned)} declared with a written reason, "
           f"{len(ledger)} on the R35 ledger ({LEDGER_REL})")
+    oracle_ids = [t for t, r in records.items() if r.get("oracle")]
+    falsifier_ids = [t for t, r in records.items() if r.get("falsifier")]
+    print(f"  falsifier record (TASK-641): {len(oracle_ids)} id(s) declare an "
+          f"oracle, {len(falsifier_ids)} declare a falsifier")
     for n in notes:
         print(f"  [note] {n}")
 

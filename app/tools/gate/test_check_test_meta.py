@@ -16,6 +16,7 @@ No DUT, no build, no network. Run: python3 app/tools/gate/test_check_test_meta.p
 
 from __future__ import annotations
 
+import datetime
 import os
 import sys
 from pathlib import Path
@@ -254,6 +255,96 @@ def case_the_declared_gating_ids_carry_real_sentences():
     assert not dupes, f"duplicated cls_reason text on: {sorted(dupes)}"
 
 
+# ── TASK-641: the falsifier record (oracle/premise/falsifier) ────────────────
+#
+# `read_keys` and `today` are passed explicitly throughout so these cases
+# exercise `evaluate_falsifiers` against small fixtures, never the real
+# `app/gen/read_keys.py` or the system clock (the live corpus gets its own
+# positive control below, the same split R35's cases use for its ledger).
+
+_TODAY = datetime.date(2026, 9, 19)
+_RK_CLOCKSTYLE = {"T_X_01": {"status": "transcript",
+                             "keys": [["set", "clockStyle"]], "unresolved": []}}
+
+
+def case_oracle_shape_outside_enum():
+    f = C.evaluate_falsifiers(rec(oracle={"clockStyle": "BOGUS"}),
+                              read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "not in")
+
+
+def case_oracle_key_not_in_generated_set():
+    """§2: 'a declared key that is not in the generated set is a gate
+    failure' — a heap oracle declared against a read set that only ever
+    saw `clockStyle`."""
+    f = C.evaluate_falsifiers(rec(oracle={"heap": "SNAPSHOT"}),
+                              read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "is not in the generated read set")
+
+
+def case_oracle_key_missing_on_approx_id_carries_a_hint():
+    """APPROX ids get the same finding, plus a hint that the static walk
+    may simply be behind — the finding is not weakened, only explained."""
+    f = C.evaluate_falsifiers(
+        rec(oracle={"heap": "SNAPSHOT"}),
+        read_keys={"T_X_01": {"status": "APPROX", "keys": [], "unresolved": []}},
+        today=_TODAY)
+    hits = one(f, "is not in the generated read set")
+    assert "APPROX" in hits[0], hits
+
+
+def case_oracle_key_field_form_checks_the_base_key():
+    """`clockStyle.name` -> the base key `clockStyle` is what must be read;
+    the `.field` half is not itself required to appear anywhere."""
+    f = C.evaluate_falsifiers(rec(oracle={"clockStyle.name": "SNAPSHOT"}),
+                              read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    assert not f, f
+
+
+def case_falsifier_bad_format_is_a_finding():
+    f = C.evaluate_falsifiers(rec(falsifier="somehow, replay-ish"),
+                              read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "neither 'replay' nor")
+
+
+def case_falsifier_physical_expired_is_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(falsifier="physical: SD eject; expires 2020-01-01"),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "expired 2020-01-01")
+
+
+def case_falsifier_physical_unexpired_is_not_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(falsifier="physical: SD eject; expires 2030-01-01"),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    assert not f, f
+
+
+def case_falsifier_replay_with_a_real_oracle_is_not_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay"),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    assert not f, f
+
+
+def case_undeclared_id_is_not_a_finding():
+    """No oracle, no falsifier at all is never itself a finding — most of
+    the corpus predates this axis (§7's own opt-in framing)."""
+    f = C.evaluate_falsifiers(rec(), read_keys={}, today=_TODAY)
+    assert not f, f
+
+
+def case_live_clock_falsifiers_are_clean():
+    """The live corpus, through the real generated `app/gen/read_keys.py`
+    and today's date. This is the gate at BLOCKING for the Clock cohort
+    declared so far: it passes only because every declared oracle key is a
+    real read and every falsifier is well-formed and unexpired."""
+    recs = _suite.build_all_meta()
+    f = C.evaluate_falsifiers(recs)
+    assert not f, f"live falsifier findings: {f}"
+
+
 # ── positive controls ─────────────────────────────────────────────────────────
 
 def case_live_registry_is_clean():
@@ -401,6 +492,17 @@ CASES = [
     ("G12 FEATURE needs no reason",          case_feature_needs_no_reason),
     ("G13 live gating set is clean",         case_live_registry_gating_classes_are_clean_or_ledgered),
     ("G14 declared reasons are sentences",   case_the_declared_gating_ids_carry_real_sentences),
+    # TASK-641 — the falsifier record (oracle/premise/falsifier)
+    ("F1  oracle shape outside the enum",    case_oracle_shape_outside_enum),
+    ("F2  oracle key not in read set",       case_oracle_key_not_in_generated_set),
+    ("F3  APPROX miss carries a hint",       case_oracle_key_missing_on_approx_id_carries_a_hint),
+    ("F4  key.field checks the base key",    case_oracle_key_field_form_checks_the_base_key),
+    ("F5  malformed falsifier string",       case_falsifier_bad_format_is_a_finding),
+    ("F6  expired physical falsifier",       case_falsifier_physical_expired_is_a_finding),
+    ("F7  unexpired physical is not a finding", case_falsifier_physical_unexpired_is_not_a_finding),
+    ("F8  replay + real oracle is clean",    case_falsifier_replay_with_a_real_oracle_is_not_a_finding),
+    ("F9  no declaration is not a finding",  case_undeclared_id_is_not_a_finding),
+    ("F10 live Clock falsifiers are clean",  case_live_clock_falsifiers_are_clean),
 ]
 
 
