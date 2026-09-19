@@ -4,9 +4,26 @@ docs/architecture/designs/M-HARNESS2-falsifier-taxonomy.md §2, §7).
 
 WHAT THIS IS. Every id in the suite (`suite.serialdbg.build_all_tests()` +
 `build_health_tests()`) reads some set of `get <key>` / `set <key>` /
-`log:<pattern>` values on its healthy path. §7 wants that set GENERATED, not
-hand-typed, so `gate/check_test_meta.py`'s future `oracle=` declarations can be
-checked against it instead of trusted on the author's word.
+`log:<pattern>` / `cmd <verb>` values on its healthy path. §7 wants that set
+GENERATED, not hand-typed, so `gate/check_test_meta.py`'s future `oracle=`
+declarations can be checked against it instead of trusted on the author's
+word.
+
+TASK-713: a fourth kind, `cmd`. `get`/`set` cover a named-variable read/write;
+`log` covers a `drain_log_lines(...)` pattern; neither has a vocabulary for a
+body that binds the REPLY to some other command (`tap`, `drag`, `switchApp`,
+`advance`, `info`, `playerCycle`, `reconnect`, `tick`, `reboot`, `release`, …)
+and reads a field off it — `r = dut.cmd("tap 10 20"); r.get("hit")` has no
+representable oracle key before this. `("cmd", "tap")` is that key: the
+COMMAND VERB is the key (coarse — one `cmd tap` entry covers every `tap` at
+every coordinate, exactly as one `get appId` entry covers many `get appId`
+calls), and a field on its reply is the dotted field the same way `sig.ink
+Count` already works for `get sig`. See `_CMD_RE` below for why "issued", not
+"issued AND its reply read", is what earns the key — it matches the
+"issued" standard `get`/`set` already used (a transcript exchange, or a
+literal `dut.cmd("get X")` call site, earns its key whether or not the return
+value is ever assigned to a name), not a stricter one invented just for this
+kind.
 
 TWO SOURCES, TRANSCRIPT FIRST (§2):
 
@@ -21,11 +38,11 @@ TWO SOURCES, TRANSCRIPT FIRST (§2):
 
   2. STATIC WALK (no transcript). A source-level walk of the test function and
      every same-package helper function it can reach (BFS over bare-name calls,
-     depth-bounded — the same technique `suite/serialdbg/_meta.py`'s
-     `_reachable_source` already uses for scope/effect seeding, duplicated here
-     deliberately rather than imported: this generator must be able to prove
-     its OWN coverage, per the TASK-600 lesson below, not inherit an unaudited
-     helper). An id resolved this way is marked `status: "APPROX"` and any read
+     depth-bounded — `suite/serialdbg/_meta.py`'s `_reachable_source`, which
+     already does that walk for scope/effect seeding and is IMPORTED here, not
+     copied: a mirrored walk drifts silently and in the unsafe direction, which
+     is the TASK-600 lesson below applied to this file's own code). An id
+     resolved this way is marked `status: "APPROX"` and any read
      whose key could not be pinned to a literal (an f-string like
      `f"get {var}"`, or a fully dynamic argument) is listed under
      `"unresolved"` rather than guessed at.
@@ -40,6 +57,23 @@ generator's own algorithm wearing a hat) — so instead it prints an HONEST
 CENSUS every run: ids total, transcript-backed vs APPROX, keys found by each
 source, and every id it could not resolve a function for at all. An unresolved
 id is a printed line, never a silent zero.
+
+WHAT IS STILL OUTSIDE THE VOCABULARY, AFTER TASK-713 ADDED `cmd`. Two ids
+carry NO key of any kind, and neither is a hole this generator should close:
+
+  * `T094` (app/tools/suite/serialdbg/shell.py:709) is a physical-tap test —
+    its oracle is a human watching the board. That is the taxonomy's
+    `PHYSICAL` shape, which by design has no host operator and is carried by
+    the record's `falsifier` field with an expiry, not by a read key.
+  * `T133` (app/tools/suite/serialdbg/shell.py:845) asserts on the CHECKOUT:
+    part A greps `lib/SpotifyArduino/src/SpotifyArduino.cpp` for a zero-init
+    guard. A host-file oracle is outside this set's universe — the set is
+    device reads — and that same host-file dependence is why TASK-591 demoted
+    the id out of CORE (`check_gating_offline.py`'s N4).
+
+Both are named here because "0 unresolved reads" in the census is a claim
+about the WALK, not about whether every id has a declarable oracle, and the
+difference is easy to read past.
 
 OUTPUT: `app/gen/read_keys.py`, in the house style of `app/tools/app_ids_gen.py`
 — data only, no timestamps, ids and keys sorted so two runs are byte-identical
@@ -110,6 +144,11 @@ _METHOD_ARG_RE = re.compile(
     r"|get_val|get_int|get_float|get_str|get_bool|set_val)\(\s*([^,)]*)")
 _LOG_ARG_RE = re.compile(r"\.drain_log_lines\(\s*([^,)]*)")
 _GETSET_RE = re.compile(r"^(get|set)\s+(\S+)")
+#: Any other command word (`tap`, `drag`, `switchApp`, `advance`, `info`,
+#: `playerCycle`, `reconnect`, `tick`, `reboot`, `release`, …). Tried only
+#: after `_GETSET_RE` fails to match, so `get`/`set` keep their existing
+#: (kind, key) shape untouched — this never reclassifies a get/set command.
+_CMD_RE = re.compile(r"^(\S+)")
 
 _STRING_METHODS = {"cmd", "send", "cmd_drain", "read_reply"}
 _VARNAME_METHOD_KIND = {
@@ -166,13 +205,20 @@ def _extract_full(blob: str) -> tuple[set, list]:
                                   f"{rawarg.strip()!r}")
                 continue
             m = _GETSET_RE.match(content.strip())
-            if not m:
-                continue          # not a get/set command (tap/drag/switchApp/…)
-            kind, key = m.group(1), m.group(2)
-            if "{" in key:
-                unresolved.append(f"{kind} <dynamic key>: {content!r}")
-            else:
-                keys.add((kind, key))
+            if m:
+                kind, key = m.group(1), m.group(2)
+                if "{" in key:
+                    unresolved.append(f"{kind} <dynamic key>: {content!r}")
+                else:
+                    keys.add((kind, key))
+                continue
+            cm = _CMD_RE.match(content.strip())
+            if cm:
+                verb = cm.group(1)
+                if "{" in verb:
+                    unresolved.append(f"cmd <dynamic verb>: {content!r}")
+                else:
+                    keys.add(("cmd", verb))
         else:
             kind = _VARNAME_METHOD_KIND[method]
             if content is None:
@@ -206,9 +252,14 @@ def _extract_log_only(blob: str) -> tuple[set, list]:
 def _transcript_keys(t) -> set:
     keys = set()
     for (cmd, _nth) in t.exchanges:
-        m = _GETSET_RE.match((cmd or "").strip())
+        c = (cmd or "").strip()
+        m = _GETSET_RE.match(c)
         if m:
             keys.add((m.group(1), m.group(2)))
+            continue
+        cm = _CMD_RE.match(c)
+        if cm:
+            keys.add(("cmd", cm.group(1)))
     return keys
 
 
@@ -266,6 +317,7 @@ def build_records() -> tuple[dict, dict]:
         "ids_total": len(id_fn), "transcript_backed": 0, "approx": 0,
         "keys_from_transcript": 0, "keys_from_static": 0,
         "unresolved_ids": [], "unresolvable_fn": [],
+        "kind_counts": {},
     }
 
     for tid in sorted(id_fn):
@@ -327,6 +379,16 @@ def build_records() -> tuple[dict, dict]:
             "unresolved": sorted(unresolved),
         }
 
+    # Honest census, per-kind (TASK-713): counted over the FINAL per-id key
+    # sets (transcript + static log-scan merged), so it reflects exactly what
+    # `emit()` writes — not an intermediate source-by-source tally that could
+    # drift from the output.
+    kind_counts: dict = {}
+    for rec in records.values():
+        for kind, _key in rec["keys"]:
+            kind_counts[kind] = kind_counts.get(kind, 0) + 1
+    stats["kind_counts"] = kind_counts
+
     return records, stats
 
 
@@ -338,7 +400,7 @@ def emit(records: dict, out_path: pathlib.Path) -> None:
         "# Re-run: python3 app/tools/gen/gen_read_keys.py",
         "",
         "# id -> {\"status\": \"transcript\" | \"APPROX\",",
-        "#        \"keys\": [[kind, key], ...],   # kind in get/set/log",
+        "#        \"keys\": [[kind, key], ...],   # kind in get/set/log/cmd",
         "#        \"unresolved\": [str, ...]}     # f-string/dynamic reads, listed not guessed",
         "READ_KEYS = {",
     ]
@@ -359,6 +421,9 @@ def print_census(stats: dict) -> None:
           f"{stats['approx']} APPROX)")
     print(f"  keys found: {stats['keys_from_transcript']} from transcripts, "
           f"{stats['keys_from_static']} from the static walk")
+    kc = stats.get("kind_counts") or {}
+    print("  keys by kind: " + ", ".join(
+        f"{k}={v}" for k, v in sorted(kc.items())))
     if stats["unresolved_ids"]:
         print(f"  {len(stats['unresolved_ids'])} id(s) carry at least one "
               f"unresolved (dynamic) read: "
@@ -377,9 +442,9 @@ def print_census(stats: dict) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Generate app/gen/read_keys.py, the per-id get/set/log "
-                    "read-key set (TASK-641, transcript-first with a static "
-                    "APPROX fallback).")
+        description="Generate app/gen/read_keys.py, the per-id get/set/log/cmd "
+                    "read-key set (TASK-641/685, transcript-first with a "
+                    "static APPROX fallback).")
     parser.add_argument("--out-dir", metavar="DIR",
                         help="write read_keys.py to DIR instead of app/gen/")
     parser.add_argument("--list", action="store_true",

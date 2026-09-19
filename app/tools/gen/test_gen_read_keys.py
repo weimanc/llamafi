@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Negative tests for gen_read_keys.py + check_read_keys.py — BP-068. TASK-641.
+"""Negative tests for gen_read_keys.py + check_read_keys.py — BP-068. TASK-641/685.
 
-Pins the four behaviours the design (M-HARNESS2-falsifier-taxonomy §2, §7)
+Pins the behaviours the design (M-HARNESS2-falsifier-taxonomy §2, §7)
 actually depends on:
 
-  P1  a transcript-backed id yields its exact `get`/`set` command set — no
-      more, no less than what is on the wire in the recording.
+  P1  a transcript-backed id yields its exact `get`/`set`/`cmd` command set —
+      no more, no less than what is on the wire in the recording.
   P2  an id with NO transcript is marked APPROX (the static fallback).
   P3  an unresolved f-string key is LISTED, never guessed at, and demotes the
       id's status to APPROX even when a transcript exists (the `log:<pattern>`
@@ -13,6 +13,23 @@ actually depends on:
   P4  the staleness gate (`check_read_keys.py`) is a real gate: it PASSES
       against a correct regenerate-and-diff and FAILS when the committed file
       is mutated out from under it.
+  P5  TASK-713: the `cmd` kind. A non-get/set command (`tap`, `info`, …) that
+      is ISSUED earns its `("cmd", verb)` key whether or not the body ever
+      reads a field off the reply — the same "issued earns the key" standard
+      `get`/`set` already use (a `dut.cmd("get X")` call site with the return
+      value discarded still earns `("get", "X")` today; a wire-level
+      transcript cannot tell "issued" from "issued and read" apart in the
+      first place, since replay has no visibility into what the Python body
+      did with the parsed reply — only that it asked for one). Keying on the
+      READ site instead would need a second, much fuzzier walk (which local
+      binds a field off which reply) for a benefit this generator does not
+      need: `check_test_meta.py`'s falsifier check only needs to know the key
+      is REPRESENTABLE, not that a specific call site consumed it, and a
+      command issued without its reply ever inspected is still a true
+      constraint on the healthy path (the firmware sent something back, and
+      whatever it sent forms a fresh unread oracle if a future body ever asks
+      for one).  A dynamic (non-literal) verb stays unresolved, never
+      invented, exactly like a dynamic get/set key.
 
 No DUT, no build, no network, no writes to the live `suite/serialdbg/
 transcripts/` tree (P1/P2/P3 build throwaway `Transcript`/function objects
@@ -56,10 +73,11 @@ def case_transcript_exact_command_set():
     t = RP.Transcript(tid="H2_PROBE_T1")
     t.add("get appId", ['{"ok":true,"var":"appId","name":"Clock"}'])
     t.add("set clockStyle 0", ['{"ok":true,"var":"clockStyle"}'])
-    t.add("switchApp 1", ['{"ok":true}'])          # not a get/set — must NOT appear
-    t.add("tap 10 20", ['{"ok":true}'])            # not a get/set — must NOT appear
+    t.add("switchApp 1", ['{"ok":true}'])          # not get/set — TASK-713: cmd kind
+    t.add("tap 10 20", ['{"ok":true}'])            # not get/set — TASK-713: cmd kind
     keys = G._transcript_keys(t)
-    assert keys == {("get", "appId"), ("set", "clockStyle")}, keys
+    assert keys == {("get", "appId"), ("set", "clockStyle"),
+                    ("cmd", "switchApp"), ("cmd", "tap")}, keys
 
 
 def case_transcript_missing_command_is_absent():
@@ -158,6 +176,62 @@ def case_dut_wrapper_reads_fixed_key():
     assert not unresolved, unresolved
 
 
+# ── P5 — TASK-713: the `cmd` kind ───────────────────────────────────────────
+
+def case_cmd_key_from_bound_and_read_reply():
+    """The headline case: `r = dut.cmd("tap 10 20"); r.get("hit")` — a bound
+    reply whose field is actually read — must resolve to `("cmd", "tap")`."""
+    blob = 'def t(dut):\n    r = dut.cmd("tap 10 20")\n    return r.get("hit")\n'
+    keys, unresolved = G._extract_full(blob)
+    assert ("cmd", "tap") in keys, keys
+    assert not unresolved, unresolved
+
+
+def case_cmd_key_from_issued_reply_never_read():
+    """A `tap` issued with the reply discarded entirely still earns its key —
+    see the module docstring's P5 note for why "issued", not "issued and
+    read", is the standard applied (it matches what `get`/`set` already do,
+    and a wire-level transcript cannot see which call sites read a field
+    off a parsed reply in the first place)."""
+    blob = 'def t(dut):\n    dut.cmd("tap 10 20")\n'
+    keys, unresolved = G._extract_full(blob)
+    assert ("cmd", "tap") in keys, keys
+    assert not unresolved, unresolved
+
+
+def case_cmd_dynamic_verb_unresolved():
+    """A fully dynamic command verb (not just a dynamic argument after it)
+    must be listed, never invented as a fabricated key."""
+    blob = 'def t(dut, verb):\n    dut.cmd(f"{verb} 10 20")\n'
+    keys, unresolved = G._extract_full(blob)
+    assert not any(kind == "cmd" for kind, _key in keys), keys
+    one(unresolved, "cmd <dynamic verb>")
+
+
+def case_witness_ids_now_declarable():
+    """T077 (tap reply oracle) and T_CLK_11 (info reply oracle) are the two
+    measured witnesses TASK-713 exists for — both must now carry a `cmd` key
+    in the live generated set."""
+    records, _stats = G.build_records()
+    assert ("cmd", "tap") in records["T077"]["keys"], records["T077"]
+    assert ("cmd", "info") in records["T_CLK_11"]["keys"], records["T_CLK_11"]
+
+
+def case_determinism_two_runs_byte_identical():
+    """Two independent `build_records()` + `emit()` runs must produce
+    byte-identical output — no dict-order or timestamp dependence anywhere
+    in the new `cmd`-kind code path."""
+    records1, _ = G.build_records()
+    records2, _ = G.build_records()
+    with tempfile.TemporaryDirectory(prefix="rk_det_a_") as d1, \
+         tempfile.TemporaryDirectory(prefix="rk_det_b_") as d2:
+        p1 = Path(d1) / "read_keys.py"
+        p2 = Path(d2) / "read_keys.py"
+        G.emit(records1, p1)
+        G.emit(records2, p2)
+        assert p1.read_text() == p2.read_text()
+
+
 # ── P4 — the staleness gate is a real gate ──────────────────────────────────
 
 def case_staleness_gate_passes_on_live_tree():
@@ -227,6 +301,16 @@ CASES = [
      case_get_val_var_name_resolved),
     ("P3g dut.py convenience wrapper resolves its fixed key",
      case_dut_wrapper_reads_fixed_key),
+    ("P5a bound-and-read tap reply -> cmd tap",
+     case_cmd_key_from_bound_and_read_reply),
+    ("P5b issued tap, reply never read -> cmd tap still earned",
+     case_cmd_key_from_issued_reply_never_read),
+    ("P5c fully dynamic command verb -> unresolved, not guessed",
+     case_cmd_dynamic_verb_unresolved),
+    ("P5d T077/T_CLK_11 are now declarable (cmd tap / cmd info present)",
+     case_witness_ids_now_declarable),
+    ("P5e two independent runs are byte-identical",
+     case_determinism_two_runs_byte_identical),
     ("P4a staleness gate passes on the live (regenerated) tree",
      case_staleness_gate_passes_on_live_tree),
     ("P4b staleness gate fails on a mutated committed file",
