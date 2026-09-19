@@ -2364,3 +2364,116 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Suggested improvement**: Actionable change
 **Status**: open | reviewed | adopted | dismissed
 ```
+### LL-153 — 2026-09-19 — A subagent's report is self-consistent by construction; only re-derivation against source can break it
+
+**Context**: Nine Phase-5 rows were executed by one Sonnet subagent at a time, each returning a
+structured report with commands, exit codes and evidence. Every report was internally coherent and
+every gate it quoted really did pass.
+
+**Observation**: Three reports were materially wrong in ways no amount of reading them could reveal,
+and each was caught only by re-deriving one high-risk claim against real source:
+* **TASK-673** shipped a **16-row blocking ledger** built on conflating "the command hit the
+  recording" with "the device acked it". Under the `REFUSE` poison a reply is `{"ok": false}` — the
+  device *declined* the write, so nothing was mutated and no restore is owed — yet the arm called
+  that a leak. Its own headline row (`bgPoll`/`T-BUSY-01b`) was that artifact, on a mutation that is
+  properly `dut.saved()`-managed. Found by reading `poison_reply` and the id's transcript, not the
+  report. Two of sixteen rows were false.
+* **TASK-713** reported "no id's oracle is still unrepresentable". Two ids carry no key at all
+  (`T094`, physical; `T133`, greps the checkout). The census line it rested on — "0 unresolved
+  reads" — is a claim about the *walk*, not about declarability.
+* **TASK-641**'s cohort justified a synthetic oracle key by citing `T_CLK_08` as precedent.
+  `T_CLK_08`'s `saved` is a literal reply field; the new keys are derived quantities. The precedent
+  did not exist.
+
+**Root cause**: A report is written by the same process that did the work, so it inherits the work's
+premises. Checking a report against itself validates coherence, never correctness. All three errors
+sat in the one place a reader is least likely to look — the *justification* for a result that passed.
+
+**Suggested improvement**: For each subagent deliverable, pick the claim whose falsity would do the
+most damage and re-derive it from primary source before accepting anything else. In practice that
+was: read the mechanism the finding depends on, and check one worked example end to end.
+
+**Status**: open — BP candidate, for the human
+
+### LL-154 — 2026-09-19 — An allocation pointer written in prose is a mirror, and it rots like one
+
+**Context**: `tasks-harness2.md`'s header carried "**Next free id: TASK-685**". A new row was filed
+on that line's word.
+
+**Observation**: TASK-685 had been allocated on 2026-09-12 and closed on 2026-09-13 (`b434a772`,
+`tasks.md:244`) — the line was six days stale, and following it double-booked an occupied id. That
+is the precise failure the board's own "Read this before adding a row" section exists to prevent,
+committed by trusting the board's own summary of itself. Max id actually in use was 712; the row was
+renumbered to 713 across the board and two tool files.
+
+**Root cause**: The line duplicates a fact that is derivable — the maximum id across the boards and
+the log — and nothing recomputes it. Same class as R42's mirrored firmware constants, one
+abstraction level up: correct when written, silently wrong afterwards, and believed precisely
+because it is stated so confidently.
+
+**Suggested improvement**: Either derive the next free id mechanically (a `check_board_currency`
+arm computing `max(id)+1` across boards, archive and log), or make the line say *how to find it*
+instead of *what it is*. The header now says to check the log; the mechanical version is the real
+fix and is unfiled.
+
+**Status**: open — BP candidate, for the human
+
+### LL-155 — 2026-09-19 — A register's citations rot faster than its content
+
+**Context**: TASK-606 built R42's mirror-equality gate from the nine-mirror register in
+`M-TESTQUAL-Z-findings-review.md`, whose entries carry `file:line` citations.
+
+**Observation**: **Five of nine citations were wrong** while every finding they described was still
+true: `_TAB_XY` had moved 756 → 934; the Settings block 2923 → 3602; `F-16` pointed at a line whose
+own comment says the constant moved to another header; `H-12`'s "unused `coords` import" no longer
+exists in either file; and `A-10`'s *correction* named `cmdSet.cpp` when the command the suite
+actually calls reads `cmdGet.cpp:864`. Encoding any of them as written would have built the drift
+the gate exists to catch **into the gate**.
+
+**Root cause**: A line number is a coordinate into a moving file; a symbol name is the fact. Reviews
+cite coordinates because that is what is in front of the author at the time.
+
+**Suggested improvement**: Any tool that consumes a register locates symbols **by name**, and treats
+"symbol not found" as a finding rather than a skip — a mirror gate that silently skips what it
+cannot find rots into decoration. Applied in `app/tools/gate/check_no_mirrors.py`.
+
+**Status**: open — BP candidate, for the human
+
+### LL-156 — 2026-09-19 — A first cohort is a probe, not a batch
+
+**Context**: TASK-641 declared falsifier records for two id cohorts, Clock (11) then LocalPlayer
+(24), against the closed shape enum in the taxonomy.
+
+**Observation**: The Clock cohort could not declare one id (`T_CLK_11`) and the reason generalised:
+the read-key set had no vocabulary for a reply to any non-`get`/`set` command. Measuring it before
+continuing showed **629 such commands** in the corpus and **75 call sites** that bind such a reply
+and read a field off it — `player.py` being the heaviest user. Declaring LocalPlayer first would
+have produced a cohort systematically unexpressible in exactly the place player tests assert.
+The LocalPlayer cohort then repeated the pattern at the next level down: it found three *claim
+shapes* no operator could falsify, which would have made every declaration against them inert.
+
+**Root cause**: The value of a first cohort is the gaps it exposes, not the rows it fills. Both gaps
+were invisible from the design and obvious within minutes of authoring real declarations.
+
+**Suggested improvement**: Size the first cohort to be *finished and reviewed* before the second is
+started, and treat "this id cannot be declared" as the primary output rather than an exception to
+smooth over. Two rows (TASK-713, TASK-714) came out of that and both were preconditions for the rest.
+
+**Status**: open — BP candidate, for the human
+
+### LL-157 — 2026-09-19 — Naming an open row's id in a commit subject costs a ledger row
+
+**Context**: `check_board_currency`'s B1 arm fires when a commit subject names a task id whose board
+row still reads OPEN.
+
+**Observation**: Tripped twice in one session, both times for honest commits — one correcting a
+board claim about `TASK-672`, one recording that `TASK-613` had become unblocked. Each cost a
+dated row in `board_currency_exceptions.md`, a ledger whose whole value is that it stays small.
+
+**Root cause**: The gate cannot distinguish "this commit did the work" from "this commit mentions
+the work", and subjects are where ids get typed by habit.
+
+**Suggested improvement**: Keep an open row's id out of the commit **subject** and put it in the
+body; the gate reads subjects. Cheap, and it keeps the exception ledger for cases that need it.
+
+**Status**: open — BP candidate, for the human

@@ -215,10 +215,11 @@ Other envs (don't use on this board): `cyd` (single-USB CYD, inversion off), `tr
 ```
 
 The **counted gate total is 11 and does not move when a host check is added** — every host-side
-gate on this project lives inside gate 8, `app/tools/smoke_test.sh`, which now runs **49 host
-scripts** (counted 2026-09-12; the "21" this line carried for months was long stale — recount
-with `grep -oE '"\$PYTHON" [^ ]+\.py' app/tools/smoke_test.sh | sort -u | wc -l` rather than
-trusting this number), most checkers paired with their own negative suite
+gate on this project lives inside gate 8, `app/tools/smoke_test.sh`, which now runs **64 host
+scripts** (counted 2026-09-19; it read "49" from 2026-09-12 and "21" for months before that — this
+number goes stale every time a gate lands, which is most sessions, so **recount** with
+`grep -oE '"\$PYTHON" [^ ]+\.py' app/tools/smoke_test.sh | sort -u | wc -l` rather than
+trusting it), most checkers paired with their own negative suite
 (BP-068); TASK-677 added `lib/test_rigwatch.py` and `probe/test_burst_check.py`. `check_can_go_red.py` (TASK-671) is the runtime half of R34: it executes recorded bodies
 against poisoned transcripts instead of reading their text — see
 `docs/architecture/designs/M-HARNESS2-runtime-gates.md` for why the four static gates are not widened.

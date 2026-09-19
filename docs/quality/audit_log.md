@@ -2028,6 +2028,81 @@ earlier.
 
 ---
 
+### Audit — 2026-09-19 — M-HARNESS2 Phase 5, orchestrated session
+
+**Scope**: 18 commits, `a1b07eb8..18cc5cbb` (plus this entry). Phase 5 of the test-harness
+remediation programme, executed one subagent at a time with review-before-commit. Triggered by the
+human asking for a retrospective — **not by the process**, which is finding 4.
+
+**Areas checked**
+- [x] Feature inventory completeness
+- [x] Test coverage per feature
+- [x] Cross-feature test coverage
+- [x] Documentation currency
+
+**Delivered and verified**
+- **8 Phase-5 rows closed** (671 pre-existing, 676, 674, 673, 713, 714, 642, 606), TASK-641 advanced
+  through both cohorts the design names. Phase 5 went 1/18 → 8/21 (three rows filed en route).
+- **Three runtime gate arms** now ride the R34 poison sweep instead of re-deriving it: R36's
+  (`check_gating_offline`, reads zero, 17 of 24 gating ids recorded), R17's (`check_restore_manager`,
+  14-row dated ledger), and R42's new `check_no_mirrors` (11 pairs, zero).
+- **The falsifier record is executable**: generated read-key set (208 ids, `cmd` kind added),
+  declaration form on `meta()`, three validating arms at zero, 33 ids declared, and two operators
+  (`THRESHOLD`, `SUBSTRING`) that can actually make a declared claim fail.
+- **Two live defects found by the new gates on their first run**: `console.cpp`'s `switchApp` help
+  string was stale (`0..8` against `APP_COUNT = 13`), and five of six bodies in TASK-676 could only
+  ever go red by crashing.
+- Every commit gated: `run/check` 11/11, `check_docs` and `check_board_currency` run **separately**
+  each time.
+
+**Findings**
+
+1. **Three subagent reports were materially wrong in their justifications while correct in their
+   results (LL-153).** The worst shipped a 16-row blocking ledger resting on a conflation between
+   "the command hit the recording" and "the device acked it"; two of its rows were artifacts of the
+   `REFUSE` poison. Caught by re-deriving one mechanism against source. **This is the finding that
+   matters most from this session** — every other control (gates, exit codes, negative suites) was
+   green throughout.
+
+2. **The board's own "next free id" line was six days stale and caused a double-booking (LL-154).**
+   TASK-685 was already allocated and closed; the new row was renumbered to 713 after the collision
+   was found by a gate message, not by a reader. A derived `max(id)+1` arm in
+   `check_board_currency` is the real fix and is **unfiled** — assigned to @PM to schedule.
+
+3. **Five of nine citations in the R42 register were stale while their findings held (LL-155).**
+   The gate now locates every symbol by name and treats "not found" as a finding.
+
+4. **Close-out again waited for a prompt.** Same shape as the 2026-08-17 audit's finding 1: eight
+   rows closed, three filed, two firmware-adjacent defects fixed, and no retrospective until the
+   human asked. The programme has no trigger that fires on "N rows closed".
+
+5. **Documentation currency — one gap, fixed here.** `CLAUDE.md` claimed `smoke_test.sh` runs 49 host
+   scripts; its own recount command returns **64**. Updated, with the staleness made explicit rather
+   than re-dated silently — this number has now been wrong three times (21, 49, and the gap since).
+
+6. **Inventory and coverage boundaries confirmed, not gaps.** `feature_inventory.yaml` is
+   firmware-feature scoped; none of the 25 `gate/check_*.py` scripts is registered there and none
+   should be — host tooling's register is `run/check` plus each gate's paired negative suite
+   (BP-068). No test ids were added this session, so `test_plan.md` and
+   `cross_feature_matrix.yaml` are unchanged and current. Recorded so a future audit does not
+   re-litigate the boundary.
+
+**Actions assigned**
+| # | Action | Owner | Status |
+|---|---|---|---|
+| 1 | Review LL-153…157 and rule on promotion to `best_practices.md` | human | open |
+| 2 | File the derived `max(id)+1` arm for `check_board_currency` (LL-154) | @PM | open |
+| 3 | Decide a close-out trigger for this programme (finding 4) | @PM | open |
+| 4 | TASK-715 — delete the mirrors that can simply import (`H-12`, `A-8`) | @Developer | filed |
+| 5 | Re-record `T_PLR_16`, `T_PMT_04`, `T_PLR_09` — their oracles are absent from the recording, not from the taxonomy. **Costs DUT time** | human to authorise | open |
+
+**Not closed by this audit**: `run/check`'s wall clock read over its 90 s budget on 5 of ~14 runs on
+an unchanged tree (23 s–105 s spread, build-cache dominated, pass/fail green every time). The budget
+is a Phase 1 exit criterion, so the variance is worth a measurement rather than a shrug — unfiled,
+flagged to @PM.
+
+---
+
 ### Audit — [YYYY-MM-DD] — [Scope]
 **Triggered by**: human | PM | self
 **Areas checked**:
