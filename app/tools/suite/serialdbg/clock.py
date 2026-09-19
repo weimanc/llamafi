@@ -181,16 +181,50 @@ def t_clk_10(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "appId=1 confirmed with VFD style active")
 
-# NOT declared (TASK-641). The claim here is a heap comparison across two
-# `info` replies (`r0.get("heap")` / `r1.get("heap")`), but `info` is not a
-# `get <key>`/`set <key>` command — `gen_read_keys.py`'s extractor (and the
-# transcript-key regex behind it, `_GETSET_RE`) only recognises those two
-# verbs, so a bare `info` reply's fields have no representable key in the
-# generated read set at all. Forcing `oracle={"heap": ...}` here would fail
-# the gate's "declared key must be in the generated set" arm for a reason
-# that has nothing to do with this id's authorship — it is a real gap in the
-# generator's vocabulary, not a gap in this declaration, and is reported as
-# such rather than papered over with an undeclared-but-true claim.
+# STILL NOT declared (TASK-641, re-checked after TASK-713 added the `cmd`
+# read-key kind). `("cmd", "info")` now exists in the generated set — the
+# vocabulary gap that used to block this id is gone — but the CLAIM itself
+# has no shape whose operator can falsify it, which is a different problem
+# and not one `cmd` fixes.
+#
+# The assertion (line ~209) is `leak = h0 - h1; fail if leak >= 4096` — a
+# THRESHOLD on a derived delta between two `info.heap` reads, not an equality
+# and not a "must differ" claim. Neither closed shape's operator can move it:
+#   * SNAPSHOT perturbs an int by exactly +1 (`canfail.perturb_value`). That
+#     shifts `leak` by at most 1, which cannot cross a 4096 B floor from any
+#     realistic healthy value (leak is normally near 0) — the arm would PASS
+#     at dilation-independent certainty, not FAIL.
+#   * TRANSITION's operator freezes the AFTER read to the BEFORE value, i.e.
+#     forces h1 := h0, so `leak` becomes exactly 0 — the tightest possible
+#     PASS, the opposite of a falsifier. TRANSITION is built for "assert a
+#     change" claims (T_PMT_00's cycle, T_PLR_19's shuffle toggle); this is a
+#     "assert NO change beyond a bound" claim, which is a different shape the
+#     enum does not have.
+#   * POLL/EVENT/ABSENCE don't apply structurally (no repeated reads, no log
+#     line, no non-appearance claim); PHYSICAL doesn't apply (heap is a real
+#     host-replayable read); NONE is wrong too (there plainly IS an
+#     observable — `leak` — the claim is just not falsifiable by anything in
+#     the enum).
+# Conclusion: this is a genuine taxonomy gap, not a missed declaration. A
+# numeric-magnitude/stability claim (a bounded delta, a leak budget, a
+# fragmentation ceiling — see T_PLR_12's `d_load`/`d_free` checks for the
+# same shape) needs an operator that can move a derived quantity by an
+# amount comparable to its own bound, e.g. a scaled/BOUNDED perturbation —
+# and no shape in SHAPES does that. Filed as a finding for TASK-641/643, not
+# worked around here.
+#
+# In passing: `h0 = r0.get("heap", 0)` (and `h1` the same) silently defaults
+# to 0 on a missing field, unlike this file's own `_sig_field()` two lines
+# below, which raises `BadField` instead. That default can mask exactly the
+# failure this id exists to catch — a `heap` field dropped from ONE of the
+# two `info` replies reads as a huge, wrong-signed `leak` that still clears
+# the `>= 4096` floor (e.g. h0 dropped -> leak = 0 - h1, deeply negative ->
+# never fails), or as `leak == h0` if h1 is the one dropped, which usually
+# DOES fail but for the wrong stated reason. Neither is this id's authorship
+# bug — TASK-641 didn't touch the body — but it compounds the "no shape can
+# falsify this" finding: even if a shape existed, a driver's DROP arm on
+# `heap` would report a silently-wrong verdict instead of the BadField
+# accident a typed read would produce.
 def t_clk_11(dut: Dut):
     """T_CLK_11: heap stable after cycling all 4 styles twice."""
     tid = "T_CLK_11"

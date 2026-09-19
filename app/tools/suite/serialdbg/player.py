@@ -33,6 +33,7 @@ from suite.serialdbg.webradio import _switch_to_webradio_capture_heap
 # app -> restore the persisted mode (resolvePlayerSlot, unchanged). Player has no
 # taskbar slot of its own (eject-only tail, same as WebRadio).
 
+@meta(oracle={"appId": "SNAPSHOT"}, premise=("playerMode",), falsifier="replay")
 def t_plr_01(dut: Dut):
     """T_PLR_01: taskbar tap on the active player slot cycles Spotify -> WebRadio ->
     Player -> Spotify -> WebRadio (x4 taps from Spotify)."""
@@ -58,6 +59,8 @@ def t_plr_01(dut: Dut):
     pass_("T_PLR_01", f"cycle Spotify->{'->'.join(got)} confirmed (x4 taps)")
 
 
+@meta(oracle={"playerMode.val": "SNAPSHOT", "playerMode.name": "SNAPSHOT"},
+      falsifier="replay")
 def t_plr_04(dut: Dut):
     """T_PLR_04: get/set playerMode round-trip all three values by name and by
     numeric index (§6.1 debug-surface widening — the pre-TASK-413 getter
@@ -82,6 +85,7 @@ def t_plr_04(dut: Dut):
     pass_("T_PLR_04", "spotify/webradio(1)/player all round-trip; out-of-range idx=3 rejected")
 
 
+@meta(oracle={"appId": "SNAPSHOT"}, premise=("playerMode",), falsifier="replay")
 def t_plr_05(dut: Dut):
     """T_PLR_05: tapping the player slot from ANOTHER app restores the persisted
     mode (resolvePlayerSlot, unchanged), it does not cycle."""
@@ -118,6 +122,9 @@ def t_plr_05(dut: Dut):
 # with three per-mode realisations. The logo tap keeps its own TLS-reset
 # behaviour unchanged (T_PLR_07 regression-checks the shared helper refactor).
 
+@meta(oracle={"appId": "SNAPSHOT", "dataq.wrEnqueues": "SNAPSHOT",
+              "fbState.active": "SNAPSHOT"},
+      falsifier="replay")
 def t_plr_06(dut: Dut):
     """T_PLR_06: eject is per-mode. Spotify -> TLS reset + force poll, appId stays
     Spotify. WebRadio -> station-list refresh (wrEnqueues advances), appId stays
@@ -258,6 +265,7 @@ def t_plr_06(dut: Dut):
     pass_("T_PLR_06", f"eject per-mode confirmed: {spotify_leg}, WebRadio refresh, Player browser opens")
 
 
+@meta(oracle={"tap.hit": "SNAPSHOT", "tap.action": "SNAPSHOT"}, falsifier="replay")
 def t_plr_07(dut: Dut):
     """T_PLR_07: Winamp logo tap still resets TLS — unchanged from TASK-053f.
     Regression check for the TASK-414 refactor that moved the TLS-reset +
@@ -401,6 +409,8 @@ def _pl_load(dut: Dut, path: str, timeout: float = 20.0) -> dict:
     return dut.cmd("get plCount", timeout=8.0)
 
 
+@meta(oracle={"plCount.count": "SNAPSHOT", "plCount.truncated": "SNAPSHOT"},
+      falsifier="replay")
 @_bgpoll_backstop
 def t_plr_08(dut: Dut):
     """T_PLR_08: a >=100-track M3U loads, count is exact, load time recorded."""
@@ -432,6 +442,14 @@ def t_plr_08(dut: Dut):
                       f"last row={last.get('text')!r}")
 
 
+# The scroll-advanced claim (`off = _get_scroll(dut)`, line ~499) reads
+# `get scrollOffset` — a real read on the healthy path, but T_PLR_09's
+# recorded transcript stopped at the "never reached playing=true" SKIP
+# (line ~484) and never got that far, so `scrollOffset` carries no key in
+# the generated set today (§2's transcript-first honesty: it reflects the
+# RECORDED path, not every reachable one). Not declarable until a transcript
+# reaches the swipe loop. The `playing` claim below it did get recorded.
+@meta(oracle={"plCount.playing": "SNAPSHOT"}, falsifier="replay")
 def t_plr_09(dut: Dut):
     """T_PLR_09: scroll the list end to end while a track plays — no stall, no
     reboot, playback survives. The short end of the same risk T_PLR_13/39 attack
@@ -517,6 +535,8 @@ def t_plr_09(dut: Dut):
                       f"worst swipe round-trip {worst_gap:.1f}s")
 
 
+@meta(oracle={"plRow.path": "SNAPSHOT", "plCount.count": "SNAPSHOT"},
+      falsifier="replay")
 def t_plr_10(dut: Dut):
     """T_PLR_10: relative paths resolve against the PLAYLIST's directory, not the
     root and not the current working directory (there isn't one)."""
@@ -567,6 +587,9 @@ def t_plr_10(dut: Dut):
     pass_("T_PLR_10", "bare, './' and '../' relative paths all resolve against the playlist dir")
 
 
+@meta(oracle={"plCount.count": "SNAPSHOT", "plRow.text": "SNAPSHOT",
+              "plRow.durSec": "SNAPSHOT", "plRow.path": "SNAPSHOT"},
+      falsifier="replay")
 def t_plr_11(dut: Dut):
     """T_PLR_11: malformed input degrades — BOM, CRLF, missing/garbage #EXTINF,
     stray directives, a trailing record with no path line, and an empty file.
@@ -637,6 +660,13 @@ def t_plr_11(dut: Dut):
                       "UTF-8 folded to ASCII")
 
 
+# Only `allocated` is declared. The two BUDGET checks in this body
+# (`d_load > 5324`, `abs(d_free) > 256`, lines ~683-686) are the same
+# taxonomy gap named at T_CLK_11: a numeric-magnitude/threshold claim on a
+# derived heap delta, which `SNAPSHOT`'s +-1 int perturbation cannot
+# reliably cross and `TRANSITION`'s freeze-to-before would trivially zero
+# out. Not declared for the same reason, not re-argued here.
+@meta(oracle={"plMem.allocated": "SNAPSHOT"}, falsifier="replay")
 def t_plr_12(dut: Dut):
     """T_PLR_12: the index is bounded and freed. Heap AND largest-free-block are
     both reported (VE-15) — a clean free-heap figure hides fragmentation, which
@@ -756,6 +786,7 @@ def _fb_wait_done(dut: Dut, timeout_s: float = 12.0) -> dict | None:
     return last
 
 
+@meta(oracle={"fbState.pending": "SNAPSHOT"}, falsifier="replay")
 def t_plr_13(dut: Dut):
     """T_PLR_13: browsing a ~200-file directory does not stall the pump. This
     node only proves the walk completes cleanly and the DUT stays responsive
@@ -810,6 +841,8 @@ def t_plr_13(dut: Dut):
                       f"0 expected, TASK-408's fixture is all .txt, filtered)")
 
 
+@meta(oracle={"tap.skipped": "SNAPSHOT", "fbState.dir": "SNAPSHOT"},
+      falsifier="replay")
 def t_plr_14(dut: Dut):
     """T_PLR_14: a tap on the browser's own back/up zone is honoured even while
     a page walk is in flight — the TASK-384 defect class (isNavigationTap()
@@ -868,6 +901,7 @@ def t_plr_14(dut: Dut):
                       f"(ascended to dir={st2.get('dir')!r})")
 
 
+@meta(oracle={"fbState.pending": "SNAPSHOT"}, falsifier="replay")
 def t_plr_15(dut: Dut):
     """T_PLR_15: hasPendingAsync() is true from the moment a page walk starts
     and self-clears when it finishes, without any other action — the contract
@@ -902,6 +936,14 @@ def t_plr_15(dut: Dut):
                       f"(dirCount={st.get('dirCount')} fileCount={st.get('fileCount')})")
 
 
+# No `oracle=` here either. Every assertion in this body reads `fbState`
+# (dirCount/fileCount/dir, via the `check()` helper's `_fb_wait_done()`), but
+# T_PLR_16's recorded transcript never got past `_enter_player`/the first
+# `fbOpen` — `fbState` carries no key at all in the generated set for this
+# id (same class of gap as T_PLR_09's `scrollOffset` and T_PMT_04's
+# `arenaStats`: the RECORDED healthy path is shorter than the body's real
+# one). Re-recording the transcript past that point is what unblocks this
+# id, not a declaration against a read the current record doesn't show.
 def t_plr_16(dut: Dut):
     """T_PLR_16: deep/edge directory shapes. Nested descend, an empty
     directory, 8.3 vs long filenames, and non-audio files mixed alongside
@@ -1137,6 +1179,10 @@ def t_plr_18(dut: Dut):
                           "leaked to spotifyTask; volume zone still hit-tests correctly")
 
 
+@meta(oracle={"shufRep.caps": "SNAPSHOT", "tap.hit": "SNAPSHOT",
+              "tap.action": "SNAPSHOT", "shufRep.lastShuffle": "TRANSITION",
+              "shufRep.lastRepeat": "TRANSITION", "dragState.state": "SNAPSHOT"},
+      falsifier="replay")
 @_bgpoll_backstop
 def t_plr_19(dut: Dut):
     """T_PLR_19: Player advertises all four capabilities. Shuffle/repeat are
@@ -1272,6 +1318,8 @@ def _pl_repeat(dut: Dut, want_off: bool, timeout_s: float = 4.0) -> bool:
     return (cur == 2) if want_off else (cur != 2)
 
 
+@meta(oracle={"plOrder.order": "SNAPSHOT", "advance.moved": "SNAPSHOT"},
+      premise=("shufRep",), falsifier="replay")
 def t_plr_20(dut: Dut):
     """T_PLR_20: the shuffle bag visits each track exactly once over a full
     cycle — 20x `advance next` on a 20-track list, no repeats, no skips."""
@@ -1316,6 +1364,9 @@ def t_plr_20(dut: Dut):
         pass_("T_PLR_20", f"20/20 distinct rows visited via advance next, matching plOrder exactly: {order}")
 
 
+@meta(oracle={"advance.moved": "SNAPSHOT", "advance.row": "SNAPSHOT",
+              "advance.reshuffled": "SNAPSHOT"},
+      premise=("shufRep", "plCursor"), falsifier="replay")
 def t_plr_21(dut: Dut):
     """T_PLR_21: all four shuffle x repeat end-of-list cells (design §8),
     forced via `set plCursor <last>` + `advance next` — no real playback."""
@@ -1389,6 +1440,9 @@ def t_plr_21(dut: Dut):
                           "no real-time playback")
 
 
+@meta(oracle={"plOrder.order": "SNAPSHOT", "advance.moved": "SNAPSHOT",
+              "advance.reshuffled": "SNAPSHOT"},
+      premise=("shufRep", "plCursor"), falsifier="replay")
 def t_plr_22(dut: Dut):
     """T_PLR_22: reshuffle-on-wrap never re-opens with the track that just
     finished — 20 forced wraps (shuffle on, repeat all), 0 collisions."""
@@ -1433,6 +1487,9 @@ def t_plr_22(dut: Dut):
         pass_("T_PLR_22", f"{collisions}/20 collisions over 20 forced wraps")
 
 
+@meta(oracle={"advance.row": "SNAPSHOT", "advance.moved": "SNAPSHOT",
+              "plOrder.order": "SNAPSHOT"},
+      premise=("shufRep",), falsifier="replay")
 def t_plr_23(dut: Dut):
     """T_PLR_23: Prev replays history — walks playOrder backward, never
     rerolls. advance next x5 then advance prev x5 must be the exact reverse,
@@ -1489,6 +1546,9 @@ def t_plr_23(dut: Dut):
                           f"plOrder unchanged (no reroll)")
 
 
+@meta(oracle={"plCursor.cursor": "SNAPSHOT", "plCursor.curRow": "SNAPSHOT",
+              "plOrder.order": "SNAPSHOT"},
+      premise=("shufRep",), falsifier="replay")
 @_bgpoll_backstop
 def t_plr_24(dut: Dut):
     """T_PLR_24: tap-to-play under shuffle moves the bag cursor to that
@@ -1546,6 +1606,16 @@ def t_plr_24(dut: Dut):
                           f"{expected_pos}, plOrder unchanged (no reshuffle)")
 
 
+# `lastRepeat` is NOT declared: the check (`after.get("lastRepeat") == 2`,
+# line ~1580) is an EXCLUSION on a multi-valued int — the healthy value must
+# NOT be 2. SNAPSHOT's int perturbation is a fixed +1, which only lands back
+# on the excluded value 2 if the healthy value happens to be exactly 1; for
+# any other resting value (0 is the documented fold target) +1 stays clear
+# of 2 and the check never fires. Unreliable, so left undeclared — unlike
+# `lastShuffle`'s check just above it, which is an EQUALITY-to-1 claim: any
+# +1 perturbation of a value that must equal 1 necessarily stops equalling
+# it, which is exactly the difference SNAPSHOT's operator is built to catch.
+@meta(oracle={"shufRep.lastShuffle": "SNAPSHOT"}, falsifier="replay")
 def t_plr_26(dut: Dut):
     """T_PLR_26: shuffle/repeat persist across reboot; Spotify's own
     shuffle/repeat are never written to g_settings.player* (ADR-059 D9)."""
@@ -1671,6 +1741,8 @@ def _pmt_edge(dut: Dut, tid: str, frm: int, to: int):
     pass_(tid, f"{before.get('modeName')} -> {name}: src={src} caps={caps}")
 
 
+@meta(oracle={"player.mode": "TRANSITION"}, premise=("playerBind",),
+      falsifier="replay")
 def t_pmt_00(dut: Dut):
     """T_PMT_00: the surface named by `get playerBind` still performs the cycle.
 
@@ -1722,7 +1794,11 @@ def t_pmt_02(dut: Dut):
     _pmt_edge(dut, "T_PMT_02", 1, 2)
 
 
-@meta(scope_reason="cross-mode")
+@meta(scope_reason="cross-mode",
+      oracle={"player.mode": "SNAPSHOT", "player.modeName": "SNAPSHOT",
+              "player.srcName": "SNAPSHOT", "player.caps": "SNAPSHOT",
+              "player.arenaHeld": "SNAPSHOT"},
+      falsifier="replay")
 def t_pmt_03(dut: Dut):
     """T_PMT_03: Player -> Spotify; vector correct + arena not stranded."""
     print("T_PMT_03  transition Player -> Spotify")
@@ -1749,6 +1825,22 @@ _PMT04_PLAY_TIMEOUT_S = 20.0
 _PMT04_PLAY_ATTEMPTS = 3
 
 
+# No `oracle=` here — not an oversight. This id's real claim reads
+# `arenaStats` (acquires/active/releases) and `player.arenaHeld` deep into a
+# real-playback branch (lines ~1879-1922), but `read_keys.py`'s transcript
+# for T_PMT_04 recorded only ONE exchange, `get variant` — the leg-A guard
+# at the top of this function (line ~1765) fired and returned before
+# anything else was ever sent. `arenaStats`/`plCount`/`plLoad`/`plPlay`/
+# `aePlay`/`player` therefore carry NO key in the generated set today, and
+# `evaluate_falsifiers` would reject any oracle naming them as "a read the
+# body does not make" — which, on THIS recording, is literally true. The
+# fix is a transcript recorded on leg B (cyd2usb_player) past the guard, not
+# a declaration here; `premise=("variant",)` is the one key this recording
+# actually backs, and it IS the precondition the leg-A skip depends on.
+# No `falsifier=` either: with zero declarable oracle keys there is nothing
+# for a "replay" falsifier to confirm — claiming one would just be the
+# tautology this whole design exists to avoid (§1).
+@meta(premise=("variant",))
 def t_pmt_04(dut: Dut):
     """T_PMT_04: real local playback acquires the arena, and leaving Player
     releases it — acquires > 0 AND active == 0.
