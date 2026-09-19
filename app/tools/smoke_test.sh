@@ -600,4 +600,23 @@ if ! "$PYTHON" gate/check_read_keys.py; then
     exit 1
 fi
 
+# ── TASK-606 — the mirror-equality gate (M-HARNESS2 R42/R43). Seeded with the
+# nine-mirror register from the WP-Z findings review (A-8, A-9, A-10, C-13,
+# D-6, F-16, H-12, H-19; A-18 is the finding this gate itself answers): a
+# host gate holding `(suite symbol, firmware symbol)` pairs, asserting them
+# equal at gate time. BLOCKING at zero, no ledger — every registered pair
+# agrees today by construction (see the module docstring for the two rulings
+# this task decided: mem_layout.py has zero importers and is NOT consumed by
+# any pair here; H-19's stale console.cpp help string was corrected alongside
+# this gate's introduction rather than left to land the gate non-zero on day
+# one). No DUT, no build, no network.
+if ! "$PYTHON" gate/test_check_no_mirrors.py; then
+    echo "FAIL: test_check_no_mirrors.py (TASK-606 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_no_mirrors.py; then
+    echo "FAIL: check_no_mirrors.py (TASK-606 mirror-equality gate) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"

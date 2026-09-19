@@ -88,7 +88,13 @@ const SerialCmd kCmds[] = {
   { "tick", cmdTick, "inject synthetic scroll ticks",   "[n=1] [dtMs=20]"                    },
   { "get",  cmdGet,  "read internal state",             "<snapshot|backoff|heap|stacks|cooldown|shellCooldown>"    },
   { "set",  cmdSet,  "write debug state",               "<backoff|cooldown> <val>"            },
-  { "switchApp", cmdSwitchApp, "switch active app by id", "<appId 0..8>"                      },
+  // TASK-606/H-19: was "<appId 0..8>", stale against AppId::COUNT (13 today,
+  // app_ids_gen.APP_COUNT) since apps were added after this string was
+  // written — the same silent-mirror-drift class R42's gate now watches for,
+  // just on the firmware side of the fence. Still a hand literal (not
+  // generated), so it can drift again; check_no_mirrors.py's H-19 pair is
+  // what will catch the next one.
+  { "switchApp", cmdSwitchApp, "switch active app by id", "<appId 0..12>"                     },
   { "playerCycle", cmdPlayerCycle, "M-TESTBASE: cycle player mode via resolvePlayerTap (surface-independent)", "" },
   { "info", cmdInfo, "git+elf+build+snapshot summary",  ""                                   },
   { "screendump", cmdScreenDump, "read back TFT GRAM, base64 RGB565 bands", "[x=0] [y=0] [w=320] [h=240]" },
