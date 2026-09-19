@@ -1602,8 +1602,9 @@ accepted risk was typographically indistinguishable from a satisfied criterion. 
 BP-075**: a criterion's disposition is now MET / CITED / ACCEPTED / DEFERRED-UNMET, and `PASS` stays
 a property of a test id against its own assertion.
 
-**Board:** [tasks-harness2.md](tasks-harness2.md) — 91 rows across phases 0–5, the single scheduling
-surface. **Reasoning:** [PM programme decision](M-HARNESS2-PM-review.md). Do not re-derive either here.
+**Board:** [tasks-harness2.md](tasks-harness2.md) — rows across phases 0–5, the single scheduling
+surface (recount: `grep -cE '^\| TASK-' docs/project/tasks-harness2.md`). **Reasoning:**
+[PM programme decision](M-HARNESS2-PM-review.md). Do not re-derive either here.
 
 **Status 2026-09-16: IN PROGRESS — Phases 0, 1 and 2 COMPLETE; Phase 3 ENTERED on a human waiver
 and 5 of its 6 rows closed; 29 rows live.** The headline of the last week is that **the class-order

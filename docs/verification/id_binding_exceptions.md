@@ -78,13 +78,13 @@ Owner = the task that created the test and can write its plan row, not the sweep
 | `T_CQ_01` | undeclared | M-ARCH reserved family; registered as a prose range heading (`T_CQ_01`–`T_CQ_06`), which binds only the first id and declares no status | TASK-458 | 2026-08-18 |
 | `T_SRC_01` | undeclared | as `T_CQ_01`; `T_SRC_01` is the ≥3-run behaviour-neutrality baseline, which has no status because it was never taken | TASK-488 | 2026-08-18 |
 
-**44 rows** (was 49 — TASK-473 cleared the five `T_CC_0[1-5]` rows, 2026-08-26). Re-count with `python3 app/tools/gate/check_docs.py --no-git` — the C6 summary prints
+**43 rows** (as of 2026-09-19; was 49 — TASK-473 cleared the five `T_CC_0[1-5]` rows, 2026-08-26). Re-count with `python3 app/tools/gate/check_docs.py --no-git` — the C6 summary prints
 `N on the ledger`, generated, never transcribed here.
 
 ## Findings recorded while building the ledger, not fixed here
 
-- **The orphan set is not random.** Every one of the 41 orphans is *specified* — in an
-  Architect-owned design document, or (for `T_FLK_*`) in a task entry. What is missing in all 41
+- **The orphan set is not random.** Every one of the 40 orphans is *specified* — in an
+  Architect-owned design document, or (for `T_FLK_*`) in a task entry. What is missing in all 40
   cases is the VE-owned plan row. This is a one-directional leak: design → code, with the plan
   bypassed. That is the M-TESTARCH §6 claim, confirmed at the mechanism.
 - **`T_FLK_01`–`22` appear nowhere under `docs/` at all**, not merely outside `docs/verification/`.

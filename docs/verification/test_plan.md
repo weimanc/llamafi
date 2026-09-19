@@ -19,9 +19,10 @@ From `feature_inventory.yaml` + `cross_feature_matrix.yaml`. Hierarchy: suite→
 > Steps / Expected result / Status), challenges the criteria for testability, and may rename or
 > discard any of them.
 >
-> Three families, ~19 ids, all currently **planned**. Full criteria live in the design docs linked
-> per family; they are deliberately **not** duplicated here, because a criterion copied into two
-> files diverges (LL-114).
+> As reserved 2026-08-16: three families, ~19 ids, all **planned**. Several have since been
+> disposed (PASS/DISCARDED/planned — see each family's table below for current status). Full
+> criteria live in the design docs linked per family; they are deliberately **not** duplicated
+> here, because a criterion copied into two files diverges (LL-114).
 
 ### `T_CC_01`–`T_CC_05` — task-ownership contract
 **Source**: [IFC-002](../architecture/interfaces/IFC-002.md) ·

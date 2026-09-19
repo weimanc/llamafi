@@ -26,15 +26,15 @@ All scripts live in `run/` at the project root. Run from the project root.
 ./run/spiffs push [file]      # write single file or merge app/data/ — read-modify-write, no format
 ./run/spiffs rm <file>        # remove single file from device
 ./run/check                   # 11-gate build check (1-6 firmware env matrix, 7 golden hash,
-                               #   8 tool smoke — 17 host scripts (7 checkers, 10 negative
-                               #   suites), incl. import-safety, get-keys and flake-class
-                               #   (TASK-609/600/623),
+                               #   8 tool smoke — host scripts incl. import-safety, get-keys and
+                               #   flake-class (TASK-609/600/623); recount with
+                               #   grep -oE '"\$PYTHON" [^ ]+\.py' app/tools/smoke_test.sh | sort -u | wc -l,
                                #   9 app-registry staleness, 10 mem_layout
                                #   staleness+budget, 11 check-docs — see check_build.sh header)
 ./run/bake-skin               # bake Winamp skin assets into app/gen/
 ./run/audit-origin            # (re)generate the origin/hit-test audit PNG (never stale)
 ./run/test-sync               # sync/drift/playlist suite T097-T116 (requires DUT)
-./run/dut-health              # PRE-FLIGHT ONLY: the HEALTH class, T_DH_01-03 — exit 0/4
+./run/dut-health              # PRE-FLIGHT ONLY: the HEALTH class (T_DH_01/02/03/05; T_DH_04 reserved) — exit 0/4
                                #   (3 = rig; 1 = a broken results record, TASK-645). Emits a run
                                #   artifact like every other entry point (R29).
 ./run/new-test <scope> <ID>   # scaffold a new test's record (TASK-630). Host-only; prints and
@@ -49,9 +49,10 @@ All scripts live in `run/` at the project root. Run from the project root.
 ### `run/dut-health` — is this board fit to test?
 
 TASK-565 / [M-TESTARCH](../architecture/designs/M-TESTARCH-precedence-hierarchy.md) §5 E4.
-Three checks, in class order: `T_DH_01` the shell answers **correct** data (not merely
+Checks, in class order (`T_DH_04` stays reserved — recount with `grep -n 'tid = "T_DH_' app/tools/suite/serialdbg/health.py`):
+`T_DH_01` the shell answers **correct** data (not merely
 answers), `T_DH_02` the device's own view of the network is coherent (`get wifiCfg`),
-`T_DH_03` app switching is alive. Exit **0** = fit; exit **4** = `[HEALTH-FAIL]`, and every
+`T_DH_05` the GRAM readback channel is bit-exact, `T_DH_03` app switching is alive. Exit **0** = fit; exit **4** = `[HEALTH-FAIL]`, and every
 result a suite produced against this board would be uninterpretable; exit **3** = a RIG
 condition, nothing was measured.
 

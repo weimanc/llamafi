@@ -133,7 +133,7 @@ All build, flash, monitor, and test operations have named scripts in `run/`. Alw
 ./run/monitor-start           # start tmux serial monitor
 ./run/monitor-stop            # kill monitor (idempotent)
 ./run/monitor-read [N]        # dump last N lines (default 200)
-./run/dut-health              # PRE-FLIGHT ONLY: HEALTH class T_DH_01-03 — is this board fit
+./run/dut-health              # PRE-FLIGHT ONLY: every HEALTH-class id — is this board fit
                                #   to test now? exit 0/4 (1 = broken record, TASK-645; 3 = rig).
                                #   Emits a run artifact like every other entry point.
                                #   ~15 s typical, up to ~60 s on a
@@ -182,7 +182,7 @@ You do not need to read `test_plan.md` or grep the suite for an id list. Every
 test carries a `scope`, so the file you edited resolves to its ids in one command:
 
 ```sh
-./run/test-targeted --scope app/src/apps/localPlayerApp.cpp   # -> LocalPlayer -> 26 ids
+./run/test-targeted --scope app/src/apps/localPlayerApp.cpp   # -> LocalPlayer -> its ids
 ./run/test-targeted --scope LocalPlayer                       # the same set, named directly
 ./run/test-targeted --scope taskbar                           # a non-app scope
 SCOPE=Stock ./run/test-targeted T169,T170                     # both -> intersection
@@ -235,10 +235,13 @@ The three added by M-HARNESS2 Phase 1, each with its negative suite:
 `gate/check_test_meta.py` (TASK-570) gained an **R35 arm** in Phase 1 (TASK-591): every id whose
 class can block — RIG, HEALTH, CORE — must declare that class with a **written reason** saying why
 its failure invalidates the rest of the run, never `_meta.seed_cls()`'s default. Writing the reasons
-was the audit: **CORE went from 43 ids to 23**, the other 20 demoted to FEATURE with a declared
-reason each. TASK-626 (2026-09-06) demoted the last 5 network-dependent ones — **CORE is 18**, all
-declared — so the R35 ledger `gating_class_declarations.md` reached zero rows and was deleted per
-its own retirement rule. The gate is now **blocking at zero with no ledger**.
+was the audit: **CORE went from 43 ids to 23** (TASK-591), and TASK-626 (2026-09-06) demoted the
+last 5 network-dependent ones. Those two are dated measurements and stand. **The current CORE count
+is not written here on purpose** — it moves whenever an id is declared or demoted, and a number in
+this file cannot be gated. Count it:
+`python3 -c "import sys;sys.path.insert(0,'app/tools');from suite.serialdbg import build_all_meta as m;print(sum(1 for r in m().values() if isinstance(r,dict) and r.get('cls')=='CORE'))"`.
+Every gating id carries a declared reason, so the R35 ledger `gating_class_declarations.md` reached
+zero rows and was deleted per its own retirement rule. The gate is now **blocking at zero with no ledger**.
 
 Exit 0 = all pass. Minimum safety gate before committing structural changes (see BP-008).
 
