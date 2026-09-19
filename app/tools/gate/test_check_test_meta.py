@@ -322,10 +322,73 @@ def case_falsifier_physical_unexpired_is_not_a_finding():
 
 
 def case_falsifier_replay_with_a_real_oracle_is_not_a_finding():
+    """TASK-642: nothing is typed — a SNAPSHOT-only oracle derives 'replay'
+    on its own, and the derived value is clean."""
     f = C.evaluate_falsifiers(
-        rec(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay"),
+        rec(oracle={"clockStyle": "SNAPSHOT"},
+            falsifier="replay", falsifier_typed=None, falsifier_derived=True),
         read_keys=_RK_CLOCKSTYLE, today=_TODAY)
     assert not f, f
+
+
+# TASK-642 (M-HARNESS2 §3/§8, amended 2026-09-19): "replay" is DERIVED from
+# the declared oracle shapes, never typed — a hand-typed one can only
+# disagree with the derivation or restate it, so it is a finding either way.
+# `physical: ...` is untouched: still typed, still expiry-checked, never
+# reported as this kind of redundancy.
+
+def case_handtyped_replay_is_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay",
+            falsifier_typed="replay", falsifier_derived=False),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "is hand-typed")
+
+
+def case_handtyped_replay_disagreeing_with_shapes_is_still_a_finding():
+    """The other direction: the shapes do NOT support replay (a PHYSICAL
+    oracle key) but someone typed "replay" anyway. Still a finding, and for
+    the SAME reason text — hand-typing this value is never allowed, whether
+    or not it happens to match what the shapes would have said."""
+    f = C.evaluate_falsifiers(
+        rec(oracle={"heap": "PHYSICAL"}, falsifier="replay",
+            falsifier_typed="replay", falsifier_derived=False),
+        read_keys={}, today=_TODAY)
+    one(f, "is hand-typed")
+
+
+def case_physical_falsifier_is_not_reported_as_redundant():
+    """A typed `physical: ...` is not "replay" and must never trip the
+    redundancy finding — only its own format/expiry checks apply."""
+    rk = {"T_X_01": {"status": "transcript",
+                      "keys": [["set", "eject"]], "unresolved": []}}
+    f = C.evaluate_falsifiers(
+        rec(oracle={"eject": "PHYSICAL"},
+            falsifier="physical: SD eject; expires 2030-01-01",
+            falsifier_typed="physical: SD eject; expires 2030-01-01",
+            falsifier_derived=False),
+        read_keys=rk, today=_TODAY)
+    assert not f, f
+
+
+def case_oracle_with_only_replay_shapes_derives_replay():
+    """An id with declared shapes and no typed falsifier at all derives
+    'replay' — exercised through the real seeder/resolver, not a hand-built
+    fixture, so this pins `_meta.derive_falsifier` itself."""
+    assert _meta.derive_falsifier({"clockStyle": "SNAPSHOT"}) == "replay"
+    assert _meta.derive_falsifier(
+        {"a": "SNAPSHOT", "b": "POLL", "c": "TRANSITION"}) == "replay"
+    assert _meta.derive_falsifier({}) is None
+
+
+def case_physical_or_none_shape_does_not_derive_replay():
+    """The two shapes with no host operator (§3) block the derivation —
+    even mixed with an otherwise-replayable shape, because ONE key nothing
+    can falsify makes the id as a whole not confirmable by replay alone."""
+    assert _meta.derive_falsifier({"eject": "PHYSICAL"}) is None
+    assert _meta.derive_falsifier({"unobservable": "NONE"}) is None
+    assert _meta.derive_falsifier(
+        {"clockStyle": "SNAPSHOT", "eject": "PHYSICAL"}) is None
 
 
 def case_undeclared_id_is_not_a_finding():
@@ -382,8 +445,7 @@ def case_threshold_string_bound_is_a_finding():
 
 def case_threshold_with_a_good_bound_is_not_a_finding():
     f = C.evaluate_falsifiers(
-        rec(oracle={"clockStyle": "THRESHOLD"}, bounds={"clockStyle": 4096},
-            falsifier="replay"),
+        rec(oracle={"clockStyle": "THRESHOLD"}, bounds={"clockStyle": 4096}),
         read_keys=_RK_CLOCKSTYLE, today=_TODAY)
     assert not f, f
 
@@ -409,7 +471,7 @@ def case_substring_needs_no_bound():
     """`SUBSTRING` is the other TASK-714 shape and takes no `bounds` entry —
     `scramble_string` needs no magnitude, only the string itself."""
     f = C.evaluate_falsifiers(
-        rec(oracle={"clockStyle": "SUBSTRING"}, falsifier="replay"),
+        rec(oracle={"clockStyle": "SUBSTRING"}),
         read_keys=_RK_CLOCKSTYLE, today=_TODAY)
     assert not f, f
 
@@ -592,6 +654,12 @@ CASES = [
     ("F17 bounds naming a non-THRESHOLD key", case_bounds_entry_with_no_threshold_key_is_a_finding),
     ("F18 bounds naming an undeclared key",  case_bounds_entry_for_an_undeclared_key_is_a_finding),
     ("F19 SUBSTRING needs no bound",         case_substring_needs_no_bound),
+    # TASK-642 — 'replay' derived from shapes, never hand-typed
+    ("F20 hand-typed replay is a finding",   case_handtyped_replay_is_a_finding),
+    ("F21 hand-typed replay vs PHYSICAL",    case_handtyped_replay_disagreeing_with_shapes_is_still_a_finding),
+    ("F22 physical is not redundant",        case_physical_falsifier_is_not_reported_as_redundant),
+    ("F23 replay-only shapes derive replay", case_oracle_with_only_replay_shapes_derives_replay),
+    ("F24 PHYSICAL/NONE block derivation",   case_physical_or_none_shape_does_not_derive_replay),
 ]
 
 

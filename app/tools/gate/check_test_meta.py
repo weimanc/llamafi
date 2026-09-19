@@ -288,6 +288,31 @@ def evaluate_falsifiers(records: dict, read_keys: dict = None, today=None) -> li
                     f"set for this id{hint} — the record names a read the "
                     f"body does not make (M-HARNESS2 §2)")
 
+        # TASK-642 (M-HARNESS2 §3/§8, amended 2026-09-19): "replay" is DERIVED
+        # from the oracle shapes (_meta.derive_falsifier), never typed. A
+        # hand-typed "replay" can only ever disagree with that derivation (the
+        # shapes say the id isn't replayable, but someone typed it anyway) or
+        # merely restate it — either way it adds nothing a reader could not
+        # already get from the shapes, and the disagreeing case would sit
+        # there looking confirmed while lying about what falsifies the id.
+        # Reject it unconditionally, in both directions: this is the ONLY
+        # thing checked about `falsifier_typed`; a typed `physical: ...`
+        # string is untouched by this arm and still goes through the regex/
+        # expiry check below exactly as before.
+        # `falsifier_typed` is what _meta.resolve() actually put in the
+        # record for "what the author wrote by hand"; a fixture that never
+        # sets it (pre-TASK-642 shape) falls back to `falsifier` itself, so
+        # every existing case that hand-built `falsifier="replay"` still
+        # means "typed" unless it explicitly says otherwise.
+        falsifier_typed = r.get("falsifier_typed", falsifier)
+        if falsifier_typed == "replay":
+            out.append(
+                f"{tid}: falsifier=\"replay\" is hand-typed — TASK-642 "
+                f"derives 'replay' from the declared oracle shapes instead "
+                f"(M-HARNESS2 §3/§8): remove the `falsifier=` argument and "
+                f"let the shapes speak. A typed value here can only disagree "
+                f"with the derivation or restate it, never add to it")
+
         if falsifier and falsifier != "replay":
             m = _PHYSICAL_RE.match(falsifier)
             if not m:
@@ -471,8 +496,11 @@ def main() -> int:
           f"{len(ledger)} on the R35 ledger ({LEDGER_REL})")
     oracle_ids = [t for t, r in records.items() if r.get("oracle")]
     falsifier_ids = [t for t, r in records.items() if r.get("falsifier")]
-    print(f"  falsifier record (TASK-641): {len(oracle_ids)} id(s) declare an "
-          f"oracle, {len(falsifier_ids)} declare a falsifier")
+    derived_ids = [t for t in falsifier_ids if records[t].get("falsifier_derived")]
+    print(f"  falsifier record (TASK-641/642): {len(oracle_ids)} id(s) declare "
+          f"an oracle, {len(falsifier_ids)} have a falsifier "
+          f"({len(derived_ids)} derived 'replay' from the shapes, "
+          f"{len(falsifier_ids) - len(derived_ids)} hand-typed 'physical: ...')")
     for n in notes:
         print(f"  [note] {n}")
 

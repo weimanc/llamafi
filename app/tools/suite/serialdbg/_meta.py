@@ -138,6 +138,43 @@ OPS_ORDER = tuple(OPS)
 SHAPES = ("SNAPSHOT", "POLL", "TRANSITION", "EVENT", "ABSENCE", "PHYSICAL", "NONE",
           "THRESHOLD", "SUBSTRING")
 
+# TASK-642 (M-HARNESS2 §3/§8 amendment, 2026-09-19): "replay" is no longer a
+# value an author types — it is DERIVED from the declared oracle shapes,
+# because a hand-typed "replay" can only ever DISAGREE with what the shapes
+# already say, never add anything to them (every shape but two already names
+# a host operator in §3's own table). `PHYSICAL` (no operator — not
+# reproducible on the host) and `NONE` (no operator — there is no PASS to
+# falsify) are the two exclusions: an id that declares either still needs a
+# hand-typed falsifier (an expiring `physical: ...` string, or none at all
+# for a `NONE`/unobservable claim) because nothing about "no host operator"
+# tells `check_test_meta.py` what to run instead, or when it was last checked.
+REPLAY_SHAPES = frozenset(SHAPES) - {"PHYSICAL", "NONE"}
+
+
+def derive_falsifier(oracle: dict) -> "str | None":
+    """The replay half of TASK-642's derivation rule (M-HARNESS2 §3/§8,
+    2026-09-19).
+
+    RULE: an id with at least one declared ORACLE key, none of whose shapes
+    is `PHYSICAL` or `NONE`, is replay-falsifiable — return `"replay"`.
+    Otherwise return `None` (no oracle at all, or at least one shape with no
+    host operator to run) and the id's `falsifier` is whatever was typed by
+    hand (a `physical: ...; expires ...` string, or nothing).
+
+    This is a pure function of `oracle` alone — not of any typed
+    `falsifier=` — because typing `"replay"` by hand is exactly the
+    redundancy this task removes: it is a value that can only ever disagree
+    with the derivation (the shapes say it isn't replayable but someone
+    typed "replay" anyway) or restate it, never inform it. `gate/
+    check_test_meta.py` makes the former case ("disagree") a finding by
+    rejecting a hand-typed `"replay"` outright, in both directions at once.
+    """
+    if not oracle:
+        return None
+    if set(oracle.values()) <= REPLAY_SHAPES:
+        return "replay"
+    return None
+
 #: scope values that are not an app. `spotify-chrome` is deliberately NOT
 #: `spotify`: a case-only distinction against APP_ORDER's `Spotify` is a defect
 #: in a CLI value (design §13.3) — one `.lower()` anywhere in a resolver and the
@@ -213,11 +250,18 @@ def meta(cls: str = None, cls_reason: str = None,
         before its oracle assertion means anything (e.g. `appId` before a
         style readback would mean anything). No shape — a precondition is
         not itself mutated by a shape-specific operator in this design.
-      * `falsifier` is `"replay"` (the driver, TASK-643, confirms it against
-        a recorded transcript) or `"physical: <what>; expires <ISO date>"`
-        when nothing on the host can exercise it (SD eject, audible output,
-        a real fetch). An expired physical falsifier is a gate failure, the
+      * `falsifier` is typed ONLY for the case a host cannot reproduce:
+        `"physical: <what>; expires <ISO date>"` (SD eject, audible output, a
+        real fetch). An expired physical falsifier is a gate failure, the
         same rule `flaky.yaml`'s `review_by` already enforces (F8).
+        **`"replay"` is never typed** (TASK-642, M-HARNESS2 §3/§8, amended
+        2026-09-19) — it is DERIVED from the oracle shapes by
+        `derive_falsifier()` below: an id with at least one oracle key, none
+        of whose shapes is `PHYSICAL` or `NONE`, is replay-falsifiable by
+        construction, because every other shape already names a host
+        operator (§3). A hand-typed `"replay"` can only disagree with that
+        derivation or restate it, so `gate/check_test_meta.py` now rejects
+        one outright wherever it appears.
 
     `bounds` (TASK-714) is a dict, `key -> a positive number`, and it exists
     for exactly one shape: `THRESHOLD`. A `THRESHOLD` oracle key names a
@@ -231,8 +275,7 @@ def meta(cls: str = None, cls_reason: str = None,
     entry must name a `THRESHOLD` key — either direction of mismatch is a gate
     finding (dead data, or an operator with nothing to go on).
 
-        @meta(oracle={"info.heap": "THRESHOLD"}, bounds={"info.heap": 4096},
-              falsifier="replay")
+        @meta(oracle={"info.heap": "THRESHOLD"}, bounds={"info.heap": 4096})
         def t_clk_11(dut): ...
 
     `SUBSTRING` (TASK-714) is for an oracle key the body tests by
@@ -244,13 +287,13 @@ def meta(cls: str = None, cls_reason: str = None,
     substring it had before. No `bounds` entry — `lib.falsify_ops.
     scramble_string` needs no magnitude, only the string itself.
 
-        @meta(oracle={"plRow.path": "SUBSTRING"}, falsifier="replay")
+        @meta(oracle={"plRow.path": "SUBSTRING"})
         def t_example(dut): ...
 
     None of this builds the mutation driver or its verdict matrix (TASK-643)
     — only makes the claim expressible and checkable ahead of it.
 
-        @meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
+        @meta(oracle={"clockStyle": "SNAPSHOT"})
         def t_clk_03(dut): ...
     """
     d = {}
@@ -433,7 +476,15 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
     ops = tuple(decl.get("ops", ()) or ())
     oracle = dict(decl.get("oracle", {}) or {})
     premise = tuple(decl.get("premise", ()) or ())
-    falsifier = decl.get("falsifier")
+    # TASK-642: "replay" is never hand-typed (see derive_falsifier() above) —
+    # `falsifier_typed` is whatever the author actually wrote (a `physical:
+    # ...` string, or nothing); `falsifier` is what the record EXPOSES,
+    # falling back to the derivation when nothing was typed, so a reader of
+    # build_all_meta() sees the effective value either way and can still tell
+    # the two apart via `falsifier_derived`.
+    falsifier_typed = decl.get("falsifier")
+    falsifier_derived = derive_falsifier(oracle) if falsifier_typed is None else None
+    falsifier = falsifier_typed if falsifier_typed is not None else falsifier_derived
     bounds = dict(decl.get("bounds", {}) or {})
 
     return {
@@ -449,6 +500,8 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
         "premise_declared": "premise" in decl,
         "falsifier": falsifier,
         "falsifier_declared": "falsifier" in decl,
+        "falsifier_typed": falsifier_typed,
+        "falsifier_derived": falsifier_derived is not None,
         "bounds": bounds,
         "bounds_declared": "bounds" in decl,
         "module": module_basename,

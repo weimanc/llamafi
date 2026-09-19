@@ -146,8 +146,11 @@ Extends `_meta.meta()` (TASK-570); everything else in the record is unchanged.
 
 ```python
 @meta(oracle={"lastPlaylistDraw.ms": "POLL"},          # key[.field] -> shape
-      premise={"appId", "shellCooldown", "tbScrollOffset"},
-      falsifier="replay")                                # or "physical: <what>; expires 2026-12-01"
+      premise={"appId", "shellCooldown", "tbScrollOffset"})
+      # no falsifier= — this oracle's only shape is POLL, which has a host
+      # operator (§3), so check_test_meta.py DERIVES falsifier="replay".
+      # falsifier= is typed ONLY for "physical: <what>; expires 2026-12-01" —
+      # see the TASK-642 amendment below.
 def t_ma_03(dut): ...
 ```
 
@@ -156,12 +159,44 @@ def t_ma_03(dut): ...
 The generated set is `gen/gen_read_keys.py` → `app/gen/read_keys.py`, transcript-first, static
 `APPROX` fallback — the same staleness-gated shape as `gen_app_registry.py`.
 
+**Amendment, TASK-642 (2026-09-19).** `falsifier="replay"` is no longer typed by the author — it is
+DERIVED from the id's declared oracle shapes, in `suite/serialdbg/_meta.py`'s `derive_falsifier()`.
+
+> **Derivation rule.** An id with at least one declared `ORACLE` key, none of whose shapes is
+> `PHYSICAL` or `NONE`, is replay-falsifiable: `_meta.resolve()` sets its `falsifier` to `"replay"`
+> with no author action. An id with no oracle at all, or with any oracle key shaped `PHYSICAL` or
+> `NONE`, derives nothing — `falsifier` stays whatever was hand-typed (a `"physical: <what>;
+> expires <ISO date>"` string), or `None`.
+>
+> The rule follows directly from §3's own table: every shape but two — `SNAPSHOT`, `POLL`,
+> `TRANSITION`, `EVENT`, `ABSENCE`, `THRESHOLD`, `SUBSTRING` — already names a host mutation
+> operator, which is the entire content of "replay-falsifiable". `PHYSICAL` (not reproducible on the
+> host) and `NONE` (no PASS to falsify) are the two shapes with no operator, so they are the two
+> exclusions. A hand-typed `falsifier="replay"` can therefore only ever DISAGREE with what the
+> shapes already say (typed on an id the shapes say isn't replayable) or RESTATE it (typed on an id
+> that was going to derive it anyway) — never add information a reader could not already get from
+> the shapes. `gate/check_test_meta.py`'s `evaluate_falsifiers()` now rejects a hand-typed `"replay"`
+> outright, in both directions, via the record's own `falsifier_typed` field (what the author wrote,
+> `None` when nothing was) — kept distinct from `falsifier` (the effective value: typed, or derived)
+> and `falsifier_derived` (whether this id's value came from the rule above), so a reader of
+> `build_all_meta()` can tell a derived value from a typed one without re-deriving it by hand.
+>
+> `physical: <what>; expires <ISO date>` is unaffected: still hand-typed (there is no shape data
+> that could derive an expiry date), still checked against `_PHYSICAL_RE` and the expiry rule
+> exactly as filed, and never reported as the "replay" redundancy above.
+>
+> The 33 ids declared under TASK-641 (11 in Clock, 22 in LocalPlayer including `T_PMT_03`) were
+> migrated: their
+> `falsifier="replay"` argument was removed and the shapes now speak for themselves. `check_test_meta.py`'s
+> census line still counts 33 ids with a falsifier — now split into "derived" vs. "hand-typed
+> physical" so the count's provenance is visible in the run log, not just the total.
+
 ## 8. What changes in the three rows
 
 | row | as filed | amended scope |
 |---|---|---|
 | TASK-641 | generate the read-key set; author declares a claim class from a closed enum | the key set is transcript-first (exact) with a static `APPROX` fallback; **two** closed enums, role (§2) and shape (§3), not one |
-| TASK-642 | two-field falsifier: executable replay, and physical with enforced expiry | unchanged in intent; the replay half is *derived* from the declared shapes, not typed as a field; expiry enforced in `check_test_meta` |
+| TASK-642 | two-field falsifier: executable replay, and physical with enforced expiry | **done, 2026-09-19.** Unchanged in intent; the replay half is *derived* from the declared shapes (`_meta.derive_falsifier()`, boxed rule above), never typed as a field — a hand-typed `"replay"` is now a `check_test_meta.py` finding in both directions (disagrees with the shapes, or merely restates them); `physical: ...` stays typed and its expiry enforced exactly as filed. The 33 TASK-641 declarations were migrated; `gate/test_check_test_meta.py` gained 5 arms (F20-F24) pinning both directions |
 | TASK-643 | mutation driver with the control arm; a miss is inconclusive | the driver runs the §4 matrix (baseline + one arm per declared key), needs a `dilation` parameter on `replay_test` and a line-level operator for `EVENT`/`ABSENCE`, and prints the §5 constraint by name on every `INCONCLUSIVE`. The recorded set is its ratchet (as `lib/replay.py` already says) |
 
 Start with LocalPlayer and Clock (DEV §4.4's ~35 ids) once transcripts exist; the first recording

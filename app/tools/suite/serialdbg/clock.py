@@ -22,7 +22,7 @@ def _restore_spotify_from_clock(dut: Dut):
     dut.cmd("switchApp 0")
     time.sleep(0.5)
 
-@meta(oracle={"appId": "SNAPSHOT"}, falsifier="replay")
+@meta(oracle={"appId": "SNAPSHOT"})
 def t_clk_01(dut: Dut):
     """T_CLK_01: switchApp(1) switches to Clock."""
     tid = "T_CLK_01"
@@ -38,7 +38,7 @@ def t_clk_01(dut: Dut):
     pass_(tid, "appId=1 confirmed after switchApp")
 
 
-@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
+@meta(oracle={"clockStyle": "SNAPSHOT"})
 def t_clk_03(dut: Dut):
     """T_CLK_03: set clockStyle flip — device accepts, readback matches."""
     tid = "T_CLK_03"
@@ -55,7 +55,7 @@ def t_clk_03(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "flip set + readback OK")
 
-@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
+@meta(oracle={"clockStyle": "SNAPSHOT"})
 def t_clk_04(dut: Dut):
     """T_CLK_04: set clockStyle nixie — device accepts, readback matches."""
     tid = "T_CLK_04"
@@ -72,7 +72,7 @@ def t_clk_04(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "nixie set + readback OK")
 
-@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
+@meta(oracle={"clockStyle": "SNAPSHOT"})
 def t_clk_05(dut: Dut):
     """T_CLK_05: set clockStyle vfd — device accepts, readback matches."""
     tid = "T_CLK_05"
@@ -89,7 +89,7 @@ def t_clk_05(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "vfd set + readback OK")
 
-@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
+@meta(oracle={"clockStyle": "SNAPSHOT"})
 def t_clk_06(dut: Dut):
     """T_CLK_06: set clockStyle by numeric index 0..3."""
     tid = "T_CLK_06"
@@ -108,7 +108,7 @@ def t_clk_06(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "all 4 styles accessible by numeric index")
 
-@meta(oracle={"clockStyle": "SNAPSHOT"}, falsifier="replay")
+@meta(oracle={"clockStyle": "SNAPSHOT"})
 def t_clk_07(dut: Dut):
     """T_CLK_07: invalid clockStyle value is rejected."""
     tid = "T_CLK_07"
@@ -124,8 +124,7 @@ def t_clk_07(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, "bad values rejected with ok=false")
 
-@meta(oracle={"clockStyle.saved": "SNAPSHOT", "clockStyle.name": "SNAPSHOT"},
-      falsifier="replay")
+@meta(oracle={"clockStyle.saved": "SNAPSHOT", "clockStyle.name": "SNAPSHOT"})
 def t_clk_08(dut: Dut):
     """T_CLK_08: `set clockStyle` reports that SettingsStorage::save() succeeded.
 
@@ -167,7 +166,7 @@ def t_clk_08(dut: Dut):
     pass_(tid, "set clockStyle nixie -> saved=true, and the value reads back")
 
 
-@meta(oracle={"appId": "SNAPSHOT"}, premise=("clockStyle",), falsifier="replay")
+@meta(oracle={"appId": "SNAPSHOT"}, premise=("clockStyle",))
 def t_clk_10(dut: Dut):
     """T_CLK_10: appId stays Clock=1 while VFD style is active."""
     tid = "T_CLK_10"
@@ -205,8 +204,7 @@ def t_clk_10(dut: Dut):
 # report a silently-wrong verdict (a huge wrong-signed `leak`, or `leak==h0`)
 # instead of the BadField accident a typed read would produce — a body
 # authorship issue, unrelated to which shape is declared, left as found.
-@meta(oracle={"info.heap": "THRESHOLD"}, bounds={"info.heap": 4096},
-      falsifier="replay")
+@meta(oracle={"info.heap": "THRESHOLD"}, bounds={"info.heap": 4096})
 def t_clk_11(dut: Dut):
     """T_CLK_11: heap stable after cycling all 4 styles twice."""
     tid = "T_CLK_11"
@@ -227,7 +225,7 @@ def t_clk_11(dut: Dut):
     _restore_spotify_from_clock(dut)
     pass_(tid, f"heap stable — leak={leak}B (before={h0} after={h1})")
 
-@meta(oracle={"appId": "SNAPSHOT"}, falsifier="replay")
+@meta(oracle={"appId": "SNAPSHOT"})
 def t_clk_12(dut: Dut):
     """T_CLK_12: switchApp Clock→Spotify — device stable, Spotify app active."""
     tid = "T_CLK_12"
@@ -259,7 +257,7 @@ def _sig_field(r: dict, name: str) -> int:
 # (the `sig` fields checked at line 249); it is not itself evidence that a
 # replay/mutation run confirms it — that is TASK-643's driver, not built here.
 @meta(oracle={"sig.inkCount": "SNAPSHOT", "sig.distinctColors": "SNAPSHOT"},
-      premise=("idle",), falsifier="replay")
+      premise=("idle",))
 def t_clk_sig_01(dut: Dut):
     """T_CLK_SIG_01: the Clock canvas is DRAWN — ink and distinct colours over
     the panel readback (ADR-064 D3), the structural assertion H-2 lacked.
