@@ -902,6 +902,44 @@ board is true.
 
 ---
 
+### BP-077 — A fact the tree can compute is not written as a number in prose; write how to compute it
+
+**Adopted from**: LL-154
+**Date adopted**: 2026-09-19 (human)
+**Rule**: Four clauses.
+1. **A derivable standing claim is not a literal.** A count or allocation pointer the repo can
+   compute — the next free task id, the number of test ids in a scope, host scripts in
+   `app/tools/smoke_test.sh`, rows on a ledger, "N of M ids" — is not written as a bare number in
+   documentation. Either derive it mechanically (a gate arm) or write **the one-line command that
+   returns it** in place of the number.
+2. **A number kept for orientation carries its date and its recount command** —
+   `(as of YYYY-MM-DD; recount: <cmd>)`. Without both, it is clause 1 again.
+3. **Run the command before pasting it.** A recount command that does not work, or answers a
+   different question, is worse than the stale number it replaced: it looks authoritative and moves
+   the error one level further from the reader.
+4. **A dated measurement is NOT this rule's target, and erasing one is the expensive mistake.**
+   Evidence — "CORE went from 43 ids to 23 (TASK-591)", "one cost 9 h 33 m, 2026-09-07", a run's
+   pass/fail tally, a design doc's dated snapshot — stays **verbatim**. It records what was true
+   then, which is the whole point of it. When a number's bucket is unclear, leave it and say so.
+**Rationale**: `TASK-685` was filed onto an id that had been allocated six days earlier and closed
+five days earlier (`b434a772`), because the board's header said "Next free id: TASK-685" and the line
+was never recomputed. That is the exact failure the board's own "Read this before adding a row"
+section exists to prevent, committed by trusting the board's summary *of itself* — and it is R42's
+mirrored-firmware-constant class one abstraction level up: correct when written, silently wrong
+afterwards, believed **because** it is stated confidently. The same day's sweep found the pattern is
+not rare: ten rotted numbers across five documents, four of them in `CLAUDE.md`, including a host-
+script count that had by then been wrong three times in a row (21, then 49, against 64 today). Every
+one was correct on the day it was typed.
+**Enforcement, and the honest gap**: none of this is gated today. Prose cannot be gated; a
+derivation can. The real fix is a derived-count arm in `app/tools/gate/check_board_currency.py`
+(max id across boards, archive and log; ledger-row and script counts) — **unfiled, owned by @PM**
+from the 2026-09-19 audit. Until it exists this practice is a discipline, and a QM doc pass is the
+only thing that catches a violation.
+**Applies to**: All. @PM owns the id-allocation instance (the header line that caused this);
+@QM audits documents for the general shape; whoever writes a number owns clause 3.
+
+---
+
 ## Entry Format
 
 ```

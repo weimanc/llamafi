@@ -2416,7 +2416,10 @@ arm computing `max(id)+1` across boards, archive and log), or make the line say 
 instead of *what it is*. The header now says to check the log; the mechanical version is the real
 fix and is unfiled.
 
-**Status**: open — BP candidate, for the human
+**Status**: **adopted 2026-09-19 (human) → [BP-077](best_practices.md)**, widened there from the
+id-allocation case to any derivable standing count, on the evidence of the same day's sweep (ten
+rotted numbers across five documents). The mechanical arm remains unfiled and is named in BP-077 as
+that practice's enforcement gap.
 
 ### LL-155 — 2026-09-19 — A register's citations rot faster than its content
 
