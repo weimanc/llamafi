@@ -572,4 +572,22 @@ if ! "$PYTHON" gate/check_argparse_percent.py; then
     exit 1
 fi
 
+# ── TASK-641 — the generated read-key set (M-HARNESS2-falsifier-taxonomy §2,
+# §7): `app/gen/read_keys.py` is transcript-first (exact — the commands a body
+# actually sent, from `suite/serialdbg/transcripts/<id>.json`) with a static
+# APPROX fallback for ids with no transcript, unresolved f-string keys listed
+# rather than guessed. Staleness only — regenerate to a temp dir, diff against
+# the committed file, same pattern check_build.sh:93-105 uses for
+# gen_app_registry.py, landed HERE rather than as a new check_build.sh gate so
+# the counted total (11) does not move (every host-side gate already lives
+# inside gate 8 — see CLAUDE.md's "Build check" section).
+if ! "$PYTHON" gen/test_gen_read_keys.py; then
+    echo "FAIL: test_gen_read_keys.py (TASK-641 generator negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_read_keys.py; then
+    echo "FAIL: check_read_keys.py (TASK-641 read_keys.py staleness) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"
