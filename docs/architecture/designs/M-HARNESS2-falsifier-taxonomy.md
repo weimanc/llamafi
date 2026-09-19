@@ -59,6 +59,30 @@ that makes the operator necessary; the constraint column is what the plan did no
 | `ABSENCE` | pass = the pattern does **not** appear (R12) | `insert` one matching line after the body's first command | R12's liveness precondition must also be declared (`PREMISE` on the positive marker) or the id is `UNFALSIFIABLE-ABSENCE` |
 | `PHYSICAL` | not reproducible on the host (SD eject, audible output, a real fetch) | none; the record carries the physical perturbation and an **expiry date** enforced like `flaky.yaml`'s `review_by` | PM §4.1 replaced R11's campaign with the expiry; an expired physical falsifier is a gate failure |
 | `NONE` | the claim has no observable (R4 `UNOBSERVABLE`) | none; the id may not carry a PASS on any exit criterion | already enforced by `check_no_reachable_fail`'s register check |
+| `THRESHOLD` *(TASK-714, 2026-09-19)* | a derived numeric delta between two reads of one key, bounded (`earlier - later [> or abs(...) >] N`) | `perturb_threshold(v, bound)` (`lib/falsify_ops.py`) — moves the LATER occurrence DOWN by more than the declared `bounds[key]` | `SNAPSHOT`'s fixed `+1` cannot cross an arbitrary `N`; `TRANSITION`'s freeze-to-before forces the delta to exactly 0, the tightest possible PASS — the opposite of falsification. `THRESHOLD` is declared **with a bound** (`meta(..., bounds={key: N})`) because no fixed step crosses every possible `N` — see amendment note below |
+| `SUBSTRING` *(TASK-714, 2026-09-19)* | one read, tested by prefix/containment (`.startswith(...)`, `x in y`), not bare equality | `scramble_string(v)` (`lib/falsify_ops.py`) — a deterministic character-substitution cipher over the whole string | `SNAPSHOT`'s `perturb_value` appends `"~"`, which changes equality but preserves every prefix and every substring not touching the tail — measured: `"./x".startswith("./")` and `"y" in "y~"` are both still `True` after it |
+
+**Amendment, TASK-714 (2026-09-19).** Declaring the LocalPlayer cohort surfaced three claim shapes
+no operator in the (then-)enum could falsify — `T_CLK_11`'s heap-cycle leak and `T_PLR_12`'s
+`d_load`/`d_free` budget checks (numeric-threshold), and `T_PLR_08`/`T_PLR_10`/`T_PLR_11`'s
+prefix/containment string checks. The two rows above close the first two; the third
+(`T_PLR_08`/10/11) is now falsifiable by `SUBSTRING` but was **not declared** by TASK-714 — out of
+that task's scope, left for whoever next works the LocalPlayer cohort. Both operators live in a
+**new module, `lib/falsify_ops.py`**, not in `lib/canfail.py`: `canfail.perturb_value`/`poison_reply`
+are the R34 sweep's shared poison, consumed by two blocking gates
+(`check_can_go_red.py`, `check_restore_manager.py`'s runtime arm) whose counts are a ratchet, and
+widening them to reach a falsifier-record shape would move both gates' numbers as an unrelated side
+effect. `THRESHOLD`'s bound is declared data (`meta(bounds={...})`), checked by
+`check_test_meta.py` the same way an `ops` name is checked against `OPS`: an undeclared or
+non-positive bound is a gate finding, and so is a `bounds` entry with no matching `THRESHOLD` key.
+
+**A fourth shape, named but deliberately NOT given an operator (TASK-714).** A body whose only
+assertion is "the reply said `ok`" cannot be falsified by any reply-field mutation: `ok` is in
+`canfail.FRAMING` and is never poisoned, on purpose — poisoning it collapses every poison into
+REFUSE, which already exists. This is a **known, deliberate non-target**, not a gap to re-derive:
+the failure mode for a `.ok`-only claim is a transport-level "refuse everything" condition, not a
+`Transcript.mutate`-shaped reply edit, and it is out of scope for this taxonomy by construction (the
+same reasoning `FRAMING`'s own comment in `lib/canfail.py` already gives for why `ok` is excluded).
 
 `freeze` is a **total function**: it defines the reply for every occurrence of the key, including
 ones beyond the recording, because "the counter stopped" means every later read says the same

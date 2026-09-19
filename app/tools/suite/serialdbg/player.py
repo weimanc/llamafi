@@ -660,13 +660,33 @@ def t_plr_11(dut: Dut):
                       "UTF-8 folded to ASCII")
 
 
-# Only `allocated` is declared. The two BUDGET checks in this body
-# (`d_load > 5324`, `abs(d_free) > 256`, lines ~683-686) are the same
-# taxonomy gap named at T_CLK_11: a numeric-magnitude/threshold claim on a
-# derived heap delta, which `SNAPSHOT`'s +-1 int perturbation cannot
-# reliably cross and `TRANSITION`'s freeze-to-before would trivially zero
-# out. Not declared for the same reason, not re-argued here.
-@meta(oracle={"plMem.allocated": "SNAPSHOT"}, falsifier="replay")
+# TASK-714 declares the two BUDGET checks below (`d_load > 5324 B`,
+# `abs(d_free) > 256 B`) that used to sit next to T_CLK_11's as the same
+# unfalsifiable taxonomy gap. Both are `THRESHOLD` (M-HARNESS2 §3 amendment):
+# `lib.falsify_ops.perturb_threshold` moves the relevant LATER `plMem.
+# freeHeap` occurrence down by more than the declared bound. Proved by
+# execution in `lib/test_falsify_ops.py` T5, against a HEALED COPY of this
+# id's own real 46-exchange recording (only the 5 `freeHeap` numbers
+# rewritten; the real recording is itself BASELINE-NOT-PASS — normal
+# Spotify backoff/TLS churn during the recording moved free heap by tens of
+# KB between reads, which is not a leak, but trips `abs(d_free) > 256`
+# exactly the way a real leak would).
+#
+# `plMem.d_load`/`plMem.d_free` are NOT literal JSON fields, and that is a
+# new thing in the record, not the existing convention: `T_CLK_08`'s
+# `clockStyle.saved` IS a literal field of one reply (clock.py:152), whereas
+# these two name quantities the BODY COMPUTES from several `plMem.freeHeap`
+# reads (lines ~721-723). Two consequences, neither of them fixed here:
+# the gate validates only the base key (`plMem`) against the generated read
+# set (§2), so a typo in a derived name cannot be caught; and a driver
+# (TASK-643) cannot resolve `d_load` to anything on its own — the operator
+# below was pointed at `freeHeap`, and at WHICH occurrence, by hand. Naming
+# the rule that maps a derived key to (field, occurrence, direction) is owed
+# on TASK-643's row before this declaration can be executed by the matrix.
+@meta(oracle={"plMem.allocated": "SNAPSHOT",
+              "plMem.d_load": "THRESHOLD", "plMem.d_free": "THRESHOLD"},
+      bounds={"plMem.d_load": 5324, "plMem.d_free": 256},
+      falsifier="replay")
 def t_plr_12(dut: Dut):
     """T_PLR_12: the index is bounded and freed. Heap AND largest-free-block are
     both reported (VE-15) — a clean free-heap figure hides fragmentation, which

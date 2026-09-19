@@ -126,7 +126,17 @@ OPS_ORDER = tuple(OPS)
 #           (OVER-DEPENDENT), not silently accepted.
 #   SHAPE — declared per ORACLE key, fixes which mutation operator a future
 #           driver (TASK-643, not built here) would use against it.
-SHAPES = ("SNAPSHOT", "POLL", "TRANSITION", "EVENT", "ABSENCE", "PHYSICAL", "NONE")
+#
+# TASK-714 adds two shapes, `THRESHOLD` and `SUBSTRING` — both operators live
+# in `lib/falsify_ops.py`, deliberately NOT in `lib/canfail.py`: that module's
+# `perturb_value`/`poison_reply` are the R34 sweep's shared poison, consumed by
+# two blocking gates (`check_can_go_red.py`, `check_restore_manager.py`'s
+# runtime arm) whose counts are a ratchet — widening what those functions DO
+# would move both gates' numbers as a side effect of a falsifier-record change,
+# which is backwards. See §3 below for what each shape measures and why
+# `SNAPSHOT`/`TRANSITION` cannot be reused for it.
+SHAPES = ("SNAPSHOT", "POLL", "TRANSITION", "EVENT", "ABSENCE", "PHYSICAL", "NONE",
+          "THRESHOLD", "SUBSTRING")
 
 #: scope values that are not an app. `spotify-chrome` is deliberately NOT
 #: `spotify`: a case-only distinction against APP_ORDER's `Spotify` is a defect
@@ -150,7 +160,7 @@ def meta(cls: str = None, cls_reason: str = None,
          effect: str = None, effect_reason: str = None,
          ops: tuple = None,
          oracle: dict = None, premise: "set | tuple" = None,
-         falsifier: str = None):
+         falsifier: str = None, bounds: dict = None):
     """Declare metadata on a test function. Everything is optional; whatever is
     given overrides the seed for that axis, and a `scope`/`effect` override must
     carry its `*_reason`.
@@ -209,6 +219,34 @@ def meta(cls: str = None, cls_reason: str = None,
         a real fetch). An expired physical falsifier is a gate failure, the
         same rule `flaky.yaml`'s `review_by` already enforces (F8).
 
+    `bounds` (TASK-714) is a dict, `key -> a positive number`, and it exists
+    for exactly one shape: `THRESHOLD`. A `THRESHOLD` oracle key names a
+    derived numeric claim — a leak/budget/fragmentation check of the shape
+    `earlier_reading - later_reading > N` (measured on every real instance in
+    the corpus: `T_CLK_11`'s heap-cycle leak, `T_PLR_12`'s `d_load`/`d_free`)
+    — and the operator that falsifies it (`lib.falsify_ops.perturb_threshold`)
+    has to know `N`: unlike `SNAPSHOT`'s fixed `+1`, there is no step size that
+    crosses every possible bound without also being told what the bound is.
+    Every `THRESHOLD` key must have a matching `bounds[key]`; every `bounds`
+    entry must name a `THRESHOLD` key — either direction of mismatch is a gate
+    finding (dead data, or an operator with nothing to go on).
+
+        @meta(oracle={"info.heap": "THRESHOLD"}, bounds={"info.heap": 4096},
+              falsifier="replay")
+        def t_clk_11(dut): ...
+
+    `SUBSTRING` (TASK-714) is for an oracle key the body tests by
+    prefix/containment (`.startswith(...)`, `x in y`), not bare equality —
+    measured on `T_PLR_08`/`T_PLR_10`/`T_PLR_11` (still undeclared: TASK-714
+    built and proved the operator but declaring those three ids was out of
+    this task's scope), whose checks all survive `SNAPSHOT`'s `perturb_value`
+    untouched: appending `"~"` to a string preserves every prefix and every
+    substring it had before. No `bounds` entry — `lib.falsify_ops.
+    scramble_string` needs no magnitude, only the string itself.
+
+        @meta(oracle={"plRow.path": "SUBSTRING"}, falsifier="replay")
+        def t_example(dut): ...
+
     None of this builds the mutation driver or its verdict matrix (TASK-643)
     — only makes the claim expressible and checkable ahead of it.
 
@@ -236,6 +274,8 @@ def meta(cls: str = None, cls_reason: str = None,
         d["premise"] = tuple(sorted(premise))
     if falsifier is not None:
         d["falsifier"] = falsifier
+    if bounds is not None:
+        d["bounds"] = dict(bounds)
 
     def _wrap(fn):
         # Set the attribute; do NOT wrap. fn.__name__/inspect must keep working
@@ -394,6 +434,7 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
     oracle = dict(decl.get("oracle", {}) or {})
     premise = tuple(decl.get("premise", ()) or ())
     falsifier = decl.get("falsifier")
+    bounds = dict(decl.get("bounds", {}) or {})
 
     return {
         "id": test_id,
@@ -408,6 +449,8 @@ def resolve(test_id: str, fn, module_basename: str, declared: dict = None) -> di
         "premise_declared": "premise" in decl,
         "falsifier": falsifier,
         "falsifier_declared": "falsifier" in decl,
+        "bounds": bounds,
+        "bounds_declared": "bounds" in decl,
         "module": module_basename,
         "scope_seed": scope_seed,
         "scope_seeded_by": how,

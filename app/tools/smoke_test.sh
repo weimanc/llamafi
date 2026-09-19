@@ -444,6 +444,16 @@ if ! "$PYTHON" lib/test_rigwatch.py; then
     exit 1
 fi
 
+# ── TASK-714 — the THRESHOLD/SUBSTRING falsifier operators' negative suite.
+# Pins `lib.canfail.perturb_value` (the R34 sweep's shared poison) unchanged,
+# and proves both new operators actually flip a real test body's verdict
+# through the real replay engine (T_CLK_11/T_PLR_12, plus a SUBSTRING demo
+# body). No DUT, no port, ~1 s.
+if ! "$PYTHON" lib/test_falsify_ops.py; then
+    echo "FAIL: lib/test_falsify_ops.py (TASK-714 falsifier-operator negative suite) FAILED" >&2
+    exit 1
+fi
+
 # ── TASK-557/677 — the serialburst host checker's negative suite (PROP-011 §2
 # UART row: "the host checker was never committed" — it is now, and gated).
 # Sequence-gap, checksum-corruption, duplicate and truncated-stream detection

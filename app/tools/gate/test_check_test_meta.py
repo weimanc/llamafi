@@ -335,6 +335,85 @@ def case_undeclared_id_is_not_a_finding():
     assert not f, f
 
 
+# TASK-714 — the THRESHOLD shape's `bounds` requirement (M-HARNESS2 §3
+# amendment). `perturb_threshold` (`lib/falsify_ops.py`) has to be TOLD how
+# far past the reading counts as "crossed the bound" — unlike `SNAPSHOT`'s
+# fixed `+1`, there is no step size that works for every possible bound — so
+# every `THRESHOLD` oracle key needs a matching `bounds[key]`, and a `bounds`
+# entry with no `THRESHOLD` key behind it is dead data nobody would notice
+# going stale.
+
+def case_threshold_with_no_bound_is_a_finding():
+    f = C.evaluate_falsifiers(rec(oracle={"clockStyle": "THRESHOLD"}),
+                              read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "no bounds['clockStyle']")
+
+
+def case_threshold_non_positive_bound_is_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "THRESHOLD"}, bounds={"clockStyle": 0}),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "is not a positive")
+
+
+def case_threshold_negative_bound_is_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "THRESHOLD"}, bounds={"clockStyle": -5}),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "is not a positive")
+
+
+def case_threshold_bool_bound_is_a_finding():
+    """A `bool` is an `int` in Python — `isinstance(True, int)` is `True` —
+    so this has to be checked explicitly, the same way `perturb_threshold`
+    itself refuses a `bool` value."""
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "THRESHOLD"}, bounds={"clockStyle": True}),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "is not a positive")
+
+
+def case_threshold_string_bound_is_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "THRESHOLD"}, bounds={"clockStyle": "4096"}),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "is not a positive")
+
+
+def case_threshold_with_a_good_bound_is_not_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "THRESHOLD"}, bounds={"clockStyle": 4096},
+            falsifier="replay"),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    assert not f, f
+
+
+def case_bounds_entry_with_no_threshold_key_is_a_finding():
+    """`bounds` naming a key that is not declared `THRESHOLD` at all (or not
+    declared as an oracle key at all) is dead data — nothing would ever
+    read it, and nothing would notice it going stale."""
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "SNAPSHOT"}, bounds={"clockStyle": 4096}),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "dead bound data")
+
+
+def case_bounds_entry_for_an_undeclared_key_is_a_finding():
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "SNAPSHOT"}, bounds={"heap": 4096}),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    one(f, "dead bound data")
+
+
+def case_substring_needs_no_bound():
+    """`SUBSTRING` is the other TASK-714 shape and takes no `bounds` entry —
+    `scramble_string` needs no magnitude, only the string itself."""
+    f = C.evaluate_falsifiers(
+        rec(oracle={"clockStyle": "SUBSTRING"}, falsifier="replay"),
+        read_keys=_RK_CLOCKSTYLE, today=_TODAY)
+    assert not f, f
+
+
 def case_live_clock_falsifiers_are_clean():
     """The live corpus, through the real generated `app/gen/read_keys.py`
     and today's date. This is the gate at BLOCKING for the Clock cohort
@@ -503,6 +582,16 @@ CASES = [
     ("F8  replay + real oracle is clean",    case_falsifier_replay_with_a_real_oracle_is_not_a_finding),
     ("F9  no declaration is not a finding",  case_undeclared_id_is_not_a_finding),
     ("F10 live Clock falsifiers are clean",  case_live_clock_falsifiers_are_clean),
+    # TASK-714 — THRESHOLD's bounds requirement, SUBSTRING's lack of one
+    ("F11 THRESHOLD with no bound",          case_threshold_with_no_bound_is_a_finding),
+    ("F12 THRESHOLD bound <= 0",             case_threshold_non_positive_bound_is_a_finding),
+    ("F13 THRESHOLD bound negative",         case_threshold_negative_bound_is_a_finding),
+    ("F14 THRESHOLD bound is a bool",        case_threshold_bool_bound_is_a_finding),
+    ("F15 THRESHOLD bound is a string",      case_threshold_string_bound_is_a_finding),
+    ("F16 THRESHOLD + a good bound is clean", case_threshold_with_a_good_bound_is_not_a_finding),
+    ("F17 bounds naming a non-THRESHOLD key", case_bounds_entry_with_no_threshold_key_is_a_finding),
+    ("F18 bounds naming an undeclared key",  case_bounds_entry_for_an_undeclared_key_is_a_finding),
+    ("F19 SUBSTRING needs no bound",         case_substring_needs_no_bound),
 ]
 
 

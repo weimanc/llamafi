@@ -217,6 +217,17 @@ def evaluate_gating_classes(records: dict, ledger=None, gating=None) -> list:
 # re-running the walk (or recording a transcript) is the actual fix.
 _PHYSICAL_RE = re.compile(r"^physical:.+;\s*expires\s+(\d{4}-\d{2}-\d{2})\s*$")
 
+# TASK-714 — the two shapes whose operator needs more than the key name.
+# `THRESHOLD`'s operator (`lib.falsify_ops.perturb_threshold`) has to move a
+# derived numeric reading by more than a bound it cannot infer from the
+# reply's type the way `SNAPSHOT`'s `+1`/`SUBSTRING`'s character scramble can
+# — so the bound has to be declared data, checked the same way `ops` is
+# checked against `OPS`: an undeclared or malformed bound is an operator with
+# nothing to run against, and a `bounds` entry with no `THRESHOLD` key behind
+# it is dead data nobody will ever notice going stale (M-HARNESS2 §3 TASK-714
+# amendment).
+_BOUNDED_SHAPES = frozenset({"THRESHOLD"})
+
 
 def evaluate_falsifiers(records: dict, read_keys: dict = None, today=None) -> list:
     """Pure: records -> findings. `read_keys` defaults to the generated
@@ -231,6 +242,7 @@ def evaluate_falsifiers(records: dict, read_keys: dict = None, today=None) -> li
         r = records[tid]
         oracle = r.get("oracle") or {}
         falsifier = r.get("falsifier")
+        bounds = r.get("bounds") or {}
 
         for key, shape in sorted(oracle.items()):
             if shape not in _meta.SHAPES:
@@ -239,6 +251,28 @@ def evaluate_falsifiers(records: dict, read_keys: dict = None, today=None) -> li
                     f"{_meta.SHAPES} — a shape outside the enum names no "
                     f"mutation operator, so nothing could ever falsify it "
                     f"(M-HARNESS2 §3)")
+            elif shape in _BOUNDED_SHAPES:
+                bound = bounds.get(key)
+                if bound is None:
+                    out.append(
+                        f"{tid}: oracle {key!r} declares {shape!r} with no "
+                        f"bounds[{key!r}] — the operator does not know how "
+                        f"far past the reading counts as 'crossed the bound' "
+                        f"without it (M-HARNESS2 §3 TASK-714 amendment)")
+                elif isinstance(bound, bool) or not isinstance(bound, (int, float)) \
+                        or bound <= 0:
+                    out.append(
+                        f"{tid}: bounds[{key!r}] = {bound!r} is not a positive "
+                        f"number — {shape} moves the reading by MORE than the "
+                        f"bound, so a non-positive or non-numeric one names no "
+                        f"crossing")
+
+        for key in sorted(bounds):
+            if oracle.get(key) not in _BOUNDED_SHAPES:
+                out.append(
+                    f"{tid}: bounds[{key!r}] is declared but oracle {key!r} "
+                    f"is not one of {sorted(_BOUNDED_SHAPES)} (or not declared "
+                    f"at all) — dead bound data nothing will ever read")
 
         rk = read_keys.get(tid)
         known = {k for _kind, k in (rk or {}).get("keys", [])}
