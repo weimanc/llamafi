@@ -549,17 +549,74 @@ def app_source_map(root: str = None) -> dict:
     return out
 
 
-#: directory prefix -> non-app scope, for `--scope <path>`.
+#: directory (or single-file) prefix -> non-app scope, for `--scope <path>`.
+#: TASK-612. Matching is PATH-COMPONENT-AWARE (`_prefix_matches` below), not a
+#: raw string `startswith` — the bug that made `app/src/spotifyTask.h` match
+#: the directory prefix `"app/src/spotify"` as a FILENAME prefix (B-10). Every
+#: entry here must name something that actually exists on disk;
+#: `gate/check_test_meta.py` fails the build otherwise (a missing prefix is a
+#: silent no-op, never a loud one).
+#:
+#: A handful of entries are exact FILES, not directories — `spotifyTask.h` /
+#: `spotifyTaskStorage.cpp` implement exactly what the `spotify-chrome` scope's
+#: ids exercise (shell-side poll backoff/reconnect, see shell.py's own
+#: docstring), so they are named directly rather than inventing a directory
+#: that does not exist. Same reasoning for `planeRadarConfig.h` (PlaneRadar's
+#: config, used almost solely by planeRadarApp.h), `settingsCalStorage.cpp`
+#: (calibrationFlow.h's storage, used nowhere else), and `shell/taskbar.{cpp,h}`
+#: (the taskbar renderer is two FILES inside `app/src/shell/`, not a
+#: subdirectory — `app/src/taskbar` never existed) — verified by grepping every
+#: include site, not assumed.
+#:
+#: Sorted by DESCENDING length of prefix at match time (not declaration order)
+#: so a specific entry (`app/src/shell/taskbar`) always wins over a broader one
+#: that also matches (`app/src/shell`) regardless of which line comes first.
 _PATH_SCOPES = (
+    ("app/src/shell/taskbar.cpp", "taskbar"),
+    ("app/src/shell/taskbar.h", "taskbar"),
     ("app/src/shell", "shell"),
     ("app/src/debug", "shell"),
     ("app/src/boot", "boot"),
-    ("app/src/taskbar", "taskbar"),
     ("app/src/winamp", "Spotify"),
-    ("app/src/spotify", "spotify-chrome"),
+    ("app/src/spotifyTask.h", "spotify-chrome"),
+    ("app/src/spotifyTaskStorage.cpp", "spotify-chrome"),
+    ("app/src/player", "LocalPlayer"),
+    ("app/src/settings", "Settings"),
+    ("app/src/settingsCalStorage.cpp", "Settings"),
+    ("app/src/planeRadarConfig.h", "PlaneRadar"),
+    ("app/src/stock", "Stock"),
+    ("app/src/app.h", "shell"),
+    ("app/src/appRegistry.h", "shell"),
+    ("app/src/appShell.cpp", "shell"),
+    ("app/src/appShell.h", "shell"),
     ("run/", "rig"),
     ("app/tools/lib", "rig"),
 )
+
+
+def _norm_prefix(prefix: str) -> str:
+    """Strip a trailing slash so `"run/"` and `"run"` behave identically."""
+    return prefix[:-1] if prefix.endswith("/") else prefix
+
+
+def _prefix_matches(rel: str, prefix: str) -> bool:
+    """Whole-path-COMPONENT match: `rel` is `prefix` itself, or `prefix` is one
+    of `rel`'s leading directory segments. A raw `rel.startswith(prefix)` also
+    matches a FILENAME that merely starts with `prefix`'s last segment's text
+    (`app/src/spotifyTask.h` against `"app/src/spotify"`, B-10) — this rejects
+    that case in both directions."""
+    p = _norm_prefix(prefix)
+    return rel == p or rel.startswith(p + "/")
+
+
+def path_scopes_missing(root: str = None) -> list:
+    """`_PATH_SCOPES` entries naming a path that does not exist on disk. TASK-612
+    B-10: a prefix naming a missing directory used to be a silent no-op (nothing
+    under it could ever match); this makes it checkable instead of merely
+    readable."""
+    root = root or REPO_ROOT
+    return [(prefix, scope) for prefix, scope in _PATH_SCOPES
+            if not os.path.exists(os.path.join(root, _norm_prefix(prefix)))]
 
 
 def scope_from_path(value: str, root: str = None) -> str:
@@ -579,8 +636,11 @@ def scope_from_path(value: str, root: str = None) -> str:
         if name in APP_ORDER:
             return name
         raise ValueError(f"{rel}: '{name}' is not an APP_ORDER app")
-    for prefix, scope in _PATH_SCOPES:
-        if rel.startswith(prefix):
+    # Longest prefix wins, so a more specific entry (a subdirectory, or an
+    # exact file) is never shadowed by a broader one that also matches.
+    candidates = sorted(_PATH_SCOPES, key=lambda kv: -len(_norm_prefix(kv[0])))
+    for prefix, scope in candidates:
+        if _prefix_matches(rel, prefix):
             return scope
     raise ValueError(
         f"cannot resolve {rel} to a scope. Pass a scope name directly, one of: "

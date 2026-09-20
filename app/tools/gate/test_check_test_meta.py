@@ -597,6 +597,138 @@ def case_app_source_map_matches_app_order():
     assert os.path.basename(m["Stock"]) == "stockApp.cpp"
 
 
+# ── TASK-612 — `--scope <path>` coverage + the two dead prefixes (B-9/B-10) ──
+
+def case_path_scope_prefix_naming_a_missing_dir_is_a_finding():
+    """B-10: a `_PATH_SCOPES` entry naming nothing on disk used to be a silent
+    no-op. Point `path_scopes_missing`/`evaluate_path_scopes` at an empty
+    scratch root — none of the real prefixes exist under it, so every one
+    must be reported."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        missing = _meta.path_scopes_missing(tmp)
+        assert missing, "an empty root must report every prefix missing"
+        assert len(missing) == len(_meta._PATH_SCOPES)
+        f = C.evaluate_path_scopes(tmp)
+        one(f, "does not exist under the repo root")
+        one(f, "TASK-612 B-10")
+
+
+def case_live_path_scopes_all_exist():
+    """Positive control: every `_PATH_SCOPES` entry in the real tree resolves
+    to a real file or directory today — the finding above is reachable, but
+    not currently occurring."""
+    root = str(HERE.parent.parent.parent)
+    assert _meta.path_scopes_missing(root) == []
+    assert C.evaluate_path_scopes(root) == []
+
+
+def case_filename_prefix_accident_rejected_both_directions():
+    """The B-10 bug: a directory prefix `"app/src/spotify"` matched the
+    FILENAME `spotifyTask.h` as a text prefix, not a path component. Assert
+    the component-aware matcher rejects that shape in both directions —
+    string-prefix-but-not-component-prefix, and component-prefix-but-not-
+    string-prefix would be indistinguishable if the matcher were still doing
+    `str.startswith`."""
+    assert not _meta._prefix_matches("app/src/spotifyTask.h", "app/src/spotify")
+    assert _meta._prefix_matches("app/src/spotify/foo.h", "app/src/spotify")
+    assert _meta._prefix_matches("app/src/spotify", "app/src/spotify")
+
+
+def case_spotifytask_resolves_deliberately_not_by_accident():
+    """`spotifyTask.h`/`spotifyTaskStorage.cpp` DO resolve to `spotify-chrome`
+    — but via an exact-file `_PATH_SCOPES` entry (verified against every
+    include site, per shell.py's own `spotify-chrome` reason), not via a
+    directory prefix that happens to share a text prefix. A sibling file that
+    merely SHARES the text `spotify` must NOT resolve."""
+    root = str(HERE.parent.parent.parent)
+    assert _meta.scope_from_path("app/src/spotifyTask.h", root) == "spotify-chrome"
+    assert _meta.scope_from_path("app/src/spotifyTaskStorage.cpp", root) == "spotify-chrome"
+    try:
+        _meta.scope_from_path("app/src/spotifyFooBar.h", root)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError(
+            "a file that merely starts with 'spotify' resolved anyway — "
+            "the B-10 filename accident is back")
+
+
+def case_new_directory_mappings_resolve_to_the_scope_that_covers_them():
+    """TASK-612's extended coverage: each new `_PATH_SCOPES` entry was chosen
+    because that scope's ids actually exercise the directory — assert the
+    resolution, not just that SOMETHING is returned."""
+    root = str(HERE.parent.parent.parent)
+    cases = {
+        "app/src/player/fileBrowser.h": "LocalPlayer",
+        "app/src/player/m3u.h": "LocalPlayer",
+        "app/src/settings/settingsSection.h": "Settings",
+        "app/src/settingsCalStorage.cpp": "Settings",
+        "app/src/stock/stockChart.cpp": "Stock",
+        "app/src/stock/stockShared.h": "Stock",
+        "app/src/shell/taskbar.cpp": "taskbar",
+        "app/src/shell/taskbar.h": "taskbar",
+        "app/src/planeRadarConfig.h": "PlaneRadar",
+        "app/src/appShell.cpp": "shell",
+        "app/src/app.h": "shell",
+    }
+    for rel, want in cases.items():
+        got = _meta.scope_from_path(rel, root)
+        assert got == want, f"{rel}: expected {want!r}, got {got!r}"
+
+
+def case_path_scope_census_matches_the_ledger():
+    """B-9, live: every file the census calls unresolved has exactly one row
+    in the R-PATHSCOPE ledger, and vice versa — the same shrink-only check
+    `check_test_meta.py` runs, exercised directly so a stale/missing row is a
+    test failure, not just a `run/check` failure discovered later."""
+    root = str(HERE.parent.parent.parent)
+    unresolved, total = C.scope_from_path_census(root)
+    assert total >= 140, f"expected ~143 app/src/**/*.{{cpp,h,c}} files, got {total}"
+    ledger, errors = C.parse_path_scope_ledger(
+        os.path.join(root, C.PATH_SCOPE_LEDGER_REL))
+    assert not errors, errors
+    findings = C.evaluate_path_scope_ledger(unresolved, ledger)
+    assert not findings, findings
+
+
+def case_path_scope_ledger_flags_undocumented_and_stale_rows():
+    """Pure unit test of the shrink-only rule, independent of the real
+    ledger's current contents: an unresolved file with no row is undocumented
+    residue; a row for a file that (no longer) appears unresolved is stale."""
+    f = C.evaluate_path_scope_ledger(
+        unresolved=["app/src/newThing.h"],
+        ledger={"app/src/oldThing.h": "docs/v/path_scope_unresolved.md:9"})
+    one(f, "app/src/newThing.h")
+    one(f, "no row in")
+    one(f, "stale row for 'app/src/oldThing.h'")
+
+
+def case_path_scope_ledger_malformed_rows():
+    """path must be under app/src/, owner a TASK id, since an ISO date, and no
+    duplicate rows for the same path — same shape as the R35 ledger parser."""
+    import tempfile
+    body = ("| path | why | owner | since |\n"
+            "|---|---|---|---|\n"
+            "| `not/app/src/x.h` | x | TASK-612 | 2026-09-20 |\n"
+            "| `app/src/a.h` | x | nobody | 2026-09-20 |\n"
+            "| `app/src/b.h` | x | TASK-612 | soon |\n"
+            "| `app/src/c.h` | x | TASK-612 | 2026-09-20 |\n"
+            "| `app/src/c.h` | x | TASK-612 | 2026-09-21 |\n")
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as fh:
+        fh.write(body)
+        path = fh.name
+    try:
+        rows, errors = C.parse_path_scope_ledger(path)
+    finally:
+        os.unlink(path)
+    one(errors, "not/app/src/x.h")
+    one(errors, "owner 'nobody'")
+    one(errors, "since 'soon'")
+    one(errors, "duplicate row for 'app/src/c.h'")
+    assert list(rows) == ["app/src/c.h"], rows
+
+
 CASES = [
     ("N1  unresolved scope",                 case_unresolved_scope),
     ("N2  scope outside the enum",           case_scope_outside_enum),
@@ -660,6 +792,15 @@ CASES = [
     ("F22 physical is not redundant",        case_physical_falsifier_is_not_reported_as_redundant),
     ("F23 replay-only shapes derive replay", case_oracle_with_only_replay_shapes_derives_replay),
     ("F24 PHYSICAL/NONE block derivation",   case_physical_or_none_shape_does_not_derive_replay),
+    # TASK-612 — `--scope <path>` coverage + the two dead prefixes (B-9/B-10)
+    ("PS1 missing prefix dir is a finding",  case_path_scope_prefix_naming_a_missing_dir_is_a_finding),
+    ("PS2 live prefixes all exist",          case_live_path_scopes_all_exist),
+    ("PS3 filename accident, both ways",     case_filename_prefix_accident_rejected_both_directions),
+    ("PS4 spotifyTask is deliberate",        case_spotifytask_resolves_deliberately_not_by_accident),
+    ("PS5 new mappings resolve correctly",   case_new_directory_mappings_resolve_to_the_scope_that_covers_them),
+    ("PS6 census matches the ledger",        case_path_scope_census_matches_the_ledger),
+    ("PS7 ledger flags undoc/stale rows",    case_path_scope_ledger_flags_undocumented_and_stale_rows),
+    ("PS8 malformed path-scope ledger rows", case_path_scope_ledger_malformed_rows),
 ]
 
 

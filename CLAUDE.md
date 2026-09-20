@@ -192,6 +192,19 @@ Scope names are **case-sensitive**: `Spotify` is the app, `spotify-chrome` is th
 shell's Spotify plumbing, and `spotify` is not a scope at all. `--class`/`--upto`
 were cut at review and deliberately do not exist (design §20).
 
+`--scope <path>` does not reach every file (TASK-612). Matching a directory prefix is
+path-component-aware — `app/src/settings`, `app/src/player`, `app/src/stock`,
+`app/src/shell/taskbar.{cpp,h}` and a handful of specific files
+(`spotifyTask.h`/`spotifyTaskStorage.cpp` -> `spotify-chrome`, `planeRadarConfig.h` ->
+`PlaneRadar`, `settingsCalStorage.cpp` -> `Settings`) resolve; a file shared across
+unrelated apps (`dataTask.h`, `settingsStorage.h`, `app/src/util/`, `app/src/gen/`, …)
+correctly does not, rather than being attributed to a scope whose ids don't actually
+exercise it. The current count and the unresolved list with its reasoning:
+`~/proj/esp/venv/bin/python app/tools/gate/check_test_meta.py 2>&1 | grep 'scope <path>'`
+(as of 2026-09-20: 90/143) and `docs/verification/path_scope_unresolved.md`. The ledger
+is gated — every unresolved file must have a row, and every row must still be
+unresolved, or `run/check` fails.
+
 Full reference: `docs/process/project_run_scripts.md`. Rationale and failure modes: `docs/process/dut_workflow.md`.
 
 Port is resolved automatically by VID:PID. Override: `PORT=/dev/ttyUSB1 ./run/flash`.

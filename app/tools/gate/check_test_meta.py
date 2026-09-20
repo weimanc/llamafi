@@ -142,6 +142,113 @@ def parse_ledger(path: str = None) -> tuple:
     return rows, errors
 
 
+PATH_SCOPE_LEDGER_REL = "docs/verification/path_scope_unresolved.md"
+
+
+def parse_path_scope_ledger(path: str = None) -> tuple:
+    """-> ({path: 'rel:line'}, [malformed-row errors]) for the R-PATHSCOPE
+    ledger (TASK-612): `| path | why | owner | since |`, keyed on the path
+    alone — no wildcards, same convention as `parse_ledger` above."""
+    path = path or os.path.join(ROOT, PATH_SCOPE_LEDGER_REL)
+    rows: dict = {}
+    errors: list = []
+    if not os.path.exists(path):
+        return rows, errors
+    rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+    header = None
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        lines = fh.read().split("\n")
+    for i, line in enumerate(lines, 1):
+        s = line.strip()
+        if not s.startswith("|"):
+            header = None
+            continue
+        cells = _cells(s)
+        if all(_SEP_RE.fullmatch(x) for x in cells if x):
+            continue
+        if header is None:
+            header = [c.lower() for c in cells]
+            continue
+        if len(cells) < 4:
+            continue
+        p, owner, since = cells[0].strip("`* "), cells[2], cells[3]
+        if not p.startswith("app/src/"):
+            errors.append(f"{rel}:{i}: path {p!r} is not under app/src/")
+            continue
+        if not _TASK_RE.match(owner.strip("`* ")):
+            errors.append(f"{rel}:{i}: owner {owner!r} must be a TASK-NNN id")
+            continue
+        try:
+            datetime.date.fromisoformat(since.strip("`* "))
+        except ValueError:
+            errors.append(f"{rel}:{i}: since {since!r} is not an ISO YYYY-MM-DD date")
+            continue
+        if p in rows:
+            errors.append(f"{rel}:{i}: duplicate row for {p!r} (first at {rows[p]})")
+            continue
+        rows[p] = f"{rel}:{i}"
+    return rows, errors
+
+
+def evaluate_path_scopes(root: str = None) -> list:
+    """TASK-612 B-10, pure: every `_PATH_SCOPES` entry must name a path that
+    exists, and its value must be in the scope enum. Split out so the negative
+    suite can hand it a scratch `root` without touching the real tree."""
+    out: list = []
+    for pref, sc in _meta.path_scopes_missing(root):
+        out.append(
+            f"_PATH_SCOPES[{pref!r}] = {sc!r} names a path that does not "
+            f"exist under the repo root — a prefix naming nothing is a "
+            f"silent no-op for every file under it, never a finding, until "
+            f"someone re-measures by hand (TASK-612 B-10). Point it at "
+            f"where the code actually lives, or delete the entry")
+    for pref, sc in _meta._PATH_SCOPES:
+        if sc not in _meta.SCOPES:
+            out.append(f"_PATH_SCOPES[{pref!r}] = {sc!r} is not in the scope enum")
+    return out
+
+
+def scope_from_path_census(root: str = None) -> tuple:
+    """-> (unresolved_rel_paths, total_count) over every real
+    `app/src/**/*.{cpp,h,c}` file. TASK-612 B-9."""
+    root = root or ROOT
+    import glob as _glob
+    src_files = sorted(
+        p for pat in ("*.cpp", "*.h", "*.c")
+        for p in _glob.glob(os.path.join(root, "app", "src", "**", pat), recursive=True))
+    src_rel = [os.path.relpath(p, root).replace(os.sep, "/") for p in src_files]
+    unresolved = []
+    for rel in src_rel:
+        try:
+            _meta.scope_from_path(rel, root)
+        except ValueError:
+            unresolved.append(rel)
+    return unresolved, len(src_rel)
+
+
+def evaluate_path_scope_ledger(unresolved: list, ledger: dict) -> list:
+    """TASK-612 — pure: an unresolved file with no ledger row is undocumented
+    residue; a ledger row for a file that now resolves is stale. Mirrors
+    `evaluate_gating_classes`'s shrink-only shape."""
+    out: list = []
+    ledger_paths = set(ledger)
+    unresolved_set = set(unresolved)
+    for rel in sorted(unresolved_set - ledger_paths):
+        out.append(
+            f"{rel}: unresolved by --scope <path> with no row in "
+            f"{PATH_SCOPE_LEDGER_REL} — either add a "
+            f"_PATH_SCOPES entry that truthfully covers it, or document why "
+            f"it stays unresolved (TASK-612 ruling: a gate never lands "
+            f"advisory)")
+    for rel in sorted(ledger_paths - unresolved_set):
+        out.append(
+            f"{PATH_SCOPE_LEDGER_REL}: stale row for "
+            f"{rel!r} ({ledger[rel]}) — it now resolves to a scope, so "
+            f"the finding this row suppressed no longer occurs. Delete the "
+            f"row; the ledger can only shrink")
+    return out
+
+
 def evaluate_gating_classes(records: dict, ledger=None, gating=None) -> list:
     """R35, pure. `records` -> findings; the ledger grandfathers G1 only."""
     ledger = dict(ledger or {})
@@ -464,6 +571,38 @@ def main() -> int:
     for pref, sc in _meta.PREFIX_SCOPES.items():
         if sc not in _meta.SCOPES:
             findings.append(f"PREFIX_SCOPES[{pref!r}] = {sc!r} is not in the scope enum")
+
+    # TASK-612 B-10 — `_PATH_SCOPES` (the `--scope <path>` resolver, §13.4)
+    # named two directories that never existed (`app/src/taskbar`,
+    # `app/src/spotify`), and the gate never checked a prefix against the
+    # filesystem: a prefix naming nothing was a silent no-op, not a finding.
+    # This arm makes it loud instead. It also must not regress into the
+    # DIFFERENT bug those two entries produced by accident (B-10's second
+    # half) — a filename that merely STARTS WITH a prefix's text (e.g.
+    # `app/src/spotifyTask.h` against a hypothetical directory prefix
+    # `"app/src/spotify"`) must never resolve as if it were under that
+    # directory, so `_PATH_SCOPES` values are checked with the same
+    # path-component-aware existence test `scope_from_path()` uses to match.
+    findings += evaluate_path_scopes()
+
+    # TASK-612 B-9 — coverage census over the real tree, printed every run so a
+    # regression (a moved directory, a deleted _PATH_SCOPES entry) shows up as
+    # a number moving in the log, not as a claim nobody re-checks.
+    path_unresolved, path_total = scope_from_path_census()
+    notes.append(
+        f"--scope <path>: {path_total - len(path_unresolved)}/{path_total} "
+        f"app/src/**/*.{{cpp,h,c}} files resolve to a scope "
+        f"({len(path_unresolved)} unresolved; see "
+        f"{PATH_SCOPE_LEDGER_REL})")
+
+    # The R-PATHSCOPE ledger (TASK-612): every currently-unresolved file must
+    # be a DOCUMENTED, dated, owned decision, not silent residue nobody
+    # decided about — and the ledger must SHRINK, never grow stale: a row for
+    # a file that now resolves (a later _PATH_SCOPES entry covered it) is
+    # exactly as much a finding as an unresolved file with no row.
+    ledger_rows, ledger_row_errors = parse_path_scope_ledger()
+    findings += ledger_row_errors
+    findings += evaluate_path_scope_ledger(path_unresolved, ledger_rows)
 
     # META_OVERRIDES is the escape hatch for registry entries that are not
     # functions. It must not become a second declaration channel for entries
