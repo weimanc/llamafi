@@ -22,8 +22,12 @@ so this suite pins that silence is impossible at every layer:
 NO LEDGER. Unlike `check_flake_class.py`/`check_test_meta.py`, this gate does
 not carry a grandfather ledger, and this suite does not pin a "stale ledger
 row" case for that reason: ruling 1 requires a gate land "at zero, or
-blocking with a ... ledger" — this one lands AT ZERO (every one of the nine
-register entries agrees once seeded), so no ledger exists to go stale. The
+blocking with a ... ledger" — this one lands AT ZERO (every one of the
+register entries agrees once seeded), so no ledger exists to go stale.
+(TASK-715 removed A-8 and H-12 outright once clock.py/teletext.py stopped
+mirroring — the register is now seven entries, not the original nine; a
+pair with no remaining suite-side literal to compare would just compare a
+parsed value to itself, so it was deleted, not converted.) The
 correct thing for this suite to pin instead is that no such ledger
 mechanism/path was quietly added (a ledger nobody wrote the "shrink-only,
 dated, owned" rules for is worse than no ledger) — `test_no_ledger_mechanism_exists`
@@ -202,9 +206,10 @@ def case_live_run_all_pairs_agree():
     findings = C.run_all()
     bad = [f.id for f in findings if not f.ok]
     assert not bad, f"live mirror pairs disagree: {bad}"
-    assert len(findings) == 11, (
-        f"expected 11 encoded pairs (9 register entries, A-10 and F-16 each "
-        f"split into sub-pairs), got {len(findings)}: {[f.id for f in findings]}"
+    assert len(findings) == 9, (
+        f"expected 9 encoded pairs (7 register entries — A-8 and H-12 removed "
+        f"by TASK-715 — with A-10 and F-16 each split into sub-pairs), "
+        f"got {len(findings)}: {[f.id for f in findings]}"
     )
 
 
@@ -239,7 +244,7 @@ CASES = [
     ("A-10a enum missing -> finding",          case_a10_fetchtype_finding_when_enum_missing),
     ("A-10b no kPmNames anywhere -> finding",  case_a10_playermodes_finding_when_no_kpmnames_anywhere),
     ("A-10b firmware copies disagree -> finding", case_a10_playermodes_finding_when_firmware_copies_disagree_with_each_other),
-    ("live: all 11 pairs agree",               case_live_run_all_pairs_agree),
+    ("live: all 9 pairs agree",                case_live_run_all_pairs_agree),
     ("live: main() exits 0",                   case_live_main_exits_zero),
     ("no quiet ledger mechanism",              test_no_ledger_mechanism_exists),
 ]

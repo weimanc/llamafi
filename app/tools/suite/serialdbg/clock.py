@@ -3,14 +3,18 @@ run_serialdbg_tests.py, TASK-480 stage 2 (pilot family)."""
 
 import time
 
+from app_ids_gen import APP_SLOT
 from lib.dut import TIMEOUT, BadField, Dut
 import coords as _c
 from lib.results import pass_, fail, unmet
 from suite.serialdbg._meta import meta
 
+_CLOCK = APP_SLOT["Clock"]
+_SPOTIFY = APP_SLOT["Spotify"]
+
 
 def _switch_to_clock(dut: Dut) -> bool:
-    r = dut.cmd("switchApp 1")
+    r = dut.cmd(f"switchApp {_CLOCK}")
     if not r.get("ok"):
         return False
     time.sleep(0.4)
@@ -19,23 +23,23 @@ def _switch_to_clock(dut: Dut) -> bool:
 def _restore_spotify_from_clock(dut: Dut):
     dut.cmd("set clockStyle 0")
     time.sleep(0.2)
-    dut.cmd("switchApp 0")
+    dut.cmd(f"switchApp {_SPOTIFY}")
     time.sleep(0.5)
 
 @meta(oracle={"appId": "SNAPSHOT"})
 def t_clk_01(dut: Dut):
-    """T_CLK_01: switchApp(1) switches to Clock."""
+    """T_CLK_01: switchApp(Clock) switches to Clock."""
     tid = "T_CLK_01"
     print(f"{tid}  switchApp(Clock)")
-    r = dut.cmd("switchApp 1")
+    r = dut.cmd(f"switchApp {_CLOCK}")
     if not r.get("ok"):
-        fail(tid, f"switchApp 1 failed: {r}"); return
+        fail(tid, f"switchApp {_CLOCK} failed: {r}"); return
     time.sleep(0.4)
     r2 = dut.cmd("get appId")
-    if r2.get("id") != 1:
-        fail(tid, f"appId={r2.get('id')!r} after switchApp 1 — expected 1"); return
+    if r2.get("id") != _CLOCK:
+        fail(tid, f"appId={r2.get('id')!r} after switchApp {_CLOCK} — expected {_CLOCK}"); return
     _restore_spotify_from_clock(dut)
-    pass_(tid, "appId=1 confirmed after switchApp")
+    pass_(tid, f"appId={_CLOCK} confirmed after switchApp")
 
 
 @meta(oracle={"clockStyle": "SNAPSHOT"})
@@ -175,10 +179,10 @@ def t_clk_10(dut: Dut):
         fail(tid, "could not switch to Clock"); return
     dut.cmd("set clockStyle vfd"); time.sleep(0.4)
     r = dut.cmd("get appId")
-    if r.get("id") != 1:
-        fail(tid, f"appId={r.get('id')!r} while VFD active — expected 1"); return
+    if r.get("id") != _CLOCK:
+        fail(tid, f"appId={r.get('id')!r} while VFD active — expected {_CLOCK}"); return
     _restore_spotify_from_clock(dut)
-    pass_(tid, "appId=1 confirmed with VFD style active")
+    pass_(tid, f"appId={_CLOCK} confirmed with VFD style active")
 
 # NOT DECLARABLE from TASK-641 through TASK-713 (re-checked after TASK-713
 # added the `cmd` read-key kind: `("cmd", "info")` closed the VOCABULARY gap,
@@ -234,11 +238,11 @@ def t_clk_12(dut: Dut):
         fail(tid, "could not switch to Clock"); return
     for st in range(4):
         dut.cmd(f"set clockStyle {st}"); time.sleep(0.2)
-    dut.cmd("switchApp 0"); time.sleep(1.2)
+    dut.cmd(f"switchApp {_SPOTIFY}"); time.sleep(1.2)
     r = dut.cmd("get appId")
-    if r.get("id") != 0:
-        fail(tid, f"appId={r.get('id')!r} after Clock→Spotify — expected 0"); return
-    pass_(tid, "device stable after Clock→Spotify, appId=0")
+    if r.get("id") != _SPOTIFY:
+        fail(tid, f"appId={r.get('id')!r} after Clock→Spotify — expected {_SPOTIFY}"); return
+    pass_(tid, f"device stable after Clock→Spotify, appId={_SPOTIFY}")
 
 
 def _sig_field(r: dict, name: str) -> int:
@@ -269,7 +273,7 @@ def t_clk_sig_01(dut: Dut):
     """
     tid = "T_CLK_SIG_01"
     if not _switch_to_clock(dut):
-        unmet(tid, "switchApp 1 refused, so no Clock canvas was on screen to read")
+        unmet(tid, f"switchApp {_CLOCK} refused, so no Clock canvas was on screen to read")
         return
     deadline = time.monotonic() + 8.0
     while not dut.get_bool("idle", field="idle", timeout=TIMEOUT):

@@ -57,13 +57,20 @@ DESIGN DECISIONS
   modules here to read their live values (`stock.py`'s `_TAB_XY`, `health.py`'s
   `_PLAYER_MODES`, `_helpers.py`'s `_TB_N`, `shell.py`'s settings-geometry
   names) is both safe and exact — no regex on the suite side at all for those.
-  Two mirrors (`A-8`'s scattered `switchApp N` literals in `clock.py`, `F-16`'s
-  literal 19/21/12 occurrences in `webradio.py`, `H-12`'s tap-coordinate
-  literals in `teletext.py`) have no named module-level constant to import —
-  for those this file uses `inspect.getsource()` on the already-imported
-  module and a small regex, which is line-number-proof (it re-reads the
-  CURRENT source text at gate time, never a cached line offset) but still
-  suite-side text, unlike the firmware regexes above which read files by path.
+  One mirror (`F-16`'s literal 19/21/12 occurrences in `webradio.py`) has no
+  named module-level constant to import — for that this file uses
+  `inspect.getsource()` on the already-imported module and a small regex,
+  which is line-number-proof (it re-reads the CURRENT source text at gate
+  time, never a cached line offset) but still suite-side text, unlike the
+  firmware regexes above which read files by path. (`A-8`'s `switchApp N`
+  literals in `clock.py` and `H-12`'s tap-coordinate literals in
+  `teletext.py` used to be handled the same way; TASK-715 deleted both
+  literals — `clock.py` now imports `app_ids_gen.APP_SLOT` and `teletext.py`
+  now imports `coords.py`'s parsed `TTXT_*` constants — so those two pairs
+  were removed from the register below rather than converted, since a pair
+  with no remaining suite-side literal has nothing left to compare against
+  the firmware value that wouldn't just be comparing the same parsed value
+  to itself.)
 
 * What a pair looks like when the suite side is a table/formula, not a
   scalar (R43). `A-9`'s `_TAB_XY` and `D-6`'s `_APP_LIST_ROW_H` are both
@@ -234,26 +241,18 @@ class Finding:
                 f"firmware={self.fw_val!r}  ({self.desc})")
 
 
-# ── A-8: clock.py hardcodes `switchApp 1` for the Clock app slot ───────────
-
-def check_a8() -> Finding:
-    import suite.serialdbg.clock as clock_mod
-    src = inspect.getsource(clock_mod)
-    # clock.py hardcodes TWO app slots — 1 to switch TO Clock, and 0 to
-    # restore Spotify afterward — neither imported from app_ids_gen. Both are
-    # checked; conflating them into one expected scalar would silently miss
-    # a drift in either literal alone.
-    literals = sorted({int(n) for n in re.findall(r'switchApp["\']?\s+(\d+)', src)})
-    fw_vals = sorted({APP_SLOT["Clock"], APP_SLOT["Spotify"]})
-    ok = literals == fw_vals
-    return Finding(
-        "A-8", "clock.py hardcodes app slots (Clock, Spotify) instead of importing app_ids_gen",
-        "app/tools/suite/serialdbg/clock.py (switchApp N literals)",
-        "app/tools/app_ids_gen.py APP_SLOT['Clock']/APP_SLOT['Spotify'] "
-        "(generated from app/src/appRegistry.h)",
-        literals, fw_vals, ok,
-        "" if ok else f"clock.py's switchApp literal(s) {literals} != {fw_vals}",
-    )
+# ── A-8: REMOVED (TASK-715) — clock.py no longer hardcodes app-slot literals.
+#
+# clock.py now imports `APP_SLOT` from app_ids_gen directly (`_CLOCK =
+# APP_SLOT["Clock"]`, `_SPOTIFY = APP_SLOT["Spotify"]`) instead of writing
+# `switchApp 1`/`switchApp 0`. There is no longer a suite-side literal for
+# this pair to compare against a firmware value — a pair with nothing on one
+# side would either compare a value to itself (the "gate agreeing with
+# itself" failure this task explicitly rules out) or degenerate into
+# asserting `import app_ids_gen` exists, which `check_import_safety.py`
+# already covers structurally for every suite module. Deleting the pair
+# outright is the correct direction: the mirror is gone, so the register
+# that exists to catch mirrors should shrink, not grow a vacuous check.
 
 
 # ── A-9: stock.py's _TAB_XY four-pair table mirrors a two-constant formula ──
@@ -456,42 +455,17 @@ def check_f16() -> list:
     return findings
 
 
-# ── H-12: teletext.py hand-mirrors app/gen/teletext_layout.h y-values ──────
-
-def check_h12() -> Finding:
-    import suite.serialdbg.teletext as ttxt_mod
-    src = inspect.getsource(ttxt_mod)
-    fw_text = _read("app/gen/teletext_layout.h")
-    names = ("TTXT_STRIP_BACK_Y0", "TTXT_STRIP_BACK_Y1", "TTXT_STRIP_PREV_Y0",
-             "TTXT_STRIP_PAGE_Y1", "TTXT_STRIP_SUBDN_Y0", "TTXT_STRIP_SUBDN_Y1")
-    fw_vals = {n: find_define_int(fw_text, n) for n in names}
-    if any(v is None for v in fw_vals.values()):
-        return Finding("H-12", "teletext.py y-value mirrors of a GENERATED header",
-                        "teletext.py", "app/gen/teletext_layout.h", None, fw_vals, False,
-                        "one or more firmware defines not found by name")
-
-    suite_direct = {int(n) for n in re.findall(r'\((\d+),\s*"STRIP_(?:BACK|PREV|PAGE)"', src)}
-    expected_direct = {fw_vals["TTXT_STRIP_BACK_Y0"], fw_vals["TTXT_STRIP_BACK_Y1"],
-                       fw_vals["TTXT_STRIP_PREV_Y0"], fw_vals["TTXT_STRIP_PAGE_Y1"]}
-
-    subdn_tap = re.search(r'tap 257 (\d+)', src)
-    suite_subdn = int(subdn_tap.group(1)) if subdn_tap else None
-    expected_subdn = (fw_vals["TTXT_STRIP_SUBDN_Y0"] + fw_vals["TTXT_STRIP_SUBDN_Y1"]) // 2
-
-    ok = (suite_direct == expected_direct and suite_subdn == expected_subdn)
-    note = ("app/tools/suite/serialdbg/teletext.py has no `import coords` today "
-            "(the review's 'unused import' citation is STALE — the import isn't "
-            "there at all, used or not); the six y-values are still hand literals "
-            "that could import gen/teletext_layout.h's own parser instead")
-    return Finding(
-        "H-12", "teletext.py's hand-mirrored y-values vs the GENERATED teletext_layout.h",
-        "app/tools/suite/serialdbg/teletext.py (STRIP_BACK/PREV/PAGE tuples, "
-        "and the SUBDN tap-centre literal 182)",
-        "app/gen/teletext_layout.h TTXT_STRIP_*_Y0/_Y1",
-        {"direct": sorted(suite_direct), "subdn_centre": suite_subdn},
-        {"direct": sorted(expected_direct), "subdn_centre": expected_subdn},
-        ok, note,
-    )
+# ── H-12: REMOVED (TASK-715) — teletext.py no longer hand-mirrors y-values.
+#
+# teletext.py now imports `coords as _c` and reads `_c.TTXT_STRIP_BACK_Y0`,
+# `_c.TTXT_STRIP_BACK_Y1`, `_c.TTXT_STRIP_PREV_Y0`, `_c.TTXT_STRIP_PAGE_Y1`
+# and `_c.ttxt_subdn_centre()` — all parsed at coords.py import time from the
+# GENERATED app/gen/teletext_layout.h via the module's existing `_parse()`
+# (coords.py itself gained the `TTXT_*` constants for this). There is no
+# longer a suite-side literal for this pair to compare: as with A-8, keeping
+# a pair here would mean comparing coords.py's parsed value against itself
+# (coords.py IS the firmware-fact source now) — a gate agreeing with itself,
+# not a check. Deleted rather than converted, for the same reason as A-8.
 
 
 # ── H-19: console.cpp's switchApp help string vs APP_COUNT ─────────────────
@@ -514,8 +488,8 @@ def check_h19() -> Finding:
 
 
 ALL_CHECKS = (
-    check_a8, check_a9, check_a10_fetchtype, check_a10_playermodes,
-    check_c13, check_d6, check_f16, check_h12, check_h19,
+    check_a9, check_a10_fetchtype, check_a10_playermodes,
+    check_c13, check_d6, check_f16, check_h19,
 )
 
 

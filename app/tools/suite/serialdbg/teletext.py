@@ -3,6 +3,7 @@ run_serialdbg_tests.py, TASK-480."""
 
 import time
 
+import coords as _c
 from lib.dut import TIMEOUT, Dut
 from lib.results import pass_, fail, skip
 from app_ids_gen import APP_SLOT
@@ -93,7 +94,9 @@ def t272(dut: Dut):
 def t270(dut: Dut):
     """T270-SYN: SUBDN tap enqueues subpage fetch when subpageNext is set.
 
-    Sets subpageNext=617-2 via debug command. Taps SUBDN zone centre (y=182);
+    Sets subpageNext=617-2 via debug command. Taps SUBDN zone centre
+    (coords.ttxt_subdn_centre(), derived from app/gen/teletext_layout.h —
+    TASK-715, was a hand-computed y=182 literal);
     asserts teletextLastAction==STRIP_SUBDN and shellBusy fires (confirming
     _navigate(617,2) was called). No live network required. Replaces
     [NETWORK][Blocked: G1,G2] variant. TASK-197 / BP-034.
@@ -126,8 +129,9 @@ def t270(dut: Dut):
         # but resume() set it to 0 and millis()>300 at this point so first tap is free)
         time.sleep(0.1)
 
-        # Tap SUBDN zone centre: y = (166 + 199) / 2 = 182
-        dut.cmd(f"tap 257 182", timeout=TIMEOUT)
+        # Tap SUBDN zone centre — coords.ttxt_subdn_centre() (TASK-715)
+        subdn_y = _c.ttxt_subdn_centre()
+        dut.cmd(f"tap 257 {subdn_y}", timeout=TIMEOUT)
         time.sleep(0.1)  # let action propagate
 
         r_act = dut.cmd("get teletextLastAction", timeout=2.0)
@@ -152,7 +156,9 @@ def t270(dut: Dut):
 def t271(dut: Dut):
     """T271: Right-strip pixel-exact zone boundaries PAGE_NUM/BACK/PREV_PAGE.
 
-    Tap order: y=67, y=99, y=100, y=66 (PAGE last). All BACK/PREV taps fire
+    Tap order: TTXT_STRIP_BACK_Y0, TTXT_STRIP_BACK_Y1, TTXT_STRIP_PREV_Y0,
+    TTXT_STRIP_PAGE_Y1 (PAGE last) — parsed from app/gen/teletext_layout.h
+    via coords.py (TASK-715, was hand literals 67/99/100/66). All BACK/PREV taps fire
     with numpad OFF, so _draw()/_drawNumpad() is not called and no SPI phantom
     touch is generated. PAGE is tapped last: its phantom (re-hits PAGE zone,
     STRIP_PAGE) matches the expected value, so order doesn't matter.
@@ -171,13 +177,13 @@ def t271(dut: Dut):
     # no SPI phantom. _goBack() / _navigate() may fire (no-op or network);
     # _wait_shell_not_busy drains any resulting fetch before the next tap.
     steps_nav = [
-        (67,  "STRIP_BACK", "y=67 → BACK zone first px"),
-        (99,  "STRIP_BACK", "y=99 → BACK zone last px"),
-        (100, "STRIP_PREV", "y=100 → PREV_PAGE zone first px"),
+        (_c.TTXT_STRIP_BACK_Y0, "STRIP_BACK", f"y={_c.TTXT_STRIP_BACK_Y0} → BACK zone first px"),
+        (_c.TTXT_STRIP_BACK_Y1, "STRIP_BACK", f"y={_c.TTXT_STRIP_BACK_Y1} → BACK zone last px"),
+        (_c.TTXT_STRIP_PREV_Y0, "STRIP_PREV", f"y={_c.TTXT_STRIP_PREV_Y0} → PREV_PAGE zone first px"),
     ]
     # PAGE zone last: _drawNumpad() fires, causing a phantom that also hits
     # PAGE zone → both real action and phantom are STRIP_PAGE → harmless.
-    step_page = (66, "STRIP_PAGE", "y=66 → PAGE_NUM zone last px")
+    step_page = (_c.TTXT_STRIP_PAGE_Y1, "STRIP_PAGE", f"y={_c.TTXT_STRIP_PAGE_Y1} → PAGE_NUM zone last px")
 
     for y, expected, desc in steps_nav:
         _wait_shell_not_busy(dut, timeout_s=8.0)

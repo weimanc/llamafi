@@ -621,7 +621,10 @@ fi
 # this task decided: mem_layout.py has zero importers and is NOT consumed by
 # any pair here; H-19's stale console.cpp help string was corrected alongside
 # this gate's introduction rather than left to land the gate non-zero on day
-# one). No DUT, no build, no network.
+# one). TASK-715 deleted A-8 and H-12 from the register outright once
+# clock.py/teletext.py stopped mirroring and started importing instead — the
+# register is now seven entries (A-9, A-10, C-13, D-6, F-16, H-19). No DUT,
+# no build, no network.
 if ! "$PYTHON" gate/test_check_no_mirrors.py; then
     echo "FAIL: test_check_no_mirrors.py (TASK-606 checker negative suite) FAILED" >&2
     exit 1

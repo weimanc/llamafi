@@ -188,6 +188,23 @@ def tap_taskbar_slot(app_id: int) -> tuple[int, int]:
     return x, y
 
 
+# TTXT_* — TeletextApp strip touch-zone y-values, parsed from the GENERATED
+# app/gen/teletext_layout.h (TASK-715: was hand-mirrored in teletext.py).
+_TTXT_GEN = pathlib.Path(__file__).parent / "../gen/teletext_layout.h"
+_TTXT = _parse(_TTXT_GEN)
+TTXT_STRIP_BACK_Y0  = int(_TTXT["TTXT_STRIP_BACK_Y0"])
+TTXT_STRIP_BACK_Y1  = int(_TTXT["TTXT_STRIP_BACK_Y1"])
+TTXT_STRIP_PREV_Y0  = int(_TTXT["TTXT_STRIP_PREV_Y0"])
+TTXT_STRIP_PAGE_Y1  = int(_TTXT["TTXT_STRIP_PAGE_Y1"])
+TTXT_STRIP_SUBDN_Y0 = int(_TTXT["TTXT_STRIP_SUBDN_Y0"])
+TTXT_STRIP_SUBDN_Y1 = int(_TTXT["TTXT_STRIP_SUBDN_Y1"])
+
+
+def ttxt_subdn_centre() -> int:
+    """Y centre of the SUBDN (sub-page down) strip zone tap target."""
+    return (TTXT_STRIP_SUBDN_Y0 + TTXT_STRIP_SUBDN_Y1) // 2
+
+
 def clock_canvas_tap() -> tuple[int, int]:
     """A tap at clock-face centre — inside x<TASKBAR_X. Hits TRANSPORT zone in
     Spotify mode; with Clock active, sits on CLK_TAP_SPLIT_Y (clockApp.h) and
