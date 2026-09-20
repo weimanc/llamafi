@@ -327,7 +327,7 @@ ratchet's clothes.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-607 | P3 | **DONE 2026-09-20** — R24: policy has users (715→249 literals, ratcheted). R22: `poll_until` + `check_wait_expiry` at zero, 6 of 11 wait helpers merged; its blind spot is named and filed as TASK-717 | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
+| TASK-607 | P3 | **DONE 2026-09-20** (`da619d14`,`30268bb0`) — R24: policy has users (715→249 literals, ratcheted). R22: `poll_until` + `check_wait_expiry` at zero, 6 of 11 wait helpers merged; its blind spot is named and filed as TASK-717 | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
 | TASK-717 | P2 | **OPEN — filed 2026-09-20** by TASK-607's R22 arm | `check_wait_expiry` is INTRA-function; this suite waits through 11 helpers, so a caller that passes when the helper's window expired is invisible (planted and confirmed). Grade the caller's expiry branch; `ABSENCE` is legitimate, unexamined is not |
 | TASK-640 | P3 | **OPEN — unblocked 2026-09-20** (607's R22 arm landed `poll_until` + `check_wait_expiry`) | classify all synchronisation sleeps, publish the three counts, then set the floor — [R23](../verification/M-HARNESS2-requirements.md) |
 | TASK-606 | P3 | **DONE 2026-09-19** (`c421fcbd`) — `check_no_mirrors.py`, 11 pairs parsed from BOTH sides, at zero with no ledger. Found one LIVE drift (`console.cpp`'s `switchApp` help said `0..8` against `APP_COUNT=13`) and fixed it | mirror-equality gate, pairs generated wherever the symbol is already generated — [R42](../verification/M-HARNESS2-requirements.md) |
