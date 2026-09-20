@@ -65,7 +65,7 @@ Counted 2026-09-20 with `grep -roE 'timeout=[0-9]+\.?[0-9]*' app/tools/suite/*.p
 | module | cap | owner | since |
 |---|---|---|---|
 | `suite/serialdbg/shell.py` | 76 | TASK-607 | 2026-09-20 |
-| `suite/serialdbg/player.py` | 73 | TASK-607 | 2026-09-20 |
+| `suite/serialdbg/player.py` | 72 | TASK-607 | 2026-09-20 |
 | `suite/serialdbg/webradio.py` | 54 | TASK-607 | 2026-09-20 |
 | `suite/serialdbg/stock.py` | 15 | TASK-607 | 2026-09-20 |
 | `suite/serialdbg/teletext.py` | 14 | TASK-607 | 2026-09-20 |

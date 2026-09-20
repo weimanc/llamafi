@@ -1,17 +1,170 @@
 {
  "schema": 1,
  "id": "T_PMT_04",
- "elf": "168bf21d",
- "build_env": "cyd2usb_winamp_debug",
- "recorded_at": "2026-09-12T21:34:51Z",
- "generation": "22.4",
+ "elf": "4a050cdd",
+ "build_env": "cyd2usb_player",
+ "recorded_at": "2026-09-20T20:14:10Z",
+ "generation": "144.1",
  "preamble": [],
  "exchanges": [
   {
    "cmd": "get variant",
    "nth": 0,
    "lines": [
-    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"on\",\"last\":true}"
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"variant\",\"spotify\":\"off\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get arenaStats",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"arenaStats\",\"acquires\":0,\"releases\":0,\"fails\":0,\"active\":0,\"hwm\":0,\"upMs\":8059,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get player",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":2,\"modeName\":\"Player\",\"caps\":15,\"srcKind\":3,\"srcName\":\"LocalPlaylist\",\"arenaHeld\":0,\"pending\":0,\"err\":0,\"connecting\":0,\"plCount\":0,\"playHash\":2166136261,\"viewHash\":2166136261,\"orderIdentical\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get bgPoll",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"bgPoll\",\"enabled\":1,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 0",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"0\"}"
+   ]
+  },
+  {
+   "cmd": "set plLoad /playlists/short5.m3u",
+   "nth": 0,
+   "lines": [
+    "[I][m3u] loaded /playlists/short5.m3u: 5 entries in 13ms (total 15s)",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plLoad\",\"path\":\"/playlists/short5.m3u\"}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 0,
+   "lines": [
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=92ms (worst path so far: app.tick:65ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/short5.m3u\",\"count\":5,\"loadMs\":13,\"totalSec\":15,\"truncated\":false,\"error\":false,\"curRow\":-1,\"playing\":false,\"fileOpen\":true,\"lfb8\":65524,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set plPlay 0",
+   "nth": 0,
+   "lines": [
+    "[I][hb] display=winamp wifi=rssi(-60) disc=1 heap=111k maxAlloc=67k stack_hwm=10688b uptime=00:00:36 poll=0/0 last=0 block_max=0ms loop_max=333ms slow=app.tick:65ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=28766 build=Sep 18 2026-17:33:4",
+    "[I][hb] display=winamp wifi=rssi(-57) disc=1 heap=111k maxAlloc=67k stack_hwm=10688b uptime=00:01:06 poll=0/0 last=0 block_max=0ms loop_max=23ms slow=display.input:1ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=58766 build=Sep 18 2026-17:3",
+    "[I][hb] display=winamp wifi=rssi(-58) disc=1 heap=111k maxAlloc=67k stack_hwm=10688b uptime=00:01:36 poll=0/0 last=0 block_max=0ms loop_max=23ms slow=display.input:1ms last_poll_age_ms=0 next_poll_in_ms=5000 last_render_age_ms=88766 build=Sep 18 2026-17:3",
+    "[I][localplayer] play row 0: /mp3/short5/tone1.mp3",
+    "[membudget] TASK-267 arena acquire=24576B lfbBefore=69620 OK",
+    "[membudget] arena init base=0x3ffee830 cap=24576",
+    "[I][wrpump] created stack=8192B prio=2 core=1",
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"plPlay\",\"idx\":0}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 1,
+   "lines": [
+    "[I][webradio] audio_info: PSRAM not found, inputBufferSize: 6399 bytes",
+    "[I][webradio] audio_info: buffers freed, free Heap: 50496 bytes",
+    "[I][webradio] audio_info: Reading file: \"/mp3/short5/tone1.mp3\"",
+    "[mbdbg] arena FIRST alloc: base=0x3ffee830 cap=24576 req=2000",
+    "[mbdbg] helix alloc: DecInfo=0x3ffee830(2000) FHdr=0x3ffef000(44) SI=0x3ffef02c(40) SFJS=0x3ffef054(36) Huff=0x3ffef078(4624) Deq=0x3fff0288(792) IMDCT=0x3fff05a0(6944) Sub=0x3fff20c0(8708) FInfo=0x3fff42c4(28)",
+    "[I][webradio] audio_info: MP3Decoder has been initialized, free Heap: 46128 bytes",
+    "[membudget] CP2-decoder-init freeInt=46128 lfbInt=40948 freeDma=3756 lfbDma=3572 arenaHWM=23216",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=153ms (worst path so far: app.tick:120ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/short5.m3u\",\"count\":5,\"loadMs\":13,\"totalSec\":15,\"truncated\":false,\"error\":false,\"curRow\":0,\"playing\":false,\"fileOpen\":false,\"lfb8\":3572,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get plCount",
+   "nth": 2,
+   "lines": [
+    "[I][localplayer] playing row 0",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[W][perf] iter=53ms (worst path so far: app.tick:120ms)",
+    "[I][webradio] audio_info: Content-Length: 48944",
+    "[I][webradio] audio_info: ID3 framesSize: 44",
+    "[I][webradio] audio_info: ID3 version: 2.4",
+    "[I][webradio] audio_info: ID3 normal frames",
+    "[I][webradio] audio_info: Audio-Length: 48900",
+    "[I][webradio] audio_info: stream ready",
+    "[I][webradio] audio_info: syncword found at pos 0",
+    "[I][webradio] audio_info: Channels: 2",
+    "[I][webradio] audio_info: SampleRate: 44100",
+    "[I][webradio] audio_info: BitsPerSample: 16",
+    "[I][webradio] audio_info: BitRate: 128000",
+    "[W][perf] iter=84ms (worst path so far: wr.pump:220ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"plCount\",\"path\":\"/playlists/short5.m3u\",\"count\":5,\"loadMs\":13,\"totalSec\":15,\"truncated\":false,\"error\":false,\"curRow\":0,\"playing\":true,\"fileOpen\":false,\"lfb8\":3572,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get arenaStats",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"arenaStats\",\"acquires\":1,\"releases\":0,\"fails\":0,\"active\":1,\"hwm\":23216,\"upMs\":100462,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get player",
+   "nth": 1,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":2,\"modeName\":\"Player\",\"caps\":15,\"srcKind\":3,\"srcName\":\"LocalPlaylist\",\"arenaHeld\":1,\"pending\":0,\"err\":0,\"connecting\":0,\"plCount\":5,\"playHash\":3535280951,\"viewHash\":3122569199,\"orderIdentical\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "playerCycle",
+   "nth": 0,
+   "lines": [
+    "SettingsStorage: save aborted \u2014 doc ALLOC FAILED (capacity 0, wanted 6144 B; lfb8=3572 freeInt=46128). Audio arena up? Coalesce the write into suspend() (ADR-050 rule 3). Deferred; will retry.",
+    "[shell] leaving 12  heap=46128 maxAlloc=40948 minFree=43472",
+    "[I][webradio] audio_info: Closing audio file",
+    "[I][wrpump] ack",
+    "[I][wrpump] deleted",
+    "[I][webradio] audio_info: buffers freed, free Heap: 50496 bytes",
+    "[membudget] TASK-267 arena released",
+    "SettingsStorage: deferred save landed (TASK-429)",
+    "SettingsStorage: saved (doc 1986/6144 B)",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[D][chrome] drawVolume pct=-1 keyframe=NONE",
+    "[shell] entered 0  heap=117460 maxAlloc=49140 minFree=43472",
+    "[shell] switch 12->0 suspend=147ms wipe=27ms init=36ms taskbar=12ms total=222ms",
+    "{\"ok\":true,\"cmd\":\"playerCycle\",\"from\":2,\"to\":0,\"appId\":0,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get arenaStats",
+   "nth": 2,
+   "lines": [
+    "[W][perf] iter=269ms (worst path so far: shell.switch:222ms)",
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"arenaStats\",\"acquires\":1,\"releases\":1,\"fails\":0,\"active\":0,\"hwm\":0,\"upMs\":103258,\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "get player",
+   "nth": 2,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"get\",\"var\":\"player\",\"mode\":0,\"modeName\":\"Spotify\",\"caps\":15,\"srcKind\":1,\"srcName\":\"SpotifyQueue\",\"arenaHeld\":0,\"pending\":0,\"err\":0,\"connecting\":1,\"plCount\":null,\"playHash\":null,\"viewHash\":null,\"note\":\"n/a \u2014 playOrder/viewOrder exist only in LocalPlayer\",\"last\":true}"
+   ]
+  },
+  {
+   "cmd": "set bgPoll 1",
+   "nth": 0,
+   "lines": [
+    "{\"ok\":true,\"cmd\":\"set\",\"var\":\"bgPoll\",\"val\":\"1\"}"
    ]
   }
  ]
