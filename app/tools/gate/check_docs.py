@@ -70,6 +70,13 @@ import subprocess
 import sys
 import urllib.parse
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_TOOLS = os.path.dirname(_HERE)
+if _TOOLS not in sys.path:
+    sys.path.insert(0, _TOOLS)
+
+from lib import gitdelta as _gitdelta  # noqa: E402
+
 # ── Corpus definition (spec §1) ───────────────────────────────────────────────
 
 EXEMPT_BASENAMES = {"tasks-archive.md", "lessons_learned.md", "audit_log.md"}
@@ -894,14 +901,21 @@ def check_c6(c: Corpus) -> Result:
 
 
 # ── C1-delta ──────────────────────────────────────────────────────────────────
+#
+# The git-diff plumbing (run git, resolve a base spec, collect every corpus
+# line present at the base rev) is shared with `check_bound_origin.py`
+# (TASK-613, R44) via `lib.gitdelta` — see that module's docstring for why
+# this is the one copy rather than a second near-identical walk. `_git`/
+# `_base_rev`/`_corpus_lines_at` below are thin wrappers kept so the rest of
+# this file's call sites (and `test_check_docs.py`, which pokes at some of
+# these directly) don't change shape.
 
 def _git(root: str, *args: str) -> str:
-    return subprocess.run(("git", "-C", root) + args, capture_output=True,
-                          text=True, check=False).stdout
+    return _gitdelta.git(root, *args)
 
 
 def _base_rev(spec: str) -> str:
-    return spec.split("..")[0] if ".." in spec else spec
+    return _gitdelta.base_rev(spec)
 
 
 def _corpus_lines_at(root: str, rev: str) -> set[str]:
@@ -911,33 +925,7 @@ def _corpus_lines_at(root: str, rev: str) -> set[str]:
     relocated debt, not new debt. Without it a document split — which this repo
     does — fires the blocking gate on content it did not author.
     """
-    listing = _git(root, "ls-tree", "-r", "--name-only", rev)
-    paths = [p for p in listing.split("\n") if p and is_gated_path(p)]
-    if not paths:
-        return set()
-    stdin = "".join(f"{rev}:{p}\n" for p in paths)
-    proc = subprocess.run(("git", "-C", root, "cat-file", "--batch"),
-                          input=stdin.encode(), capture_output=True, check=False)
-    out = proc.stdout
-    lines: set[str] = set()
-    pos = 0
-    while pos < len(out):
-        nl = out.find(b"\n", pos)
-        if nl < 0:
-            break
-        header = out[pos:nl].decode("utf-8", "replace")
-        parts = header.split()
-        if len(parts) < 3 or not parts[-1].isdigit():
-            pos = nl + 1
-            continue
-        size = int(parts[-1])
-        blob = out[nl + 1:nl + 1 + size]
-        for line in blob.decode("utf-8", "replace").split("\n"):
-            s = line.strip()
-            if s:
-                lines.add(s)
-        pos = nl + 1 + size + 1
-    return lines
+    return _gitdelta.corpus_lines_at(root, rev, is_gated_path)
 
 
 def _head_side(root: str, base_spec: str, rel: str) -> str | None:
@@ -947,18 +935,11 @@ def _head_side(root: str, base_spec: str, rel: str) -> str | None:
     ignore-marker suppression as C1-full. The spec requires one resolver and
     one suppression rule across both modes: if they disagree about whether a
     citation is even visible, the delta gate fails on lines the advisory check
-    never counted.
+    never counted. Generic (no docs-specific logic) — lifted to `lib.gitdelta`
+    (TASK-613) alongside the rest of the delta plumbing; kept as a thin
+    wrapper here for call-site stability.
     """
-    if ".." in base_spec:
-        head = base_spec.split("..")[-1] or "HEAD"
-        out = subprocess.run(("git", "-C", root, "show", f"{head}:{rel}"),
-                             capture_output=True, text=True, check=False)
-        return out.stdout if out.returncode == 0 else None
-    try:
-        with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as fh:
-            return fh.read()
-    except OSError:
-        return None
+    return _gitdelta.head_side(root, base_spec, rel)
 
 
 def check_c1_delta(c: Corpus, base_spec: str) -> Result:

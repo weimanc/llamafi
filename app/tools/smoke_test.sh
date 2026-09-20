@@ -619,4 +619,23 @@ if ! "$PYTHON" gate/check_no_mirrors.py; then
     exit 1
 fi
 
+# ── TASK-613 — R44, delta-scoped: a numeric bound you TOUCH cites its origin
+# (docs/verification/M-HARNESS2-requirements.md:732-737, SHOULD). Reuses
+# check_docs.py's C1-delta git plumbing (now shared via lib/gitdelta.py) so a
+# newly-added/changed threshold in app/tools/suite/serialdbg/*.py — a body
+# comparison or a `bounds={}` declaration — must cite a TASK-/ADR- id, a
+# file:line/file:SYMBOL reference, or a dated measurement nearby. Lands at
+# zero BY CONSTRUCTION (an empty diff has no touched bounds) — no ledger.
+# Over a thousand pre-existing literals are explicitly out of scope; see the
+# module docstring for the corpus measurement behind the rule. No DUT, no
+# build, no network.
+if ! "$PYTHON" gate/test_check_bound_origin.py; then
+    echo "FAIL: test_check_bound_origin.py (TASK-613 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_bound_origin.py --quiet; then
+    echo "FAIL: check_bound_origin.py (TASK-613 R44 bound-origin gate) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"
