@@ -5,11 +5,12 @@ Per-family modules (`clock.py`, `stock.py`, `teletext.py`, `planeradar.py`,
 registry mapping test id -> test function, plus whatever private helpers only
 they use. `_helpers.py` holds helpers shared by 2+ families.
 
-`run_serialdbg_tests.py` (the monolith, still the live CLI entry point until
-every family is moved — see the design doc's staged migration, M-TOOLING §6)
-imports each family's functions/TESTS dict as it is extracted, so its own
-ALL_TESTS keeps working unchanged for `run/test`/`run/test-targeted` callers
-throughout the migration. This module's `build_all_tests()` is the
+`run_serialdbg_tests.py` was the monolith this package replaced. TASK-480
+finished: the file is GONE, and `suite/serialdbg/runner.py` is the CLI entry
+point `run/test`/`run/test-targeted` invoke. The staged-migration note that
+used to live here described a state that ended — it said the monolith was
+"still the live CLI entry point", which sent at least one reader to a path
+that no longer exists. This module's `build_all_tests()` is the
 in-progress combined registry — currently a smoke check that the mechanism
 works, not yet the live path (0 families migrated so far).
 """

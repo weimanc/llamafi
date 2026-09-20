@@ -751,7 +751,7 @@ def t095(dut: Dut, interactive: bool):
     """T095: injection-vs-physical calibration — same region/action for serial and physical tap in each zone. [MANUAL — requires human operator]"""
     if not interactive:
         skip("T095", "requires --interactive flag (human operator at DUT). "
-             "Re-run: python3 run_serialdbg_tests.py --interactive --tests T095")
+             "Re-run: ./run/test-targeted --interactive T095")
         return
 
     print("T095  Injection-vs-physical calibration (INTERACTIVE)")

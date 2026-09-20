@@ -1872,8 +1872,8 @@ def t_pmt_04(dut: Dut):
     if var.get("spotify") != "off":
         skip("T_PMT_04",
              f"leg A (variant spotify={var.get('spotify')!r}) — local playback needs "
-             f"cyd2usb_player (TASK-425/431/442). Run: DUT_ENV=cyd2usb_player "
-             f"python3 -u tools/run_serialdbg_tests.py --tests T_PMT_04")
+             f"cyd2usb_player (TASK-425/431/442). Run: "
+             f"DUT_ENV=cyd2usb_player ./run/test-targeted T_PMT_04")
         return
 
     base = dut.cmd("get arenaStats", timeout=5.0)
