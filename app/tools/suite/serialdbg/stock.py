@@ -28,7 +28,7 @@ stock-002 (heatmap sub-view):
 
 import time
 
-from lib.dut import TIMEOUT, Dut, DeviceReadError, NoAnswer
+from lib.dut import TIMEOUT, Dut, DeviceReadError, NoAnswer, poll_until
 from lib.results import pass_, fail, skip, unmet  # noqa: F401 — skip used below
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -69,14 +69,27 @@ def _wait_quote_fetch(dut: Dut, baseline: int, timeout_s: float = 65.0) -> bool:
     made. Identical shape to `_stock_ok_count`'s `-1`, different literal. The
     typed read makes both unrepresentable.
     """
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    # TASK-607/R22: migrated onto `poll_until` — same 2.0s interval, same
+    # `get lastQuoteFetch` call and NoAnswer handling, unchanged. Adds the
+    # elapsed-time report R22 asks for on both paths.
+    #
+    # NOTE: `except: pass` (assign, don't `return` inside the handler) is
+    # deliberate — see `_wait_shell_not_busy`'s comment in _helpers.py. A
+    # bare `return False` inside this except would newly trip
+    # `check_no_reachable_fail.py`'s SHAPE-4 swallowing-helper detector.
+    def check():
+        advanced = False
         try:
-            if dut.get_int("lastQuoteFetch") != baseline:
-                return True
+            advanced = dut.get_int("lastQuoteFetch") != baseline
         except NoAnswer:
             pass   # bounded poll loop; the deadline is the verdict, not this read
-        time.sleep(2.0)
+        return advanced
+
+    ok, _, elapsed = poll_until(check, timeout_s, interval=2.0)
+    print(f"  _wait_quote_fetch: {'fetch observed' if ok else 'fetch never observed'} "
+          f"after {elapsed:.2f}s (bound {timeout_s:.2f}s)")
+    if ok:
+        return True
     # TASK-386: diagnostic snapshot on timeout, for every caller, automatically.
     # Return type/signature unchanged — zero risk to existing call sites — but the
     # get heap/backoff/dataq round trips still land on the wire and get captured by
@@ -1131,15 +1144,28 @@ def _wait_heatmap_count(dut: Dut, timeout_s: float = 60.0) -> int:
     reads as `val=0` mid-loop, and a renamed key now raises instead of spending
     60 s pretending to poll.
     """
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    # TASK-607/R22: migrated onto `poll_until` — same 3.0s interval, same
+    # `get heatmapCount` call and NoAnswer handling, unchanged. Adds the
+    # elapsed-time report R22 asks for on both paths.
+    #
+    # NOTE: `except: pass` (assign, don't `return` inside the handler) is
+    # deliberate — see `_wait_shell_not_busy`'s comment in _helpers.py. A
+    # bare `return None` inside this except would newly trip
+    # `check_no_reachable_fail.py`'s SHAPE-4 swallowing-helper detector.
+    def check():
+        val = None
         try:
-            val = dut.get_int("heatmapCount", timeout=TIMEOUT)
-            if val > 0:
-                return val
+            v = dut.get_int("heatmapCount", timeout=TIMEOUT)
+            val = v if v > 0 else None
         except NoAnswer:
             pass
-        time.sleep(3.0)
+        return val
+
+    ok, value, elapsed = poll_until(check, timeout_s, interval=3.0)
+    print(f"  _wait_heatmap_count: {'count=' + str(value) if ok else 'never > 0'} "
+          f"after {elapsed:.2f}s (bound {timeout_s:.2f}s)")
+    if ok:
+        return value
     # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
     _diag_snapshot(dut, "_wait_heatmap_count-timeout")
     return 0

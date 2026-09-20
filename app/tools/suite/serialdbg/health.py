@@ -59,7 +59,7 @@ import time
 
 from app_ids_gen import APP_ORDER
 from lib import dut as _dutmod
-from lib.dut import TIMEOUT, Dut
+from lib.dut import TIMEOUT, Dut, poll_until
 from lib.results import BLOCKING, fail, pass_, verdict_of
 from suite.serialdbg._meta import meta
 
@@ -326,18 +326,25 @@ def _switch_app_cmd(dut: Dut, name: str, timeout: float = 5.0) -> bool:
 
 def _wait_idle(dut: Dut, timeout: float = 10.0):
     """-> (idle, last_reply). Bounded internal retry, which §4.4 permits: it is
-    a deadline, not a flake."""
-    deadline = time.monotonic() + timeout
+    a deadline, not a flake.
+
+    TASK-607/R22: migrated onto `poll_until` — same 0.3s interval, same
+    `get idle` call and TimeoutError handling, unchanged. Adds the
+    elapsed-time report R22 asks for on both paths."""
     last = {}
-    while time.monotonic() < deadline:
+
+    def check():
+        nonlocal last
         try:
             last = dut.cmd("get idle", timeout=TIMEOUT)
         except TimeoutError:
             last = {}
-        if last.get("idle"):
-            return True, last
-        time.sleep(0.3)
-    return False, last
+        return last.get("idle")
+
+    ok, _, elapsed = poll_until(check, timeout, interval=0.3)
+    print(f"  _wait_idle: {'idle observed' if ok else 'idle never observed'} "
+          f"after {elapsed:.2f}s (bound {timeout:.2f}s)")
+    return ok, last
 
 
 @meta(cls="HEALTH", effect="mutating",

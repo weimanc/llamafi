@@ -97,6 +97,82 @@ TIMEOUT      = float(os.environ.get("DUT_TIMEOUT", "3.0"))
 TIMEOUT_SLOW = float(os.environ.get("DUT_TIMEOUT_SLOW", "10.0"))
 
 
+# ── TASK-607 — R22, a wait is a failure bound not a sampling budget
+# (M-HARNESS2-requirements.md:451-457, MUST). Before this, eleven wait
+# helpers (`_wait_chart_complete`, `_wait_for_log`, `wait_for_queue`,
+# `_wait_for_ready`, `_wait_heatmap_count`, `_wait_idle`, `_wait_quote_fetch`,
+# `wait_shell_cooldown_clear`, `_wait_shell_not_busy`, `_wait_wr_count`,
+# `_wait_wr_state`) each hand-rolled their own `while time.monotonic() <
+# deadline: ...` loop, none of them reporting how long the wait actually
+# took on either the pass or the fail path — R22's own words ("MUST report
+# the actual elapsed time on both the pass and the fail path").
+#
+# `poll_until` is the one shared primitive for the subset of those eleven
+# whose wait genuinely means "call `check()` on an interval until it returns
+# something truthy, or give up at `timeout`": SIX of them
+# (`_wait_idle`, `_wait_shell_not_busy`, `wait_for_queue`, `_wait_wr_state`,
+# `_wait_quote_fetch`, `_wait_heatmap_count`) match exactly and now call this.
+# The other five do NOT, and forcing them onto this signature would be
+# forcing eleven different things into one shape rather than a migration:
+#
+#   `_wait_chart_complete` samples a SECOND surface (the dataq pipeline)
+#     periodically *inside* the loop as a diagnostic side effect, not just
+#     the pass/fail predicate — a shared primitive that doesn't know about
+#     that side channel can't reproduce it without a callback parameter
+#     that would exist for exactly one caller.
+#   `_wait_wr_count` has a THIRD outcome the primitive has no vocabulary
+#     for: an early, *observed* False (`pending == 0`, fetch finished with
+#     no stations) that is not a timeout at all and must not be treated,
+#     logged, or diagnosed like one.
+#   `_wait_for_log` and `_wait_for_ready` poll raw incoming serial LINES
+#     (`dut.ser.readline()`), not a `get <key>` request/reply pair on a
+#     fixed interval — there is no `check()`/`sleep()` cadence to share.
+#   `wait_shell_cooldown_clear` computes its OWN next-sleep duration from
+#     the device's reported `remainingMs` each iteration
+#     (`min(rem / 1000.0, 0.1)`) rather than sleeping a fixed `interval` —
+#     a different retry cadence, not a fixed-interval poll.
+#
+# Each of those five keeps its own loop, unchanged, with a comment pointing
+# here explaining why it wasn't folded in — see each definition.
+def poll_until(check, timeout: float, interval: float = 1.0):
+    """Poll `check()` on a fixed `interval` until it returns a truthy value,
+    or `timeout` seconds have elapsed. Same loop shape every `_wait_*`
+    helper in this corpus already hand-rolled
+    (`while time.monotonic() < deadline: ...; time.sleep(interval)`) —
+    this only adds the one thing R22 asks for and none of them had: the
+    ACTUAL elapsed time, on both paths.
+
+    Returns `(ok, value, elapsed)`:
+      ok       - True iff `check()` returned truthy before the deadline.
+      value    - the last value `check()` returned (truthy on success,
+                 whatever the last falsy/None attempt returned on timeout —
+                 callers that need the observed value, not just the bool,
+                 get it without a second poll).
+      elapsed  - wall-clock seconds actually spent waiting. R22: "MUST
+                 report the actual elapsed time on both the pass and the
+                 fail path" — callers print this, this function does not
+                 print anything itself (the six call sites want six
+                 different messages).
+
+    `check` is called with no arguments and may raise; this function does
+    not swallow exceptions. What to do with a lost/unanswered read
+    (`NoAnswer`, `TimeoutError`) is a per-site decision — some callers treat
+    it as "not yet", others let a renamed/wrong-typed field raise straight
+    through to the dispatch loop as a FAIL — so `check` must catch what it
+    means to treat as "not yet" itself, same as every existing `_wait_*`
+    helper already did before this migration.
+    """
+    start = time.monotonic()
+    deadline = start + timeout
+    value = None
+    while time.monotonic() < deadline:
+        value = check()
+        if value:
+            return True, value, time.monotonic() - start
+        time.sleep(interval)
+    return False, value, time.monotonic() - start
+
+
 def set_no_wifi(value: bool) -> None:
     """Set the --no-wifi opt-in from the caller's argument parsing.
 
@@ -910,7 +986,12 @@ class Dut:
         self._last_phase = (n, name or _BOOT_PHASE_NAMES.get(n, "?"))
 
     def _wait_for_ready(self):
-        """CH341 driver asserts DTR during open() regardless of userspace settings,
+        """TASK-607/R22: NOT migrated onto `poll_until` (see that function's
+        docstring above) — a multi-phase boot-signature state machine reading
+        raw serial lines, not a single `check()` predicate on a fixed
+        interval.
+
+        CH341 driver asserts DTR during open() regardless of userspace settings,
         which resets the ESP32.  Detect the reboot signature and wait for the DUT
         to reach steady-state (WiFi up + first SUCCESSFUL Spotify poll + queue fetch)
         before returning.  Retries once via 'reconnect' if the startup poll fails.
@@ -1316,16 +1397,19 @@ class Dut:
         return parts
 
     def wait_for_queue(self, min_count: int = 1, timeout: float = 30.0):
-        """Poll 'get queue' (draining all parts) until count >= min_count or timeout."""
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
+        """Poll 'get queue' (draining all parts) until count >= min_count or timeout.
+
+        TASK-607/R22: migrated onto `poll_until` — same 2.0s interval, same
+        `cmd_drain` call every attempt, unchanged. Adds the elapsed-time
+        report R22 asks for on both paths."""
+        def check():
             parts = self.cmd_drain("get queue", timeout=5.0)
             # Empty queue: single part with count=0. Non-empty: N parts with 'track'.
             item_count = sum(1 for p in parts if "track" in p)
-            if item_count >= min_count:
-                return True
-            time.sleep(2.0)
-        return False
+            return item_count >= min_count
+        ok, _, elapsed = poll_until(check, timeout, interval=2.0)
+        print(f"  wait_for_queue: {'>= ' + str(min_count) + ' item(s) observed' if ok else 'never reached ' + str(min_count) + ' item(s)'} after {elapsed:.2f}s (bound {timeout:.2f}s)")
+        return ok
 
     def _verify_debug_firmware(self):
         """Probe for SERIAL_DEBUG firmware before running any tests (LL-043 / BP-017).
@@ -1520,7 +1604,12 @@ class Dut:
         return self.read_json(timeout)
 
     def wait_shell_cooldown_clear(self, deadline_s: float = 2.0):
-        """Poll `get shellCooldown` until s_cooldownMs reads 0 (bounded)."""
+        """Poll `get shellCooldown` until s_cooldownMs reads 0 (bounded).
+
+        TASK-607/R22: NOT migrated onto `poll_until` (see that function's
+        docstring above) — this computes its OWN next-sleep duration from the
+        device's reported `remainingMs` each iteration
+        (`min(rem / 1000.0, 0.1)`), not a fixed `interval`."""
         deadline = time.monotonic() + deadline_s
         while time.monotonic() < deadline:
             self.send("get shellCooldown")

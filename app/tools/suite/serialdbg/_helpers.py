@@ -11,7 +11,7 @@ import json
 import time
 from contextlib import contextmanager
 
-from lib.dut import TIMEOUT, Dut, BadField, DeviceReadError, NoAnswer
+from lib.dut import TIMEOUT, Dut, BadField, DeviceReadError, NoAnswer, poll_until
 from lib.results import skip, pass_
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -317,6 +317,66 @@ def _check_residue(dut: Dut, tid: str, t_before: int = None) -> bool:
     return False
 
 
+# TASK-607/R22 app-entry consolidation. Of the seven app-entry helpers this
+# corpus carries (`_switch_to`, `_switch_to_clock`, `_switch_to_settings`,
+# `_switch_to_stock`, `_switch_to_webradio_capture_heap`, `_enter_player`,
+# `_enter_stock_no_force`), only `_switch_to_stock` and `_restore_from_stock`
+# are genuinely the SAME operation: switch via the debug `switchApp <id>`
+# command (not a taskbar tap), settle a fixed 0.3s, verify via `_appid_is` —
+# differing only in target app and an optional pre-switch setup command.
+# `_switch_app_debug` is that one operation; the other five stay separate
+# because each one differs in a way that matters, not just in name:
+#
+#   `_switch_to_settings` looks identical at a glance but settles 0.2s (not
+#     0.3s) and verifies with an inline `dut.cmd("get appId")` dict check
+#     instead of `_appid_is` — unifying it would either silently retime a
+#     call site nobody has audited for whether 0.2 vs 0.3 was deliberate, or
+#     need a settle-time parameter for a "shared" operation with one caller
+#     using it. Left alone.
+#   `_switch_to_clock` doesn't verify appId at all after the switch — it is
+#     a strictly WEAKER operation, not a variant of this one. Fixing that
+#     gap is a real improvement but is a BEHAVIOUR CHANGE (a caller that
+#     currently gets True back would start getting a verified answer,
+#     changing what a recorded transcript replays against) and is out of
+#     scope for a consolidation pass.
+#   `_switch_to` switches via a taskbar TAP, not the debug command — a
+#     different mechanism, already the generic entry point for every app
+#     that has a taskbar slot.
+#   `_switch_to_webradio_capture_heap` and `_enter_stock_no_force` are
+#     excluded by design, not oversight: the former captures HEAP log lines
+#     emitted during init() as part of switching (a second observation
+#     bolted onto the switch, not a plain switch), and the latter's entire
+#     point is skipping the mode-force step `_switch_to_stock` always does —
+#     forcing it through a shared "switch + maybe-force" helper would either
+#     lose that distinction or need a flag for exactly one caller.
+#   `_enter_player` leaves the player slot, persists a mode, and retries the
+#     re-entry tap up to twice with its own re-anchoring logic — a multi-step
+#     procedure, not a single switch-and-verify.
+def _switch_app_debug(dut: Dut, app_name: str, timeout: float = 5.0) -> bool:
+    """Switch to `app_name` via the debug `switchApp <id>` command (not a
+    taskbar tap), settle 0.3s, verify via `_appid_is`. The shared TAIL of
+    `_switch_to_stock`/`_restore_from_stock` — see the block comment above
+    for why the other five app-entry helpers are NOT folded in here too.
+
+    Deliberately takes no pre-command hook: the stockMode-forcing mutation
+    in `_switch_to_stock` stays written inline in that function rather than
+    threaded through here as a string argument passed through a variable.
+    `check_restore_manager.py`'s static half (`suite/serialdbg/_restore_scan.py`)
+    recognises a device mutation by a literal command string appearing
+    directly at the call site; routing that same literal through a shared
+    helper's parameter one frame away would make a real, still-unrestored
+    mutation invisible to that gate — measured while building this
+    consolidation (TASK-607): doing exactly that silently moved
+    `unrestored_mutations_ratchet.md`'s `_helpers.py` row from 2 to 1. Kept
+    inline instead; only the mutation-free switch+settle+verify tail is
+    shared."""
+    r = dut.cmd(f"switchApp {APP_SLOT[app_name]}", timeout=timeout)
+    if not r.get("ok"):
+        return False
+    time.sleep(0.3)
+    return _appid_is(dut, app_name, timeout)
+
+
 def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
     """Switch to StockApp via the serial switchApp command.
     TASK-247: force List launch view first (in-RAM only, not persisted) so the
@@ -324,20 +384,12 @@ def _switch_to_stock(dut: Dut, timeout: float = 5.0) -> bool:
     (e.g. a user-configured Heatmap default), and so the heatmap/chart launch no
     longer pre-fetches the unused list quote."""
     dut.cmd("set stockMode 0", timeout=timeout)
-    r = dut.cmd(f"switchApp {APP_SLOT['Stock']}", timeout=timeout)
-    if not r.get("ok"):
-        return False
-    time.sleep(0.3)
-    return _appid_is(dut, "Stock", timeout)
+    return _switch_app_debug(dut, "Stock", timeout)
 
 
 def _restore_from_stock(dut: Dut, timeout: float = 5.0) -> bool:
     """Switch back to Spotify from Stock."""
-    r = dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=timeout)
-    if not r.get("ok"):
-        return False
-    time.sleep(0.3)
-    return _appid_is(dut, "Spotify", timeout)
+    return _switch_app_debug(dut, "Spotify", timeout)
 
 
 def _stock_get(dut: Dut, var: str, timeout: float = 3.0):
@@ -585,7 +637,12 @@ def _progress_atom_verdict(var: str, obs: dict) -> tuple:
 
 def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
                          test_id: str = "") -> bool:
-    """Wait until fetchOkCount advances past `before` — proves a chart fetch completed
+    """TASK-607/R22: NOT migrated onto `poll_until` (see that function's
+    docstring in lib/dut.py) — this loop samples a SECOND surface (`get
+    dataq`) every ~3 ticks as a diagnostic side effect interleaved with the
+    pass/fail poll itself; a shared primitive has no callback for that.
+
+    Wait until fetchOkCount advances past `before` — proves a chart fetch completed
     (HTTP + parse), not just that it was enqueued (LL-041). `before` must be snapshotted
     from fetchOkCount before the triggering tap/command. Returns True on success.
     On timeout prints stockChartProgress phase and the last dataq sample to aid
@@ -794,20 +851,38 @@ def _diag_snapshot(dut: Dut, tag: str = "") -> str:
 
 
 def _wait_shell_not_busy(dut: Dut, timeout_s: float = 45.0) -> bool:
-    """Wait for g_shellBusy to clear (chart/heatmap fetch complete)."""
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+    """Wait for g_shellBusy to clear (chart/heatmap fetch complete).
+
+    TASK-607/R22: migrated onto `poll_until` — same 1.0s interval, same
+    `get shellBusy` call and exception handling, unchanged. Adds the
+    elapsed-time report R22 asks for on both paths.
+
+    NOTE the `except: pass` shape below (assign, don't `return` inside the
+    handler) is deliberate, not stylistic: a bare `return <constant>` inside
+    an except handler for one of `check_no_reachable_fail.py`'s `SWALLOWED`
+    exception names is exactly `_swallows_directly()`'s SHAPE-4 pattern — an
+    earlier draft of this migration returned there and it newly classified
+    this helper as an error-swallowing bool helper, which made T_WR_COEX_01's
+    sole `fail()` look guarded-and-unreachable when it always was reachable.
+    Measured during this task; kept as `pass` to match the pre-migration
+    loop's own shape exactly."""
+    def check():
+        clear = False
         try:
-            if not dut.get_bool("shellBusy", field="busy", timeout=5.0):
-                return True
+            clear = not dut.get_bool("shellBusy", field="busy", timeout=5.0)
         except (TimeoutError, NoAnswer):
             pass
-        time.sleep(1.0)
-    # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
-    # This helper gates on g_shellBusy directly, so a timeout here is exactly as
-    # relevant to the dataTask/tlsYield hypotheses as a chart-fetch timeout is.
-    _diag_snapshot(dut, "_wait_shell_not_busy-timeout")
-    return False
+        return clear
+
+    ok, _, elapsed = poll_until(check, timeout_s, interval=1.0)
+    print(f"  _wait_shell_not_busy: {'clear' if ok else 'still busy'} "
+          f"after {elapsed:.2f}s (bound {timeout_s:.2f}s)")
+    if not ok:
+        # TASK-386: same treatment as _wait_chart_complete — automatic for every caller.
+        # This helper gates on g_shellBusy directly, so a timeout here is exactly as
+        # relevant to the dataTask/tlsYield hypotheses as a chart-fetch timeout is.
+        _diag_snapshot(dut, "_wait_shell_not_busy-timeout")
+    return ok
 
 
 # TASK-242: the taskbar cycles through apps BEFORE WebRadio — WebRadio is

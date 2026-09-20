@@ -12,7 +12,7 @@ import re
 import time
 from typing import Optional
 
-from lib.dut import TIMEOUT, TIMEOUT_SLOW, Dut
+from lib.dut import TIMEOUT, TIMEOUT_SLOW, Dut, poll_until
 from lib.results import pass_, fail, skip, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -296,7 +296,12 @@ def t_ple_wr_160(dut: Dut):
 
 def _wait_wr_count(dut: Dut, min_count: int = 1, timeout: float = 120.0) -> bool:
     """Poll get wrCount until count >= min_count or fetch done with no stations or timeout.
-    Early-exits False when pending=0 and count < min_count (fetch completed, no stations)."""
+    Early-exits False when pending=0 and count < min_count (fetch completed, no stations).
+
+    TASK-607/R22: NOT migrated onto `poll_until` (see that function's docstring
+    in lib/dut.py) — this loop's `pending == 0` branch is an early, OBSERVED
+    False that must never be diagnosed or reported like a timeout, and
+    `poll_until`'s contract has no third outcome to spend on that."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
@@ -318,18 +323,32 @@ def _wait_wr_count(dut: Dut, min_count: int = 1, timeout: float = 120.0) -> bool
 
 
 def _wait_wr_state(dut: Dut, target: int, timeout: float = 120.0) -> bool:
-    """Poll get wrState until state == target or timeout."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+    """Poll get wrState until state == target or timeout.
+
+    TASK-607/R22: migrated onto `poll_until` — same 2.0s interval, same
+    `get wrState` call and exception handling, unchanged. Adds the
+    elapsed-time report R22 asks for on both paths.
+
+    NOTE: `except: pass` (assign, don't `return` inside the handler) is
+    deliberate — see `_wait_shell_not_busy`'s comment in _helpers.py. A bare
+    `return False` inside this except would newly trip
+    `check_no_reachable_fail.py`'s SHAPE-4 swallowing-helper detector for
+    every id whose sole `fail()` is guarded by this helper."""
+    def check():
+        observed = False
         try:
             r = dut.cmd("get wrState", timeout=TIMEOUT)
-            if r.get("state") == target:
-                return True
+            observed = r.get("state") == target
         except TimeoutError:
             pass
-        time.sleep(2.0)
-    _diag_snapshot(dut, "_wait_wr_state-timeout")
-    return False
+        return observed
+
+    ok, _, elapsed = poll_until(check, timeout, interval=2.0)
+    print(f"  _wait_wr_state: state=={target} {'observed' if ok else 'never observed'} "
+          f"after {elapsed:.2f}s (bound {timeout:.2f}s)")
+    if not ok:
+        _diag_snapshot(dut, "_wait_wr_state-timeout")
+    return ok
 
 
 def _webradio_enter_with_stations(dut: Dut, tid: str,

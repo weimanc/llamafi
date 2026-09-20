@@ -135,6 +135,18 @@ if ! "$PYTHON" lib/test_shuffle.py; then
     exit 1
 fi
 
+# 4f0b. `poll_until` — the TASK-607/R22 shared wait contract six of the
+# corpus's eleven `_wait_*`/`wait_*` helpers now call: terminates the instant
+# `check()` returns truthy (never polls to the bound on success), reports the
+# ACTUAL elapsed time on both the pass and the fail path, polls on the
+# caller's own interval, propagates an exception raised inside `check()`
+# rather than swallowing it, and never samples on an already-elapsed
+# timeout. No DUT, no port, sub-second.
+if ! "$PYTHON" lib/test_dut.py; then
+    echo "FAIL: lib/test_dut.py (TASK-607 R22 poll_until contract suite) FAILED" >&2
+    exit 1
+fi
+
 # 4f1. the run artifact — TASK-608 / ADR-066 D1 / IFC-008 / R29+R30.
 # The artifact is now the SOLE machine interface to a run, so the failure that
 # matters is a consumer reading something and being WRONG about it. The stale
@@ -656,6 +668,26 @@ if ! "$PYTHON" gate/test_check_timeout_literals.py; then
 fi
 if ! "$PYTHON" gate/check_timeout_literals.py; then
     echo "FAIL: check_timeout_literals.py (TASK-607 R24 timeout-literal ratchet) FAILED" >&2
+    exit 1
+fi
+
+# ── TASK-607 — R22, a wait is a failure bound not a sampling budget
+# (M-HARNESS2-requirements.md:451-457, MUST). R22's own verification clause:
+# "a gate flags any bounded loop whose expiry path leads to pass_()."
+# Measured 2026-09-20: 59 bounded while-loops (time.monotonic/deadline/
+# elapsed idiom) across 8 suite/ modules, 0 findings (64 before six wait
+# helpers moved onto lib.dut.poll_until, five of them in suite/) — every one
+# already either returns bool/count on expiry (the _wait_*/wait_* helper
+# convention) or is decided by an `if` before its caller reaches pass_().
+# Lands blocking at zero, no ledger (check_wait_expiry.py's own docstring
+# explains why a shrink-only ratchet would be pure headroom here). No DUT,
+# no build, no network.
+if ! "$PYTHON" gate/test_check_wait_expiry.py; then
+    echo "FAIL: test_check_wait_expiry.py (TASK-607 R22 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_wait_expiry.py; then
+    echo "FAIL: check_wait_expiry.py (TASK-607 R22 wait-expiry-to-pass gate) FAILED" >&2
     exit 1
 fi
 

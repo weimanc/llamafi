@@ -1022,7 +1022,12 @@ from suite.serialdbg._helpers import _tap_and_wait_log                          
 def _wait_for_log(dut: Dut, marker: str, timeout_s: float = 5.0) -> bool:
     """Read serial lines until `marker` is seen (True) or timeout (False).
     Same idiom as T087/T095's inline log scans, extracted since T_PLR_17-19
-    need it three different ways (positive AND negative assertions)."""
+    need it three different ways (positive AND negative assertions).
+
+    TASK-607/R22: NOT migrated onto `poll_until` (see that function's
+    docstring in lib/dut.py) — this polls raw incoming serial LINES
+    (`dut.ser.readline()`), not a `get <key>` request/reply on a fixed
+    sleep interval; there is no `check()`/`sleep(interval)` cadence to share."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
