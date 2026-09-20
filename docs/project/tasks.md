@@ -163,7 +163,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-721.** (675 here; 676–679, 682, 683, 684 and 713–715 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement. The COUNT is gated by `check_board_currency`'s B5 arm; these labels are not derivable and are why the sentence survives.)
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-722.** (675 here; 676–679, 682, 683, 684 and 713–715 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement. The COUNT is gated by `check_board_currency`'s B5 arm; these labels are not derivable and are why the sentence survives.)
 (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682
 the pin retest, 683 the speaker-DUT current-draw measurement; 685–712 filed here since, 713–715 on
 tasks-harness2.md.) This line rotted once already, at TASK-709 — six days stale, until

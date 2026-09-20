@@ -1695,6 +1695,35 @@ M-TESTARCH · **Risk:** the same one M-TESTARCH carries and it is now demonstrat
 theorised — the instrument under repair produced four days of green gates while two of its own
 headline mechanisms were dead.
 
+**Status 2026-09-20 — Phase 5 is being worked, not merely unblocked; 13 of its 25 rows are
+closed.** The paragraph above said Phase 5 was "not yet scheduled as a phase"; that is no longer
+true. Landed across 2026-09-19/20: the three runtime gate arms (R36 `check_gating_offline`, R17
+`check_restore_manager`, R42 `check_no_mirrors`), the falsifier record made executable end to end
+(generated read-key set, the `cmd` kind for non-`get`/`set` replies, `meta()`'s
+oracle/premise/falsifier declarations, 33 ids declared, and operators for the two claim shapes
+nothing could previously falsify), R44's delta-scoped bound-origin gate, R24's timeout policy
+finally consuming its own constants (466 literals migrated), R22's `poll_until`, `--scope` path
+resolution (65 → 90 of 143 files), and BP-077's enforcement arm. **Counts here are pointers; the
+board's Totals table is authoritative and is now recounted by
+`python3 app/tools/gen/recount_board.py` rather than by hand.**
+
+**What the 2026-09-20 DUT session changed, which no host gate could.** Today's refactors touched
+every suite module and had only ever been checked by replay. On hardware: smoke 11/0, Teletext 3/3
+(its boundary taps — y=66/67/99/100 — now parsed from the generated header and landing in the
+zones they name), Clock 11/11 with the run artifact reporting **zero verdict changes** against the
+last comparable run six days earlier. Then the SD card, once inserted, turned one vague blocker
+into four specific ones: `T_PMT_04`'s assertion passed for the first time and exposed a real
+armed-injector leak (**TASK-718**, fixed and DUT-verified the same session, FAIL → PASS), while
+`T_PLR_16` and `T_PLR_09` proved to be blocked on fixtures that **do not exist in the repo at all**
+(**TASK-719**) and on ~100 audio files that cannot sanely go over a 25 KB/min serial link
+(**TASK-720**).
+
+**Still hardware-blocked and owed:** TASK-599's 17 session-layer migrations (each needs a DUT to
+prove behaviour-preserving), TASK-610, and TASK-719/720's card provisioning. **Host-side and open:**
+TASK-717 — `check_wait_expiry` is intra-function, so a caller that passes because a helper's window
+expired is invisible to it; that arm needs a design decision about grading `ABSENCE` branches
+rather than banning the shape.
+
 ---
 
 ## Out of scope (recorded for non-action)

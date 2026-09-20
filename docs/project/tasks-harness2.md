@@ -1,7 +1,14 @@
 # M-HARNESS2 + WP-Z — test-harness remediation programme
 
 > Owner: **Project Manager**
-> Status **2026-09-17**: **Phases 0, 1, 2 COMPLETE. Phase 3 CLOSED** (entered on a human waiver,
+> Status **2026-09-20**: **Phase 5 is the live phase — 13 of its 25 rows closed**, worked
+> 2026-09-19/20 (three runtime gate arms; the falsifier record executable end to end; R44's
+> delta gate; R24's timeout policy consuming its own constants; `--scope` reaching 90 of 143
+> files). A DUT session on 2026-09-20 validated those refactors on hardware — Clock 11/11 with
+> **zero verdict changes** vs the run six days earlier — and closed TASK-718 (an armed-injector
+> leak the board found, FAIL → PASS). TASK-719/720 are fixture gaps the repo cannot currently
+> satisfy. **Totals are recounted by `python3 app/tools/gen/recount_board.py`, not by hand.**
+> Earlier: **Phases 0, 1, 2 COMPLETE. Phase 3 CLOSED** (entered on a human waiver,
 > TASK-575 §4 clause 2 short by `T_PLR_15`, `T_WR_TLS_01`); **6/6 rows closed** (604, 592, 605, 635,
 > 636, 594). **The class-order switch is FLIPPED for `run/test`** (human ruling 2026-09-14 on
 > the [interleaved A/B](../verification/regression_suite/task566-interleaved-ab.md): 0 ids worse, 2
@@ -59,7 +66,7 @@ renumberable — **kept rather than renumbered on purpose**, because the human r
 review's `(prov.)` block and are now real. **TASK-620 was never allocated** (it was only the top of
 WP-Z's reserved band). **TASK-648 was never allocated either** — the band closed at 647 and the
 next filing started at 649. Allocated since: **TASK-649…660** on [tasks.md](tasks.md) (the TASK-587
-escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-721.** 713, 714 and 715 filed here 2026-09-19 (the `cmd` read-key kind; the operator gap; the mirror deletions). **This line read "next free: TASK-685" until then and was six days stale** — 685/686/687 were allocated on [tasks.md](tasks.md) on 2026-09-12 from TASK-575's evidence, and 688–712 since; a row was filed onto the occupied 685 and renumbered on the spot. Check the log, not this line
+escalations and the oracle-sweep rulings) and **TASK-661** here. **Next free id: TASK-722.** 713, 714 and 715 filed here 2026-09-19 (the `cmd` read-key kind; the operator gap; the mirror deletions). **This line read "next free: TASK-685" until then and was six days stale** — 685/686/687 were allocated on [tasks.md](tasks.md) on 2026-09-12 from TASK-575's evidence, and 688–712 since; a row was filed onto the occupied 685 and renumbered on the spot. Check the log, not this line
 (662–668 filed 2026-09-07 on [tasks.md](tasks.md) from the Phase 2 hardware sessions; **TASK-669**
 the same day, the board-currency gate, and **TASK-670** the LL-151 BP candidate, both also on
 [tasks.md](tasks.md)).
@@ -332,6 +339,7 @@ ratchet's clothes.
 | TASK-718 | P2 | **DONE 2026-09-20** (`79318bc1`), DUT-verified — `_bgpoll_suspended` (the `Dut.saved` manager) now wraps the body; `T_PMT_04` went FAIL -> PASS on hardware and recorded its first healthy transcript. Two ratchets fell: player.py 32->31 unrestored, 73->72 timeout literals | leaked armed injector: `set bgPoll 0` with no restore |
 | TASK-719 | P3 | **OPEN — filed 2026-09-20** | `T_PLR_16` needs `/probefb/{empty,nested,edge}` on the SD card. Those fixtures exist nowhere — not in `app/tools/fixtures/sd/`, not in `gen_playlist_fixtures.py`. The id cannot pass or record healthy until something generates them |
 | TASK-720 | P3 | **OPEN — filed 2026-09-20** | `T_PLR_09` needs `gate100.m3u`'s 100 audio files; only the 5 `short5` tones exist locally. At `sd_put.py`'s ~25 KB/min a bulk push is hours — these belong on the card by direct copy, so the id needs a documented card-provisioning step, not a serial push |
+| TASK-721 | **P1** | **OPEN — filed 2026-09-20, measured** | `run/check` needs a DUT plugged in: `app/tools/test_serial_classify.py:25` hardcodes `REAL = /dev/serial/by-id/usb-1a86_...`, so with no board every case classifies `device-vanished` and 7 arms fail. A host gate must not require hardware; by-id also names the LAST CH340 attached (two-DUT hazard) |
 | TASK-640 | P3 | **OPEN — unblocked 2026-09-20** (607's R22 arm landed `poll_until` + `check_wait_expiry`) | classify all synchronisation sleeps, publish the three counts, then set the floor — [R23](../verification/M-HARNESS2-requirements.md) |
 | TASK-606 | P3 | **DONE 2026-09-19** (`c421fcbd`) — `check_no_mirrors.py`, 11 pairs parsed from BOTH sides, at zero with no ledger. Found one LIVE drift (`console.cpp`'s `switchApp` help said `0..8` against `APP_COUNT=13`) and fixed it | mirror-equality gate, pairs generated wherever the symbol is already generated — [R42](../verification/M-HARNESS2-requirements.md) |
 | TASK-715 | P3 | **DONE 2026-09-20** (`7efd4a1c`) — both mirrors deleted, not guarded: `teletext.py` derives its six y-values from the generated header via `coords`, `clock.py` imports `APP_SLOT`. R42's register shrinks 9→7 pairs, which is the direction it should move | delete the mirrors that can simply import what exists |
@@ -357,10 +365,14 @@ ratchet's clothes.
 
 ## Totals
 
-**Recounted mechanically 2026-09-12.** The 2026-09-08 recount predated the sixteen rig/M-TESTARCH
-rows moved in on 2026-09-10 and was not re-derived when they landed, so its totals row (88/51/37)
-did not match its own phase rows (87/43/44). Every count below is derived from the tables above by
-reading each row's leading status token, not carried forward.
+**Recounted mechanically 2026-09-20.** Every count below is derived from the tables above by
+reading each row's **leading** status token, not carried forward. It has now drifted twice for the
+same reason — the 2026-09-08 totals (88/51/37) did not match their own phase rows (87/43/44) after
+sixteen rig rows moved in, and the 2026-09-12 recount (91/63/28) was not re-derived as Phase 5 grew
+to 25 rows. **LEADING token, and the emphasis is earned**: a recount written for this pass scanned
+each status cell for any of DONE/OPEN/… and mis-scored `TASK-639`, whose cell reads
+"OPEN — unblocked (TASK-638 **DONE**)" — it matched the *other* task's status out of a
+parenthetical. Recount with `python3 app/tools/gen/recount_board.py` — run for this pass, and its numbers are the ones in the table below. Read what it prints rather than the table if they ever disagree.
 
 | phase | rows | closed | live | days | state |
 |---|---|---|---|---|---|
@@ -369,9 +381,9 @@ reading each row's leading status token, not carried forward.
 | 2 — the 80-minute session | 12 | 12 | 0 | ~6 | **COMPLETE 2026-09-12** — session executed 2026-09-07, stop criterion did not fire; the remainder closed 2026-09-12. **No longer gates Phase 3 or 5** |
 | 3 — order and state hygiene | 6 | 6 | 0 | ~8.5 | **CLOSED 2026-09-17** (entered 2026-09-13 on a human waiver). 604, 592, 605, 635, 636, 594 all DONE. **TASK-617 exit criteria MET and the switch FLIPPED 2026-09-14** (TASK-566 DONE). **Shuffle clause CLOSED BY EXCEPTION 2026-09-17** (human ruling): only `clock` reproduces the canonical set; `player`/`planeradar`/`webradio` traced to TASK-697/708's heap issue and accepted as a standing exception rather than a blocker — revisit when TASK-708 closes |
 | 4 — observability contract | 4 | 1 | 3 | ~10 | ADR-063/064 taken; **638 DONE 2026-09-09**; 637 and 639 open |
-| rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 18 | 10 | 8 | — | **557 DONE 2026-09-12 — it gates nothing now**; **566 DONE 2026-09-14 — the class-order switch is flipped for `run/test`**; 564/567 remain; **573 CLOSED 2026-09-12 — it was fixed on 2026-09-02 and the row was never reconciled; TASK-566 loses its last named blocker**; 574 is the remaining gate defect; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
-| 5 — ratchets | 22 | 12 | 10 | ~22 | **Phase entry reconciled 2026-09-18**: 607/606/599/612 and 641's execution half were still BLOCKED citing Phase 2/3 as open — corrected, all OPEN. **676 DONE 2026-09-18; 674 + 673 DONE 2026-09-19**, leaving 6 of 14 live rows actionable. **673 DONE**; **672 still wants a field-level reply-read instrument** — 641's key set landed 2026-09-19 (`985b09e5`) but it is command-level, not the per-field tracking 672 needs. 640/613/601/642/643 (5) stay blocked on their own named predecessor, not phase entry |
-| **total** | **91** | **63** | **28** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
+| rig stability + M-TESTARCH remainder (moved in 2026-09-10) | 17 | 10 | 7 | — | **557 DONE 2026-09-12 — it gates nothing now**; **566 DONE 2026-09-14 — the class-order switch is flipped for `run/test`**; 564/567 remain; **573 CLOSED 2026-09-12 — it was fixed on 2026-09-02 and the row was never reconciled; TASK-566 loses its last named blocker**; 574 is the remaining gate defect; 677/678 PROP-011; **680/681 DONE 2026-09-11**; 682/683 filed 2026-09-12 |
+| 5 — ratchets | 26 | 13 | 13 | ~22 | **Phase entry reconciled 2026-09-18**: 607/606/599/612 and 641's execution half were still BLOCKED citing Phase 2/3 as open — corrected, all OPEN. **676 DONE 2026-09-18; 674 + 673 DONE 2026-09-19**, leaving 6 of 14 live rows actionable. **673 DONE**; **672 still wants a field-level reply-read instrument** — 641's key set landed 2026-09-19 (`985b09e5`) but it is command-level, not the per-field tracking 672 needs. 640/613/601/642/643 (5) stay blocked on their own named predecessor, not phase entry |
+| **total** | **98** | **75** | **23** | **~83** | Phases 0–1 done on rows; Phase 1 carries one regressed criterion (684). Only Phase 1 was ever *committed* |
 
 **The phases still ahead are not equally blocked.** Phase 4's
 TASK-637 and Phase 5's TASK-610/614/615/672–674/676 need **nothing but hands**. Everything else

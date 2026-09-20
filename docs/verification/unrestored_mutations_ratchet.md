@@ -187,4 +187,5 @@ Refresh with `python3 gate/check_restore_manager.py --print-runtime-rows` (from 
 | `prRange` | `T_PR_03` (perturb/at @12 `set prRange 5`, verdict FAIL) | TASK-673 | 2026-09-19 |
 | `stockMode` | `T-BUSY-01b` (drop/at @3 `set stockMode 0`, verdict FAIL) | TASK-673 | 2026-09-19 |
 | `triggerFetch` | `T-BUSY-01b` (drop/at @10 `set triggerFetch 1`, verdict FAIL) | TASK-673 | 2026-09-19 |
+| `plPlay` | `T_PMT_04` (perturb/at @10 `set plPlay 0`, verdict FAIL) — **newly VISIBLE 2026-09-20, not new**: TASK-718 fixed the id's bgPoll leak, so it PASSED and recorded its first healthy transcript, and the sweep can now poison a body it previously had to skip. `set plPlay` is `dbgPlayRow`, a one-shot fire with no read-back (app/src/debug/serialConsole/cmdSet.cpp:248-258); the gettable state it moves is `plCursor`, which the body DOES restore. The third kind named above — no field to put back | TASK-673 | 2026-09-20 |
 | `triggerHeatmap` | `T196` (perturb/at @4 `set triggerHeatmap 1`, verdict FAIL) | TASK-673 | 2026-09-19 |
