@@ -346,8 +346,16 @@ def find_next_free_claims(rel: str, text: str) -> list:
 
 
 def max_task_id(texts) -> int:
-    """Max `TASK-NNN` found across `texts` (any iterable of strings: doc bodies,
-    commit messages, whatever the caller assembled) — 0 if none.
+    """Max ALLOCATED `TASK-NNN` across `texts` — 0 if none.
+
+    ALLOCATED, not merely mentioned, and the distinction is load-bearing: an
+    id is allocated when it has a board ROW or a commit SUBJECT. Prose and
+    commit BODIES discuss ids that do not exist yet — "the next one will be
+    TASK-800", a quoted gate message, a design sketch — and counting those
+    inflates the claim, which then names an id nobody has taken. Measured
+    against the live tree when this rule was tightened: no id above 650 is
+    mentioned in any doc without also having a row or a subject, so nothing
+    real is lost by the narrower definition.
 
     THE TRAP, handled here and nowhere else: a "Next free id: TASK-716" claim
     line contains the token `TASK-716`. Scanning it like any other line makes
@@ -646,7 +654,18 @@ def main(argv) -> int:
             doc_texts[rel] = fh.read()
 
     claim_sources = {rel: doc_texts[rel] for rel in board_files() if rel in doc_texts}
-    corpus_texts = list(doc_texts.values()) + full_msgs
+    # THE CORPUS IS ALLOCATION EVIDENCE, NOT EVERY MENTION (see max_task_id).
+    # Board rows and commit SUBJECTS only. This gate's own commit message
+    # quoted its own output — "2 claims expected TASK-717" — and a body-wide
+    # scan read that back as an allocated id, so the claim demanded 718 for an
+    # id nobody held. Self-reference one level out from the claim-line trap:
+    # anything that can quote the gate can poison it.
+    # `git_subjects()`'s own docstring already made this call for B1 — "a body
+    # mention is as often 'see TASK-x' context as it is 'this lands TASK-x'" —
+    # and B5 had quietly contradicted it by reading %B. Same rule now.
+    corpus_texts = ([t for rel, t in doc_texts.items()
+                     if rel.startswith("docs/project/tasks")]
+                    + [subj for _h, subj in git_subjects()])
     findings += evaluate_next_free(claim_sources, corpus_texts)
     findings += evaluate_ledger_counts(LEDGER_COUNT_SPECS, doc_texts)
 

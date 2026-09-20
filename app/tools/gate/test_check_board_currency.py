@@ -563,6 +563,32 @@ def case_b6_real_specs_currently_agree_with_the_tree():
     none(C.evaluate_ledger_counts(C.LEDGER_COUNT_SPECS, texts))
 
 
+def case_b5_a_body_quoting_the_gate_cannot_poison_the_corpus():
+    """B5g (TASK-716, found by dogfooding on the day it landed).
+
+    The gate prints "expected TASK-NNN". A commit message that QUOTES that
+    line — as this gate's own landing commit did — put `TASK-717` into the
+    git corpus while no such id was allocated, and a body-wide scan read it
+    back as evidence. The claim then demanded 718 for an id nobody held.
+
+    Self-reference one level out from the claim-line trap: the claim line is
+    excluded, but anything that can quote the gate could still poison it.
+    The corpus is therefore ALLOCATION evidence only — board rows and commit
+    SUBJECTS — and this pins that a body-shaped mention is inert.
+    """
+    board = "| TASK-100 | P2 | DONE | a row |\n**Next free id: TASK-101**\n"
+    poison = ("feat(TASK-100): land it\n\n"
+              "check_board_currency: 2 claims expected TASK-717\n")
+    # Allocation evidence: the board row + a subject. The poisoning line is a
+    # BODY line and must never reach max_task_id().
+    corpus = [board, "feat(TASK-100): land it"]
+    none(C.evaluate_next_free({"docs/project/tasks.md": board}, corpus))
+    # And the proof that it would have broken: feed the body in as if it were
+    # corpus text, the way the first implementation did.
+    one(C.evaluate_next_free({"docs/project/tasks.md": board},
+                             corpus + [poison]), "TASK-718")
+
+
 CASES = [
     ("N1a B1 fires on an OPEN row with a commit", case_b1_open_row_with_a_commit),
     ("N1b B1 fires on BLOCKED too", case_b1_fires_for_blocked_too),
@@ -610,6 +636,8 @@ CASES = [
     ("B5e claim and corpus are read separately",
      case_b5_reads_across_boards_and_the_corpus_separately),
     ("B5f both claim wordings parse", case_find_next_free_claims_accepts_both_wordings),
+    ("B5g a body quoting the gate cannot poison the corpus",
+     case_b5_a_body_quoting_the_gate_cannot_poison_the_corpus),
     ("B6a a matching declared count passes", case_b6_matching_count_passes),
     ("B6b a mismatched declared count fails", case_b6_mismatched_count_fails),
     ("B6c a dated historical count is never a finding",
