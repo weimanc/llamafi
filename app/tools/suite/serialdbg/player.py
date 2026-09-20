@@ -13,7 +13,7 @@ shell.py alongside the taskbar-gesture tests.
 import functools
 import time
 
-from lib.dut import Dut
+from lib.dut import TIMEOUT, TIMEOUT_SLOW, Dut
 from lib.results import pass_, fail, skip, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -38,7 +38,7 @@ def t_plr_01(dut: Dut):
     """T_PLR_01: taskbar tap on the active player slot cycles Spotify -> WebRadio ->
     Player -> Spotify -> WebRadio (x4 taps from Spotify)."""
     print("T_PLR_01  Taskbar tap cycles the mode Spotify->WebRadio->Player->Spotify->WebRadio")
-    dut.cmd("set playerMode spotify", timeout=3.0)
+    dut.cmd("set playerMode spotify", timeout=TIMEOUT)
     if not _restore_spotify(dut):
         skip("T_PLR_01", "precondition: could not restore Spotify")
         return
@@ -50,8 +50,8 @@ def t_plr_01(dut: Dut):
         dut.set_cooldown_zero()
         dut.cmd(f"tap {sx} {sy}", timeout=5.0)
         time.sleep(0.3)
-        got.append(dut.cmd("get appId", timeout=3.0).get("name"))
-    dut.cmd("set playerMode spotify", timeout=3.0)
+        got.append(dut.cmd("get appId", timeout=TIMEOUT).get("name"))
+    dut.cmd("set playerMode spotify", timeout=TIMEOUT)
     _restore_spotify(dut)
     if got != expected:
         fail("T_PLR_01", f"cycle sequence={got} — expected {expected}")
@@ -65,16 +65,16 @@ def t_plr_04(dut: Dut):
     numeric index (§6.1 debug-surface widening — the pre-TASK-413 getter
     collapsed Player(2) to WebRadio(1) and the setter rejected idx>1)."""
     print("T_PLR_04  get/set playerMode round-trips all three values, name+numeric")
-    r_pm0 = dut.cmd("get playerMode", timeout=3.0)
+    r_pm0 = dut.cmd("get playerMode", timeout=TIMEOUT)
     cases = [("spotify", 0, "Spotify"), ("1", 1, "WebRadio"), ("player", 2, "Player")]
     mismatches = []
     for val_in, expect_val, expect_name in cases:
-        dut.cmd(f"set playerMode {val_in}", timeout=3.0)
-        r = dut.cmd("get playerMode", timeout=3.0)
+        dut.cmd(f"set playerMode {val_in}", timeout=TIMEOUT)
+        r = dut.cmd("get playerMode", timeout=TIMEOUT)
         if r.get("val") != expect_val or r.get("name") != expect_name:
             mismatches.append((val_in, r.get("val"), r.get("name")))
-    r_bad = dut.cmd("set playerMode 3", timeout=3.0)
-    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=3.0)
+    r_bad = dut.cmd("set playerMode 3", timeout=TIMEOUT)
+    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=TIMEOUT)
     if mismatches:
         fail("T_PLR_04", f"round-trip mismatches: {mismatches}")
         return
@@ -89,22 +89,22 @@ def t_plr_05(dut: Dut):
     """T_PLR_05: tapping the player slot from ANOTHER app restores the persisted
     mode (resolvePlayerSlot, unchanged), it does not cycle."""
     print("T_PLR_05  Tap from another app restores the persisted mode, does not cycle")
-    r_pm0 = dut.cmd("get playerMode", timeout=3.0)
+    r_pm0 = dut.cmd("get playerMode", timeout=TIMEOUT)
     if not _switch_to(dut, "Clock"):
         skip("T_PLR_05", "precondition: could not switch to Clock")
         return
-    dut.cmd("set playerMode player", timeout=3.0)
+    dut.cmd("set playerMode player", timeout=TIMEOUT)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
     dut.cmd(f"tap {sx} {sy}", timeout=5.0)
     time.sleep(0.3)
-    name1 = dut.cmd("get appId", timeout=3.0).get("name")
+    name1 = dut.cmd("get appId", timeout=TIMEOUT).get("name")
     # A second tap, now that the player IS active, should cycle away from Player.
     dut.set_cooldown_zero()
     dut.cmd(f"tap {sx} {sy}", timeout=5.0)
     time.sleep(0.3)
-    name2 = dut.cmd("get appId", timeout=3.0).get("name")
-    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=3.0)
+    name2 = dut.cmd("get appId", timeout=TIMEOUT).get("name")
+    dut.cmd(f"set playerMode {r_pm0.get('val', 0)}", timeout=TIMEOUT)
     _restore_spotify(dut)
     if name1 != "LocalPlayer":
         fail("T_PLR_05", f"restore tap landed on {name1!r} — expected LocalPlayer (persisted mode)")
@@ -172,7 +172,7 @@ def t_plr_06(dut: Dut):
         errors.append(f"Spotify: hit={r.get('hit') if r else None} action={r.get('action') if r else None}")
     else:
         time.sleep(0.3)
-        appid = dut.cmd("get appId", timeout=3.0).get("name")
+        appid = dut.cmd("get appId", timeout=TIMEOUT).get("name")
         if appid != "Spotify":
             errors.append(f"Spotify: appId={appid!r} after eject (expected Spotify — eject no longer switches apps)")
         if not tls_seen and not _spotify_off(dut):
@@ -187,24 +187,24 @@ def t_plr_06(dut: Dut):
         errors.append("WebRadio: could not enter WebRadio via taskbar player-slot cycle")
     else:
         _wait_shell_not_busy(dut, timeout_s=5.0)
-        enq_before = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
+        enq_before = dut.cmd("get dataq", timeout=TIMEOUT).get("wrEnqueues", 0)
         dut.set_cooldown_zero()
         r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
         if r.get("hit") != "EJECT" or r.get("action") != "EJECT":
             errors.append(f"WebRadio: hit={r.get('hit')} action={r.get('action')}")
         else:
             time.sleep(0.3)
-            appid = dut.cmd("get appId", timeout=3.0).get("name")
+            appid = dut.cmd("get appId", timeout=TIMEOUT).get("name")
             if appid != "WebRadio":
                 errors.append(f"WebRadio: appId={appid!r} after eject (expected WebRadio — eject no longer switches apps)")
-            enq_after = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
+            enq_after = dut.cmd("get dataq", timeout=TIMEOUT).get("wrEnqueues", 0)
             if enq_after <= enq_before:
                 errors.append(f"WebRadio: wrEnqueues did not advance ({enq_before} -> {enq_after})")
     dut.cmd("set bgPoll 1", timeout=2.0)
 
     # ── Player: opens the file browser (TASK-416) ───────────────────────────
     heap_pressure_skip = False
-    dut.cmd("set playerMode player", timeout=3.0)
+    dut.cmd("set playerMode player", timeout=TIMEOUT)
     if not _switch_to(dut, "Clock"):
         errors.append("Player: precondition: could not switch to Clock")
     else:
@@ -212,7 +212,7 @@ def t_plr_06(dut: Dut):
         sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
         dut.cmd(f"tap {sx} {sy}", timeout=5.0)   # restore persisted mode -> LocalPlayer
         time.sleep(0.3)
-        appid = dut.cmd("get appId", timeout=3.0).get("name")
+        appid = dut.cmd("get appId", timeout=TIMEOUT).get("name")
         if appid != "LocalPlayer":
             errors.append(f"Player: precondition failed, appId={appid!r} (expected LocalPlayer)")
         else:
@@ -222,11 +222,11 @@ def t_plr_06(dut: Dut):
                 errors.append(f"Player: hit={r.get('hit')} action={r.get('action')} (expected EJECT/EJECT — "
                               "the tap-dispatch report, not the per-mode verb)")
             time.sleep(0.3)
-            appid2 = dut.cmd("get appId", timeout=3.0).get("name")
+            appid2 = dut.cmd("get appId", timeout=TIMEOUT).get("name")
             if appid2 != "LocalPlayer":
                 errors.append(f"Player: appId={appid2!r} after eject (expected LocalPlayer — the browser "
                               "is modal WITHIN the app, not a switchApp)")
-            fb = dut.cmd("get fbState", timeout=3.0)
+            fb = dut.cmd("get fbState", timeout=TIMEOUT)
             if not fb.get("active"):
                 # fileBrowser.h heap-allocates its dir/file arrays (~13 KB) on
                 # first open() — a real fragmented-heap alloc failure (seen on
@@ -239,14 +239,14 @@ def t_plr_06(dut: Dut):
                 # m3u::PlaylistIndex's own flag and unrelated to a browser-
                 # alloc failure) rather than failing the eject-verb gate on a
                 # pre-existing, already-tracked heap-pressure risk.
-                ae = dut.cmd("get activeError", timeout=3.0)
+                ae = dut.cmd("get activeError", timeout=TIMEOUT)
                 if ae.get("active"):
                     heap_pressure_skip = True
                 else:
                     errors.append(f"Player: eject did not open the browser: {fb}")
-            dut.cmd("set fbCancel", timeout=3.0)   # leave the browser closed for later tests
+            dut.cmd("set fbCancel", timeout=TIMEOUT)   # leave the browser closed for later tests
 
-    dut.cmd("set playerMode spotify", timeout=3.0)
+    dut.cmd("set playerMode spotify", timeout=TIMEOUT)
     _restore_spotify(dut)
 
     if heap_pressure_skip and not errors:
@@ -344,14 +344,14 @@ def _enter_player(dut: Dut, tid: str) -> bool:
     T_PLR_09 actually calls aeConnectFile(); 08/10/11/12 never touch it, so this
     suite-wide suspension is now precautionary for them, not load-bearing.
     Restored by _leave_player()."""
-    dut.cmd("set bgPoll 0", timeout=3.0)
-    dut.cmd("set playerMode player", timeout=3.0)
-    if dut.cmd("get appId", timeout=3.0).get("name") in ("Spotify", "WebRadio", "LocalPlayer"):
+    dut.cmd("set bgPoll 0", timeout=TIMEOUT)
+    dut.cmd("set playerMode player", timeout=TIMEOUT)
+    if dut.cmd("get appId", timeout=TIMEOUT).get("name") in ("Spotify", "WebRadio", "LocalPlayer"):
         if not _switch_to(dut, "Clock"):
             _leave_player(dut)
             skip(tid, "precondition: could not step off the player slot")
             return False
-    dut.cmd("set playerMode player", timeout=3.0)
+    dut.cmd("set playerMode player", timeout=TIMEOUT)
     # Two attempts: the taskbar tap resolves against the CURRENT scroll offset,
     # and a dropped `set tbScroll` leaves the tap landing on whichever app now
     # occupies that slot (seen once as appId='PlaneRadar'). Re-anchoring and
@@ -363,14 +363,14 @@ def _enter_player(dut: Dut, tid: str) -> bool:
         x, y = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
         dut.cmd(f"tap {x} {y}", timeout=5.0)
         time.sleep(0.4)
-        name = dut.cmd("get appId", timeout=3.0).get("name")
+        name = dut.cmd("get appId", timeout=TIMEOUT).get("name")
         if name == "LocalPlayer":
             return True
         # Landed somewhere else: step back off the player slot before retrying,
         # or the next tap cycles the mode instead of restoring it.
         if attempt == 0:
             _switch_to(dut, "Clock")
-            dut.cmd("set playerMode player", timeout=3.0)
+            dut.cmd("set playerMode player", timeout=TIMEOUT)
     _leave_player(dut)
     skip(tid, f"precondition: appId={name!r} (expected LocalPlayer, 2 attempts)")
     return False
@@ -380,7 +380,7 @@ def _leave_player(dut: Dut) -> None:
     """Undo _enter_player()'s poll suspension. Every T_PLR_08-12 exit path calls
     this — a suite that left bgPoll off would silently disarm Spotify for every
     test that runs after it."""
-    dut.cmd("set bgPoll 1", timeout=3.0)
+    dut.cmd("set bgPoll 1", timeout=TIMEOUT)
 
 
 def _bgpoll_backstop(fn):
@@ -469,7 +469,7 @@ def t_plr_09(dut: Dut):
     # would-be PASS into a flaky FAIL. Redundant with _enter_player()'s own
     # suite-wide bgPoll=0 (belt and suspenders — this is the one test in the
     # suite where it's actually load-bearing).
-    dut.cmd("set bgPoll 0", timeout=3.0)
+    dut.cmd("set bgPoll 0", timeout=TIMEOUT)
     dut.cmd("set plPlay 0", timeout=8.0)
     # connecttoFS + first decode: give the pump task a real window before judging.
     playing = False
@@ -494,7 +494,7 @@ def t_plr_09(dut: Dut):
         # and inventing one unverified with no DUT access is worse than a note.
         # WHEN THE RULING LANDS: gate on the build variant and make this a fail()
         # on cyd2usb_player, keeping skip() only on cyd2usb_winamp_debug.
-        dut.cmd("set bgPoll 1", timeout=3.0)
+        dut.cmd("set bgPoll 1", timeout=TIMEOUT)
         _leave_player(dut)
         skip("T_PLR_09", "track never reached playing=true — audio precondition failed, "
                          "not a scroll result (check the card's /mp3 files). NOTE: this "
@@ -506,7 +506,7 @@ def t_plr_09(dut: Dut):
     for i in range(12):                      # 12 swipes ≈ the full 120-row list
         t0 = time.monotonic()
         if _do_drag(dut, xu, yu, xu2, yu2, steps=20, timeout=20.0) is None:
-            dut.cmd("set bgPoll 1", timeout=3.0)
+            dut.cmd("set bgPoll 1", timeout=TIMEOUT)
             _leave_player(dut)
             fail("T_PLR_09", f"DUT stopped responding on swipe {i + 1} — drag timeout")
             return
@@ -526,7 +526,7 @@ def t_plr_09(dut: Dut):
         fail("T_PLR_09", f"scrollOffset={off} after 12 up-swipes — the list did not scroll")
         return
     dut.cmd("set plPlay 0", timeout=5.0)     # leave a defined state
-    dut.cmd("set bgPoll 1", timeout=3.0)
+    dut.cmd("set bgPoll 1", timeout=TIMEOUT)
     _leave_player(dut)
     pass_("T_PLR_09", f"scrolled to offset {off} over 12 swipes, still playing; "
                       f"worst swipe round-trip {worst_gap:.1f}s")
@@ -541,10 +541,10 @@ def t_plr_10(dut: Dut):
         return
     errors = []
 
-    dut.cmd("set bgPoll 0", timeout=3.0)   # see T_PLR_09's note on tlsYield
+    dut.cmd("set bgPoll 0", timeout=TIMEOUT)   # see T_PLR_09's note on tlsYield
     r = _pl_load(dut, _PL_REL)
     if r.get("count", 0) == 0:
-        dut.cmd("set bgPoll 1", timeout=3.0)
+        dut.cmd("set bgPoll 1", timeout=TIMEOUT)
         _leave_player(dut)
         skip("T_PLR_10", f"fixture {_PL_REL} not on the card (gen_playlist_fixtures.py)")
         return
@@ -792,7 +792,7 @@ def _fb_wait_done(dut: Dut, timeout_s: float = 12.0) -> dict | None:
     deadline = time.monotonic() + timeout_s
     last = None
     while time.monotonic() < deadline:
-        last = dut.cmd("get fbState", timeout=3.0)
+        last = dut.cmd("get fbState", timeout=TIMEOUT)
         if not last.get("ok"):
             return None
         if last.get("pending") is False:
@@ -885,7 +885,7 @@ def t_plr_14(dut: Dut):
     r = dut.cmd(f"tap {ex} {ey}", timeout=5.0)
     if r.get("skipped"):
         errors.append(f"eject tap itself was skipped: {r}")
-    busy = dut.cmd("get shellBusy", timeout=3.0)
+    busy = dut.cmd("get shellBusy", timeout=TIMEOUT)
     if not busy.get("val", busy.get("busy")):
         # Walk may have finished before we could observe it (e.g. after a
         # slow serial round trip) — that is a real precondition miss, not the
@@ -894,7 +894,7 @@ def t_plr_14(dut: Dut):
         skip("T_PLR_14", f"g_shellBusy never observed true after eject — reply={busy}; "
                          "walk finished before this could be checked")
         return
-    st = dut.cmd("get fbState", timeout=3.0)
+    st = dut.cmd("get fbState", timeout=TIMEOUT)
     if not st.get("active") or not st.get("pending"):
         errors.append(f"browser not mid-walk when expected: {st}")
     dut.set_cooldown_zero()
@@ -932,7 +932,7 @@ def t_plr_15(dut: Dut):
             fail("T_PLR_15", f"fbOpen {_FB_BIG} failed but sdls says the directory IS on the card "
                              f"— browser-side open failure, see TASK-433. reply={r}")
         return
-    immediate = dut.cmd("get fbState", timeout=3.0)
+    immediate = dut.cmd("get fbState", timeout=TIMEOUT)
     st = _fb_wait_done(dut, timeout_s=15.0)
     _leave_player(dut)
     errors = []
@@ -1081,7 +1081,7 @@ def t_plr_17(dut: Dut):
     _wait_shell_not_busy(dut, timeout_s=10.0)
     errors = []
 
-    r = dut.cmd("get shufRep", timeout=3.0)
+    r = dut.cmd("get shufRep", timeout=TIMEOUT)
     if not r.get("ok") or r.get("caps") != 15:   # CAP_TRANSPORT|SEEK|SHUFFLE|REPEAT = 1+2+4+8
         errors.append(f"playerCaps={r.get('caps')} (expected 15 — all four bits set)")
 
@@ -1147,7 +1147,7 @@ def t_plr_18(dut: Dut):
         return
     errors = []
 
-    r = dut.cmd("get shufRep", timeout=3.0)
+    r = dut.cmd("get shufRep", timeout=TIMEOUT)
     if not r.get("ok") or r.get("caps") != 1:   # CAP_TRANSPORT only
         errors.append(f"playerCaps={r.get('caps')} (expected 1 — CAP_TRANSPORT only)")
 
@@ -1210,7 +1210,7 @@ def t_plr_19(dut: Dut):
         return
     errors = []
 
-    r = dut.cmd("get shufRep", timeout=3.0)
+    r = dut.cmd("get shufRep", timeout=TIMEOUT)
     if not r.get("ok") or r.get("caps") != 15:
         errors.append(f"playerCaps={r.get('caps')} (expected 15 — all four bits set)")
     base = r
@@ -1224,7 +1224,7 @@ def t_plr_19(dut: Dut):
     r = dut.cmd(f"tap {shx} {shy}")
     if r.get("hit") != "SHUFFLE" or r.get("action") != "SHUFFLE":
         errors.append(f"SHUFFLE hit-test: hit={r.get('hit')} action={r.get('action')}")
-    r2 = dut.cmd("get shufRep", timeout=3.0)
+    r2 = dut.cmd("get shufRep", timeout=TIMEOUT)
     if r2.get("lastShuffle") == base.get("lastShuffle"):
         errors.append(f"SHUFFLE: lastShuffle unchanged ({r2.get('lastShuffle')}) after tap — "
                       f"hit-tested but not actually toggled")
@@ -1239,7 +1239,7 @@ def t_plr_19(dut: Dut):
     r = dut.cmd(f"tap {rpx} {rpy}")
     if r.get("hit") != "REPEAT" or r.get("action") != "REPEAT":
         errors.append(f"REPEAT hit-test: hit={r.get('hit')} action={r.get('action')}")
-    r3 = dut.cmd("get shufRep", timeout=3.0)
+    r3 = dut.cmd("get shufRep", timeout=TIMEOUT)
     if r3.get("lastRepeat") == r2.get("lastRepeat"):
         errors.append(f"REPEAT: lastRepeat unchanged ({r3.get('lastRepeat')}) after tap — "
                       f"hit-tested but not actually toggled")
@@ -1254,12 +1254,12 @@ def t_plr_19(dut: Dut):
     # here (Player never sets songDuration). dragState must stay D_IDLE
     # throughout: Player's seek zone deliberately does not engage Spotify's
     # shared D_POSBAR_DRAG machine (that's TASK-419's real-scrub wiring).
-    rd0 = dut.cmd("get dragState", timeout=3.0)
+    rd0 = dut.cmd("get dragState", timeout=TIMEOUT)
     bx, by = _c.tap_posbar()
     dr = dut.cmd(f"drag {bx} {by} {bx} {by} 1", timeout=5.0)
     if not dr.get("ok"):
         errors.append(f"SEEK zone drag: no ok reply ({dr})")
-    rd1 = dut.cmd("get dragState", timeout=3.0)
+    rd1 = dut.cmd("get dragState", timeout=TIMEOUT)
     if rd1.get("state") != "D_IDLE":
         errors.append(f"SEEK zone drag left dragState={rd1.get('state')} "
                       f"(expected D_IDLE — Player must not engage Spotify's posbar-drag machine)")
@@ -1295,14 +1295,14 @@ def _pl_shuffle(dut: Dut, want_on: bool, timeout_s: float = 3.0) -> bool:
     sx, sy = _c.tap_shuffle()
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        r = dut.cmd("get shufRep", timeout=3.0)
+        r = dut.cmd("get shufRep", timeout=TIMEOUT)
         cur = r.get("lastShuffle")
         if (cur == 1) == want_on:
             return True
         dut.set_cooldown_zero()
-        dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+        dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
         time.sleep(0.15)
-    r = dut.cmd("get shufRep", timeout=3.0)
+    r = dut.cmd("get shufRep", timeout=TIMEOUT)
     return (r.get("lastShuffle") == 1) == want_on
 
 
@@ -1316,16 +1316,16 @@ def _pl_repeat(dut: Dut, want_off: bool, timeout_s: float = 4.0) -> bool:
     rx, ry = _c.tap_repeat()
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        r = dut.cmd("get shufRep", timeout=3.0)
+        r = dut.cmd("get shufRep", timeout=TIMEOUT)
         cur = r.get("lastRepeat")
         if want_off and cur == 2:
             return True
         if not want_off and cur != 2:
             return True
         dut.set_cooldown_zero()
-        dut.cmd(f"tap {rx} {ry}", timeout=3.0)
+        dut.cmd(f"tap {rx} {ry}", timeout=TIMEOUT)
         time.sleep(0.15)
-    r = dut.cmd("get shufRep", timeout=3.0)
+    r = dut.cmd("get shufRep", timeout=TIMEOUT)
     cur = r.get("lastRepeat")
     return (cur == 2) if want_off else (cur != 2)
 
@@ -1399,7 +1399,7 @@ def t_plr_21(dut: Dut):
     # only `_leave_player`'s bgPoll undo ran on exit. Wrap the whole forced-wrap
     # sequence so the cursor is put back to wherever it was on entry (freshly
     # -1 from `_pl_load`'s own reset) on every exit path, exception included.
-    with dut.saved("plCursor", field="cursor", timeout=3.0):
+    with dut.saved("plCursor", field="cursor", timeout=TIMEOUT):
         def _force_wrap_from_last():
             # Always set explicitly to the known last index — do NOT infer "am I
             # already at the end" from a `get plCursor` read first. That reflects
@@ -1407,7 +1407,7 @@ def t_plr_21(dut: Dut):
             # precondition, and masks a real firmware bug the same way (a stale
             # cursor near the start silently reads as "close enough", producing
             # exactly the kind of drifted-cell failure this test exists to catch).
-            dut.cmd(f"set plCursor {last_idx}", timeout=3.0)
+            dut.cmd(f"set plCursor {last_idx}", timeout=TIMEOUT)
             return dut.cmd("advance next", timeout=5.0)
 
         # Cell 1: shuffle off, repeat off -> stop at last row.
@@ -1475,14 +1475,14 @@ def t_plr_22(dut: Dut):
     # `set plCursor` moves real cursor state (TASK-695 B-4/item 3) — restore it
     # on every exit path, not just the fall-through at the bottom of the loop.
     collisions = 0
-    with dut.saved("plCursor", field="cursor", timeout=3.0):
+    with dut.saved("plCursor", field="cursor", timeout=TIMEOUT):
         for i in range(20):
             before = dut.cmd("get plOrder", timeout=5.0).get("order", [])
             if len(before) != 20:
                 errors.append(f"wrap {i}: plOrder count={len(before)} (expected 20)")
                 break
             last_id = before[19]
-            dut.cmd("set plCursor 19", timeout=3.0)
+            dut.cmd("set plCursor 19", timeout=TIMEOUT)
             adv = dut.cmd("advance next", timeout=5.0)
             if not adv.get("moved") or not adv.get("reshuffled"):
                 errors.append(f"wrap {i}: expected moved=true reshuffled=true, got {adv}")
@@ -1639,7 +1639,7 @@ def t_plr_26(dut: Dut):
         _leave_player(dut)
         fail("T_PLR_26", "could not set shuffle=on repeat=all before reboot")
         return
-    before = dut.cmd("get shufRep", timeout=3.0)
+    before = dut.cmd("get shufRep", timeout=TIMEOUT)
     # suspend()'s coalesced write only fires on a mode switch away (ADR-050
     # rule 3) — leave Player before rebooting, same discipline plLoad's own
     # persistence gates use elsewhere in this suite.
@@ -1998,7 +1998,7 @@ def t_pmt_04(dut: Dut):
         return
 
     # ── leave Player via the OPERATION, never a coordinate (§8) ──
-    cyc = dut.cmd("playerCycle", timeout=10.0)
+    cyc = dut.cmd("playerCycle", timeout=TIMEOUT_SLOW)
     if not cyc.get("ok") or cyc.get("from") != 2:
         fail("T_PMT_04", f"playerCycle out of Player failed: {cyc}")
         return

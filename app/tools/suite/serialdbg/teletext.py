@@ -3,7 +3,7 @@ run_serialdbg_tests.py, TASK-480."""
 
 import time
 
-from lib.dut import Dut
+from lib.dut import TIMEOUT, Dut
 from lib.results import pass_, fail, skip
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._helpers import _restore_spotify, _switch_to, _wait_shell_not_busy
@@ -23,7 +23,7 @@ def t272(dut: Dut):
     print(f"{tid}  TLS heap contention — fetchTeletext concurrent with spotifyTask")
 
     # Baseline: confirm Spotify is rendering (spotifyTask has an active TLS session)
-    r0 = dut.cmd("get lastPlaylistDraw", timeout=3.0)
+    r0 = dut.cmd("get lastPlaylistDraw", timeout=TIMEOUT)
     if not r0.get("ok"):
         skip(tid, "get lastPlaylistDraw failed — Spotify not active?")
         return
@@ -37,7 +37,7 @@ def t272(dut: Dut):
         return
 
     # Force a second enqueue in case the app was already ready from a prior run
-    dut.cmd("set triggerTeletextFetch 1", timeout=3.0)
+    dut.cmd("set triggerTeletextFetch 1", timeout=TIMEOUT)
 
     # Poll teletextReady up to 30s — failure implies OOM/watchdog/network error
     deadline = time.monotonic() + 30.0
@@ -127,7 +127,7 @@ def t270(dut: Dut):
         time.sleep(0.1)
 
         # Tap SUBDN zone centre: y = (166 + 199) / 2 = 182
-        dut.cmd(f"tap 257 182", timeout=3.0)
+        dut.cmd(f"tap 257 182", timeout=TIMEOUT)
         time.sleep(0.1)  # let action propagate
 
         r_act = dut.cmd("get teletextLastAction", timeout=2.0)
@@ -183,7 +183,7 @@ def t271(dut: Dut):
         _wait_shell_not_busy(dut, timeout_s=8.0)
         time.sleep(0.35)  # past 300 ms per-app debounce
         dut.cmd("set cooldown 0", timeout=2.0)
-        dut.cmd(f"tap 257 {y}", timeout=3.0)
+        dut.cmd(f"tap 257 {y}", timeout=TIMEOUT)
         r_act = dut.cmd("get teletextLastAction", timeout=2.0)
         action = r_act.get("val", "") if r_act.get("ok") else "<error>"
         if action != expected:
@@ -196,7 +196,7 @@ def t271(dut: Dut):
     time.sleep(0.35)
     dut.cmd("set cooldown 0", timeout=2.0)
     y, expected, desc = step_page
-    dut.cmd(f"tap 257 {y}", timeout=3.0)
+    dut.cmd(f"tap 257 {y}", timeout=TIMEOUT)
     r_act = dut.cmd("get teletextLastAction", timeout=2.0)
     action = r_act.get("val", "") if r_act.get("ok") else "<error>"
     if action != expected:

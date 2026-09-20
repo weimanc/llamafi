@@ -327,7 +327,7 @@ ratchet's clothes.
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-607 | P3 | **OPEN — unblocked 2026-09-18** (phase entry cleared; predecessor TASK-608 DONE) | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
+| TASK-607 | P3 | **PARTIAL 2026-09-20** — R24 done: the policy has users (466 literals migrated, 715→249) behind a per-module shrink-only ratchet. The wait-helper and app-entry-helper halves are still owed | one wait helper, one app-entry helper, one timeout policy with users — [R22/R24](../verification/M-HARNESS2-requirements.md) |
 | TASK-640 | P3 | BLOCKED — TASK-607 | classify all synchronisation sleeps, publish the three counts, then set the floor — [R23](../verification/M-HARNESS2-requirements.md) |
 | TASK-606 | P3 | **DONE 2026-09-19** (`c421fcbd`) — `check_no_mirrors.py`, 11 pairs parsed from BOTH sides, at zero with no ledger. Found one LIVE drift (`console.cpp`'s `switchApp` help said `0..8` against `APP_COUNT=13`) and fixed it | mirror-equality gate, pairs generated wherever the symbol is already generated — [R42](../verification/M-HARNESS2-requirements.md) |
 | TASK-715 | P3 | **OPEN — filed 2026-09-19** by TASK-606 | R42's actual remedy, which the gate only GUARDS: delete the mirrors that can simply import what exists — `teletext.py`'s six `teletext_layout.h` y-values (`H-12`), `clock.py`'s bare `0`/`1` app slots (`A-8`) |

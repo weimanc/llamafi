@@ -4,7 +4,7 @@ run_serialdbg_tests.py, TASK-480."""
 import functools
 import time
 
-from lib.dut import Dut
+from lib.dut import TIMEOUT, TIMEOUT_SLOW, Dut
 from lib.results import pass_, fail, skip, unmet
 from app_ids_gen import APP_SLOT
 from suite.serialdbg._meta import meta
@@ -63,21 +63,21 @@ def t_pr_02(dut: Dut):
     'first poll' can legitimately take much longer than the 10s cadence alone
     would suggest."""
     print("T_PR_02  Live render within one poll of app entry")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         skip("T_PR_02", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
     deadline = time.monotonic() + 90.0
     connecting = True
     while time.monotonic() < deadline:
-        r = dut.cmd("get activeError", timeout=3.0)
+        r = dut.cmd("get activeError", timeout=TIMEOUT)
         connecting = r.get("connecting", True)
         if not connecting:
             break
         time.sleep(1.0)
-    http_r = dut.cmd("get prLastHttp", timeout=3.0)
-    count_r = dut.cmd("get prAircraftCount", timeout=3.0)
-    err_r = dut.cmd("get activeError", timeout=3.0)
+    http_r = dut.cmd("get prLastHttp", timeout=TIMEOUT)
+    count_r = dut.cmd("get prAircraftCount", timeout=TIMEOUT)
+    err_r = dut.cmd("get activeError", timeout=TIMEOUT)
     _restore_spotify(dut)
     if connecting:
         fail("T_PR_02", f"isConnecting() still true after 90s — first poll never "
@@ -100,22 +100,22 @@ def t_pr_03(dut: Dut):
     after tap #1). Injection makes the tap-cycle observation independent of network
     state, which is what this exit criterion is actually about."""
     print("T_PR_03  Range tap cycles 5->10->15->25->5")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         skip("T_PR_03", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
-    dut.cmd("set prInjectAircraft TEST01,A320,52.31,4.76,12.5,90,90,250,15000", timeout=3.0)
-    dut.cmd("set prRange 5", timeout=3.0)
+    dut.cmd("set prInjectAircraft TEST01,A320,52.31,4.76,12.5,90,90,250,15000", timeout=TIMEOUT)
+    dut.cmd("set prRange 5", timeout=TIMEOUT)
     dut.set_cooldown_zero()
     seen = []
     for _ in range(4):
         _wait_shell_not_busy(dut, timeout_s=5.0)
-        dut.cmd(f"tap {PR_CX} {PR_CY}", timeout=3.0)
+        dut.cmd(f"tap {PR_CX} {PR_CY}", timeout=TIMEOUT)
         time.sleep(0.2)
-        r = dut.cmd("get prRange", timeout=3.0)
+        r = dut.cmd("get prRange", timeout=TIMEOUT)
         seen.append(r.get("val"))
         dut.set_cooldown_zero()
-    dut.cmd("set prClearInject 1", timeout=3.0)
+    dut.cmd("set prClearInject 1", timeout=TIMEOUT)
     _restore_spotify(dut)
     if seen != [10, 15, 25, 5]:
         fail("T_PR_03", f"range sequence={seen}, expected [10, 15, 25, 5]")
@@ -136,12 +136,12 @@ def t_pr_04(dut: Dut):
     _presetIdx=1 fallback), reboots, and confirms PlaneRadar loads the same preset
     from settingsStorage instead of falling back to default."""
     print("T_PR_04  Range persists across reboot [REBOOT]")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         skip("T_PR_04", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
-    dut.cmd("set prRange 25", timeout=3.0)
-    r_pre = dut.cmd("get prRange", timeout=3.0)
+    dut.cmd("set prRange 25", timeout=TIMEOUT)
+    r_pre = dut.cmd("get prRange", timeout=TIMEOUT)
     if r_pre.get("val") != 25:
         skip("T_PR_04", f"could not set prRange=25 pre-reboot, got {r_pre.get('val')}")
         return
@@ -152,7 +152,7 @@ def t_pr_04(dut: Dut):
         fail("T_PR_04", "could not switch to PlaneRadar after reboot")
         _restore_spotify(dut)
         return
-    r_post = dut.cmd("get prRange", timeout=3.0)
+    r_post = dut.cmd("get prRange", timeout=TIMEOUT)
     _restore_spotify(dut)
     if r_post.get("val") != 25:
         fail("T_PR_04", f"prRange={r_post.get('val')} after reboot, expected 25 (not persisted)")
@@ -174,7 +174,7 @@ def t_pr_05(dut: Dut):
     taskbar error indicator this criterion is actually asking about (same pattern
     T-ERR-07 uses for Stock's fetchFailed)."""
     print("T_PR_05  Fetch error -> error code, stays responsive, recovers")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         skip("T_PR_05", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
@@ -184,7 +184,7 @@ def t_pr_05(dut: Dut):
     baseline_deadline = time.monotonic() + 90.0
     baseline_ok = False
     while time.monotonic() < baseline_deadline:
-        r = dut.cmd("get activeError", timeout=3.0)
+        r = dut.cmd("get activeError", timeout=TIMEOUT)
         if not r.get("connecting", True):
             baseline_ok = (r.get("active") is False)
             break
@@ -196,18 +196,18 @@ def t_pr_05(dut: Dut):
     saw_error = False
     error_code = None
     for _ in range(20):
-        dut.cmd("set triggerPlaneRadarFetch 1", timeout=3.0)
+        dut.cmd("set triggerPlaneRadarFetch 1", timeout=TIMEOUT)
         deadline = time.monotonic() + 12.0
         got_error = False
         while time.monotonic() < deadline:
             time.sleep(0.5)
-            err = dut.cmd("get activeError", timeout=3.0)
+            err = dut.cmd("get activeError", timeout=TIMEOUT)
             if err.get("active"):
                 got_error = True
                 break
         if got_error:
             saw_error = True
-            error_code = dut.cmd("get prLastHttp", timeout=3.0).get("val")
+            error_code = dut.cmd("get prLastHttp", timeout=TIMEOUT).get("val")
             break
         time.sleep(1.0)
     if not saw_error:
@@ -216,7 +216,7 @@ def t_pr_05(dut: Dut):
                         "adsb.fi rate limit not hit this run (network-dependent)")
         return
     # App must stay responsive with an error latched (hasError()->red taskbar).
-    r_alive = dut.cmd("get appId", timeout=3.0)
+    r_alive = dut.cmd("get appId", timeout=TIMEOUT)
     if not r_alive.get("ok") or r_alive.get("name") != "PlaneRadar":
         _restore_spotify(dut)
         fail("T_PR_05", f"app unresponsive/switched after error code={error_code}: {r_alive}")
@@ -225,7 +225,7 @@ def t_pr_05(dut: Dut):
     recovered = False
     deadline = time.monotonic() + 30.0
     while time.monotonic() < deadline:
-        err = dut.cmd("get activeError", timeout=3.0)
+        err = dut.cmd("get activeError", timeout=TIMEOUT)
         if err.get("active") is False:
             recovered = True
             break
@@ -245,18 +245,18 @@ def t_pr_06(dut: Dut):
     injects 3 aircraft, confirms prAircraftCount==3, prLastHttp stays whatever it was
     (no fetch attempted), then clears and confirms count returns to 0."""
     print("T_PR_06  Synthetic-injection render test (no network)")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         skip("T_PR_06", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
     records = "TEST01,A320,52.31,4.76,12.5,90,90,250,15000;" \
               "TEST02,B738,52.28,4.80,8.0,270,270,180,8000;" \
               "TEST03,C172,52.30,4.75,3.0,0,0,90,2000"
-    dut.cmd(f"set prInjectAircraft {records}", timeout=3.0)
-    r_count = dut.cmd("get prAircraftCount", timeout=3.0)
-    dut.cmd("set prClearInject 1", timeout=3.0)
+    dut.cmd(f"set prInjectAircraft {records}", timeout=TIMEOUT)
+    r_count = dut.cmd("get prAircraftCount", timeout=TIMEOUT)
+    dut.cmd("set prClearInject 1", timeout=TIMEOUT)
     time.sleep(0.2)
-    r_after = dut.cmd("get prAircraftCount", timeout=3.0)
+    r_after = dut.cmd("get prAircraftCount", timeout=TIMEOUT)
     _restore_spotify(dut)
     if r_count.get("val") != 3:
         fail("T_PR_06", f"prAircraftCount={r_count.get('val')} after injecting 3, expected 3")
@@ -295,25 +295,25 @@ def t_prm_01(dut: Dut):
     identically. Restores the default (10) at the end."""
     print("T_PRM_01  prPollSec set/get round-trip + clamp + persistence [REBOOT]")
     for v in (1, 10, 30):
-        dut.cmd(f"set prPollSec {v}", timeout=3.0)
-        r = dut.cmd("get prPollSec", timeout=3.0)
+        dut.cmd(f"set prPollSec {v}", timeout=TIMEOUT)
+        r = dut.cmd("get prPollSec", timeout=TIMEOUT)
         if r.get("val") != v:
             fail("T_PRM_01", f"set {v} -> get returned {r.get('val')}")
-            dut.cmd("set prPollSec 10", timeout=3.0)
+            dut.cmd("set prPollSec 10", timeout=TIMEOUT)
             return
     # Out-of-range set clamps to the slider max (dbg mirror of the load guard).
-    dut.cmd("set prPollSec 99", timeout=3.0)
-    r = dut.cmd("get prPollSec", timeout=3.0)
+    dut.cmd("set prPollSec 99", timeout=TIMEOUT)
+    r = dut.cmd("get prPollSec", timeout=TIMEOUT)
     if r.get("val") != 30:
         fail("T_PRM_01", f"set 99 -> get returned {r.get('val')}, expected clamp to 30")
-        dut.cmd("set prPollSec 10", timeout=3.0)
+        dut.cmd("set prPollSec 10", timeout=TIMEOUT)
         return
     # Persistence leg (T_PR_04 idiom): 30 is distinctive vs the default 10.
     dut.send("reboot")
     time.sleep(0.3)   # let the reset actually happen before we start reading for it
     dut.reboot_and_wait()
-    r_post = dut.cmd("get prPollSec", timeout=3.0)
-    dut.cmd("set prPollSec 10", timeout=3.0)   # restore default
+    r_post = dut.cmd("get prPollSec", timeout=TIMEOUT)
+    dut.cmd("set prPollSec 10", timeout=TIMEOUT)   # restore default
     if r_post.get("val") != 30:
         fail("T_PRM_01", f"prPollSec={r_post.get('val')} after reboot, expected 30 (not persisted)")
         return
@@ -347,23 +347,23 @@ def t_prm_02(dut: Dut):
     >= 20 fetches observed (~60-75 expected at ~4-5 s over 300 s).
     Restores prPollSec=10 and Spotify at the end."""
     print("T_PRM_02  prPollSec=1 -> fetch-completion pacing, no pile-up, Spotify alive [NETWORK][SLOW]")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         skip("T_PRM_02", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
-    dut.cmd("set prPollSec 1", timeout=3.0)
+    dut.cmd("set prPollSec 1", timeout=TIMEOUT)
     # Baseline: first poll must resolve before the window starts (T_PR_02 idiom
     # incl. its 90 s budget rationale — tlsYield contention can stretch it).
     baseline_deadline = time.monotonic() + 90.0
     baseline_ok = False
     while time.monotonic() < baseline_deadline:
-        r = dut.cmd("get activeError", timeout=3.0)
+        r = dut.cmd("get activeError", timeout=TIMEOUT)
         if not r.get("connecting", True):
             baseline_ok = True
             break
         time.sleep(1.0)
     if not baseline_ok:
-        dut.cmd("set prPollSec 10", timeout=3.0)
+        dut.cmd("set prPollSec 10", timeout=TIMEOUT)
         _restore_spotify(dut)
         skip("T_PRM_02", "first poll never resolved within 90s — no baseline")
         return
@@ -373,7 +373,7 @@ def t_prm_02(dut: Dut):
     max_sp_age = 0
     deadline = time.monotonic() + window_s
     while time.monotonic() < deadline:
-        q = dut.cmd("get dataq", timeout=3.0)
+        q = dut.cmd("get dataq", timeout=TIMEOUT)
         if q.get("ok"):
             if q.get("inFlight") == PR_FETCH_TYPE and q.get("inFlightMs"):
                 fetch_starts.add(q["inFlightMs"])
@@ -382,8 +382,8 @@ def t_prm_02(dut: Dut):
                 max_sp_age = max(max_sp_age, q["ms"] - q["spActMs"])
         time.sleep(0.5)
     # Restore before judging — the window is over either way.
-    dut.cmd("set prPollSec 10", timeout=3.0)
-    still_alive = dut.cmd("get appId", timeout=3.0)
+    dut.cmd("set prPollSec 10", timeout=TIMEOUT)
+    still_alive = dut.cmd("get appId", timeout=TIMEOUT)
     _restore_spotify(dut)
     starts = sorted(fetch_starts)
     gaps = [b - a for a, b in zip(starts, starts[1:])]
@@ -468,35 +468,35 @@ def t_pri_01(dut: Dut):
     initial reading) to tolerate serial round-trip timing jitter, not an exact
     curve-fit. Restores prRange=10 (default) and Spotify at the end."""
     print("T_PRI_01  dr-damped(tau=2) offset continuity + decay")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         skip("T_PRI_01", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
-    dut.cmd("set prRange 25", timeout=3.0)
-    dut.cmd("set prClearInject 1", timeout=3.0)
+    dut.cmd("set prRange 25", timeout=TIMEOUT)
+    dut.cmd("set prClearInject 1", timeout=TIMEOUT)
 
-    r0 = dut.cmd("set prInjectAircraft AAA111,A320,51.5,0.0,10,90,90,450,35000", timeout=3.0)
+    r0 = dut.cmd("set prInjectAircraft AAA111,A320,51.5,0.0,10,90,90,450,35000", timeout=TIMEOUT)
     if not r0.get("ok"):
         fail("T_PRI_01", f"first injection failed: {r0}")
-        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        dut.cmd("set prRange 10", timeout=TIMEOUT); _restore_spotify(dut)
         return
-    r_first = dut.cmd("get prInterp", timeout=3.0)
+    r_first = dut.cmd("get prInterp", timeout=TIMEOUT)
     if r_first.get("offsetPx", -1) != 0.0:
         fail("T_PRI_01", f"first sighting offsetPx={r_first.get('offsetPx')}, expected exactly 0 (no continuity claim)")
-        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        dut.cmd("set prRange 10", timeout=TIMEOUT); _restore_spotify(dut)
         return
 
-    r1 = dut.cmd("set prInjectAircraft AAA111,A320,51.5,0.01,10,90,90,450,35000", timeout=3.0)
+    r1 = dut.cmd("set prInjectAircraft AAA111,A320,51.5,0.01,10,90,90,450,35000", timeout=TIMEOUT)
     if not r1.get("ok"):
         fail("T_PRI_01", f"second injection failed: {r1}")
-        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        dut.cmd("set prRange 10", timeout=TIMEOUT); _restore_spotify(dut)
         return
-    r_t0 = dut.cmd("get prInterp", timeout=3.0)
+    r_t0 = dut.cmd("get prInterp", timeout=TIMEOUT)
     off0 = r_t0.get("offsetPx", 0.0)
     if not (0.3 <= off0 <= 39.0):
         fail("T_PRI_01", f"t=0 offsetPx={off0} — expected a nonzero, un-snapped "
                          f"continuity offset in (0.3, 39.0)px")
-        dut.cmd("set prRange 10", timeout=3.0); _restore_spotify(dut)
+        dut.cmd("set prRange 10", timeout=TIMEOUT); _restore_spotify(dut)
         return
 
     # NOTE: prRange restore is deliberately deferred until AFTER the decay
@@ -508,12 +508,12 @@ def t_pri_01(dut: Dut):
     # of exactly 0.0 — decaying-looking, but for the wrong reason. Caught by
     # DUT verification during TASK-357 (2026-07-19).
     time.sleep(2.0)
-    r_t1 = dut.cmd("get prInterp", timeout=3.0)
+    r_t1 = dut.cmd("get prInterp", timeout=TIMEOUT)
     off1 = r_t1.get("offsetPx", off0)
     time.sleep(2.0)
-    r_t2 = dut.cmd("get prInterp", timeout=3.0)
+    r_t2 = dut.cmd("get prInterp", timeout=TIMEOUT)
     off2 = r_t2.get("offsetPx", off1)
-    dut.cmd("set prRange 10", timeout=3.0)
+    dut.cmd("set prRange 10", timeout=TIMEOUT)
     _restore_spotify(dut)
 
     if not (off1 < off0 * 0.6):
@@ -544,15 +544,15 @@ def t_pr_07(dut: Dut):
     """T_PR_07: `prClearInject 1` re-arms a REAL PlaneRadar fetch, not just a
     display clear. TASK-705 primitive: pr_clear_rearms_fetch."""
     print("T_PR_07  prClearInject re-arms a real fetch")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         unmet("T_PR_07", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
     try:
-        poll_sec = dut.get_int("prPollSec", timeout=3.0)
+        poll_sec = dut.get_int("prPollSec", timeout=TIMEOUT)
     except Exception:
         poll_sec = 30   # PR_POLL_MAX_SEC fallback if the read itself fails
-    r0 = dut.cmd("get dataRing", timeout=3.0)
+    r0 = dut.cmd("get dataRing", timeout=TIMEOUT)
     if not r0.get("ok"):
         _restore_spotify(dut)
         unmet("T_PR_07", f"get dataRing refused: {r0!r} — firmware without "
@@ -653,7 +653,7 @@ def t_pr_08(dut: Dut):
     doesn't exist today.
     """
     print("T_PR_08  resume() drain discards a pre-switch PlaneRadar result")
-    if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+    if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
         unmet("T_PR_08", "could not switch to PlaneRadar")
         _restore_spotify(dut)
         return
@@ -661,7 +661,7 @@ def t_pr_08(dut: Dut):
 
     with dut.injected("prForceParseFail", 3, clear_to=0):
         try:
-            fp_count = dut.get_int("prForceParseFail", timeout=3.0)
+            fp_count = dut.get_int("prForceParseFail", timeout=TIMEOUT)
         except Exception as e:
             unmet("T_PR_08", f"prForceParseFail did not arm: {e}")
             _restore_spotify(dut)
@@ -684,7 +684,7 @@ def t_pr_08(dut: Dut):
         # established, DUT-verified pattern for this exact variable: a bare
         # `set`, no restore — there is nothing to restore, since firing it
         # leaves no state a clear could meaningfully reverse.
-        dut.cmd("set triggerPlaneRadarFetch 1", timeout=3.0)
+        dut.cmd("set triggerPlaneRadarFetch 1", timeout=TIMEOUT)
         if not _restore_spotify(dut):
             fail("T_PR_08", "PlaneRadar->Spotify switch-away failed mid-test")
             return
@@ -693,19 +693,19 @@ def t_pr_08(dut: Dut):
         # bypasses — the synthetic result should land in well under a second.
         time.sleep(2.0)
 
-        if not _switch_to(dut, "PlaneRadar", timeout=10.0):
+        if not _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW):
             unmet("T_PR_08", "could not switch back to PlaneRadar")
             return
         # Give resume()'s drain + the fresh fetch it re-enqueues a moment.
         time.sleep(0.5)
         try:
-            http_val = dut.get_int("prLastHttp", timeout=3.0)
+            http_val = dut.get_int("prLastHttp", timeout=TIMEOUT)
         except Exception as e:
             unmet("T_PR_08", f"prLastHttp unreadable after away-and-back: {e}")
             _restore_spotify(dut)
             return
         try:
-            fp_left = dut.get_int("prForceParseFail", timeout=3.0)
+            fp_left = dut.get_int("prForceParseFail", timeout=TIMEOUT)
         except Exception:
             fp_left = None
     # `with` exit clears any still-armed prForceParseFail credits while

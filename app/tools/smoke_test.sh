@@ -638,4 +638,25 @@ if ! "$PYTHON" gate/check_bound_origin.py --quiet; then
     exit 1
 fi
 
+# ── TASK-607 — R24, one timeout policy with users (M-HARNESS2-requirements.md:
+# 471-477, SHOULD). `lib/dut.py` declared TIMEOUT/TIMEOUT_SLOW as part of
+# M-TESTBASE P1 with zero users (A-11: 715 numeric `timeout=` literals in
+# suite/, 446 exactly the default, 20 exactly the slow override). TASK-607
+# migrated those two exact populations mechanically onto the policy constants
+# (unchanged effective values under the unchanged defaults); the 249 remaining
+# literals mean something call-site-specific and are NOT folded into new
+# policy constants (R24's own ruling: "a policy with six constants is a rename
+# of the problem"). Lands blocking against a dated, per-module, shrink-only
+# ledger (docs/verification/timeout_literal_ratchet.md), same shape as R17's
+# unrestored_mutations_ratchet.md, enforced in both directions. No DUT, no
+# build, no network.
+if ! "$PYTHON" gate/test_check_timeout_literals.py; then
+    echo "FAIL: test_check_timeout_literals.py (TASK-607 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_timeout_literals.py; then
+    echo "FAIL: check_timeout_literals.py (TASK-607 R24 timeout-literal ratchet) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"

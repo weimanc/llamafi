@@ -12,7 +12,7 @@ import re
 import time
 from typing import Optional
 
-from lib.dut import Dut
+from lib.dut import TIMEOUT, TIMEOUT_SLOW, Dut
 from lib.results import pass_, fail, skip, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -66,7 +66,7 @@ def _wr_deadurls_custody(fn):
 def _vs_precondition_webradio(dut: Dut, tid: str) -> bool:
     """Shared precondition for the WebRadio-side battery: WebRadio active, 15
     synthetic stations (set wrDeadUrls), scrollOffset=0, D_IDLE."""
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     if r.get("name") != "WebRadio":
         ok, _heap = _switch_to_webradio_capture_heap(dut)
         if not ok:
@@ -76,7 +76,7 @@ def _vs_precondition_webradio(dut: Dut, tid: str) -> bool:
     if not r_dead.get("ok", False):
         skip(tid, f"precondition: set wrDeadUrls 15 failed: {r_dead}")
         return False
-    r_c = dut.cmd("get wrCount", timeout=3.0)
+    r_c = dut.cmd("get wrCount", timeout=TIMEOUT)
     if r_c.get("count", 0) < 15:
         skip(tid, f"precondition: wrCount={r_c.get('count')} after set wrDeadUrls 15")
         return False
@@ -87,7 +87,7 @@ def _vs_precondition_webradio(dut: Dut, tid: str) -> bool:
     if so != 0:
         skip(tid, f"precondition: scrollOffset={so} could not be reset to 0")
         return False
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         skip(tid, f"precondition: dragState={rg.get('state')!r} not D_IDLE")
         return False
@@ -113,7 +113,7 @@ def t_ple_wr_155(dut: Dut):
     if post != baseline:
         fail("T_PLE_WR_155", f"scrollOffset changed {baseline}→{post} — scroll-end fired instead of tap")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T_PLE_WR_155", f"dragState={rg.get('state')!r} — Release cleanup failed")
         return
@@ -128,18 +128,18 @@ def t_ple_wr_156(dut: Dut):
     if not _vs_precondition_webradio(dut, "T_PLE_WR_156"):
         return
     dut.send(f"drag {_PLEDIT_X} {_PLEND_Y} {_PLEDIT_X} {_PLSTART_Y} 1")
-    _, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    _, drag_resp = _vs_drain_until_drag(dut, timeout=TIMEOUT_SLOW)
     if drag_resp is None:
         fail("T_PLE_WR_156", "no drag response within 10 s")
         return
     if not drag_resp.get("ok"):
         fail("T_PLE_WR_156", f"drag response ok=false: {drag_resp}")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T_PLE_WR_156", f"dragState={rg.get('state')!r} — Release did not complete")
         return
-    rc = dut.cmd("get cooldown", timeout=3.0)
+    rc = dut.cmd("get cooldown", timeout=TIMEOUT)
     cooldown_ms = rc.get("remainingMs", 9999)
     if cooldown_ms > 220:
         fail("T_PLE_WR_156", f"cooldown={cooldown_ms} ms > 220 — tap branch fired (expected scroll-end ≤220 ms)")
@@ -165,19 +165,19 @@ def t_ple_wr_157(dut: Dut):
     if not r_drag.get("ok") or not r_drag.get("hold"):
         fail("T_PLE_WR_157", f"drag hold ack failed: {r_drag}")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_PLEDIT_SCROLL":
         fail("T_PLE_WR_157", f"dragState={rg.get('state')!r} — gesture did not enter D_PLEDIT_SCROLL")
-        dut.cmd("release", timeout=3.0)
+        dut.cmd("release", timeout=TIMEOUT)
         return
     r_tick = dut.cmd("tick 50 20", timeout=5.0)
     if not r_tick.get("ok"):
         fail("T_PLE_WR_157", f"tick failed: {r_tick}")
-        dut.cmd("release", timeout=3.0)
+        dut.cmd("release", timeout=TIMEOUT)
         return
-    r_ws = dut.cmd("get wrScroll", timeout=3.0)
+    r_ws = dut.cmd("get wrScroll", timeout=TIMEOUT)
     so = r_ws.get("offset", -1)
-    dut.cmd("release", timeout=3.0)
+    dut.cmd("release", timeout=TIMEOUT)
     if not (1 <= so <= 3):
         fail("T_PLE_WR_157", f"wrScroll.offset={so} after tick 50×20ms at dy=-13 — "
                      f"expected [1,3] (velocity≈2.0 rows/s)")
@@ -197,19 +197,19 @@ def t_ple_wr_158(dut: Dut):
     if not r_drag.get("ok") or not r_drag.get("hold"):
         fail("T_PLE_WR_158", f"drag hold ack failed: {r_drag}")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_PLEDIT_SCROLL":
         fail("T_PLE_WR_158", f"dragState={rg.get('state')!r} — gesture did not enter D_PLEDIT_SCROLL")
-        dut.cmd("release", timeout=3.0)
+        dut.cmd("release", timeout=TIMEOUT)
         return
     r_tick = dut.cmd("tick 50 20", timeout=5.0)
     if not r_tick.get("ok"):
         fail("T_PLE_WR_158", f"tick failed: {r_tick}")
-        dut.cmd("release", timeout=3.0)
+        dut.cmd("release", timeout=TIMEOUT)
         return
-    r_ws = dut.cmd("get wrScroll", timeout=3.0)
+    r_ws = dut.cmd("get wrScroll", timeout=TIMEOUT)
     so = r_ws.get("offset", -1)
-    dut.cmd("release", timeout=3.0)
+    dut.cmd("release", timeout=TIMEOUT)
     if so < 1:
         fail("T_PLE_WR_158", f"wrScroll.offset={so} after tick 50×20ms at dy=-13 — "
                      f"expected ≥ 1; accumulator integration or tickScroll guard broken")
@@ -229,30 +229,30 @@ def t_ple_wr_159(dut: Dut):
     if not r_drag.get("ok") or not r_drag.get("hold"):
         fail("T_PLE_WR_159", f"drag hold ack failed: {r_drag}")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_PLEDIT_SCROLL":
         fail("T_PLE_WR_159", f"dragState={rg.get('state')!r} — gesture not active mid-drag")
-        dut.cmd("release", timeout=3.0)
+        dut.cmd("release", timeout=TIMEOUT)
         return
     r_tick = dut.cmd("tick 10 20", timeout=5.0)
     if not r_tick.get("ok"):
         fail("T_PLE_WR_159", f"tick failed: {r_tick}")
-        dut.cmd("release", timeout=3.0)
+        dut.cmd("release", timeout=TIMEOUT)
         return
-    r_ws_pre = dut.cmd("get wrScroll", timeout=3.0)
+    r_ws_pre = dut.cmd("get wrScroll", timeout=TIMEOUT)
     accum_pre = r_ws_pre.get("accum", 0.0)
     if accum_pre == 0.0:
         fail("T_PLE_WR_159", f"scrollAccum={accum_pre} mid-drag — expected non-zero")
-        dut.cmd("release", timeout=3.0)
+        dut.cmd("release", timeout=TIMEOUT)
         return
-    dut.cmd("release", timeout=3.0)
-    r_ws_post = dut.cmd("get wrScroll", timeout=3.0)
+    dut.cmd("release", timeout=TIMEOUT)
+    r_ws_post = dut.cmd("get wrScroll", timeout=TIMEOUT)
     accum_post = r_ws_post.get("accum", -1.0)
     if accum_post != 0.0:
         fail("T_PLE_WR_159", f"scrollAccum={accum_post} after Release — expected 0.0000; "
                      f"Release cleanup (_scrollAccum=0) not firing")
         return
-    rg2 = dut.cmd("get dragState", timeout=3.0)
+    rg2 = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg2.get("state") != "D_IDLE":
         fail("T_PLE_WR_159", f"dragState={rg2.get('state')!r} after Release — expected D_IDLE")
         return
@@ -266,7 +266,7 @@ def t_ple_wr_160(dut: Dut):
     print("T_PLE_WR_160  WebRadio: tickScroll no-op when D_IDLE")
     if not _vs_precondition_webradio(dut, "T_PLE_WR_160"):
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T_PLE_WR_160", f"precondition: dragState={rg.get('state')!r} not D_IDLE")
         return
@@ -283,7 +283,7 @@ def t_ple_wr_160(dut: Dut):
         fail("T_PLE_WR_160", f"scrollOffset changed {baseline}→{post} during D_IDLE tick — "
                      f"tickScroll guard clause not firing")
         return
-    r_vel = dut.cmd("get scrollVelocity", timeout=3.0)
+    r_vel = dut.cmd("get scrollVelocity", timeout=TIMEOUT)
     vel = r_vel.get("val", None)
     if vel != 0.0:
         fail("T_PLE_WR_160", f"scrollVelocity={vel} after D_IDLE tick — expected 0.0000")
@@ -300,7 +300,7 @@ def _wait_wr_count(dut: Dut, min_count: int = 1, timeout: float = 120.0) -> bool
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            r = dut.cmd("get wrCount", timeout=3.0)
+            r = dut.cmd("get wrCount", timeout=TIMEOUT)
             count = r.get("count", 0)
             if count >= min_count:
                 return True
@@ -322,7 +322,7 @@ def _wait_wr_state(dut: Dut, target: int, timeout: float = 120.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            r = dut.cmd("get wrState", timeout=3.0)
+            r = dut.cmd("get wrState", timeout=TIMEOUT)
             if r.get("state") == target:
                 return True
         except TimeoutError:
@@ -349,10 +349,10 @@ def _webradio_enter_with_stations(dut: Dut, tid: str,
     subsequent tests progressively worse.  When pending=0 in get wrCount response, the
     fetch is done (success or failure) and _wait_wr_count returns immediately."""
     # Fast path: already in WebRadio with stations loaded
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     already_in_wr = r.get("name") == "WebRadio"
     if already_in_wr:
-        r_c = dut.cmd("get wrCount", timeout=3.0)
+        r_c = dut.cmd("get wrCount", timeout=TIMEOUT)
         if r_c.get("count", 0) >= 1:
             return r_c["count"]
 
@@ -363,7 +363,7 @@ def _webradio_enter_with_stations(dut: Dut, tid: str,
             _switch_to_webradio_capture_heap(dut)
         if not _wait_wr_count(dut, timeout=fetch_timeout):
             return 0
-        r_c = dut.cmd("get wrCount", timeout=3.0)
+        r_c = dut.cmd("get wrCount", timeout=TIMEOUT)
         return r_c.get("count", 0)
     finally:
         dut.cmd("set bgPoll 1", timeout=2.0)
@@ -400,7 +400,7 @@ def _switch_to_webradio_capture_heap(dut: Dut) -> tuple[bool, dict]:
         if line.startswith("{"):
             break  # consumed the JSON tap response
     time.sleep(0.4)
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     return r.get("name") == "WebRadio", heap
 
 
@@ -447,7 +447,7 @@ def t_wr_eject_01(dut: Dut):
         fail("T_WR_EJECT_01", f"expected action=EJECT got {action!r}")
         return
     time.sleep(0.4)
-    r2 = dut.cmd("get appId", timeout=3.0)
+    r2 = dut.cmd("get appId", timeout=TIMEOUT)
     if r2.get("name") != "Spotify":
         fail("T_WR_EJECT_01", f"appId={r2.get('name')!r} after eject (expected Spotify — eject no longer switches apps)")
         return
@@ -469,11 +469,11 @@ def t_wr_eject_02(dut: Dut):
     # (main.cpp:2604-2606) and the eject tap won't be blocked with CANVAS.
     # Even if count=0 (fetch failed), _pendingStations is still resolved.
     cnt = _webradio_enter_with_stations(dut, "T_WR_EJECT_02", fetch_timeout=180.0)
-    if dut.cmd("get appId", timeout=3.0).get("name") != "WebRadio":
+    if dut.cmd("get appId", timeout=TIMEOUT).get("name") != "WebRadio":
         skip("T_WR_EJECT_02", "could not enter WebRadio")
         return
     _wait_shell_not_busy(dut, timeout_s=5.0)
-    enq_before = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
+    enq_before = dut.cmd("get dataq", timeout=TIMEOUT).get("wrEnqueues", 0)
     dut.set_cooldown_zero()
     _ex, _ey = _c.tap_eject()
     r = dut.cmd(f"tap {_ex} {_ey}", timeout=5.0)
@@ -488,12 +488,12 @@ def t_wr_eject_02(dut: Dut):
         _restore_spotify(dut)
         return
     time.sleep(0.4)
-    r2 = dut.cmd("get appId", timeout=3.0)
+    r2 = dut.cmd("get appId", timeout=TIMEOUT)
     if r2.get("name") != "WebRadio":
         fail("T_WR_EJECT_02", f"appId={r2.get('name')!r} after eject from WebRadio (expected WebRadio — eject no longer switches apps)")
         _restore_spotify(dut)
         return
-    enq_after = dut.cmd("get dataq", timeout=3.0).get("wrEnqueues", 0)
+    enq_after = dut.cmd("get dataq", timeout=TIMEOUT).get("wrEnqueues", 0)
     if enq_after <= enq_before:
         fail("T_WR_EJECT_02", f"wrEnqueues did not advance ({enq_before} -> {enq_after}) — "
              "station-list refresh did not fire")
@@ -516,11 +516,11 @@ def t_wr_coex_01(dut: Dut):
         skip("T_WR_COEX_01", "station list unavailable (network or fetch failure)")
         return
     print(f"    T_WR_COEX_01  {count} stations loaded — starting play…")
-    dut.cmd("set wrPlay 0", timeout=3.0)
+    dut.cmd("set wrPlay 0", timeout=TIMEOUT)
     print("    T_WR_COEX_01  waiting up to 30s for PLAYING state…")
     if not _wait_wr_state(dut, target=2, timeout=30.0):
         try:
-            r = dut.cmd("get wrState", timeout=3.0)
+            r = dut.cmd("get wrState", timeout=TIMEOUT)
             state = r.get("state", "?")
         except TimeoutError:
             state = "timeout"
@@ -534,24 +534,24 @@ def t_wr_coex_01(dut: Dut):
 def t_wr_coex_02(dut: Dut):
     """T_WR_COEX_02: while playing, tap NEXT and PREV; verify wrIdx changes."""
     print("T_WR_COEX_02  NEXT/PREV tap while playing → wrIdx changes")
-    if not _wait_wr_state(dut, target=2, timeout=10.0):
+    if not _wait_wr_state(dut, target=2, timeout=TIMEOUT_SLOW):
         skip("T_WR_COEX_02", "not in PLAYING state — run T_WR_COEX_01 first")
         return
-    r_idx0 = dut.cmd("get wrIdx", timeout=3.0)
+    r_idx0 = dut.cmd("get wrIdx", timeout=TIMEOUT)
     idx0 = r_idx0.get("idx", -1)
     # Tap NEXT
     dut.set_cooldown_zero()
     nx, ny = _c.tap_button("NEXT")
-    dut.cmd(f"tap {nx} {ny}", timeout=3.0)
+    dut.cmd(f"tap {nx} {ny}", timeout=TIMEOUT)
     time.sleep(0.5)
-    r_idx1 = dut.cmd("get wrIdx", timeout=3.0)
+    r_idx1 = dut.cmd("get wrIdx", timeout=TIMEOUT)
     idx1 = r_idx1.get("idx", idx0)
     # Tap PREV to restore
     dut.set_cooldown_zero()
     px, py = _c.tap_button("PREV")
-    dut.cmd(f"tap {px} {py}", timeout=3.0)
+    dut.cmd(f"tap {px} {py}", timeout=TIMEOUT)
     time.sleep(0.5)
-    r_idx2 = dut.cmd("get wrIdx", timeout=3.0)
+    r_idx2 = dut.cmd("get wrIdx", timeout=TIMEOUT)
     idx2 = r_idx2.get("idx", idx1)
     if idx1 == idx0 and idx2 == idx1:
         fail("T_WR_COEX_02", f"wrIdx did not change: {idx0}→NEXT→{idx1}→PREV→{idx2}")
@@ -564,7 +564,7 @@ def t_wr_coex_02(dut: Dut):
 def t_wr_coex_04(dut: Dut):
     """T_WR_COEX_04: while playing, measure serial response latency for a tap < 500 ms."""
     print("T_WR_COEX_04  Touch latency during playback < 500ms")
-    if not _wait_wr_state(dut, target=2, timeout=10.0):
+    if not _wait_wr_state(dut, target=2, timeout=TIMEOUT_SLOW):
         skip("T_WR_COEX_04", "not in PLAYING state")
         return
     dut.set_cooldown_zero()
@@ -572,7 +572,7 @@ def t_wr_coex_04(dut: Dut):
     t0 = time.monotonic()
     dut.send(f"tap {nx} {ny}")
     try:
-        dut.read_json(timeout=3.0)
+        dut.read_json(timeout=TIMEOUT)
     except TimeoutError:
         fail("T_WR_COEX_04", "no tap response within 3s during playback")
         return
@@ -580,7 +580,7 @@ def t_wr_coex_04(dut: Dut):
     # Restore station index
     dut.set_cooldown_zero()
     px, py = _c.tap_button("PREV")
-    dut.cmd(f"tap {px} {py}", timeout=3.0)
+    dut.cmd(f"tap {px} {py}", timeout=TIMEOUT)
     if latency_ms > 500:
         fail("T_WR_COEX_04", f"tap response {latency_ms:.0f}ms > 500ms threshold")
         return
@@ -609,7 +609,7 @@ def t_wr_heap_01(dut: Dut):
         skip("T_WR_HEAP_01", "could not switch to WebRadio")
         return
     # Query heap values via firmware command — avoids serial log capture race.
-    r = dut.cmd("get wrHeap", timeout=3.0)
+    r = dut.cmd("get wrHeap", timeout=TIMEOUT)
     # TASK-676: read what the device actually answered before deciding
     # anything is a zero — a refused/dropped reply used to default straight
     # to 0/0 and get filed as "not stored?", indistinguishable from a
@@ -675,7 +675,7 @@ def t_wr_heap_02(dut: Dut):
         # used to default straight to 0/0 and fall into the same "not
         # captured" skip as a genuinely missed log line, indistinguishable
         # from a device that flatly refused the question.
-        r = dut.cmd("get wrHeap", timeout=3.0)
+        r = dut.cmd("get wrHeap", timeout=TIMEOUT)
         if not r.get("ok"):
             fail("T_WR_HEAP_02", f"get wrHeap refused: {r}")
             return
@@ -702,15 +702,15 @@ def t_wr_heap_03(dut: Dut):
     print("T_WR_HEAP_03  Audio decode heap watermark >= 40 KB")
     if not _wait_wr_state(dut, target=2, timeout=5.0):
         # Not playing — try to start play if stations are loaded and we're in WebRadio
-        r_a = dut.cmd("get appId", timeout=3.0)
+        r_a = dut.cmd("get appId", timeout=TIMEOUT)
         if r_a.get("name") != "WebRadio":
             skip("T_WR_HEAP_03", "not in WebRadio — run T_WR_COEX_01 first")
             return
-        r_c = dut.cmd("get wrCount", timeout=3.0)
+        r_c = dut.cmd("get wrCount", timeout=TIMEOUT)
         if r_c.get("count", 0) == 0:
             skip("T_WR_HEAP_03", "no stations loaded — run T_WR_COEX_01 first")
             return
-        dut.cmd("set wrPlay 0", timeout=3.0)
+        dut.cmd("set wrPlay 0", timeout=TIMEOUT)
         if not _wait_wr_state(dut, target=2, timeout=15.0):
             skip("T_WR_HEAP_03", "could not reach PLAYING state")
             return
@@ -737,15 +737,15 @@ def t_wr_heap_04(dut: Dut):
     print("T_WR_HEAP_04  No panic in 2-min playback window")
     if not _wait_wr_state(dut, target=2, timeout=5.0):
         # Not playing — try to start play if stations are loaded
-        r_a = dut.cmd("get appId", timeout=3.0)
+        r_a = dut.cmd("get appId", timeout=TIMEOUT)
         if r_a.get("name") != "WebRadio":
             skip("T_WR_HEAP_04", "not in WebRadio — run T_WR_COEX_01 first")
             return
-        r_c = dut.cmd("get wrCount", timeout=3.0)
+        r_c = dut.cmd("get wrCount", timeout=TIMEOUT)
         if r_c.get("count", 0) == 0:
             skip("T_WR_HEAP_04", "no stations loaded — run T_WR_COEX_01 first")
             return
-        dut.cmd("set wrPlay 0", timeout=3.0)
+        dut.cmd("set wrPlay 0", timeout=TIMEOUT)
         if not _wait_wr_state(dut, target=2, timeout=15.0):
             skip("T_WR_HEAP_04", "could not reach PLAYING state")
             return
@@ -800,9 +800,9 @@ def t_wr_vol_clamp(dut: Dut):
             (1, 12, 12, "HW mod + 12 → 12 (passthrough)"),
         ]
         for hw, mx, exp, desc in cases:
-            dut.cmd(f"set wrHwMod {hw}", timeout=3.0)
-            dut.cmd(f"set wrMaxVol {mx}", timeout=3.0)
-            r = dut.cmd("get wrEffectiveVol", timeout=3.0)
+            dut.cmd(f"set wrHwMod {hw}", timeout=TIMEOUT)
+            dut.cmd(f"set wrMaxVol {mx}", timeout=TIMEOUT)
+            r = dut.cmd("get wrEffectiveVol", timeout=TIMEOUT)
             if not r.get("ok"):
                 fail(tid, f"get wrEffectiveVol failed ({desc}): {r}")
                 return
@@ -814,8 +814,8 @@ def t_wr_vol_clamp(dut: Dut):
         pass_(tid, "soft-cap 12 enforced on stock; full 1–21 with HW mod (8/8 cases)")
     finally:
         # Restore stock defaults (in-RAM only; not persisted) + leave WebRadio.
-        dut.cmd("set wrHwMod 0", timeout=3.0)
-        dut.cmd("set wrMaxVol 10", timeout=3.0)
+        dut.cmd("set wrHwMod 0", timeout=TIMEOUT)
+        dut.cmd("set wrMaxVol 10", timeout=TIMEOUT)
         dut.cmd("set bgPoll 1", timeout=2.0)
         _restore_spotify(dut)
 
@@ -823,7 +823,7 @@ def t_wr_vol_clamp(dut: Dut):
 # ── T237 — auto-skip terminal bound on an all-dead list (TASK-237) ───────────
 
 def _wr_skip_tried(dut: Dut) -> int:
-    r = dut.cmd("get wrSkip", timeout=3.0)
+    r = dut.cmd("get wrSkip", timeout=TIMEOUT)
     return int(r.get("tried", -1)) if r.get("ok") else -1
 
 
@@ -850,14 +850,14 @@ def t237(dut: Dut):
     N = 4
     try:
         # ── auto-skip ON: bounded scan → terminal, no loop ──────────────────
-        dut.cmd("set wrStop 1", timeout=3.0)
-        dut.cmd("set wrAutoSkip 1", timeout=3.0)
-        dut.cmd(f"set wrDeadUrls {N}", timeout=3.0)   # synthesize N dead + arm fail
-        rc = dut.cmd("get wrCount", timeout=3.0)
+        dut.cmd("set wrStop 1", timeout=TIMEOUT)
+        dut.cmd("set wrAutoSkip 1", timeout=TIMEOUT)
+        dut.cmd(f"set wrDeadUrls {N}", timeout=TIMEOUT)   # synthesize N dead + arm fail
+        rc = dut.cmd("get wrCount", timeout=TIMEOUT)
         if rc.get("count") != N:
             fail(tid, f"wrDeadUrls {N} did not yield count={N}: {rc}")
             return
-        dut.cmd("set wrPlay 0", timeout=3.0)          # user-initiated play
+        dut.cmd("set wrPlay 0", timeout=TIMEOUT)          # user-initiated play
 
         # Poll until tried saturates at N-1 (one skip per tick).
         deadline = time.monotonic() + 12.0
@@ -878,20 +878,20 @@ def t237(dut: Dut):
         if tried2 != N - 1:
             fail(tid, f"runaway/loop: tried moved {N-1}→{tried2} after saturation")
             return
-        st = dut.cmd("get wrState", timeout=3.0).get("state")
+        st = dut.cmd("get wrState", timeout=TIMEOUT).get("state")
         if st != 5:  # ERROR_UNREACHABLE
             fail(tid, f"expected terminal ERROR_UNREACHABLE(5), got state={st}")
             return
         print(f"  [{tid}] terminal: tried stable at {tried2}, state=ERROR_UNREACHABLE, no loop ✓")
 
         # ── auto-skip OFF: park on first failure, no skip ───────────────────
-        dut.cmd("set wrStop 1", timeout=3.0)
-        dut.cmd("set wrAutoSkip 0", timeout=3.0)
-        dut.cmd(f"set wrDeadUrls {N}", timeout=3.0)   # re-arm (resets tried=0)
-        dut.cmd("set wrPlay 0", timeout=3.0)
+        dut.cmd("set wrStop 1", timeout=TIMEOUT)
+        dut.cmd("set wrAutoSkip 0", timeout=TIMEOUT)
+        dut.cmd(f"set wrDeadUrls {N}", timeout=TIMEOUT)   # re-arm (resets tried=0)
+        dut.cmd("set wrPlay 0", timeout=TIMEOUT)
         time.sleep(1.5)
         tried_off = _wr_skip_tried(dut)
-        idx_off = dut.cmd("get wrIdx", timeout=3.0).get("idx")
+        idx_off = dut.cmd("get wrIdx", timeout=TIMEOUT).get("idx")
         if tried_off != 0:
             fail(tid, f"auto-skip OFF: tried={tried_off}, expected 0 (parked, no skip)")
             return
@@ -902,9 +902,9 @@ def t237(dut: Dut):
 
         pass_(tid, f"auto-skip ON bounded to {N-1} skips → terminal, no loop; OFF parks on first fail")
     finally:
-        dut.cmd("set wrDeadUrls 0", timeout=3.0)   # disable hook + clear synthetic list
-        dut.cmd("set wrAutoSkip 1", timeout=3.0)   # restore default ON
-        dut.cmd("set wrStop 1", timeout=3.0)
+        dut.cmd("set wrDeadUrls 0", timeout=TIMEOUT)   # disable hook + clear synthetic list
+        dut.cmd("set wrAutoSkip 1", timeout=TIMEOUT)   # restore default ON
+        dut.cmd("set wrStop 1", timeout=TIMEOUT)
         dut.cmd("set bgPoll 1", timeout=2.0)
         _restore_spotify(dut)
 
@@ -954,14 +954,14 @@ def t276(dut: Dut):
 
     N = 3
     try:
-        dut.cmd("set wrStop 1", timeout=3.0)
-        dut.cmd("set wrAutoSkip 1", timeout=3.0)      # ON — the point of this test
-        dut.cmd(f"set wrDeadUrls {N}", timeout=3.0)   # synthesize N dead + arm deterministic fail
-        rc = dut.cmd("get wrCount", timeout=3.0)
+        dut.cmd("set wrStop 1", timeout=TIMEOUT)
+        dut.cmd("set wrAutoSkip 1", timeout=TIMEOUT)      # ON — the point of this test
+        dut.cmd(f"set wrDeadUrls {N}", timeout=TIMEOUT)   # synthesize N dead + arm deterministic fail
+        rc = dut.cmd("get wrCount", timeout=TIMEOUT)
         if rc.get("count") != N:
             fail(tid, f"wrDeadUrls {N} did not yield count={N}: {rc}")
             return
-        dut.cmd("set wrPlay 0", timeout=3.0)          # user-initiated play
+        dut.cmd("set wrPlay 0", timeout=TIMEOUT)          # user-initiated play
 
         # Drive to terminal (mirrors T237): tried saturates at N-1.
         deadline = time.monotonic() + 12.0
@@ -974,7 +974,7 @@ def t276(dut: Dut):
         if tried != N - 1:
             fail(tid, f"did not reach terminal: tried={tried}, expected {N - 1}")
             return
-        st = dut.cmd("get wrState", timeout=3.0).get("state")
+        st = dut.cmd("get wrState", timeout=TIMEOUT).get("state")
         if st != 5:  # ERROR_UNREACHABLE
             fail(tid, f"expected terminal ERROR_UNREACHABLE(5), got state={st}")
             return
@@ -1001,9 +1001,9 @@ def t276(dut: Dut):
         pass_(tid, f"terminal-retry re-armed after {elapsed:.0f}s "
                     f"(tried dropped below {N - 1}, scan restarted)")
     finally:
-        dut.cmd("set wrDeadUrls 0", timeout=3.0)   # disable hook + clear synthetic list
-        dut.cmd("set wrAutoSkip 1", timeout=3.0)   # restore default ON
-        dut.cmd("set wrStop 1", timeout=3.0)
+        dut.cmd("set wrDeadUrls 0", timeout=TIMEOUT)   # disable hook + clear synthetic list
+        dut.cmd("set wrAutoSkip 1", timeout=TIMEOUT)   # restore default ON
+        dut.cmd("set wrStop 1", timeout=TIMEOUT)
         dut.cmd("set bgPoll 1", timeout=2.0)
         _restore_spotify(dut)
 
@@ -1015,7 +1015,7 @@ def _tls01_pull_dut_log(dut: Dut):
     can't perturb the stalled handshake we're observing)."""
     import urllib.request
     try:
-        r_ip = dut.cmd("get ip", timeout=3.0)
+        r_ip = dut.cmd("get ip", timeout=TIMEOUT)
         ip = r_ip.get("ip")
         if not ip:
             print("  [T_WR_TLS_01] /log pull skipped — get ip returned no address", flush=True)
@@ -1074,7 +1074,7 @@ def t_wr_tls_01(dut: Dut):
         log_pulled = False
         while time.monotonic() < deadline:
             try:
-                r_c = dut.cmd("get wrCount", timeout=3.0)
+                r_c = dut.cmd("get wrCount", timeout=TIMEOUT)
                 if r_c.get("count", 0) >= 1:
                     break
                 if r_c.get("pending") == 0:
@@ -1082,7 +1082,7 @@ def t_wr_tls_01(dut: Dut):
             except TimeoutError:
                 pass
             try:
-                q = dut.cmd("get dataq", timeout=3.0)
+                q = dut.cmd("get dataq", timeout=TIMEOUT)
                 if q.get("ok"):
                     q.pop("ok", None); q.pop("cmd", None); q.pop("last", None)
                     if not dataq_samples or q != dataq_samples[-1]:
@@ -1101,7 +1101,7 @@ def t_wr_tls_01(dut: Dut):
             time.sleep(2.0)
     finally:
         dut.cmd("set bgPoll 1", timeout=2.0)
-    r = dut.cmd("get wrLastHttp", timeout=3.0)
+    r = dut.cmd("get wrLastHttp", timeout=TIMEOUT)
     http_code    = r.get("http")
     count        = r.get("count", 0)
     tls_insecure = r.get("tlsInsecure")
@@ -1147,7 +1147,7 @@ def t_wr_spotify_resume_01(dut: Dut):
     if count == 0:
         skip("T_WR_SPOTIFY_RESUME_01", "station list unavailable (network or fetch failure)")
         return
-    dut.cmd("set wrPlay 0", timeout=3.0)
+    dut.cmd("set wrPlay 0", timeout=TIMEOUT)
     if not _wait_wr_state(dut, target=2, timeout=30.0):
         skip("T_WR_SPOTIFY_RESUME_01", "could not reach PLAYING state — see T_WR_COEX_01")
         return
@@ -1169,7 +1169,7 @@ def t_wr_spotify_resume_01(dut: Dut):
     dut.set_cooldown_zero()
     dut.cmd(f"tap {_sx} {_sy}", timeout=5.0)       # LocalPlayer -> Spotify (cycle)
     time.sleep(0.5)
-    r2 = dut.cmd("get appId", timeout=3.0)
+    r2 = dut.cmd("get appId", timeout=TIMEOUT)
     if r2.get("name") != "Spotify":
         fail("T_WR_SPOTIFY_RESUME_01", f"appId={r2.get('name')!r} after cycling off WebRadio (expected Spotify)")
         return
@@ -1252,7 +1252,7 @@ def _webradio_ensure_playing(dut: Dut, tid: str) -> bool:
         return False
     if _wait_wr_state(dut, target=2, timeout=5.0):
         return True  # already playing from a prior test in this run
-    dut.cmd("set wrPlay 0", timeout=3.0)
+    dut.cmd("set wrPlay 0", timeout=TIMEOUT)
     if not _wait_wr_state(dut, target=2, timeout=30.0):
         skip(tid, "could not reach PLAYING state (wrState=2) after set wrPlay 0")
         return False
@@ -1281,7 +1281,7 @@ def _cycle_vis_to(dut: Dut, target_mode: int, max_taps: int = 4) -> Optional[int
             if rem <= 0:
                 break
             time.sleep(min(rem / 1000.0, 0.1))
-        dut.cmd(f"tap {vx} {vy}", timeout=3.0)
+        dut.cmd(f"tap {vx} {vy}", timeout=TIMEOUT)
         time.sleep(0.2)
         m = _get_vis_mode(dut)
     return m
@@ -1452,10 +1452,10 @@ def t_wr_vis_04(dut: Dut):
         return
 
     time.sleep(1.0)
-    r1 = dut.cmd("get wrSpec", timeout=3.0)
+    r1 = dut.cmd("get wrSpec", timeout=TIMEOUT)
     bars1 = r1.get("bars")
     time.sleep(1.5)
-    r2 = dut.cmd("get wrSpec", timeout=3.0)
+    r2 = dut.cmd("get wrSpec", timeout=TIMEOUT)
     bars2 = r2.get("bars")
     if not bars1 or not bars2 or len(bars1) != 19 or len(bars2) != 19:
         fail("T_WR_VIS_04", f"bad wrSpec response(s): {r1} / {r2}")
@@ -1492,7 +1492,7 @@ def t_wr_vis_05(dut: Dut):
     m = _get_vis_mode(dut)
     seen.add(m)
     for _ in range(6):  # full loop is 4 stops; 6 taps covers a full cycle + margin
-        dut.cmd(f"tap {vx} {vy}", timeout=3.0)
+        dut.cmd(f"tap {vx} {vy}", timeout=TIMEOUT)
         time.sleep(0.2)
         m = _get_vis_mode(dut)
         seen.add(m)

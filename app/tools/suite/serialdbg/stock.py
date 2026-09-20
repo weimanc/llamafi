@@ -28,7 +28,7 @@ stock-002 (heatmap sub-view):
 
 import time
 
-from lib.dut import Dut, DeviceReadError, NoAnswer
+from lib.dut import TIMEOUT, Dut, DeviceReadError, NoAnswer
 from lib.results import pass_, fail, skip, unmet  # noqa: F401 — skip used below
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -171,7 +171,7 @@ def t170(dut: Dut):
             if current > before:
                 advanced = True
                 break
-            prog = dut.get_int("stockQuoteProgress", timeout=3.0)
+            prog = dut.get_int("stockQuoteProgress", timeout=TIMEOUT)
         except NoAnswer:
             time.sleep(2.0)
             continue
@@ -295,7 +295,7 @@ def t_dtp_02(dut: Dut):
                 return
             before = _stock_ok_count(dut)
             dut.set_cooldown_zero()
-            dut.cmd("tap 137 36", timeout=3.0)   # drill into AAPL -> chart fetch
+            dut.cmd("tap 137 36", timeout=TIMEOUT)   # drill into AAPL -> chart fetch
             time.sleep(0.3)
             if _stock_get(dut, "stockSubView").get("val") != "chart":
                 unmet("T_DTP_02", "could not enter chart view — no chart fetch to observe")
@@ -347,7 +347,7 @@ def t172(dut: Dut):
     # sees the post-stamp value and the window observes a correctly idle
     # clock. Read here, while still away from Spotify, and the assertion
     # becomes "did the return repaint?" — which is the subject.
-    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=TIMEOUT)
     if not _restore_from_stock(dut):
         fail("T172", "Stock→Spotify switch-back failed")
         return
@@ -379,7 +379,7 @@ def t173(dut: Dut):
         _restore_from_stock(dut)
         return
     # Switch away and quickly back.
-    dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
+    dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=TIMEOUT)
     time.sleep(2.0)
     if not _switch_to_stock(dut):
         fail("T173", "could not switch back to Stock")
@@ -417,7 +417,7 @@ def t174(dut: Dut):
     # Also check fetchFailed via a set-then-get round-trip isn't practical here;
     # just proceed — if fetchFailed the tap will be ignored and subView stays list.
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 218", timeout=3.0)  # NVDA row centre: y = 25 + 7*26 + 11 = 218
+    dut.cmd("tap 137 218", timeout=TIMEOUT)  # NVDA row centre: y = 25 + 7*26 + 11 = 218
     time.sleep(0.3)
     r_sv2 = _stock_get(dut, "stockSubView")
     r_tk  = _stock_get(dut, "stockChartTicker")
@@ -446,7 +446,7 @@ def t175(dut: Dut):
         return
     # Drill into any row (AAPL, row 0, y=36).
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)
+    dut.cmd("tap 137 36", timeout=TIMEOUT)
     time.sleep(0.3)
     r_sv = _stock_get(dut, "stockSubView")
     if r_sv.get("val") != "chart":
@@ -457,7 +457,7 @@ def t175(dut: Dut):
     # test at stockApp.cpp:112 is ST_CHART_BACK_W*2, not ST_CHART_BACK_W —
     # the zone is twice the #define's value), y=7 < ST_CHART_HEADER_H(18).
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)
+    dut.cmd("tap 10 7", timeout=TIMEOUT)
     time.sleep(0.2)
     r_sv2 = _stock_get(dut, "stockSubView")
     _restore_from_stock(dut)
@@ -492,7 +492,7 @@ def t176(dut: Dut):
             return
         before = _stock_ok_count(dut)
         dut.set_cooldown_zero()
-        dut.cmd("tap 137 36", timeout=3.0)  # drill into AAPL
+        dut.cmd("tap 137 36", timeout=TIMEOUT)  # drill into AAPL
         time.sleep(0.3)
         r_sv = _stock_get(dut, "stockSubView")
         if r_sv.get("val") != "chart":
@@ -521,7 +521,7 @@ def t177(dut: Dut):
         _restore_from_stock(dut)
         return
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)  # drill into AAPL
+    dut.cmd("tap 137 36", timeout=TIMEOUT)  # drill into AAPL
     time.sleep(0.3)
     if _stock_get(dut, "stockSubView").get("val") != "chart":
         skip("T177", "could not enter chart view")
@@ -529,7 +529,7 @@ def t177(dut: Dut):
         return
     # Tap 5D tab: x=184 (tab 1 centre), y=7 (header centre).
     dut.set_cooldown_zero()
-    dut.cmd("tap 184 7", timeout=3.0)
+    dut.cmd("tap 184 7", timeout=TIMEOUT)
     time.sleep(0.2)
     r_rng = _stock_get(dut, "stockChartRange")
     # G-18: this comment used to claim "lastChartFetch resets to 0 on tab
@@ -581,11 +581,11 @@ def t180(dut: Dut):
     if _stock_get(dut, "stockSubView").get("val") == "chart":
         _wait_shell_not_busy(dut, timeout_s=10.0)
         dut.set_cooldown_zero()
-        dut.cmd("tap 10 7", timeout=3.0)
+        dut.cmd("tap 10 7", timeout=TIMEOUT)
         time.sleep(0.2)
     # Drill, change range, go back, re-drill — verify range resets.
     dut.set_cooldown_zero()
-    r_drill1 = dut.cmd("tap 137 36", timeout=3.0)   # AAPL
+    r_drill1 = dut.cmd("tap 137 36", timeout=TIMEOUT)   # AAPL
     time.sleep(0.3)
     sv1 = _stock_get(dut, "stockSubView").get("val")
     if sv1 != "chart":
@@ -595,16 +595,16 @@ def t180(dut: Dut):
     # Wait for D1 fetch before changing tab (g_shellBusy must clear).
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 184 7", timeout=3.0)    # change to 5D
+    dut.cmd("tap 184 7", timeout=TIMEOUT)    # change to 5D
     # Wait for D5 fetch before navigating back.
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)    # back to list
+    dut.cmd("tap 10 7", timeout=TIMEOUT)    # back to list
     time.sleep(0.2)
     # Wait for any quote refresh triggered by returning to list view.
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)   # re-drill AAPL
+    dut.cmd("tap 137 36", timeout=TIMEOUT)   # re-drill AAPL
     time.sleep(0.3)
     r_rng = _stock_get(dut, "stockChartRange")
     _restore_from_stock(dut)
@@ -625,17 +625,17 @@ def t181(dut: Dut):
         return
     # Drill AAPL, go back, drill NVDA.
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)   # AAPL
+    dut.cmd("tap 137 36", timeout=TIMEOUT)   # AAPL
     time.sleep(0.3)
     if _stock_get(dut, "stockSubView").get("val") != "chart":
         skip("T181", "first drill-in failed")
         _restore_from_stock(dut)
         return
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)     # back
+    dut.cmd("tap 10 7", timeout=TIMEOUT)     # back
     time.sleep(0.2)
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 218", timeout=3.0)  # NVDA row
+    dut.cmd("tap 137 218", timeout=TIMEOUT)  # NVDA row
     time.sleep(0.3)
     r_sv  = _stock_get(dut, "stockSubView")
     r_tk  = _stock_get(dut, "stockChartTicker")
@@ -673,7 +673,7 @@ def t182(dut: Dut):
         fail("T182", "could not switch to Stock")
         return
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)
+    dut.cmd("tap 137 36", timeout=TIMEOUT)
     time.sleep(0.3)
     if _stock_get(dut, "stockSubView").get("val") != "chart":
         # Setup, not the subject: the claim is about the TASKBAR-driven return
@@ -684,20 +684,20 @@ def t182(dut: Dut):
         _restore_from_stock(dut)
         return
     # Switch away via switchApp.
-    dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
+    dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=TIMEOUT)
     time.sleep(0.3)
     # Switch back via taskbar scroll + slot tap (real UI path).
     dut.set_cooldown_zero()
-    dut.cmd("drag 297 200 297 100 10", timeout=3.0)  # scroll up 2 slots → offset=2
+    dut.cmd("drag 297 200 297 100 10", timeout=TIMEOUT)  # scroll up 2 slots → offset=2
     time.sleep(0.3)
-    r_off = dut.cmd("get tbScrollOffset", timeout=3.0)
+    r_off = dut.cmd("get tbScrollOffset", timeout=TIMEOUT)
     if r_off.get("val") != 2:
         # TASK-584 / D-2: this IS the subject. T182 is the family's only
         # taskbar cross-feature test; "the taskbar scroll did not take" is the
         # cross-feature regression, not a reason to stand down.
         fail("T182", f"taskbar drag did not scroll: tbScrollOffset="
                      f"{r_off.get('val')!r}, expected 2")
-        dut.cmd("drag 297 100 297 200 10", timeout=3.0)  # reset scroll
+        dut.cmd("drag 297 100 297 200 10", timeout=TIMEOUT)  # reset scroll
         _restore_spotify(dut)
         return
     dut.set_cooldown_zero()
@@ -709,13 +709,13 @@ def t182(dut: Dut):
     # Settings moved directly before WebRadio, shifting Stock's physical slot 5→4).
     _stock_physical_slot = (APP_SLOT["Stock"] - 2) % APP_SLOT["WebRadio"]
     sx, sy = _c.tap_taskbar_slot(_stock_physical_slot)
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.4)
     # TASK-584/596: typed. A silent device raises NoAnswer -> UNMET at the
     # runner; a device that answers the wrong app is the defect below. The old
     # `dut.cmd(...).get("name")` could not tell those two apart, and skipped on
     # both.
-    landed = dut.get_str("appId", field="name", timeout=3.0)
+    landed = dut.get_str("appId", field="name", timeout=TIMEOUT)
     if landed != "Stock":
         # TASK-584 / D-2: also the subject. Physical-slot arithmetic at
         # scrollOffset=2 resolving to the wrong app is exactly the taskbar
@@ -723,7 +723,7 @@ def t182(dut: Dut):
         # cover.
         fail("T182", f"taskbar slot tap at scrollOffset=2 landed in {landed!r}, "
                      f"expected Stock — physical-slot mapping is wrong")
-        dut.cmd("drag 297 100 297 200 10", timeout=3.0)
+        dut.cmd("drag 297 100 297 200 10", timeout=TIMEOUT)
         _restore_spotify(dut)
         return
     # resume() should restore to last subView (chart) then list if we tapped back...
@@ -731,7 +731,7 @@ def t182(dut: Dut):
     # The test is: no display crash, subView is still whatever it was.
     r_sv = _stock_get(dut, "stockSubView")
     # Reset taskbar scroll.
-    dut.cmd("drag 297 100 297 200 10", timeout=3.0)
+    dut.cmd("drag 297 100 297 200 10", timeout=TIMEOUT)
     # TASK-584: this was `if not r_app.get("ok")` on a reply whose `name` had
     # already been read successfully two lines above — an unreachable `fail()`
     # standing in for the reachable one. `_restore_from_stock` asserts
@@ -743,7 +743,7 @@ def t182(dut: Dut):
     # sees the post-stamp value and the window observes a correctly idle
     # clock. Read here, while still away from Spotify, and the assertion
     # becomes "did the return repaint?" — which is the subject.
-    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=TIMEOUT)
     if not _restore_from_stock(dut):
         fail("T182", "Stock->Spotify return leg did not land on Spotify after "
                      "the taskbar-driven switch")
@@ -766,19 +766,19 @@ def t183(dut: Dut):
     # Ensure list view — prior test may have left us in chart view.
     if _stock_get(dut, "stockSubView").get("val") == "chart":
         dut.set_cooldown_zero()
-        dut.cmd("tap 10 7", timeout=3.0)  # back to list
+        dut.cmd("tap 10 7", timeout=TIMEOUT)  # back to list
         time.sleep(0.2)
-    dut.cmd("set fetchFailed 1", timeout=3.0)
-    dut.cmd("set fetchErrorCode -1", timeout=3.0)
+    dut.cmd("set fetchFailed 1", timeout=TIMEOUT)
+    dut.cmd("set fetchErrorCode -1", timeout=TIMEOUT)
     time.sleep(0.15)  # wait one tick for repaint
     # Tap a list row — should be ignored when fetchFailed.
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 120", timeout=3.0)
+    dut.cmd("tap 137 120", timeout=TIMEOUT)
     time.sleep(0.1)
     r_sv = _stock_get(dut, "stockSubView")
     # Clear error state before returning.
-    dut.cmd("set fetchFailed 0", timeout=3.0)
-    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+    dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
     _restore_from_stock(dut)
     if r_sv.get("val") != "list":
         fail("T183", f"stockSubView={r_sv.get('val')!r} after tap while fetchFailed — expected no drill-in")
@@ -796,20 +796,20 @@ def t184(dut: Dut):
         _restore_from_stock(dut)
         return
     dut.set_cooldown_zero()
-    dut.cmd("tap 137 36", timeout=3.0)
+    dut.cmd("tap 137 36", timeout=TIMEOUT)
     time.sleep(0.3)
     if _stock_get(dut, "stockSubView").get("val") != "chart":
         skip("T184", "could not enter chart view")
         _restore_from_stock(dut)
         return
-    dut.cmd("set fetchFailed 1", timeout=3.0)
+    dut.cmd("set fetchFailed 1", timeout=TIMEOUT)
     time.sleep(0.15)
     # Back button must still work even when fetchFailed.
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)
+    dut.cmd("tap 10 7", timeout=TIMEOUT)
     time.sleep(0.2)
     r_sv = _stock_get(dut, "stockSubView")
-    dut.cmd("set fetchFailed 0", timeout=3.0)
+    dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
     _restore_from_stock(dut)
     if r_sv.get("val") != "list":
         fail("T184", f"stockSubView={r_sv.get('val')!r} after back tap while fetchFailed — expected list")
@@ -853,69 +853,69 @@ def t231(dut: Dut):
 
     # ── Chart launch ──────────────────────────────────────────────────────────
     _restore_from_stock(dut)                     # leave on List → go to Spotify
-    dut.cmd("set stockMode 1", timeout=3.0)      # Chart
+    dut.cmd("set stockMode 1", timeout=TIMEOUT)      # Chart
     if not _enter_stock_no_force(dut):
         fail(tid, "switchApp Stock failed (Chart case)")
         return
     sv = _stock_get(dut, "stockSubView").get("val")
     if sv != "chart":
         fail(tid, f"stockMode=Chart but launched stockSubView={sv!r} (expected chart)")
-        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=TIMEOUT)
         return
     tk = dut.get_str("stockChartTicker")
     if not tk:
         fail(tid, "Chart launched with EMPTY ticker — drillToChart(0) precondition not met")
-        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=TIMEOUT)
         return
     print(f"  [T231] Chart launch ✓ (ticker={tk!r})")
     # back-nav base must be List
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)             # chart back zone
+    dut.cmd("tap 10 7", timeout=TIMEOUT)             # chart back zone
     time.sleep(0.25)
     sv = _stock_get(dut, "stockSubView").get("val")
     if sv != "list":
         fail(tid, f"Chart back-nav base = {sv!r} (expected list)")
-        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=TIMEOUT)
         return
     print(f"  [T231] Chart → back → list ✓")
 
     # ── Heatmap launch ────────────────────────────────────────────────────────
     _restore_from_stock(dut)                     # leave on List
-    dut.cmd("set stockMode 2", timeout=3.0)      # Heatmap
+    dut.cmd("set stockMode 2", timeout=TIMEOUT)      # Heatmap
     if not _enter_stock_no_force(dut):
         fail(tid, "switchApp Stock failed (Heatmap case)")
         return
     sv = _stock_get(dut, "stockSubView").get("val")
     if sv != "heatmap":
         fail(tid, f"stockMode=Heatmap but launched stockSubView={sv!r} (expected heatmap)")
-        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=TIMEOUT)
         return
     print(f"  [T231] Heatmap launch ✓")
     dut.set_cooldown_zero()
-    dut.cmd("tap 260 7", timeout=3.0)            # heatmap back zone (x>190, y<ST_LIST_RULE_Y=22)
+    dut.cmd("tap 260 7", timeout=TIMEOUT)            # heatmap back zone (x>190, y<ST_LIST_RULE_Y=22)
     time.sleep(0.25)
     sv = _stock_get(dut, "stockSubView").get("val")
     if sv != "list":
         fail(tid, f"Heatmap back-nav base = {sv!r} (expected list)")
-        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=TIMEOUT)
         return
     print(f"  [T231] Heatmap → back → list ✓")
 
     # ── List launch (explicit, no-op default) ─────────────────────────────────
     _restore_from_stock(dut)
-    dut.cmd("set stockMode 0", timeout=3.0)      # List
+    dut.cmd("set stockMode 0", timeout=TIMEOUT)      # List
     if not _enter_stock_no_force(dut):
         fail(tid, "switchApp Stock failed (List case)")
         return
     sv = _stock_get(dut, "stockSubView").get("val")
     if sv != "list":
         fail(tid, f"stockMode=List but launched stockSubView={sv!r} (expected list)")
-        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=3.0)
+        _restore_from_stock(dut); dut.cmd("set stockMode 0", timeout=TIMEOUT)
         return
     print(f"  [T231] List launch ✓")
 
     # Restore default + leave Stock.
-    dut.cmd("set stockMode 0", timeout=3.0)
+    dut.cmd("set stockMode 0", timeout=TIMEOUT)
     _restore_from_stock(dut)
     pass_(tid, "stockMode honoured at launch: Chart(ticker set)/Heatmap/List; List is back-nav base")
 
@@ -945,8 +945,8 @@ def _t18x_guard(dut: Dut, tid: str, ticker: str, row_y: int):
         dut.set_cooldown_zero()
         dut.cmd("tap 10 7", timeout=5.0)   # back to list
         time.sleep(0.3)
-    dut.cmd("set fetchFailed 0", timeout=3.0)
-    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+    dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
     # Drill into ticker row — triggers enqueue via drillToChart().
     dut.set_cooldown_zero()
     dut.cmd(f"tap 137 {row_y}", timeout=5.0)
@@ -963,7 +963,7 @@ def _t18x_guard(dut: Dut, tid: str, ticker: str, row_y: int):
         return
     # Snapshot ok count, trigger fetch, wait for proven completion (LL-041).
     before = _stock_ok_count(dut)
-    dut.cmd("set triggerFetch 1", timeout=3.0)
+    dut.cmd("set triggerFetch 1", timeout=TIMEOUT)
     print(f"  [{tid}] fetch triggered (fetchOkCount={before}); waiting for completion…", flush=True)
     if not _wait_chart_complete(dut, before, timeout_s=45.0):
         _restore_from_stock(dut)
@@ -998,8 +998,8 @@ def t188(dut: Dut):
         _restore_from_stock(dut)
         return
     # Clear any leftover error state from prior tests.
-    dut.cmd("set fetchFailed 0", timeout=3.0)
-    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+    dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
     if _stock_get(dut, "stockSubView").get("val") == "chart":
         dut.set_cooldown_zero()
         dut.cmd("tap 10 7", timeout=5.0)
@@ -1027,10 +1027,10 @@ def t188(dut: Dut):
         dut.cmd(f"tap {tx} {ty}", timeout=5.0)
         print(f"  [T188] {tab_name} tapped (fetchOkCount={before}); waiting for completion…", flush=True)
         if not _wait_chart_complete(dut, before, timeout_s=45.0):
-            r_ff   = _stock_get(dut, "fetchFailed",    timeout=3.0)
-            r_code = _stock_get(dut, "fetchErrorCode", timeout=3.0)
-            dut.cmd("set fetchFailed 0", timeout=3.0)
-            dut.cmd("set fetchErrorCode 0", timeout=3.0)
+            r_ff   = _stock_get(dut, "fetchFailed",    timeout=TIMEOUT)
+            r_code = _stock_get(dut, "fetchErrorCode", timeout=TIMEOUT)
+            dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+            dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
             _restore_from_stock(dut)
             fail("T188", f"fetchOkCount did not advance on {tab_name} — "
                          f"fetchFailed={r_ff.get('val')!r} fetchErrorCode={r_code.get('val')!r}")
@@ -1038,8 +1038,8 @@ def t188(dut: Dut):
         r_ff   = _stock_get(dut, "fetchFailed", timeout=8.0)
         r_code = _stock_get(dut, "fetchErrorCode", timeout=8.0)
         if r_ff.get("val") == "1" or r_ff.get("val") is True:
-            dut.cmd("set fetchFailed 0", timeout=3.0)
-            dut.cmd("set fetchErrorCode 0", timeout=3.0)
+            dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+            dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
             _restore_from_stock(dut)
             fail("T188", f"fetchFailed=1 errorCode={r_code.get('val')} on range {tab_name}")
             return
@@ -1067,8 +1067,8 @@ def t204(dut: Dut):
         skip("T204", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    dut.cmd("set fetchFailed 0", timeout=3.0)
-    dut.cmd("set fetchErrorCode 0", timeout=3.0)
+    dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+    dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
     if _stock_get(dut, "stockSubView").get("val") == "chart":
         dut.set_cooldown_zero()
         dut.cmd("tap 10 7", timeout=5.0)   # back to list
@@ -1095,8 +1095,8 @@ def t204(dut: Dut):
         print(f"  [T204] {tab_name} tapped (fetchOkCount={before}); waiting…", flush=True)
         if not _wait_chart_complete(dut, before, timeout_s=45.0, test_id="T204"):
             timeout_diag = _diag_snapshot(dut, f"T204-timeout-{i}-{tab_name}")
-            dut.cmd("set fetchFailed 0", timeout=3.0)
-            dut.cmd("set fetchErrorCode 0", timeout=3.0)
+            dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+            dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
             _restore_from_stock(dut)
             fail("T204", f"fetchOkCount did not advance on {tab_name} (cycle {i}/6) — heap "
                           f"pressure failure? | entry={entry_diag} | pre-tap={pre_diag} | "
@@ -1106,8 +1106,8 @@ def t204(dut: Dut):
         r_code = _stock_get(dut, "fetchErrorCode", timeout=8.0)
         if r_ff.get("val") == "1" or r_ff.get("val") is True:
             post_diag = _diag_snapshot(dut, f"T204-fail-{i}-{tab_name}")
-            dut.cmd("set fetchFailed 0", timeout=3.0)
-            dut.cmd("set fetchErrorCode 0", timeout=3.0)
+            dut.cmd("set fetchFailed 0", timeout=TIMEOUT)
+            dut.cmd("set fetchErrorCode 0", timeout=TIMEOUT)
             _restore_from_stock(dut)
             fail("T204", f"fetchFailed=1 errorCode={r_code.get('val')} on {tab_name} (cycle "
                           f"{i}/6) — alloc/free stress failure | entry={entry_diag} | "
@@ -1134,7 +1134,7 @@ def _wait_heatmap_count(dut: Dut, timeout_s: float = 60.0) -> int:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
-            val = dut.get_int("heatmapCount", timeout=3.0)
+            val = dut.get_int("heatmapCount", timeout=TIMEOUT)
             if val > 0:
                 return val
         except NoAnswer:
@@ -1151,7 +1151,7 @@ def _ensure_stock_list_view(dut: Dut) -> bool:
     Returns True if ListDetail confirmed."""
     for _ in range(3):
         try:
-            sv = dut.get_str("stockSubView", timeout=3.0)
+            sv = dut.get_str("stockSubView", timeout=TIMEOUT)
         except NoAnswer:
             time.sleep(0.3)
             continue
@@ -1162,12 +1162,12 @@ def _ensure_stock_list_view(dut: Dut) -> bool:
             _wait_shell_not_busy(dut, timeout_s=45.0)
             time.sleep(0.1)
             dut.set_cooldown_zero()
-            dut.cmd("tap 10 7", timeout=3.0)  # chart back button
+            dut.cmd("tap 10 7", timeout=TIMEOUT)  # chart back button
         elif sv == "heatmap":
             dut.set_cooldown_zero()
-            dut.cmd("tap 220 10", timeout=3.0)  # HEAT toggle → list
+            dut.cmd("tap 220 10", timeout=TIMEOUT)  # HEAT toggle → list
         time.sleep(0.3)
-    return dut.cmd("get stockSubView", timeout=3.0).get("val") == "list"
+    return dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") == "list"
 
 
 # ── T196 — Heatmap fetch completes; triggerHeatmap sets sub-view ──────────────
@@ -1179,13 +1179,13 @@ def t196(dut: Dut):
         skip("T196", "could not switch to Stock")
         _restore_from_stock(dut)
         return
-    r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+    r = dut.cmd("set triggerHeatmap 1", timeout=TIMEOUT)
     if not r.get("ok"):
         fail("T196", "set triggerHeatmap 1 returned error")
         _restore_from_stock(dut)
         return
     time.sleep(0.3)
-    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    r_sv = dut.cmd("get stockSubView", timeout=TIMEOUT)
     if r_sv.get("val") != "heatmap":
         fail("T196", f"stockSubView={r_sv.get('val')!r} after triggerHeatmap — expected 'heatmap'")
         _restore_from_stock(dut)
@@ -1213,9 +1213,9 @@ def t200(dut: Dut):
         return
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 220 10", timeout=3.0)
+    dut.cmd("tap 220 10", timeout=TIMEOUT)
     time.sleep(0.3)
-    r_sv2 = dut.cmd("get stockSubView", timeout=3.0)
+    r_sv2 = dut.cmd("get stockSubView", timeout=TIMEOUT)
     _restore_from_stock(dut)
     if r_sv2.get("val") != "heatmap":
         fail("T200", f"stockSubView={r_sv2.get('val')!r} after HEAT tap — expected 'heatmap'")
@@ -1237,7 +1237,7 @@ def t201(dut: Dut):
         skip("T201", "could not normalize to list view")
         _restore_from_stock(dut)
         return
-    r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+    r = dut.cmd("set triggerHeatmap 1", timeout=TIMEOUT)
     if not r.get("ok"):
         skip("T201", "set triggerHeatmap 1 failed")
         _restore_from_stock(dut)
@@ -1249,9 +1249,9 @@ def t201(dut: Dut):
         _restore_from_stock(dut)
         return
     dut.set_cooldown_zero()
-    dut.cmd("tap 220 10", timeout=3.0)
+    dut.cmd("tap 220 10", timeout=TIMEOUT)
     time.sleep(0.3)
-    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    r_sv = dut.cmd("get stockSubView", timeout=TIMEOUT)
     _restore_from_stock(dut)
     if r_sv.get("val") != "list":
         fail("T201", f"stockSubView={r_sv.get('val')!r} after HEAT tap in heatmap — expected 'list'")
@@ -1274,7 +1274,7 @@ def t202(dut: Dut):
         return
     # Use HEAT tap when cache is present — avoids re-fetching and re-fetch failures
     if _wait_heatmap_count(dut, timeout_s=10.0) == 0:
-        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        r = dut.cmd("set triggerHeatmap 1", timeout=TIMEOUT)
         if not r.get("ok"):
             skip("T202", "set triggerHeatmap 1 failed (no cached heatmap)")
             _restore_from_stock(dut)
@@ -1286,18 +1286,18 @@ def t202(dut: Dut):
         time.sleep(2.0)  # let heatmap render after first fetch
     else:
         dut.set_cooldown_zero()
-        dut.cmd("tap 220 10", timeout=3.0)  # HEAT tap → heatmap (no new fetch)
+        dut.cmd("tap 220 10", timeout=TIMEOUT)  # HEAT tap → heatmap (no new fetch)
         time.sleep(0.3)
-        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+        if dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") != "heatmap":
             skip("T202", "HEAT tap did not enter heatmap")
             _restore_from_stock(dut)
             return
     time.sleep(0.3)
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
+    dut.cmd("tap 10 30", timeout=TIMEOUT)  # top-left of canvas — always in largest tile
     time.sleep(0.5)
-    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    r_sv = dut.cmd("get stockSubView", timeout=TIMEOUT)
     if r_sv.get("val") != "chart":
         _restore_from_stock(dut)
         fail("T202", f"stockSubView={r_sv.get('val')!r} after tile tap — expected 'chart'")
@@ -1322,7 +1322,7 @@ def t203(dut: Dut):
         return
     # Use HEAT tap when cache is present — avoids re-fetching and re-fetch failures
     if _wait_heatmap_count(dut, timeout_s=10.0) == 0:
-        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        r = dut.cmd("set triggerHeatmap 1", timeout=TIMEOUT)
         if not r.get("ok"):
             skip("T203", "set triggerHeatmap 1 failed (no cached heatmap)")
             _restore_from_stock(dut)
@@ -1334,18 +1334,18 @@ def t203(dut: Dut):
         time.sleep(2.0)
     else:
         dut.set_cooldown_zero()
-        dut.cmd("tap 220 10", timeout=3.0)  # HEAT tap → heatmap (no new fetch)
+        dut.cmd("tap 220 10", timeout=TIMEOUT)  # HEAT tap → heatmap (no new fetch)
         time.sleep(0.3)
-        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+        if dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") != "heatmap":
             skip("T203", "HEAT tap did not enter heatmap")
             _restore_from_stock(dut)
             return
     time.sleep(0.3)
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
+    dut.cmd("tap 10 30", timeout=TIMEOUT)  # top-left of canvas — always in largest tile
     time.sleep(0.5)
-    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
+    if dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") != "chart":
         skip("T203", "could not drill to chart from heatmap tile tap")
         _restore_from_stock(dut)
         return
@@ -1356,9 +1356,9 @@ def t203(dut: Dut):
         return
     time.sleep(0.1)
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 7", timeout=3.0)
+    dut.cmd("tap 10 7", timeout=TIMEOUT)
     time.sleep(0.3)
-    r_sv = dut.cmd("get stockSubView", timeout=3.0)
+    r_sv = dut.cmd("get stockSubView", timeout=TIMEOUT)
     _restore_from_stock(dut)
     if r_sv.get("val") != "heatmap":
         fail("T203", f"stockSubView={r_sv.get('val')!r} after chart back — expected 'heatmap'")
@@ -1381,7 +1381,7 @@ def t192(dut: Dut):
         return
     # Use HEAT tap when cache is available to avoid queueing a new screener fetch
     if _wait_heatmap_count(dut, timeout_s=3.0) == 0:
-        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        r = dut.cmd("set triggerHeatmap 1", timeout=TIMEOUT)
         if not r.get("ok"):
             skip("T192", "set triggerHeatmap 1 failed (no cached heatmap data)")
             _restore_from_stock(dut)
@@ -1393,9 +1393,9 @@ def t192(dut: Dut):
         time.sleep(2.0)
     else:
         dut.set_cooldown_zero()
-        dut.cmd("tap 220 10", timeout=3.0)  # HEAT tap → heatmap (no new fetch)
+        dut.cmd("tap 220 10", timeout=TIMEOUT)  # HEAT tap → heatmap (no new fetch)
         time.sleep(0.3)
-        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+        if dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") != "heatmap":
             skip("T192", "HEAT tap did not enter heatmap")
             _restore_from_stock(dut)
             return
@@ -1403,9 +1403,9 @@ def t192(dut: Dut):
     time.sleep(0.5)
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 30", timeout=3.0)  # top-left of heatmap canvas — always in the largest tile
+    dut.cmd("tap 10 30", timeout=TIMEOUT)  # top-left of heatmap canvas — always in the largest tile
     time.sleep(0.5)
-    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
+    if dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") != "chart":
         skip("T192", "could not drill to chart from heatmap")
         _restore_from_stock(dut)
         return
@@ -1421,9 +1421,9 @@ def t192(dut: Dut):
     before_ok = _stock_ok_count(dut)
     time.sleep(0.1)
     dut.set_cooldown_zero()
-    dut.cmd("tap 184 9", timeout=3.0)  # 5D tab
+    dut.cmd("tap 184 9", timeout=TIMEOUT)  # 5D tab
     time.sleep(0.3)
-    r_range = dut.cmd("get stockChartRange", timeout=3.0)
+    r_range = dut.cmd("get stockChartRange", timeout=TIMEOUT)
     if r_range.get("val") != "D5":
         skip("T192", f"stockChartRange={r_range.get('val')!r} after 5D tap — tab not registered")
         _restore_from_stock(dut)
@@ -1465,7 +1465,7 @@ def t193(dut: Dut):
     # into the triggerHeatmap branch on the very first check attempt.
     if _wait_heatmap_count(dut, timeout_s=10.0) == 0:
         # No cached data yet — fall back to triggerHeatmap and wait for fetch
-        r = dut.cmd("set triggerHeatmap 1", timeout=3.0)
+        r = dut.cmd("set triggerHeatmap 1", timeout=TIMEOUT)
         if not r.get("ok"):
             skip("T193", "set triggerHeatmap 1 failed (no cached heatmap data)")
             _restore_from_stock(dut)
@@ -1479,18 +1479,18 @@ def t193(dut: Dut):
     else:
         # Cached data present — HEAT tap enters heatmap without queuing a screener fetch
         dut.set_cooldown_zero()
-        dut.cmd("tap 220 10", timeout=3.0)  # HEAT button in list header
+        dut.cmd("tap 220 10", timeout=TIMEOUT)  # HEAT button in list header
         time.sleep(0.3)
-        if dut.cmd("get stockSubView", timeout=3.0).get("val") != "heatmap":
+        if dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") != "heatmap":
             skip("T193", "HEAT tap did not enter heatmap")
             _restore_from_stock(dut)
             return
     time.sleep(0.5)
     _wait_shell_not_busy(dut, timeout_s=10.0)
     dut.set_cooldown_zero()
-    dut.cmd("tap 10 30", timeout=3.0)  # top-left of canvas — always in largest tile
+    dut.cmd("tap 10 30", timeout=TIMEOUT)  # top-left of canvas — always in largest tile
     time.sleep(0.5)
-    if dut.cmd("get stockSubView", timeout=3.0).get("val") != "chart":
+    if dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") != "chart":
         skip("T193", "could not drill to chart from heatmap")
         _restore_from_stock(dut)
         return
@@ -1507,7 +1507,7 @@ def t193(dut: Dut):
     # TASK-385: snapshot immediately before the risky trigger — this is the state the
     # forced re-fetch actually has to run against (post-heatmap-drill, post-tile-drill).
     pre_diag = _diag_snapshot(dut, "T193-pre-trigger")
-    dut.cmd("set triggerFetch 1", timeout=3.0)  # reset lastChartFetch → force next tick re-fetch
+    dut.cmd("set triggerFetch 1", timeout=TIMEOUT)  # reset lastChartFetch → force next tick re-fetch
     if not _wait_chart_complete(dut, before_ok, timeout_s=45.0, test_id="T193"):
         # TASK-385: on timeout, one more snapshot at the point of failure. Embedded
         # directly in the fail() reason (not just printed) so it survives even without

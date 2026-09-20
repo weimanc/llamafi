@@ -37,7 +37,7 @@ import json
 import pathlib
 import time
 
-from lib.dut import Dut, NoAnswer
+from lib.dut import TIMEOUT, TIMEOUT_SLOW, Dut, NoAnswer
 from lib.results import pass_, fail, skip, unmet, flake
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -296,7 +296,7 @@ def t082(dut: Dut):
 def t083(dut: Dut):
     """T083: `help` command returns parseable JSON with required command names. [SMOKE — verifies command registry, not behavior]"""
     print("T083  `help` is parseable JSON")
-    r = dut.cmd("help", timeout=3.0)
+    r = dut.cmd("help", timeout=TIMEOUT)
     cmds = r.get("commands", [])
     names = [c.get("name") for c in cmds]
     required_names = ["reconnect", "tap", "drag", "get", "set", "info", "help"]
@@ -372,7 +372,7 @@ def t085(dut: Dut):
     # take many minutes after the last client disconnects). The next
     # /me/player poll naturally restores songDuration, so the override is
     # transient — but tests run before that, so we restore explicitly.
-    r_save = dut.cmd("get songDuration", timeout=3.0)
+    r_save = dut.cmd("get songDuration", timeout=TIMEOUT)
     saved_ms = r_save.get("ms", 180000)
     r_force = dut.cmd("set songDuration 0")
     if not r_force.get("ok"):
@@ -613,13 +613,13 @@ def t090(dut: Dut):
 def t091(dut: Dut):
     print("T091  `reconnect` clears consecutiveFailures")
     _wait_shell_not_busy(dut, timeout_s=10.0)
-    r_set = dut.cmd("set backoff 3", timeout=3.0)
+    r_set = dut.cmd("set backoff 3", timeout=TIMEOUT)
     if not r_set.get("ok"):
         flake("T091", f"set backoff 3 failed: {r_set}"); return
-    r_get = dut.cmd("get backoff", timeout=3.0)
+    r_get = dut.cmd("get backoff", timeout=TIMEOUT)
     if r_get.get("consecutiveFailures") != 3:
         flake("T091", f"consecutiveFailures={r_get.get('consecutiveFailures')} after set, expected 3"); return
-    r_rc = dut.cmd("reconnect", timeout=3.0)
+    r_rc = dut.cmd("reconnect", timeout=TIMEOUT)
     if not r_rc.get("ok"):
         flake("T091", f"reconnect failed: {r_rc}"); return
     # reconnect triggers a TLS reset which floods serial for ~1-2 s; wait before querying.
@@ -681,7 +681,7 @@ def t093(dut: Dut, interactive: bool):
         skip("T093", "visual test — re-run with --interactive")
         return
     print("T093  Unhealthy titlebar overlay appears + clears (INTERACTIVE)")
-    r = dut.cmd("set backoff 5", timeout=3.0)
+    r = dut.cmd("set backoff 5", timeout=TIMEOUT)
     if not r.get("ok"):
         fail("T093", f"set backoff 5 failed: {r}"); return
     print("  [visual] DUT: inactive (greyed) title bar should appear within one repaint.")
@@ -908,7 +908,7 @@ def t134(dut: Dut):
 def t135(dut: Dut):
     print("T135  Drag-end fires on synthetic swipe-up")
     # Pre-condition: dragState must be D_IDLE.
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T135", f"pre-condition: dragState={rg.get('state')} not D_IDLE — "
                      "prior test left state dirty; run set cooldown 0 and retry")
@@ -942,7 +942,7 @@ def t135(dut: Dut):
         fail("T135", f"drag response ok=false: {drag_resp}")
         return
     # dragState must return to D_IDLE.
-    rg2 = dut.cmd("get dragState", timeout=3.0)
+    rg2 = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg2.get("state") != "D_IDLE":
         fail("T135", f"dragState={rg2.get('state')} after drag — D_PLEDIT_SCROLL "
                      "not cleared in injectRelease()")
@@ -968,7 +968,7 @@ def t137(dut: Dut):
         skip("T137", "precondition: queue count<2 after 30s — Spotify not playing")
         return
     # Precondition: scrollOffset must be 0 before we swipe (absorbs T136 assertion).
-    r_pre = dut.cmd("get scrollOffset", timeout=3.0)
+    r_pre = dut.cmd("get scrollOffset", timeout=TIMEOUT)
     if not r_pre.get("ok") or r_pre.get("key") != "scrollOffset":
         fail("T137", f"precondition: get scrollOffset failed: {r_pre}")
         return
@@ -1092,29 +1092,29 @@ def t140(dut: Dut):
 def t147(dut: Dut):
     """T147: taskbar tap (via injectTouch) switches active app; get appId confirms round-trip."""
     import time
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     if not r.get("ok") or r.get("name") != "Spotify":
         skip("T147", f"precondition: need Spotify active, got {r.get('name')!r}")
         return
     # Tap the Clock slot in the taskbar.
     dut.set_cooldown_zero()
     cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
-    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    dut.cmd(f"tap {cx} {cy}", timeout=TIMEOUT)
     time.sleep(0.3)  # repaintChrome ~60 ms; 300 ms headroom
-    r2 = dut.cmd("get appId", timeout=3.0)
+    r2 = dut.cmd("get appId", timeout=TIMEOUT)
     if not r2.get("ok") or r2.get("name") != "Clock":
         fail("T147", f"did not switch to Clock: got appId={r2.get('name')!r}")
         # Attempt restore before failing.
         dut.set_cooldown_zero()
-        dut.cmd(f"tap {_c.tap_taskbar_slot(APP_SLOT["Spotify"])[0]} {_c.tap_taskbar_slot(APP_SLOT["Spotify"])[1]}", timeout=3.0)
+        dut.cmd(f"tap {_c.tap_taskbar_slot(APP_SLOT["Spotify"])[0]} {_c.tap_taskbar_slot(APP_SLOT["Spotify"])[1]}", timeout=TIMEOUT)
         time.sleep(0.3)
         return
     # Switch back to Spotify to leave DUT in known state for subsequent tests.
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.3)
-    r3 = dut.cmd("get appId", timeout=3.0)
+    r3 = dut.cmd("get appId", timeout=TIMEOUT)
     if not r3.get("ok") or r3.get("name") != "Spotify":
         fail("T147", f"failed to return to Spotify: got {r3.get('name')!r}")
         return
@@ -1134,9 +1134,9 @@ def t148(dut: Dut):
     # Switch to Clock.
     dut.set_cooldown_zero()
     cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
-    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    dut.cmd(f"tap {cx} {cy}", timeout=TIMEOUT)
     time.sleep(0.3)
-    r_pre = dut.cmd("get appId", timeout=3.0)
+    r_pre = dut.cmd("get appId", timeout=TIMEOUT)
     if not r_pre.get("ok") or r_pre.get("name") != "Clock":
         skip("T148", f"precondition: could not switch to Clock (appId={r_pre.get('name')!r})")
         return
@@ -1144,13 +1144,13 @@ def t148(dut: Dut):
     # lands in the face-cycle zone (TASK-346); _cycleFace() always consumes.
     dut.set_cooldown_zero()
     tx, ty = _c.clock_canvas_tap()
-    r = dut.cmd(f"tap {tx} {ty}", timeout=3.0)
+    r = dut.cmd(f"tap {tx} {ty}", timeout=TIMEOUT)
     hit = r.get("hit", "")
     action = r.get("action", "")
     # Restore to Spotify before asserting (so subsequent tests start clean).
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.3)
     if hit != "CLOCKAPP":
         fail("T148", f"BUG-1 guard not firing: hit={hit!r} action={action!r} "
@@ -1180,19 +1180,19 @@ def t_bi_01(dut: Dut):
         skip("T_BI_01", "queue empty after 30s — Spotify not playing?")
         return
     # Ensure Spotify active.
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     if not r.get("ok") or r.get("name") != "Spotify":
         dut.set_cooldown_zero()
         sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-        dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+        dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
         time.sleep(0.4)
     # Switch to Clock; wait 2 s (ensures rate-limit window clears; seqno may change).
     dut.set_cooldown_zero()
     cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
-    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    dut.cmd(f"tap {cx} {cy}", timeout=TIMEOUT)
     time.sleep(2.0)
     # Note t_before.
-    r_before = dut.cmd("get lastPlaylistDraw", timeout=3.0)
+    r_before = dut.cmd("get lastPlaylistDraw", timeout=TIMEOUT)
     if not r_before.get("ok"):
         fail("T_BI_01", f"get lastPlaylistDraw failed: {r_before}")
         return
@@ -1200,7 +1200,7 @@ def t_bi_01(dut: Dut):
     # Switch back to Spotify — resume() calls invalidatePlaylist().
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     # Poll until lastPlaylistDraw advances (drawPlaylist fired in tick()), timeout 2 s.
     deadline = time.monotonic() + 2.0
     t_after = t_before
@@ -1232,24 +1232,24 @@ def t_bi_01(dut: Dut):
 def t_bi_02(dut: Dut):
     """T_BI_02: taskbar tap while PLAY pending → APP_SWITCH response; appId=Clock (no bleed)."""
     # Ensure Spotify active.
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     if not r.get("ok") or r.get("name") != "Spotify":
         skip("T_BI_02", f"precondition: need Spotify active, got {r.get('name')!r}")
         return
     # Tap PLAY (Press+Release delivered synchronously; pendingReleaseAt set then cleared).
     px, py = _c.tap_button("PLAY")
     dut.set_cooldown_zero()
-    dut.cmd(f"tap {px} {py}", timeout=3.0)
+    dut.cmd(f"tap {px} {py}", timeout=TIMEOUT)
     # Immediately tap taskbar Clock slot — shell must handle it, not Winamp.
     dut.set_cooldown_zero()
     cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
-    r_switch = dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    r_switch = dut.cmd(f"tap {cx} {cy}", timeout=TIMEOUT)
     time.sleep(0.2)  # past the 80 ms pendingReleaseAt window
-    r_app = dut.cmd("get appId", timeout=3.0)
+    r_app = dut.cmd("get appId", timeout=TIMEOUT)
     # Restore to Spotify before asserting.
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.3)
     hit    = r_switch.get("hit", "")
     action = r_switch.get("action", "")
@@ -1280,11 +1280,11 @@ def t_bi_03(dut: Dut):
     if not dut.wait_for_queue(min_count=2, timeout=30.0):
         skip("T_BI_03", "queue count<2 after 30s — Spotify not playing?")
         return
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     if not r.get("ok") or r.get("name") != "Spotify":
         dut.set_cooldown_zero()
         sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-        dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+        dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
         time.sleep(0.4)
     # Reset scrollOffset to 0 first.
     x1, y1, x2, y2 = _c.pledit_swipe("down")
@@ -1298,16 +1298,16 @@ def t_bi_03(dut: Dut):
     dut.send(f"drag {x1u} {y1u} {x2u} {y2u} 5")
     dut.read_json(timeout=5.0)
     # Verify dragState is D_IDLE after drag completes.
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T_BI_03", f"pre-condition: dragState={rg.get('state')} not D_IDLE after drag")
         return
     # Switch to Clock — suspend() → resetDragState().
     dut.set_cooldown_zero()
     cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])
-    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    dut.cmd(f"tap {cx} {cy}", timeout=TIMEOUT)
     time.sleep(0.3)
-    r_clock = dut.cmd("get appId", timeout=3.0)
+    r_clock = dut.cmd("get appId", timeout=TIMEOUT)
     if not r_clock.get("ok") or r_clock.get("name") != "Clock":
         fail("T_BI_03", f"failed to switch to Clock: appId={r_clock.get('name')!r}")
         return
@@ -1315,15 +1315,15 @@ def t_bi_03(dut: Dut):
     # Switch back to Spotify — resume() → invalidatePlaylist().
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.4)
     # Check dragState is D_IDLE (resetDragState was called by suspend()).
-    rg2 = dut.cmd("get dragState", timeout=3.0)
+    rg2 = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg2.get("state") != "D_IDLE":
         fail("T_BI_03", f"dragState={rg2.get('state')} after Clock switch — suspend() did not reset")
         return
     # Check scrollOffset is in range [0, ∞) — no negative underflow from stale drag.
-    rs = dut.cmd("get scrollOffset", timeout=3.0)
+    rs = dut.cmd("get scrollOffset", timeout=TIMEOUT)
     so = rs.get("val", -1)
     if not isinstance(so, int) or so < 0:
         fail("T_BI_03", f"scrollOffset={so!r} — negative or missing after suspend/resume")
@@ -1342,13 +1342,13 @@ def t_bi_03(dut: Dut):
       "already declared CORE on T079. A duplicate of a premise is not a premise.")
 def t_bi_04(dut: Dut):
     """T_BI_04: cmdTap delivers Release phase; response region=TRANSPORT action=PLAY|PAUSE. [PARTIAL — requires Spotify playing for full verification]"""
-    r = dut.cmd("get appId", timeout=3.0)
+    r = dut.cmd("get appId", timeout=TIMEOUT)
     if not r.get("ok") or r.get("name") != "Spotify":
         skip("T_BI_04", f"precondition: need Spotify active, got {r.get('name')!r}")
         return
     px, py = _c.tap_button("PLAY")
     dut.set_cooldown_zero()
-    r_tap = dut.cmd(f"tap {px} {py}", timeout=3.0)
+    r_tap = dut.cmd(f"tap {px} {py}", timeout=TIMEOUT)
     # 150 ms — past the 80 ms pendingReleaseAt window; release already delivered synchronously.
     time.sleep(0.15)
     hit    = r_tap.get("hit", "")
@@ -1415,17 +1415,17 @@ def t_ma_03(dut: Dut):
     # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
     # sees the post-stamp value and the 3 s window watches a correctly idle
     # clock. See _check_residue()'s docstring.
-    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=TIMEOUT)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.1)
     # TASK-584: establish the residue assertion's OWN precondition before
     # spending a verdict on it — a taskbar tap that missed leaves the shell
     # somewhere else, where a stalled lastPlaylistDraw says nothing about
     # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
     # runner, a device that answers the wrong app is a real dispatch defect.
-    landed = dut.get_str("appId", field="name", timeout=3.0)
+    landed = dut.get_str("appId", field="name", timeout=TIMEOUT)
     if landed != "Spotify":
         fail("T_MA_03", f"taskbar tap on the Spotify slot left the shell in "
                        f"{landed!r} — the Matrix->Spotify switch-back did not land")
@@ -1475,17 +1475,17 @@ def t_gol_03(dut: Dut):
     # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
     # sees the post-stamp value and the 3 s window watches a correctly idle
     # clock. See _check_residue()'s docstring.
-    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=TIMEOUT)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.1)
     # TASK-584: establish the residue assertion's OWN precondition before
     # spending a verdict on it — a taskbar tap that missed leaves the shell
     # somewhere else, where a stalled lastPlaylistDraw says nothing about
     # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
     # runner, a device that answers the wrong app is a real dispatch defect.
-    landed = dut.get_str("appId", field="name", timeout=3.0)
+    landed = dut.get_str("appId", field="name", timeout=TIMEOUT)
     if landed != "Spotify":
         fail("T_GOL_03", f"taskbar tap on the Spotify slot left the shell in "
                        f"{landed!r} — the GoL->Spotify switch-back did not land")
@@ -1506,7 +1506,7 @@ def t_gol_04(dut: Dut):
         _restore_spotify(dut)
         return
     time.sleep(0.35)  # wait for 3+ GoL ticks (100 ms each)
-    r = dut.cmd("get golAlive", timeout=3.0)
+    r = dut.cmd("get golAlive", timeout=TIMEOUT)
     _restore_spotify(dut)
     if not r.get("ok"):
         fail("T_GOL_04", f"get golAlive failed: {r}")
@@ -1560,17 +1560,17 @@ def t_wx_03(dut: Dut):
     # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
     # sees the post-stamp value and the 3 s window watches a correctly idle
     # clock. See _check_residue()'s docstring.
-    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=TIMEOUT)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.1)
     # TASK-584: establish the residue assertion's OWN precondition before
     # spending a verdict on it — a taskbar tap that missed leaves the shell
     # somewhere else, where a stalled lastPlaylistDraw says nothing about
     # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
     # runner, a device that answers the wrong app is a real dispatch defect.
-    landed = dut.get_str("appId", field="name", timeout=3.0)
+    landed = dut.get_str("appId", field="name", timeout=TIMEOUT)
     if landed != "Spotify":
         fail("T_WX_03", f"taskbar tap on the Spotify slot left the shell in "
                        f"{landed!r} — the Weather->Spotify switch-back did not land")
@@ -1587,7 +1587,7 @@ def t_wx_04(dut: Dut):
     """T_WX_04: weatherReady=false immediately after first switch-in (before fetch completes)."""
     print("T_WX_04  Weather pre-fetch state")
     # Only valid if Weather has never shown in this DUT session.
-    r_pre = dut.cmd("get weatherReady", timeout=3.0)
+    r_pre = dut.cmd("get weatherReady", timeout=TIMEOUT)
     if not r_pre.get("ok"):
         fail("T_WX_04", f"get weatherReady failed: {r_pre}")
         return
@@ -1610,7 +1610,7 @@ def t_wx_04(dut: Dut):
         return
     # Switch to Weather; check immediately (before 60s fetch interval).
     _switch_to(dut, "Weather")
-    r_imm = dut.cmd("get weatherReady", timeout=3.0)
+    r_imm = dut.cmd("get weatherReady", timeout=TIMEOUT)
     _restore_spotify(dut)
     if not r_imm.get("ok"):
         fail("T_WX_04", f"get weatherReady (immediate) failed: {r_imm}")
@@ -1634,7 +1634,7 @@ def t_wx_05(dut: Dut):
     deadline = time.monotonic() + 30.0
     ready = False
     while time.monotonic() < deadline:
-        r = dut.cmd("get weatherReady", timeout=3.0)
+        r = dut.cmd("get weatherReady", timeout=TIMEOUT)
         # TASK-676: a malformed or refused reply to THIS question is a finding
         # on the spot, not a reason to poll again — the untyped r.get(...)
         # defaults used to make a refused/dropped reply look identical to
@@ -1657,7 +1657,7 @@ def t_wx_05(dut: Dut):
             break
         time.sleep(2.0)
     if not ready:
-        r_prog = dut.cmd("get weatherFetchPhase", timeout=3.0)
+        r_prog = dut.cmd("get weatherFetchPhase", timeout=TIMEOUT)
         phase = r_prog.get("val") if r_prog.get("ok") else "?"
         phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
         _restore_spotify(dut)
@@ -1762,17 +1762,17 @@ def t_cx_03(dut: Dut):
     # 180 ms, one value for the next 6 s), so a baseline read AFTER the tap
     # sees the post-stamp value and the 3 s window watches a correctly idle
     # clock. See _check_residue()'s docstring.
-    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+    _t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=TIMEOUT)
     dut.set_cooldown_zero()
     sx, sy = _c.tap_taskbar_slot(APP_SLOT["Spotify"])
-    dut.cmd(f"tap {sx} {sy}", timeout=3.0)
+    dut.cmd(f"tap {sx} {sy}", timeout=TIMEOUT)
     time.sleep(0.1)
     # TASK-584: establish the residue assertion's OWN precondition before
     # spending a verdict on it — a taskbar tap that missed leaves the shell
     # somewhere else, where a stalled lastPlaylistDraw says nothing about
     # residue. Read it typed: a silent device raises NoAnswer -> UNMET at the
     # runner, a device that answers the wrong app is a real dispatch defect.
-    landed = dut.get_str("appId", field="name", timeout=3.0)
+    landed = dut.get_str("appId", field="name", timeout=TIMEOUT)
     if landed != "Spotify":
         fail("T_CX_03", f"taskbar tap on the Spotify slot left the shell in "
                        f"{landed!r} — the Crypto->Spotify switch-back did not land")
@@ -1788,7 +1788,7 @@ def t_cx_03(dut: Dut):
 def t_cx_04(dut: Dut):
     """T_CX_04: cryptoReady=false immediately after first switch-in (before fetch completes)."""
     print("T_CX_04  Crypto pre-fetch state")
-    r_pre = dut.cmd("get cryptoReady", timeout=3.0)
+    r_pre = dut.cmd("get cryptoReady", timeout=TIMEOUT)
     if not r_pre.get("ok"):
         fail("T_CX_04", f"get cryptoReady failed: {r_pre}")
         return
@@ -1806,7 +1806,7 @@ def t_cx_04(dut: Dut):
               "observe it")
         return
     _switch_to(dut, "Crypto")
-    r_imm = dut.cmd("get cryptoReady", timeout=3.0)
+    r_imm = dut.cmd("get cryptoReady", timeout=TIMEOUT)
     _restore_spotify(dut)
     if not r_imm.get("ok"):
         fail("T_CX_04", f"get cryptoReady (immediate) failed: {r_imm}")
@@ -1829,7 +1829,7 @@ def t_cx_05(dut: Dut):
     deadline = time.monotonic() + 30.0
     ready = False
     while time.monotonic() < deadline:
-        r = dut.cmd("get cryptoReady", timeout=3.0)
+        r = dut.cmd("get cryptoReady", timeout=TIMEOUT)
         # TASK-676: a malformed or refused reply to THIS question is a finding
         # on the spot, not a reason to poll again — the untyped r.get(...)
         # defaults used to make a refused/dropped reply look identical to
@@ -1852,9 +1852,9 @@ def t_cx_05(dut: Dut):
             break
         time.sleep(2.0)
     if not ready:
-        r_code = dut.cmd("get cryptoHttpCode", timeout=3.0)
+        r_code = dut.cmd("get cryptoHttpCode", timeout=TIMEOUT)
         http_code = r_code.get("val", "?") if r_code.get("ok") else "?"
-        r_prog = dut.cmd("get cryptoFetchPhase", timeout=3.0)
+        r_prog = dut.cmd("get cryptoFetchPhase", timeout=TIMEOUT)
         phase = r_prog.get("val") if r_prog.get("ok") else "?"
         phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
         _restore_spotify(dut)
@@ -1930,9 +1930,9 @@ def t_x07_01(dut: Dut):
     for app_name, slot in sequence:
         dut.set_cooldown_zero()
         x, y = _c.tap_taskbar_slot(slot)
-        dut.cmd(f"tap {x} {y}", timeout=3.0)
+        dut.cmd(f"tap {x} {y}", timeout=TIMEOUT)
         time.sleep(0.2)
-        r = dut.cmd("get appId", timeout=3.0)
+        r = dut.cmd("get appId", timeout=TIMEOUT)
         if not r.get("ok") or r.get("name") != app_name:
             # Ensure we're back to Spotify before failing.
             _restore_spotify(dut)
@@ -2104,7 +2104,7 @@ def t_busy_01b(dut: Dut):
         # Force stale cache BEFORE drill-in so the drill always triggers a fresh fetch.
         dut.cmd("set triggerFetch 1", timeout=2.0)
         drill_before = _stock_ok_count(dut)
-        dut.cmd("tap 137 36", timeout=10.0)
+        dut.cmd("tap 137 36", timeout=TIMEOUT_SLOW)
         time.sleep(0.3)
         if not _wait_chart_complete(dut, drill_before, timeout_s=45.0):
             _restore_from_stock(dut)
@@ -2194,7 +2194,7 @@ def t_busy_03(dut: Dut):
     for app_name, app_id in PASSIVE_APPS:
         _wait_shell_not_busy(dut, timeout_s=10.0)
         with _bgpoll_suspended(dut):
-            r = dut.cmd(f"switchApp {app_id}", timeout=3.0)
+            r = dut.cmd(f"switchApp {app_id}", timeout=TIMEOUT)
             if not r.get("ok"):
                 errors.append(f"{app_name}: switchApp failed: {r}")
                 continue
@@ -2250,7 +2250,7 @@ def t_busy_05(dut: Dut):
         dut.cmd("set triggerFetch 1", timeout=2.0)
         r_d = dut.cmd("tap 137 36", timeout=5.0)
         drilled = (not r_d.get("skipped")) and (
-            dut.cmd("get stockSubView", timeout=3.0).get("val") == "chart"
+            dut.cmd("get stockSubView", timeout=TIMEOUT).get("val") == "chart"
         )
         if not drilled:
             _restore_from_stock(dut)
@@ -2261,7 +2261,7 @@ def t_busy_05(dut: Dut):
             _restore_from_stock(dut)
             skip("T-BUSY-05", "shellBusy=true not observed within 5 s — warm connection completed fetch too fast")
             return
-        dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
+        dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=TIMEOUT)
         time.sleep(0.05)
         results = []
         for _ in range(3):
@@ -2621,10 +2621,10 @@ def t_cdwn_03(dut: Dut):
         tx, ty = _c.tap_taskbar_slot(_CLOCK_APP_ID)
         dut.cmd(f"tap {tx} {ty}", timeout=2.0)
         time.sleep(0.3)
-        r_app = dut.cmd("get appId", timeout=3.0)
+        r_app = dut.cmd("get appId", timeout=TIMEOUT)
         app_name = r_app.get("name") if r_app.get("ok") else None
         busy_after = _get_shell_busy(dut)
-        dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=3.0)
+        dut.cmd(f"switchApp {_SPOTIFY_APP_ID}", timeout=TIMEOUT)
         time.sleep(0.3)
     if app_name != "Clock":
         fail("T-CDWN-03", f"appId={app_name!r} after taskbar tap — expected 'Clock'")
@@ -2669,7 +2669,7 @@ def _vs_precondition(dut: Dut, tid: str) -> bool:
     if so != 0:
         skip(tid, f"precondition: scrollOffset={so} could not be reset to 0")
         return False
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         skip(tid, f"precondition: dragState={rg.get('state')!r} not D_IDLE")
         return False
@@ -2949,7 +2949,7 @@ def t155(dut: Dut):
     if post != baseline:
         fail("T155", f"scrollOffset changed {baseline}→{post} — scroll-end fired instead of tap")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T155", f"dragState={rg.get('state')!r} — Release cleanup failed")
         return
@@ -2965,20 +2965,20 @@ def t156(dut: Dut):
         return
     # y 150→163: dy = +13 > DEAD_ZONE(1) → scroll-end; cooldown set to 150 ms (not 300 ms tap).
     dut.send(f"drag {_PLEDIT_X} {_PLEND_Y} {_PLEDIT_X} {_PLSTART_Y} 1")
-    _, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    _, drag_resp = _vs_drain_until_drag(dut, timeout=TIMEOUT_SLOW)
     if drag_resp is None:
         fail("T156", "no drag response within 10 s")
         return
     if not drag_resp.get("ok"):
         fail("T156", f"drag response ok=false: {drag_resp}")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T156", f"dragState={rg.get('state')!r} — Release did not complete")
         return
     # Distinguish scroll-end (cooldown≈150 ms) from tap (cooldown≈300 ms).
     # After ~15 ms of processing, scroll-end cooldown is ~135 ms; tap would be ~285 ms.
-    rc = dut.cmd("get cooldown", timeout=3.0)
+    rc = dut.cmd("get cooldown", timeout=TIMEOUT)
     cooldown_ms = rc.get("remainingMs", 9999)
     if cooldown_ms > 220:
         fail("T156", f"cooldown={cooldown_ms} ms > 220 — tap branch fired (expected scroll-end ≤220 ms)")
@@ -3004,7 +3004,7 @@ def t157(dut: Dut):
     dut.send(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 1")
     dut.send("get dragState")
     dut.send("tick 50 20")
-    pre, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    pre, drag_resp = _vs_drain_until_drag(dut, timeout=TIMEOUT_SLOW)
     if drag_resp is None:
         fail("T157", "no drag response within 10 s")
         return
@@ -3035,7 +3035,7 @@ def t158(dut: Dut):
     dut.send(f"drag {_PLEDIT_X} {_PLSTART_Y} {_PLEDIT_X} {_PLEND_Y} 1")
     dut.send("get dragState")
     dut.send("tick 50 20")
-    pre, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    pre, drag_resp = _vs_drain_until_drag(dut, timeout=TIMEOUT_SLOW)
     if drag_resp is None:
         fail("T158", "no drag response within 10 s")
         return
@@ -3068,7 +3068,7 @@ def t159(dut: Dut):
     dut.send("get dragState")
     dut.send("tick 10 20")
     dut.send("get scrollAccum")
-    pre, drag_resp = _vs_drain_until_drag(dut, timeout=10.0)
+    pre, drag_resp = _vs_drain_until_drag(dut, timeout=TIMEOUT_SLOW)
     if drag_resp is None:
         fail("T159", "no drag response within 10 s")
         return
@@ -3089,13 +3089,13 @@ def t159(dut: Dut):
                      f"tick may have fired before _dragCurrentY was set (tick response: "
                      f"{next((r for r in pre if r.get('cmd')=='tick'), 'missing')})")
         return
-    r_accum_post = dut.cmd("get scrollAccum", timeout=3.0)
+    r_accum_post = dut.cmd("get scrollAccum", timeout=TIMEOUT)
     accum_post = r_accum_post.get("val", -1.0)
     if accum_post != 0.0:
         fail("T159", f"scrollAccum={accum_post} after Release — expected 0.0000; "
                      f"Release cleanup (_scrollAccum=0) not firing")
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T159", f"dragState={rg.get('state')!r} after Release — expected D_IDLE")
         return
@@ -3109,7 +3109,7 @@ def t160(dut: Dut):
     print("T160  tickScroll no-op when D_IDLE")
     if not _vs_precondition(dut, "T160"):
         return
-    rg = dut.cmd("get dragState", timeout=3.0)
+    rg = dut.cmd("get dragState", timeout=TIMEOUT)
     if rg.get("state") != "D_IDLE":
         fail("T160", f"precondition: dragState={rg.get('state')!r} not D_IDLE")
         return
@@ -3126,7 +3126,7 @@ def t160(dut: Dut):
         fail("T160", f"scrollOffset changed {baseline}→{post} during D_IDLE tick — "
                      f"tickScroll guard clause not firing")
         return
-    r_vel = dut.cmd("get scrollVelocity", timeout=3.0)
+    r_vel = dut.cmd("get scrollVelocity", timeout=TIMEOUT)
     vel = r_vel.get("val", None)
     if vel != 0.0:
         fail("T160", f"scrollVelocity={vel} after D_IDLE tick — expected 0.0000")
@@ -3173,9 +3173,9 @@ def t162(dut: Dut):
         return
     baseline = _tb_get_offset(dut)
     cx, cy = _c.tap_taskbar_slot(APP_SLOT["Clock"])   # Clock slot
-    dut.cmd(f"tap {cx} {cy}", timeout=3.0)
+    dut.cmd(f"tap {cx} {cy}", timeout=TIMEOUT)
     time.sleep(0.2)
-    r_app = dut.cmd("get appId", timeout=3.0)
+    r_app = dut.cmd("get appId", timeout=TIMEOUT)
     post = _tb_get_offset(dut)
     _restore_spotify(dut)
     if r_app.get("name") != "Clock":
@@ -3321,7 +3321,7 @@ def t242(dut: Dut):
         if not _tb_set_offset(dut, target):
             fail("T242", f"could not reach scrollOffset={target} (DUT crash/reboot?)")
             return
-        if not dut.cmd("get appId", timeout=3.0).get("name"):
+        if not dut.cmd("get appId", timeout=TIMEOUT).get("name"):
             fail("T242", f"DUT unresponsive at scrollOffset={target} — taskbar render crash")
             return
     # Tap the top slot at a few offsets; the selected app must never be WebRadio.
@@ -3337,7 +3337,7 @@ def t242(dut: Dut):
         dut.set_cooldown_zero()
         x, y = _c.tap_taskbar_slot(0)         # top visible slot → appIdx=target
         dut.cmd(f"tap {x} {y}", timeout=5.0)
-        if dut.cmd("get appId", timeout=3.0).get("name") == "WebRadio":
+        if dut.cmd("get appId", timeout=TIMEOUT).get("name") == "WebRadio":
             fail("T242", f"taskbar tap at offset {target} selected WebRadio — must be eject-only")
             return
     _restore_spotify(dut)
@@ -3397,7 +3397,7 @@ def t_tbfb_01(dut: Dut):
     i_press  = _tbfb_idx(lines, "[shell] tb-press slot=1")
     i_commit = _tbfb_idx(lines, "[shell] tb-commit slot=1")
     i_enter  = _tbfb_idx(lines, "[shell] entered 1 ")   # trailing space: not 10/11
-    r_app = dut.cmd("get appId", timeout=3.0)
+    r_app = dut.cmd("get appId", timeout=TIMEOUT)
     _restore_spotify(dut)
     if i_press < 0:
         fail("T_TBFB_01", f"no '[shell] tb-press slot=1' in drain window: {lines[:6]}")
@@ -3463,11 +3463,11 @@ def t_tbfb_03(dut: Dut):
     print("T_TBFB_03  commit amber on press-anchored slot; WebRadio player-mode redirect")
     if not _tb_precondition(dut, "T_TBFB_03"):
         return
-    r_pm = dut.cmd("get playerMode", timeout=3.0)
+    r_pm = dut.cmd("get playerMode", timeout=TIMEOUT)
     if not _switch_to(dut, "Clock"):
         skip("T_TBFB_03", "could not switch to Clock for the redirect tap")
         return
-    dut.cmd("set playerMode 1", timeout=3.0)
+    dut.cmd("set playerMode 1", timeout=TIMEOUT)
     dut.set_cooldown_zero()
     try:
         lines = _tbfb_drag_capture(dut, _TB_X, 20, _TB_X, 21, 2)   # slot 0 = player slot
@@ -3475,7 +3475,7 @@ def t_tbfb_03(dut: Dut):
         i_enter  = _tbfb_idx(lines, f"[shell] entered {APP_SLOT['WebRadio']}")
         r_app = dut.cmd("get appId", timeout=5.0)
     finally:
-        dut.cmd(f"set playerMode {r_pm.get('val', 0)}", timeout=3.0)
+        dut.cmd(f"set playerMode {r_pm.get('val', 0)}", timeout=TIMEOUT)
         _restore_spotify(dut)
     if i_commit < 0:
         fail("T_TBFB_03", f"no '[shell] tb-commit slot=0' — press-anchored amber missing: {lines[:6]}")
@@ -3508,7 +3508,7 @@ def t_tbfb_04(dut: Dut):
         return
     _, y = _c.tap_taskbar_slot(APP_SLOT["Clock"])
     _tbfb_drag_capture(dut, _TB_X, y, _TB_X, y + 1, 2)            # taskbar tap → Clock
-    r_cd_tb = dut.cmd("get cooldown", timeout=3.0)
+    r_cd_tb = dut.cmd("get cooldown", timeout=TIMEOUT)
     if not _restore_spotify(dut):
         skip("T_TBFB_04", "could not restore Spotify for the canvas half")
         return
@@ -3518,7 +3518,7 @@ def t_tbfb_04(dut: Dut):
     # Side effect: visMode cycles once; left as-is per T-CDWN-01 precedent.
     px, py = _c.tap_vis()
     _tbfb_drag_capture(dut, px, py, px, py + 1, 2)
-    r_cd_cv = dut.cmd("get cooldown", timeout=3.0)
+    r_cd_cv = dut.cmd("get cooldown", timeout=TIMEOUT)
     rem_tb = int(r_cd_tb.get("remainingMs", -1))
     rem_cv = int(r_cd_cv.get("remainingMs", -1))
     if rem_tb != 0:
@@ -3550,13 +3550,13 @@ def t_tbfb_05(dut: Dut):
     # The precondition's own drags arm the same 300 ms shell cooldown — let it
     # decay so the "unarmed" half reads a settled 0, not a stale remnant.
     time.sleep(0.5)
-    r_before = dut.cmd("get shellCooldown", timeout=3.0)
+    r_before = dut.cmd("get shellCooldown", timeout=TIMEOUT)
     _, y = _c.tap_taskbar_slot(APP_SLOT["Clock"])
     # The drag JSON terminator is emitted in the same loop iteration that arms
     # s_cooldownMs (drainInjectionQueue release branch), so the read that follows
     # lands well inside the 300 ms window.
     lines = _tbfb_drag_capture(dut, _TB_X, y, _TB_X, y + 1, 2)   # taskbar tap → Clock
-    r_after = dut.cmd("get shellCooldown", timeout=3.0)
+    r_after = dut.cmd("get shellCooldown", timeout=TIMEOUT)
     _restore_spotify(dut)
     rem_before = int(r_before.get("remainingMs", -1))
     rem_after = int(r_after.get("remainingMs", -1))
@@ -3783,13 +3783,13 @@ def t_set_07(dut: Dut):
 def t_set_08(dut: Dut):
     """T-SET-08: back from category list returns to g_previousAppId (Crypto)."""
     print("T-SET-08  goBack() from category list → g_previousAppId (Crypto)")
-    r = dut.cmd(f"switchApp {_CRYPTO_APP_ID}", timeout=3.0)
+    r = dut.cmd(f"switchApp {_CRYPTO_APP_ID}", timeout=TIMEOUT)
     if not r.get("ok"):
         skip("T-SET-08", "could not switch to Crypto")
         _restore_spotify(dut)
         return
     time.sleep(0.2)
-    r2 = dut.cmd("get appId", timeout=3.0)
+    r2 = dut.cmd("get appId", timeout=TIMEOUT)
     if r2.get("name") != "Crypto":
         skip("T-SET-08", f"appId={r2.get('name')!r} — could not confirm Crypto")
         _restore_spotify(dut)
@@ -3805,7 +3805,7 @@ def t_set_08(dut: Dut):
         return
     _settings_tap_back(dut)    # back from category list → should go to Crypto
     time.sleep(0.2)
-    r3 = dut.cmd("get appId", timeout=3.0)
+    r3 = dut.cmd("get appId", timeout=TIMEOUT)
     app_name = r3.get("name")
     if app_name != "Crypto":
         _restore_spotify(dut)
@@ -3842,7 +3842,7 @@ def t_uart_01(dut: Dut):
     errors = []
     for i in range(20):
         try:
-            r = dut.cmd("get heap", timeout=3.0)
+            r = dut.cmd("get heap", timeout=TIMEOUT)
             if not r.get("ok"):
                 errors.append(f"cmd {i}: ok=false {r}")
         except (TimeoutError, ValueError) as e:
@@ -3921,7 +3921,7 @@ def t_bgpoll_02(dut: Dut):
             fail("T-BGPOLL-02", f"pre-condition failed: bgPoll not suspended (got {r})")
             return
         # reconnect should reset s_bgPollEnabled = 1
-        dut.cmd("reconnect", timeout=3.0)
+        dut.cmd("reconnect", timeout=TIMEOUT)
         time.sleep(1.0)  # allow TLS reset + reconnect to process
         r2 = dut.cmd("get bgPoll", timeout=2.0)
         if not r2.get("ok") or r2.get("enabled") != 1:
@@ -3942,7 +3942,7 @@ def t_bgpoll_03(dut: Dut):
     """T-BGPOLL-03: ACT_FORCE_POLL tap completes fetch while bgPoll suspended; flag stays 0."""
     print("T-BGPOLL-03  ACT_FORCE_POLL bypasses bgPoll suspend (ADR-042 E2)")
     # Ensure Spotify app
-    r = dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=3.0)
+    r = dut.cmd(f"switchApp {APP_SLOT['Spotify']}", timeout=TIMEOUT)
     if not r.get("ok"):
         skip("T-BGPOLL-03", "could not switch to Spotify app")
         return
@@ -3980,7 +3980,7 @@ def t_bgpoll_03(dut: Dut):
 
 def _get_active_error(dut: Dut):
     """Returns the `get activeError` dict: {active, spotifyAuthError}."""
-    return dut.cmd("get activeError", timeout=3.0)
+    return dut.cmd("get activeError", timeout=TIMEOUT)
 
 @meta(scope="spotify-chrome", scope_reason="shell-poll",
       cls="FEATURE", cls_reason=
@@ -4209,7 +4209,7 @@ def t_tls_01(dut: Dut):
         return
     _wait_shell_not_busy(dut, timeout_s=10.0)
     with _bgpoll_suspended(dut):
-        r0 = dut.cmd("get dataRing", timeout=3.0)
+        r0 = dut.cmd("get dataRing", timeout=TIMEOUT)
         if not r0.get("ok"):
             unmet("T_TLS_01", f"get dataRing refused: {r0!r} — firmware "
                                "without the TASK-697 event ring")
@@ -4284,7 +4284,7 @@ def t_tls_02(dut: Dut):
         return
     _wait_shell_not_busy(dut, timeout_s=10.0)
     with dut.injected("spotifyWedge", _TLS_WEDGE_MS, clear_to=0):
-        armed = dut.get_val("armed", field="armed", timeout=3.0)
+        armed = dut.get_val("armed", field="armed", timeout=TIMEOUT)
         if "spotifyWedge" not in armed:
             unmet("T_TLS_02", f"get armed did not list spotifyWedge right "
                               f"after arming it (armed={armed!r}) — TASK-635's "
@@ -4292,7 +4292,7 @@ def t_tls_02(dut: Dut):
                               "wedge were left armed, so we UNMET instead of "
                               "risking a false PASS")
             return
-        r0 = dut.cmd("get dataRing", timeout=3.0)
+        r0 = dut.cmd("get dataRing", timeout=TIMEOUT)
         if not r0.get("ok"):
             unmet("T_TLS_02", f"get dataRing refused: {r0!r}")
             return
@@ -4394,22 +4394,22 @@ def t_dtq_01(dut: Dut):
         # very next dequeue (spotifyTaskStorage.cpp ~435) — one second is
         # ample margin for that to have happened.
         time.sleep(1.0)
-        q = dut.cmd("get dataq", timeout=3.0)
+        q = dut.cmd("get dataq", timeout=TIMEOUT)
         if q.get("inFlight") != 2:
             _restore_from_stock(dut)
             unmet("T_DTQ_01", f"dataq inFlight={q.get('inFlight')!r}, "
                               "expected 2 (stockquote) — the wedge did not "
                               "hold the Stock fetch in flight as expected")
             return
-        switched_pr = _switch_to(dut, "PlaneRadar", timeout=10.0)
+        switched_pr = _switch_to(dut, "PlaneRadar", timeout=TIMEOUT_SLOW)
         if not switched_pr:
             _restore_from_stock(dut)
             unmet("T_DTQ_01", "could not switch to PlaneRadar to enqueue the "
                               "cross-app fetch")
             return
-        q2 = dut.cmd("get dataq", timeout=3.0)
+        q2 = dut.cmd("get dataq", timeout=TIMEOUT)
         # Typed (R18): a reply without the field raises BadField, never reads 0.
-        queued = dut.get_int("dataq", field="queueWaiting", timeout=3.0) >= 1
+        queued = dut.get_int("dataq", field="queueWaiting", timeout=TIMEOUT) >= 1
         if not queued:
             _restore_spotify(dut)
             fail("T_DTQ_01", f"dataq after switching to PlaneRadar while "
@@ -4423,8 +4423,8 @@ def t_dtq_01(dut: Dut):
         while time.monotonic() < deadline:
             # Typed (R18): the drain condition must not be satisfiable by a
             # reply that is missing the fields, as the earlier `or 0` form was.
-            if (dut.get_int("dataq", field="inFlight", timeout=3.0) == -1
-                    and dut.get_int("dataq", field="queueWaiting", timeout=3.0) == 0):
+            if (dut.get_int("dataq", field="inFlight", timeout=TIMEOUT) == -1
+                    and dut.get_int("dataq", field="queueWaiting", timeout=TIMEOUT) == 0):
                 cleared = True
                 break
             time.sleep(0.5)
@@ -4469,10 +4469,10 @@ def t_sbk_01(dut: Dut):
     for several consecutiveFailures values. TASK-705 primitive:
     spotify_backoff."""
     print("T_SBK_01  backoff nextPollMs follows nextWaitMs()'s doubling schedule")
-    with dut.saved("backoff", field="consecutiveFailures", timeout=3.0):
+    with dut.saved("backoff", field="consecutiveFailures", timeout=TIMEOUT):
         for cf in (0, 1, 2, 6, 9):
-            dut.set_val("backoff", cf, timeout=3.0)
-            got = dut.get_int("backoff", field="nextPollMs", timeout=3.0)
+            dut.set_val("backoff", cf, timeout=TIMEOUT)
+            got = dut.get_int("backoff", field="nextPollMs", timeout=TIMEOUT)
             want = _next_wait_ms(cf)
             if cf == 0 and got != want:
                 unmet("T_SBK_01", f"cf=0 -> nextPollMs={got}, expected "

@@ -74,8 +74,8 @@ import time
 # mistake, caught here before it repeats).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent.parent))
 
-from lib.dut import (Dut, SetupFailure, cls_for_reason, resolve_port,     # noqa: E402
-                     set_no_wifi)
+from lib.dut import (TIMEOUT, Dut, SetupFailure, cls_for_reason,          # noqa: E402
+                     resolve_port, set_no_wifi)
 from lib.results import (print_results,                                  # noqa: E402
                          run_with_flake_retry, set_exchange_provider,
                          set_meta_provider, set_premise_provider)
@@ -542,7 +542,7 @@ def main():
     except Exception:
         pass
     try:
-        pm = dut.cmd("get playerMode", timeout=3.0)
+        pm = dut.cmd("get playerMode", timeout=TIMEOUT)
         print(f"[TASK-407] entry playerMode: {pm.get('name')} ({pm.get('val')})")
     except Exception as e:
         print(f"[TASK-407] entry playerMode: unavailable ({type(e).__name__})")
@@ -759,7 +759,7 @@ def main():
 
     def _exit_snapshot():
         try:
-            pm = dut.cmd("get playerMode", timeout=3.0)
+            pm = dut.cmd("get playerMode", timeout=TIMEOUT)
             print(f"[TASK-407] exit playerMode: {pm.get('name')} ({pm.get('val')})")
         except Exception as e:
             print(f"[TASK-407] exit playerMode: unavailable ({type(e).__name__})")

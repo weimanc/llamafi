@@ -16,11 +16,19 @@ Two things are NEW here rather than moved, both of them the point of the task:
                     that fact (run/lib.sh resolve_port); re-deriving it in
                     Python is LL-114 all over again.
 
-  TIMEOUT / TIMEOUT_SLOW — one timeout policy. The runner carried 701 numeric
-                    `timeout=` literals (454 of them the same 3.0). New call
+  TIMEOUT / TIMEOUT_SLOW — one timeout policy. The runner carried 715 numeric
+                    `timeout=` literals (446 of them the same 3.0, 20 the same
+                    10.0) against this policy with zero users (A-11). TASK-607
+                    (R24) migrated those two exact populations mechanically —
+                    `timeout=3.0` -> `timeout=TIMEOUT`, `timeout=10.0` ->
+                    `timeout=TIMEOUT_SLOW`, keyword-position substitution only,
+                    behaviour-preserving under the defaults both constants
+                    already had. The remaining 249 literals (2.0/5.0/8.0/15.0/
+                    ...) are call-site-specific values, not migrated — see the
+                    TIMEOUT policy comment below and
+                    `docs/verification/timeout_literal_ratchet.md`. New call
                     sites take the default; only genuinely slow operations pass
-                    TIMEOUT_SLOW. Existing literals are migrated opportunistically,
-                    never in the same commit as a behaviour change.
+                    TIMEOUT_SLOW.
 
 run_serialdbg_tests.py re-exports every name below, so all 16 importers keep
 working unchanged. Migrate them to `from lib.dut import Dut` a few at a time.
@@ -64,8 +72,27 @@ try:
 except ImportError:
     raise SystemExit("pip install pyserial")
 
-# ── timeout policy (M-TESTBASE P1) ───────────────────────────────────────────
+# ── timeout policy (M-TESTBASE P1, TASK-607/R24) ─────────────────────────────
 # One default, one slow-operation override. Not a knob per call site.
+#
+# R24 (TASK-607) migrated the two unambiguous literal populations onto these
+# names: every exact `timeout=3.0` call site became `timeout=TIMEOUT`, and
+# every exact `timeout=10.0` became `timeout=TIMEOUT_SLOW` (10.0 already WAS
+# this policy's declared slow-operation value — using the name it already had
+# is the point of "with users", not a new policy). Values that mean something
+# call-site-specific (2.0, 5.0, 8.0, 15.0, ...) were left as literals on
+# purpose: a policy with six constants is a rename of the problem, and R24
+# does not add new policy names. See `docs/verification/M-HARNESS2-requirements.md`
+# (R24) and `docs/verification/timeout_literal_ratchet.md` for what remains.
+#
+# RISK, stated plainly because it is now real rather than theoretical:
+# `DUT_TIMEOUT` (and `DUT_TIMEOUT_SLOW`) is an environment override, and with
+# 446 call sites now reading it, setting either variable moves every one of
+# them at once. That is the intended lever (a slow/loaded board can widen the
+# whole suite's patience in one place) — but it also means a stray
+# `DUT_TIMEOUT` left set in a shell changes hundreds of call sites' effective
+# timeout silently, with no per-call-site trace. `run/test*` does not set
+# either variable; if a run's timeouts look off, check the environment first.
 TIMEOUT      = float(os.environ.get("DUT_TIMEOUT", "3.0"))
 TIMEOUT_SLOW = float(os.environ.get("DUT_TIMEOUT_SLOW", "10.0"))
 

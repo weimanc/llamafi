@@ -3,7 +3,7 @@ run_serialdbg_tests.py, TASK-480 stage 2 (pilot family)."""
 
 import time
 
-from lib.dut import BadField, Dut
+from lib.dut import TIMEOUT, BadField, Dut
 import coords as _c
 from lib.results import pass_, fail, unmet
 from suite.serialdbg._meta import meta
@@ -272,7 +272,7 @@ def t_clk_sig_01(dut: Dut):
         unmet(tid, "switchApp 1 refused, so no Clock canvas was on screen to read")
         return
     deadline = time.monotonic() + 8.0
-    while not dut.get_bool("idle", field="idle", timeout=3.0):
+    while not dut.get_bool("idle", field="idle", timeout=TIMEOUT):
         if time.monotonic() > deadline:
             unmet(tid, "shell never went idle within 8 s after switching to Clock — "
                        "a signature taken mid-repaint is a torn read (ADR-064 D8)")

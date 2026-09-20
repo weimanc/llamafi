@@ -59,7 +59,7 @@ import time
 
 from app_ids_gen import APP_ORDER
 from lib import dut as _dutmod
-from lib.dut import Dut
+from lib.dut import TIMEOUT, Dut
 from lib.results import BLOCKING, fail, pass_, verdict_of
 from suite.serialdbg._meta import meta
 
@@ -94,7 +94,7 @@ def t_dh_01(dut: Dut) -> None:
     bad = []
 
     try:
-        r = dut.cmd("info", timeout=3.0)
+        r = dut.cmd("info", timeout=TIMEOUT)
     except TimeoutError as e:
         fail(tid, f"`info` did not answer: {e}")
         return
@@ -111,7 +111,7 @@ def t_dh_01(dut: Dut) -> None:
         bad.append(f"info.heap={r.get('heap')!r} (not a number)")
 
     try:
-        v = dut.cmd("get variant", timeout=3.0)
+        v = dut.cmd("get variant", timeout=TIMEOUT)
     except TimeoutError as e:
         fail(tid, f"`get variant` did not answer: {e} (info was {r})")
         return
@@ -119,7 +119,7 @@ def t_dh_01(dut: Dut) -> None:
         bad.append(f"variant.spotify={v.get('spotify')!r} (want 'on'/'off')")
 
     try:
-        pm = dut.cmd("get playerMode", timeout=3.0)
+        pm = dut.cmd("get playerMode", timeout=TIMEOUT)
     except TimeoutError as e:
         fail(tid, f"`get playerMode` did not answer: {e}")
         return
@@ -200,7 +200,7 @@ def t_dh_02(dut: Dut) -> None:
         return
 
     try:
-        r = dut.cmd("get ip", timeout=3.0)
+        r = dut.cmd("get ip", timeout=TIMEOUT)
     except TimeoutError as e:
         fail(tid, f"`get ip` did not answer: {e}")
         return
@@ -331,7 +331,7 @@ def _wait_idle(dut: Dut, timeout: float = 10.0):
     last = {}
     while time.monotonic() < deadline:
         try:
-            last = dut.cmd("get idle", timeout=3.0)
+            last = dut.cmd("get idle", timeout=TIMEOUT)
         except TimeoutError:
             last = {}
         if last.get("idle"):
@@ -476,10 +476,10 @@ def premise(dut: Dut, switch_verdict: str = "not-run") -> str:
         except Exception:
             return default
 
-    ip = _try(lambda: dut.cmd("get ip", timeout=3.0).get("ip") or "?")
+    ip = _try(lambda: dut.cmd("get ip", timeout=TIMEOUT).get("ip") or "?")
     cfg = _try(lambda: read_wifi_cfg(dut), {})
     ssid = json.dumps(cfg.get("ssid")) if cfg.get("ssid") is not None else "?"
-    heap = _try(lambda: dut.cmd("get heap", timeout=3.0), {})
+    heap = _try(lambda: dut.cmd("get heap", timeout=TIMEOUT), {})
     appid = _try(lambda: _app_id(dut) or "?")
     elapsed = _try(lambda: f"{time.monotonic() - dut._port_open_time:.1f}s")
 

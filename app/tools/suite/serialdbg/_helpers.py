@@ -11,7 +11,7 @@ import json
 import time
 from contextlib import contextmanager
 
-from lib.dut import Dut, BadField, DeviceReadError, NoAnswer
+from lib.dut import TIMEOUT, Dut, BadField, DeviceReadError, NoAnswer
 from lib.results import skip, pass_
 import coords as _c
 from app_ids_gen import APP_SLOT
@@ -115,7 +115,7 @@ def _drain_data_pipeline(dut: Dut, timeout_s: float = 200.0, tag: str = "") -> b
             # from unsafe-by-choice, and `cmdGet.cpp`'s dataq reply prints all
             # four fields unconditionally, so an absent one is a shape change
             # this loop should surface rather than absorb for 200 s.
-            q = dut.read_reply("get dataq", timeout=3.0)
+            q = dut.read_reply("get dataq", timeout=TIMEOUT)
             if (dut_int(q, "queueWaiting") == 0 and dut_int(q, "inFlight") == -1
                     and dut_int(q, "yieldCount") == 0 and q.get("spAct") != 3):
                 return True
@@ -293,7 +293,7 @@ def _check_residue(dut: Dut, tid: str, t_before: int = None) -> bool:
     # not answer". TASK-584 closes that: the two outcomes are now a bool and an
     # exception, and they cannot be confused by a caller.
     if t_before is None:
-        t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=3.0)
+        t_before = dut.get_int("lastPlaylistDraw", field="ms", timeout=TIMEOUT)
     answered = False
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
@@ -470,7 +470,7 @@ def _observe_progress_atom(dut: Dut, var: str, done, *, timeout_s: float,
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
-            seen.add(dut.get_int(var, timeout=3.0))
+            seen.add(dut.get_int(var, timeout=TIMEOUT))
             polls += 1
         except (TimeoutError, NoAnswer):
             # An unanswered read inside a bounded loop is not a verdict; the
@@ -488,7 +488,7 @@ def _observe_progress_atom(dut: Dut, var: str, done, *, timeout_s: float,
     idle_deadline = time.monotonic() + 5.0
     while completed and time.monotonic() < idle_deadline:
         try:
-            if dut.get_int(var, timeout=3.0) == -1:
+            if dut.get_int(var, timeout=TIMEOUT) == -1:
                 returned_idle = True
                 break
         except (TimeoutError, NoAnswer):
@@ -530,7 +530,7 @@ def _dataq_fetch_edge(dut: Dut, fetch_type: int):
 
     def done() -> bool:
         try:
-            q = dut.cmd("get dataq", timeout=3.0)
+            q = dut.cmd("get dataq", timeout=TIMEOUT)
         except (TimeoutError, NoAnswer):
             return False
         if not q.get("ok"):
@@ -620,7 +620,7 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
         ticks += 1
         if ticks % 3 == 0:  # sample the dispatch pipeline every ~3 s (TASK-300)
             try:
-                q = dut.cmd("get dataq", timeout=3.0)
+                q = dut.cmd("get dataq", timeout=TIMEOUT)
                 if q.get("ok"):
                     q.pop("ok", None); q.pop("cmd", None); q.pop("last", None)
                     if q != last_q:
@@ -630,7 +630,7 @@ def _wait_chart_complete(dut: Dut, before: int, timeout_s: float = 45.0,
                 pass
         time.sleep(1.0)
     try:
-        phase = dut.get_int("stockChartProgress", timeout=3.0)
+        phase = dut.get_int("stockChartProgress", timeout=TIMEOUT)
     except DeviceReadError:
         phase = "?"   # diagnostic text only — never an oracle term
     phase_name = _CHART_PHASE_NAMES.get(phase, "idle" if phase == -1 else "unknown")
@@ -688,7 +688,7 @@ def _ring_events(dut: Dut) -> list:
     would let a poll loop wait out its deadline on a broken reply and report
     the wrong cause. Callers check firmware support (an ok reply) first and
     UNMET on absence; this is for the polls after that."""
-    r = dut.cmd("get dataRing", timeout=3.0)
+    r = dut.cmd("get dataRing", timeout=TIMEOUT)
     events = r.get("events")
     if r.get("ok") is not True or not isinstance(events, list):
         from lib.dut import BadField
@@ -754,20 +754,20 @@ def _diag_snapshot(dut: Dut, tag: str = "") -> str:
     (TASK-383) instead."""
     parts = []
     try:
-        h = dut.cmd("get heap", timeout=3.0)
+        h = dut.cmd("get heap", timeout=TIMEOUT)
         parts.append(f"heap(freeInt={h.get('freeInt')},lfbInt={h.get('lfbInt')},"
                       f"freeDma={h.get('freeDma')},lfbDma={h.get('lfbDma')})" if h.get("ok")
                       else "heap(no-ok)")
     except TimeoutError:
         parts.append("heap(timeout)")
     try:
-        b = dut.cmd("get backoff", timeout=3.0)
+        b = dut.cmd("get backoff", timeout=TIMEOUT)
         parts.append(f"backoff(cf={b.get('consecutiveFailures')})" if b.get("ok")
                       else "backoff(no-ok)")
     except TimeoutError:
         parts.append("backoff(timeout)")
     try:
-        q = dut.cmd("get dataq", timeout=3.0)
+        q = dut.cmd("get dataq", timeout=TIMEOUT)
         parts.append(
             f"dataq(ms={q.get('ms')},qw={q.get('queueWaiting')},inFlight={q.get('inFlight')},"
             f"inFlightMs={q.get('inFlightMs')},tlsStopped={q.get('tlsStopped')},"
@@ -782,7 +782,7 @@ def _diag_snapshot(dut: Dut, tag: str = "") -> str:
         # command postdates TASK-697) is silently omitted rather than shown
         # as a fake "no-ok" entry that looks like the same failure as a real
         # dataq/heap timeout above.
-        rg = dut.cmd("get dataRing", timeout=3.0)
+        rg = dut.cmd("get dataRing", timeout=TIMEOUT)
         if rg.get("ok"):
             parts.append(f"dataRing({rg.get('events')})")
     except TimeoutError:
@@ -818,7 +818,7 @@ _TB_N = APP_SLOT["WebRadio"]                  # = 11 (Spotify..PlaneRadar) — T
 
 
 def _tb_get_offset(dut: Dut) -> "int | None":
-    r = dut.cmd("get tbScrollOffset", timeout=3.0)
+    r = dut.cmd("get tbScrollOffset", timeout=TIMEOUT)
     v = r.get("val")
     return int(v) if isinstance(v, (int, float)) else None
 
