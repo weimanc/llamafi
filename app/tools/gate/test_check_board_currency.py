@@ -17,6 +17,14 @@ Arms:
   M1-M2   the MUTATION arms — B1 and B3 reconstructed from this week's real
           defects, as literal board text from the tree before `0dba35a`.
   P1-P3   properties of the parser that the checks silently depend on.
+  B5      the "Next free id" claim (TASK-716/BP-077/LL-154) — a correct claim,
+          an off-by-one, THE TRAP (a claim's own token must not make it agree
+          with itself), same-line stale history not leaking back in, and the
+          claim/corpus split.
+  B6      a ledger's own declared row-count — matching, mismatched, a dated
+          historical count (never a finding, BP-077 clause 4), a claim line
+          that goes missing (a finding, not silence), and the real specs
+          against the real tree today.
 
 No DUT, no serial port, no build, no network, no git.
 Run: python3 app/tools/gate/test_check_board_currency.py
@@ -417,6 +425,144 @@ def case_board_corpus_excludes_the_archive_and_is_discovered():
     assert "docs/project/tasks-harness2.md" in files, files
 
 
+# ── B5: the "Next free id" claim ────────────────────────────────────────────
+
+def case_b5_correct_claim_passes():
+    """max in use is 100 (a doc) and 102 (a commit) -> 103 is correct, no finding."""
+    claims = {"docs/project/tasks-fixture.md":
+              "prose. **Next free id: TASK-103.** more prose naming TASK-100."}
+    corpus = [claims["docs/project/tasks-fixture.md"], "fix(TASK-102): a thing"]
+    fs = C.evaluate_next_free(claims, corpus)
+    none(fs)
+
+
+def case_b5_off_by_one_is_a_finding():
+    claims = {"docs/project/tasks-fixture.md":
+              "prose naming TASK-100.\n**Next free id: TASK-102.**"}
+    fs = C.evaluate_next_free(claims, list(claims.values()))
+    only(fs, "B5")
+    one(fs, "TASK-102")
+    one(fs, "TASK-101")  # the correct claim
+
+
+def case_b5_self_reference_does_not_make_the_claim_agree_with_itself():
+    """THE TRAP. A lone claim naming a number far above every real id in use
+    must still be flagged — the claim line's own token must not count as
+    evidence that the number is correct. Real ids top out at 100; the claim
+    says 9000 and would "agree with itself" if the scanner read its own line
+    like any other."""
+    claims = {"docs/project/tasks-fixture.md":
+              "prose naming TASK-100.\n**Next free id: TASK-9000.**"}
+    fs = C.evaluate_next_free(claims, list(claims.values()))
+    only(fs, "B5")
+    one(fs, "TASK-101")  # the correct claim, derived from the real max (100), not 9000
+
+
+def case_b5_same_line_stale_history_does_not_leak_back_in():
+    """`tasks-harness2.md`'s real claim line narrates its OWN former stale value
+    ("...until then... TASK-685...") on the SAME line as the current claim.
+    That mention must not count as a live id in use either — the whole line is
+    dropped, not just the claimed token. (A real, unrelated id — TASK-99 — sits
+    on a separate line so the corpus is not simply empty.)"""
+    claims = {"docs/project/tasks-fixture.md":
+              "prose naming TASK-99.\n"
+              "**Next free id: TASK-100.** This line read TASK-685 until fixed."}
+    fs = C.evaluate_next_free(claims, list(claims.values()))
+    none(fs)  # if TASK-685 leaked in, expected would jump to 686 and this would fire
+
+
+def case_b5_reads_across_boards_and_the_corpus_separately():
+    """The claim can live on one board while the highest id in use lives on
+    another (or in the commit log) — corpus_texts is the union, claim_sources
+    is just where claims are looked for."""
+    claims = {"docs/project/tasks-fixture.md": "**Next free id: TASK-501.**"}
+    corpus = ["docs/project/tasks-other.md text naming TASK-500."]
+    fs = C.evaluate_next_free(claims, corpus)
+    none(fs)
+
+
+def case_find_next_free_claims_accepts_both_wordings():
+    assert C.find_next_free_claims("f", "**Next free id: TASK-5.**")[0][1] == 5
+    assert C.find_next_free_claims("f", "**Next free task id: TASK-7**")[0][1] == 7
+    assert C.find_next_free_claims("f", "no claim on this line") == []
+
+
+# ── B6: a ledger's declared row count ───────────────────────────────────────
+
+def _spec(path, claim_pat, row_pat):
+    import re
+    return {"path": path,
+            "claim_re": re.compile(claim_pat, re.M),
+            "row_re": re.compile(row_pat, re.M)}
+
+
+def case_b6_matching_count_passes():
+    spec = _spec("docs/verification/fixture-ledger.md",
+                 r"^\*\*(\d+) rows\*\*", r"^\| `T\d+` \| kind \|")
+    text = "\n".join(["| `T1` | kind |", "| `T2` | kind |", "**2 rows**"])
+    fs = C.evaluate_ledger_counts([spec], {spec["path"]: text})
+    none(fs)
+
+
+def case_b6_mismatched_count_fails():
+    spec = _spec("docs/verification/fixture-ledger.md",
+                 r"^\*\*(\d+) rows\*\*", r"^\| `T\d+` \| kind \|")
+    text = "\n".join(["| `T1` | kind |", "**2 rows**"])
+    fs = C.evaluate_ledger_counts([spec], {spec["path"]: text})
+    only(fs, "B6")
+    one(fs, "declares **2 rows**")
+    one(fs, "holds 1")
+
+
+def case_b6_a_dated_historical_count_is_not_a_finding_because_it_has_no_spec():
+    """BP-077 clause 4: a dated measurement ('9 rows at the first recording,
+    2026-09-09') is evidence, not a live claim, and must never be flagged.
+    LEDGER_COUNT_SPECS's claim_re is anchored to each file's present-tense
+    wording precisely so a dated sentence like this one never matches it —
+    proven here on the real specs, not a fixture, so a future spec that
+    widens the regex to also catch dated text is the thing this pins against."""
+    text = ("The first recording, 2026-09-09, put **9 rows** on this ledger; "
+            "T204 was later removed and none of the historical counts changed.")
+    for spec in C.LEDGER_COUNT_SPECS:
+        assert not spec["claim_re"].search(text), (
+            f"{spec['path']}'s claim_re matched a DATED historical sentence — "
+            f"it would flag evidence as a finding")
+
+
+def case_b6_missing_claim_line_is_itself_a_finding():
+    """If a doc rewrite drops or reword the declared-count line, the check must
+    not go silently blind — it must say so, not print PASS forever."""
+    spec = _spec("docs/verification/fixture-ledger.md",
+                 r"^\*\*(\d+) rows\*\* \(as of", r"^\| `T\d+` \| kind \|")
+    text = "| `T1` | kind |\nno declared count here at all"
+    fs = C.evaluate_ledger_counts([spec], {spec["path"]: text})
+    only(fs, "B6")
+    one(fs, "found none")
+
+
+def case_b6_absent_path_is_silent():
+    spec = _spec("docs/verification/fixture-ledger.md", r"^\*\*(\d+) rows\*\*", r"^\| `T\d+` \|")
+    none(C.evaluate_ledger_counts([spec], {}))
+
+
+def case_b6_real_specs_currently_agree_with_the_tree():
+    """Not a fixture: reads the real repo files the four ledgers this task
+    named live at, and asserts the two with a live, unambiguous, present-tense
+    declared count (`can_go_red_ledger.md`, `id_binding_exceptions.md`)
+    currently match. `unrestored_mutations_ratchet.md`'s '14 rows' and
+    board_currency_exceptions.md's '68'/'0' are dated ('Opened ...', 'Opening
+    size, measured ...') and are deliberately NOT in LEDGER_COUNT_SPECS at all
+    — see the spec table's own docstring."""
+    texts = {}
+    for spec in C.LEDGER_COUNT_SPECS:
+        full = os.path.join(C.ROOT, spec["path"])
+        if not os.path.exists(full):
+            continue
+        with open(full, encoding="utf-8", errors="replace") as fh:
+            texts[spec["path"]] = fh.read()
+    none(C.evaluate_ledger_counts(C.LEDGER_COUNT_SPECS, texts))
+
+
 CASES = [
     ("N1a B1 fires on an OPEN row with a commit", case_b1_open_row_with_a_commit),
     ("N1b B1 fires on BLOCKED too", case_b1_fires_for_blocked_too),
@@ -455,6 +601,24 @@ CASES = [
     ("P3  the index reads subjects only", case_index_reads_subjects_and_orders_newest_first),
     ("P3c a range is not expanded", case_index_does_not_expand_a_range),
     ("P3b the corpus is discovered", case_board_corpus_excludes_the_archive_and_is_discovered),
+    ("B5a a correct claim passes", case_b5_correct_claim_passes),
+    ("B5b an off-by-one claim is a finding", case_b5_off_by_one_is_a_finding),
+    ("B5c THE TRAP: self-reference does not self-agree",
+     case_b5_self_reference_does_not_make_the_claim_agree_with_itself),
+    ("B5d same-line stale history does not leak in",
+     case_b5_same_line_stale_history_does_not_leak_back_in),
+    ("B5e claim and corpus are read separately",
+     case_b5_reads_across_boards_and_the_corpus_separately),
+    ("B5f both claim wordings parse", case_find_next_free_claims_accepts_both_wordings),
+    ("B6a a matching declared count passes", case_b6_matching_count_passes),
+    ("B6b a mismatched declared count fails", case_b6_mismatched_count_fails),
+    ("B6c a dated historical count is never a finding",
+     case_b6_a_dated_historical_count_is_not_a_finding_because_it_has_no_spec),
+    ("B6d a missing claim line is a finding, not silence",
+     case_b6_missing_claim_line_is_itself_a_finding),
+    ("B6e an absent spec path is silent", case_b6_absent_path_is_silent),
+    ("B6f the real ledgers agree with the tree today",
+     case_b6_real_specs_currently_agree_with_the_tree),
 ]
 
 

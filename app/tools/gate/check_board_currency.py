@@ -44,6 +44,26 @@ WHAT IT ASSERTS
   B4  a ledger row whose finding no longer occurs. The clause that makes the
       exception list shrink-only, lifted verbatim from ROWLEN and C6.
 
+  B5  a `Next free id: TASK-NNN` claim (any active board) that is not exactly
+      `max(id in use) + 1`. TASK-716/BP-077/LL-154: `tasks-harness2.md`'s header
+      carried "Next free id: TASK-685" for six days after 685 had been allocated
+      *and closed*, and a new row was filed onto the occupied id before a human
+      caught it by reading the log. The claim is derivable — nothing about it is
+      a judgement call — so it is gated instead of proofread.
+
+      THE TRAP. The claim line names its own number: "**Next free id: TASK-716.**"
+      contains the token `TASK-716`. A max-id scan that reads every line the same
+      way counts the claim as evidence *of itself* and always agrees — a
+      self-fulfilling check that reports green forever, which is worse than no
+      check (see `max_task_id()` below: any line matched by `NEXT_FREE_RE` is
+      dropped from the corpus, whole, before the corpus is scanned for ids).
+
+  B6  a ledger that declares its own row count (`**N rows**`, present tense, no
+      date) where N does not match the data rows in the table it describes.
+      Narrow and per-file on purpose — see `LEDGER_COUNT_SPECS` — because a
+      *dated* count ("9 rows at the first recording, 2026-09-09") is evidence,
+      not a live claim, and BP-077 clause 4 forbids treating it as a finding.
+
 THE ESCAPES, AND WHY THERE ARE ONLY TWO
 ---------------------------------------
 
@@ -118,6 +138,12 @@ rather than pending. B2 reads **68** of 124 classified closed rows: far too many
 to clear in the commit that lands the gate, so it opens on the same dated,
 shrink-only ledger ROWLEN uses, on the same bargain (an advisory count is
 scrolled past; a ledger row that stops failing is itself a failure).
+
+B5 and B6 land BLOCKING with **no ledger at all**, the same B3 shape: measured
+zero on the tree this file landed on (once `tasks.md`'s own stale claim — found
+by writing this check, not predicted — was corrected in the same commit), so
+there is nothing to grandfather and adding a ledger kind neither arm needs would
+be an escape hatch nobody has used yet.
 
 No DUT, no build, no network. Sub-second plus one `git log`.
 
@@ -269,6 +295,175 @@ def index_commits(pairs) -> dict:
             for tid in ids:
                 idx.setdefault(tid, []).append(h)
     return idx
+
+
+def git_full_messages(root: str = ROOT, rev: str = "HEAD") -> list:
+    """-> [full "subject\\nbody" text] over the whole history. Raises on a git
+    failure, same as `git_subjects()`.
+
+    UNLIKE `git_subjects()`, this reads bodies too (`%B`). B5 needs it: an id
+    can close in a commit whose *body* names it (`git_subjects()`'s own
+    docstring names this as B1's limit 1), and `max_task_id()` must not miss an
+    id that only ever appears there, or it would under-count and claim a next-
+    free id that is already taken.
+    """
+    out = subprocess.run(
+        ["git", "-C", root, "log", rev, "--format=%H%x1e%B%x1d"],
+        capture_output=True, text=True, check=True).stdout
+    return [chunk.split("\x1e", 1)[1] for chunk in out.split("\x1d") if "\x1e" in chunk]
+
+
+# ── Derived counts (B5, B6) ──────────────────────────────────────────────────
+# LL-154/BP-077: a fact the tree can compute (the next free id, a ledger's own
+# row count) rots the moment it is written as a literal, because nothing ever
+# recomputes it. `TASK-685` was allocated, closed, and then double-booked six
+# days later because `tasks-harness2.md`'s header still said "Next free id:
+# TASK-685" and nobody checked. These two arms replace the literal with a
+# derivation the gate re-runs every time.
+
+#: Matches the claim itself, wherever it appears — board prose, not a table row.
+#: `\**` allows the bold markdown around the id (`**TASK-716.**`) without
+#: requiring it, so a claim that loses its bold formatting is still caught.
+NEXT_FREE_RE = re.compile(r"Next free (?:task )?id:\s*\**TASK-(\d+)")
+#: Any `TASK-NNN` token, anywhere — used only inside `max_task_id()`, which
+#: filters lines with `NEXT_FREE_RE` out FIRST. Never use this alone to look
+#: for "ids in use"; see THE TRAP in the module docstring.
+TASK_ID_ANY_RE = re.compile(r"TASK-(\d+)")
+
+
+def find_next_free_claims(rel: str, text: str) -> list:
+    """-> [(lineno, claimed:int, line)] for every "Next free ... id: TASK-NNN"
+    claim in this text. `rel` is carried through only for the caller's message;
+    this function does not itself touch the filesystem (BP-068: the negative
+    suite drives it on literal strings).
+    """
+    out = []
+    for lineno, line in enumerate(text.split("\n"), 1):
+        m = NEXT_FREE_RE.search(line)
+        if m:
+            out.append((lineno, int(m.group(1)), line.strip()))
+    return out
+
+
+def max_task_id(texts) -> int:
+    """Max `TASK-NNN` found across `texts` (any iterable of strings: doc bodies,
+    commit messages, whatever the caller assembled) — 0 if none.
+
+    THE TRAP, handled here and nowhere else: a "Next free id: TASK-716" claim
+    line contains the token `TASK-716`. Scanning it like any other line makes
+    the claim self-fulfilling — it always agrees with its own number, and a
+    self-fulfilling check reports green forever, which is worse than no check.
+    So any line `NEXT_FREE_RE` matches is dropped WHOLE before the line is
+    scanned for ids, not just the claimed token — `tasks-harness2.md`'s claim
+    line also carries "... TASK-685 ..." in the same sentence (its own stale-
+    claim history), and dropping only the claimed number would leak that stale
+    id back in as if it were live usage.
+    """
+    best = 0
+    for text in texts:
+        for line in text.split("\n"):
+            if NEXT_FREE_RE.search(line):
+                continue
+            for m in TASK_ID_ANY_RE.finditer(line):
+                best = max(best, int(m.group(1)))
+    return best
+
+
+def evaluate_next_free(claim_sources: dict, corpus_texts) -> list:
+    """B5. `claim_sources`: {board-rel: text} — the active boards, scanned for
+    the claim itself. `corpus_texts`: iterable of ALL text the "id in use"
+    count is derived from (every `docs/**/*.md` file, `git_full_messages()`) —
+    INJECTED, never read from disk in here, so the negative suite is immune to
+    the next commit or doc edit anyone makes (BP-068).
+
+    Deliberately excludes `claim_sources`' own text from `corpus_texts` if the
+    caller already included it there too — no need: `max_task_id()` drops every
+    claim line regardless of which text it lives in, so passing the same board
+    text in both dicts is safe and is what `main()` actually does (a board is
+    both a claim source and part of the corpus).
+    """
+    expected = max_task_id(list(corpus_texts)) + 1
+    out = []
+    for rel in sorted(claim_sources):
+        for lineno, claimed, line in find_next_free_claims(rel, claim_sources[rel]):
+            if claimed != expected:
+                out.append(
+                    f"B5 {rel}:{lineno}: claims \"Next free id: TASK-{claimed}\" but "
+                    f"the highest id in use across the boards, the archive and the "
+                    f"git log is TASK-{expected - 1} — the correct claim is "
+                    f"TASK-{expected}. This is exactly TASK-685's failure: a stale "
+                    f"pointer double-books the id it names the moment anyone trusts "
+                    f"it instead of the log")
+    return out
+
+
+#: Where a ledger declares its OWN row count in prose, and how to check it.
+#: Deliberately hand-mapped, not discovered: the claim's wording and the
+#: table's row shape both differ per file, and a generic parser strong enough
+#: to cover every shape would be strong enough to also match a DATED count
+#: ("9 rows at the first recording, 2026-09-09") — which BP-077 clause 4 says
+#: is evidence, never a finding. `claim_re` is therefore anchored to each
+#: file's actual PRESENT-TENSE wording, not to "rows" generically.
+#:
+#: `unrestored_mutations_ratchet.md`'s "Opened 2026-09-19, corrected same day,
+#: 14 rows" and `board_currency_exceptions.md`'s "Opening size, measured
+#: 2026-09-07" are deliberately NOT here: both describe what a table held on
+#: a stated date (an event), not what it holds now, and flagging them would be
+#: the LL-154-shaped mistake in reverse — punishing the exact record BP-077
+#: clause 4 says must stay verbatim.
+LEDGER_COUNT_SPECS = (
+    {
+        "path": "docs/verification/can_go_red_ledger.md",
+        "claim_re": re.compile(r"^\*\*(\d+) rows\*\* \(first recording", re.M),
+        "row_re": re.compile(
+            r"^\|\s*`[^`]+`\s*\|\s*(?:NEVER-RED|RED-WITHOUT-ASSERTION)\s*\|", re.M),
+    },
+    {
+        "path": "docs/verification/id_binding_exceptions.md",
+        "claim_re": re.compile(r"^\*\*(\d+) rows\*\* \(as of \d{4}-\d{2}-\d{2}", re.M),
+        "row_re": re.compile(r"^\|\s*`[^`]+`\s*\|\s*(?:orphan|undeclared)\s*\|", re.M),
+    },
+)
+
+
+def evaluate_ledger_counts(specs, texts: dict) -> list:
+    """B6. `texts`: {path: text}, INJECTED (BP-068) — `main()` reads the real
+    files; the negative suite hands this literal strings.
+
+    A spec whose path is missing from `texts` is silent (the file does not
+    exist in whatever corpus the caller assembled — real runs always supply
+    the four `LEDGER_COUNT_SPECS` paths, so this only matters to the negative
+    suite's smaller fixtures). A spec whose path IS present but whose
+    `claim_re` does not match is a finding, not silence: a doc rewrite that
+    changes the claim's wording must not silently turn this check into a
+    no-op that reports PASS forever — the exact failure shape BP-077 exists
+    to name.
+    """
+    out = []
+    for spec in specs:
+        path = spec["path"]
+        if path not in texts:
+            continue
+        text = texts[path]
+        m = spec["claim_re"].search(text)
+        if not m:
+            out.append(
+                f"B6 {path}: expected a declared row-count line matching "
+                f"{spec['claim_re'].pattern!r} and found none — either the "
+                f"count was removed (fine, drop this spec) or its wording "
+                f"drifted (not fine: recompute it) — a check that stops "
+                f"matching is not a check")
+            continue
+        declared = int(m.group(1))
+        actual = len(spec["row_re"].findall(text))
+        if declared != actual:
+            out.append(
+                f"B6 {path}: declares **{declared} rows** but the table holds "
+                f"{actual} data row(s) — recount before trusting the line "
+                f"(BP-077 clause 3): a declared count that has not been "
+                f"rerun is a number kept for orientation with nothing keeping "
+                f"it honest")
+    return out
 
 
 # ── Ledger ───────────────────────────────────────────────────────────────────
@@ -429,27 +624,58 @@ def main(argv) -> int:
     rows = read_boards()
     try:
         pairs = git_subjects()
+        full_msgs = git_full_messages()
     except (OSError, subprocess.CalledProcessError) as e:
         # Fail CLOSED and loudly. An unreadable log yields an empty index, which
-        # would silently turn B1 off and print PASS — the exact shape of failure
-        # this gate exists to stop.
-        print(f"FAIL: git log is unreadable ({type(e).__name__}: {e}) — B1 cannot "
-              f"be evaluated, so this gate refuses rather than passing on an "
-              f"empty commit index")
+        # would silently turn B1 (and B5) off and print PASS — the exact shape
+        # of failure this gate exists to stop.
+        print(f"FAIL: git log is unreadable ({type(e).__name__}: {e}) — B1/B5 "
+              f"cannot be evaluated, so this gate refuses rather than passing on "
+              f"an empty commit index")
         return 1
     commits = index_commits(pairs)
     ledger, ledger_errors = parse_ledger()
     findings = evaluate(rows, commits, ledger) + ledger_errors
 
+    # B5/B6: read every docs/**/*.md once, keyed by repo-relative path — both
+    # arms need it (B5 for the "id in use" corpus, B6 for the ledgers it reads).
+    doc_texts = {}
+    for path in sorted(glob.glob(os.path.join(ROOT, "docs", "**", "*.md"), recursive=True)):
+        rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            doc_texts[rel] = fh.read()
+
+    claim_sources = {rel: doc_texts[rel] for rel in board_files() if rel in doc_texts}
+    corpus_texts = list(doc_texts.values()) + full_msgs
+    findings += evaluate_next_free(claim_sources, corpus_texts)
+    findings += evaluate_ledger_counts(LEDGER_COUNT_SPECS, doc_texts)
+
     classified = sum(1 for r in rows
                      if r.token in OPEN_STATUSES + CLOSED_STATUSES)
+    expected_next = max_task_id(corpus_texts) + 1
+    claim_count = sum(len(find_next_free_claims(rel, t)) for rel, t in claim_sources.items())
     print(f"check_board_currency: {len(rows)} row(s) across {len(board_files())} "
           f"board(s), {classified} with a classified status; {len(commits)} task id(s) "
-          f"named in {len(pairs)} commit subject(s); {len(ledger)} ledger row(s)")
+          f"named in {len(pairs)} commit subject(s); {len(ledger)} ledger row(s); "
+          f"{claim_count} 'Next free id' claim(s), expected TASK-{expected_next}; "
+          f"{len(LEDGER_COUNT_SPECS)} ledger row-count claim(s) checked")
     if args.verbose:
         for r in sorted(rows, key=lambda r: (r.board, int(r.tid))):
             print(f"    {r.board}:{r.lineno} TASK-{r.tid} {r.token or '<unclassified>'}"
                   f" commits={len(commits.get(r.tid) or [])}")
+        for rel, t in sorted(claim_sources.items()):
+            for lineno, claimed, _line in find_next_free_claims(rel, t):
+                print(f"    {rel}:{lineno} Next free id claim: TASK-{claimed} "
+                      f"(expected TASK-{expected_next})")
+        for spec in LEDGER_COUNT_SPECS:
+            text = doc_texts.get(spec["path"])
+            if text is None:
+                print(f"    {spec['path']}: not found")
+                continue
+            m = spec["claim_re"].search(text)
+            declared = int(m.group(1)) if m else None
+            actual = len(spec["row_re"].findall(text))
+            print(f"    {spec['path']}: declared={declared} actual={actual}")
 
     if findings:
         print(f"\nFAIL: {len(findings)} finding(s)")
@@ -459,7 +685,8 @@ def main(argv) -> int:
               f"same commit. Limits are in this file's docstring — a PASS here is "
               f"not a guarantee that the board is true.")
         return 1
-    print("  PASS  no board row contradicts the commit log in the three ways B1-B3 name")
+    print("  PASS  no board row contradicts the commit log in the three ways B1-B3 name, "
+          "and B5/B6's derived counts agree with the tree")
     return 0
 
 
