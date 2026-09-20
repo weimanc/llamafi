@@ -691,4 +691,26 @@ if ! "$PYTHON" gate/check_wait_expiry.py; then
     exit 1
 fi
 
+# ── TASK-599 — R47, one DUT session layer (M-HARNESS2-requirements.md:781-786,
+# MUST). R47's own verification clause: "a gate forbidding `serial.Serial(`
+# outside `lib/`, ratcheted with a dated exception list." AST-based (not
+# textual — the first cut matched its own docstring's mentions of the pattern
+# and flagged itself; see check_dut_session.py's module docstring for the
+# self-reference class this project hit twice on check_board_currency). 17
+# tools construct their own serial.Serial(...) instead of routing through
+# lib.dut.Dut/resolve_port; each carries a dated, owned, structural reason in
+# docs/verification/dut_session_ratchet.md (a continuous background reader
+# thread, a different readiness signal than Dut polls, a raw EN/RTS ladder
+# against non-debug-console firmware, ...). Lands blocking against that
+# shrink-only ledger, enforced in both directions. No DUT, no build, no
+# network.
+if ! "$PYTHON" gate/test_check_dut_session.py; then
+    echo "FAIL: test_check_dut_session.py (TASK-599 R47 checker negative suite) FAILED" >&2
+    exit 1
+fi
+if ! "$PYTHON" gate/check_dut_session.py; then
+    echo "FAIL: check_dut_session.py (TASK-599 R47 DUT-session ratchet) FAILED" >&2
+    exit 1
+fi
+
 echo "OK: smoke_test.sh passed"
