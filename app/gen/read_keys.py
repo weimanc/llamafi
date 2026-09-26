@@ -169,7 +169,7 @@ READ_KEYS = {
     'T_PMT_01': {'status': 'transcript', 'keys': [('cmd', 'playerCycle'), ('get', 'player')], 'unresolved': []},
     'T_PMT_02': {'status': 'transcript', 'keys': [('cmd', 'playerCycle'), ('get', 'player')], 'unresolved': []},
     'T_PMT_03': {'status': 'transcript', 'keys': [('cmd', 'playerCycle'), ('get', 'player')], 'unresolved': []},
-    'T_PMT_04': {'status': 'transcript', 'keys': [('get', 'variant')], 'unresolved': []},
+    'T_PMT_04': {'status': 'transcript', 'keys': [('cmd', 'playerCycle'), ('get', 'arenaStats'), ('get', 'bgPoll'), ('get', 'plCount'), ('get', 'player'), ('get', 'variant'), ('set', 'bgPoll'), ('set', 'plLoad'), ('set', 'plPlay')], 'unresolved': []},
     'T_PRI_01': {'status': 'transcript', 'keys': [('cmd', 'tap'), ('get', 'appId'), ('get', 'prInterp'), ('get', 'shellCooldown'), ('get', 'tbScrollOffset'), ('set', 'cooldown'), ('set', 'playerMode'), ('set', 'prClearInject'), ('set', 'prInjectAircraft'), ('set', 'prRange')], 'unresolved': []},
     'T_PRM_01': {'status': 'transcript', 'keys': [('cmd', 'reboot'), ('cmd', 'reconnect'), ('get', 'playerMode'), ('get', 'prPollSec'), ('get', 'variant'), ('set', 'prPollSec')], 'unresolved': []},
     'T_PRM_02': {'status': 'transcript', 'keys': [('cmd', 'tap'), ('get', 'activeError'), ('get', 'appId'), ('get', 'dataq'), ('get', 'shellCooldown'), ('get', 'tbScrollOffset'), ('set', 'cooldown'), ('set', 'playerMode'), ('set', 'prPollSec')], 'unresolved': []},
