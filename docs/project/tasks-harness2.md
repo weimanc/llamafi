@@ -308,7 +308,7 @@ inside three months; the shell half is ~60 B, the per-app half is not worth a li
 
 | task | pri | status | title |
 |---|---|---|---|
-| TASK-637 | P2 | **PARTIAL 2026-09-13** (`70f049fe`) — shell half DUT-verified: 10-app `inactiveApp` refusal, 3 named exceptions, `get appTicks` advances only for the active app. Repaint counter NOT built (no signal); player-slot apps + `set` unguarded → TASK-593 | shell-side identity guard + tick/repaint counters — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
+| TASK-637 | P2 | **PARTIAL 2026-09-13** (`70f049fe`) — reviewed 2026-09-26: guard not test-asserted, `T_APPKEY_01` has no body; R-3 ruling first — [review](../verification/reviews/TASK-637-skeptical-review.md) | identity guard (10/13 apps, per-site) + tick counter, no conformance test — [Arch §1.2](../architecture/designs/M-HARNESS2-architect-review.md) |
 | TASK-638 | P2 | **DONE 2026-09-09** (`983cd54`; DUT: `T_DH_05` 25/25, `T_CLK_SIG_01` ink 7463 / 63 colours; `.dram0.bss` +8 B, headroom 7 976 B) | `get sig` over panel readback with ink/entropy metrics, `set now [freeze]`, readback liveness in HEALTH — [R5](../verification/M-HARNESS2-requirements.md), [ADR-064](../architecture/decisions/ADR-064.md) |
 | TASK-593 | P2 | BLOCKED — TASK-637 | per-app result and entry-state observables, one app per commit, capped per app — [R3](../verification/M-HARNESS2-requirements.md) |
 | TASK-639 | P3 | OPEN — unblocked 2026-09-09 (TASK-638 DONE) | the clock family is rewritten, not migrated — ledger five claims, re-file as new ids — [Dev §8.2](../architecture/designs/M-HARNESS2-DEV-review.md) |

@@ -339,8 +339,11 @@ functional-tier hole; it is not an every-row hole, and `A5`/`A6` should not be c
 - **Expected result**: no per-app key answers from outside its owning app; the refusal is
   distinguishable from "the key does not exist".
 - **Harness**: generated; body owed with TASK-637. Owner: VE.
-- **Status**: **blocked** on [TASK-637](../project/tasks-harness2.md) — the shell-side identity
-  guard does not exist yet, and ADR-063 D6 gates it behind a freshly derived `.dram0.bss` headroom.
+- **Status**: **blocked** on [TASK-637](../project/tasks-harness2.md) — *updated 2026-09-26:* the
+  shell-side guard now exists (10 of 13 apps, per call site, `70f049fe`) but **this id still has no
+  body and no registry entry**; TASK-637's "DUT-verified" was a manual observation, not this test.
+  See [TASK-637 review](reviews/TASK-637-skeptical-review.md) R-1 for how to write it.
+  Original blocker: ADR-063 D6 gates it behind a freshly derived `.dram0.bss` headroom.
   **Replacement for `T_MA_02`, `T_GOL_02`, `T_WX_02`, `T_CX_02`**, deleted 2026-09-06 (TASK-598);
   see [retired_test_ids.md](retired_test_ids.md).
   **What is uncovered in the meantime, stated plainly: from 2026-09-06 no id asserts that a per-app
