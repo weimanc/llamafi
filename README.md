@@ -243,7 +243,19 @@ DUT safety automatically.
 
 ## License
 
-[MIT](LICENSE) — project code only.
+[MIT](LICENSE) — project code only (© 2026 weimanc). Vendored libraries keep their own licences:
+
+| Library (in `app/lib/`) | Licence | Notes |
+|---|---|---|
+| `ESP32-audioI2S` v2.3.0 | **GPL-3.0** — [`LICENSE`](app/lib/ESP32-audioI2S/LICENSE) | esphome fork of schreibfaul1's library; locally patched, see its `LOCAL_PATCHES.md`. Its MP3/AAC decoders are RealNetworks Helix code (RPSL/RCSL, which the FSF lists as GPL-incompatible) whose licence headers were stripped upstream and are restored here (`app/lib/ESP32-audioI2S/licenses/`); its FLAC decoder is Nayuki's Simple FLAC (MIT). See its `LOCAL_PATCHES.md`; unresolved, TASK-722. |
+| `SpotifyArduino` | MIT © Brian Lough (its `LICENSE`); source headers also say LGPL-2.1-or-later | Both are kept as shipped. Locally patched, see its `LOCAL_PATCHES.md`. |
+| `SD` | Apache-2.0 © Espressif — [`LICENSE`](app/lib/SD/LICENSE) | From the Arduino-ESP32 framework; patched (PATCH-SD-1). |
+| `WiFiClientSecure` | LGPL-2.1-or-later — [`LICENSE`](app/lib/WiFiClientSecure/LICENSE) | From the Arduino-ESP32 framework; patched (PATCH-TLS-1). |
+
+**Firmware images.** Every firmware env in `app/platformio.ini` links `ESP32-audioI2S`. A firmware
+image built from this repo is therefore a combined work that includes GPL-3.0 code and
+Helix-derived code under a GPL-incompatible licence. **The licensing of such an image is unresolved
+(TASK-722); do not redistribute images until it is.** The complete source is this repository. The
+MIT licence above applies to the project's own source files only.
 
 Winamp skin assets are not included and must be obtained separately.
-SpotifyArduino (vendored in `app/lib/`) is MIT © Brian Lough.

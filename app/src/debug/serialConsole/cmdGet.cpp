@@ -477,7 +477,7 @@ void cmdGet(const char *args) {
     // Declared here rather than #including mp3_decoder.h at the top of this TU:
     // the header pulls the whole Helix type set into a translation unit that has
     // no other business with it, and these two symbols are the vendored library's
-    // public API (mp3_decoder.h:458-459), stable across the pinned v2.3.0.
+    // public API (mp3_decoder.h:463-464), stable across the pinned v2.3.0.
     extern bool MP3Decoder_AllocateBuffers(void);
     extern void MP3Decoder_FreeBuffers(void);
 

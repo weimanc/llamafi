@@ -843,8 +843,8 @@ Wrong on both the count and the file list. Verified by grepping every `mb_arena_
 
 | patch | location | status | calls the arena? |
 |---|---|---|---|
-| `PATCH-MEMBUDGET-1` | `mp3_decoder.cpp:1534` — `#define __malloc_heap_psram(size) mb_arena_alloc(size)`, covering all 9 Helix allocs | live | **yes** |
-| `PATCH-MEMBUDGET-2` | `mp3_decoder.cpp:1599` — the 9 matching `mb_arena_free()` calls | live | **yes** |
+| `PATCH-MEMBUDGET-1` | `mp3_decoder.cpp` (line: see LOCAL_PATCHES.md) — `#define __malloc_heap_psram(size) mb_arena_alloc(size)`, covering all 9 Helix allocs | live | **yes** |
+| `PATCH-MEMBUDGET-2` | `mp3_decoder.cpp` (line: see LOCAL_PATCHES.md) — the 9 matching `mb_arena_free()` calls | live | **yes** |
 | `PATCH-MEMBUDGET-3` | InBuff | **REVERTED** (`Audio.cpp:15` — "40 K arena exhausted") | no; it is plain `calloc` (`Audio.cpp:62`) |
 | `PATCH-MEMBUDGET-4` | `Audio.cpp:187-195` — halved I2S DMA config under `MEMBUDGET_PHASE1` | live | **no** — a config change, not an allocation |
 

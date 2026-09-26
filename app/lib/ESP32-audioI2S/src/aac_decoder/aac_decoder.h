@@ -1,3 +1,8 @@
+/*
+ * Derived from the RealNetworks Helix fixed-point HE-AAC decoder (Jon Recker, Ken Cooke), Portions
+ * Copyright (c) RealNetworks, Inc. Subject to the RPSL 1.0 or RCSL 1.0 - the full notice is at the top
+ * of the matching .cpp, the texts in ../../licenses/. Modified for ESP32; see ../../LOCAL_PATCHES.md.
+ */
 // based on helix aac decoder
 #pragma once
 //#pragma GCC optimize ("O3")

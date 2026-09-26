@@ -8,13 +8,32 @@
 
 **Upstream:** ESP32-audioI2S **v2.3.0**, vendored into `app/lib/ESP32-audioI2S/`.
 
+**Licence: GPL-3.0** (see `LICENSE` beside this file — the verbatim text from the esphome fork's
+`2.3.0` tag, checked 2026-09-26 against upstream's `LICENSE` and the GNU text; identical). Upstream
+schreibfaul1/ESP32-audioI2S is GPL-3.0 at every tag checked (2.0.3, 2.0.6, 3.0.0). **This copy is
+modified** — the patches below are the modification record GPL-3.0 §5(a) asks for. The decoders'
+provenance was validated 2026-09-26 and is **not clean**:
+- **`mp3_decoder` and `aac_decoder` are RealNetworks Helix code** (shared entry points with upstream
+  libhelix, e.g. `MP3FindSyncWord`/`MP3Decode`; the AAC decoder carries Helix's SBR tables) with the
+  Helix licence block and author credits **stripped** (0 hits for "RealNetworks" or "Jon Recker" in
+  either file **as vendored** — restored 2026-09-26: the verbatim Helix licence block and credits are back at
+  the top of both `.cpp` files (short pointers in the `.h`), and `licenses/` holds RPSL 1.0, RCSL 1.0 and
+  Helix's own notice, copied from libhelix). Helix DNA is licensed **RPSL 1.0 or RCSL 1.0**, verbatim in
+  `ultraembedded/libhelix-mp3`'s `LICENSE.txt`. The FSF lists the RPSL as **GPL-incompatible**
+  (derivatives must stay RPSL; litigation venue clause). So this GPL-3.0 library ships RPSL-derived
+  code under a GPL label: upstream's problem, but ours the moment we distribute a binary.
+- **`flac_decoder` is Nayuki's Simple FLAC implementation, MIT** ("License: MIT" on the project page).
+  MIT is GPL-compatible, but requires the copyright and licence notice to travel with it; this copy
+  has only a "from nayuki.io" comment. The exact copyright line was not seen and is not invented here.
+Open as TASK-722.
+
 **DO NOT BUMP TO v3.x.** It allocates ~704 KB at boot and crashes instantly on a no-PSRAM CYD
 (EXP-008 / EXP-009 / BP-042). The registry entry was removed so the local copy is picked up.
 
 ---
 
 ## PATCH-MEMBUDGET-1 — Helix decoder allocations routed to the arena
-**File:** `src/mp3_decoder/mp3_decoder.cpp:1534` · **Task:** TASK-261 Phase 2 · **Status:** live
+**File:** `src/mp3_decoder/mp3_decoder.cpp:1577` · **Task:** TASK-261 Phase 2 · **Status:** live
 
 `#define __malloc_heap_psram(size) mb_arena_alloc(size)` under `MEMBUDGET_PHASE1`, redirecting all
 nine `MP3Decoder_AllocateBuffers()` allocations (total 23 216 B, largest `SubbandInfo_t` at 8 708 B)
@@ -22,7 +41,7 @@ into the reserved arena. Upstream's definition (`heap_caps_malloc_prefer`) is ke
 non-`MEMBUDGET_PHASE1` build.
 
 ## PATCH-MEMBUDGET-2 — matching frees
-**File:** `src/mp3_decoder/mp3_decoder.cpp:1599` · **Task:** TASK-261 Phase 2 · **Status:** live
+**File:** `src/mp3_decoder/mp3_decoder.cpp:1642` · **Task:** TASK-261 Phase 2 · **Status:** live
 
 The nine `mb_arena_free()` calls pairing Site 1. `mb_arena_free()` has an in-range guard, so
 out-of-arena pointers fall through to libc `free()`.

@@ -142,7 +142,7 @@ afterthought — date, tip hash, range size, sweep outcome, licence-scan status.
 | 2026-07-18 | `69eb581` | 430 commits | 3 doc sites redacted (coords), SSID → `<home-ssid>` in 4 files, tree-only | not run |
 | 2026-08-02 | `50197f4`, `e943dac` | +137, then README fix | clean | not run |
 | 2026-08-07 | `8a499a1` | +62 | SSID leak found **pre-push** (`e824e14`), fixed by rebase | not run |
-| *(pending)* | — | 743 unpushed | SSID in 17 commits + 7 messages, found 2026-09-26; `filter-branch` over `public/master..master`, verified 0 hits. **Board/doc citations of old hashes left dangling on purpose (human, 2026-09-26)** — commits in that range were re-hashed, so a cited id may not resolve; find it by subject | not run |
+| *(pending)* | — | 743 unpushed | SSID in 17 commits + 7 messages, found 2026-09-26; `filter-branch` over `public/master..master`, verified 0 hits. **Board/doc citations of old hashes left dangling on purpose (human, 2026-09-26)** — commits in that range were re-hashed, so a cited id may not resolve; find it by subject | **run 2026-09-26** (ScanCode 32.5.0, `-l`, `git archive HEAD`, 1 170 text files, mp3/png/json skipped): root MIT; vendored Apache-2.0 (`app/lib/SD`), LGPL-2.1 (`SpotifyArduino`, has its own `LICENSE`); MS-PL and GPL hits are false positives (a test string, a prose mention). **Gaps found, then addressed 2026-09-26:** `SD`, `WiFiClientSecure`, `ESP32-audioI2S` had no licence file — added verbatim (Apache-2.0, LGPL-2.1, GPL-3.0 — audioI2S confirmed GPL-3.0 at the esphome `2.3.0` tag) and the README licence section rewritten. **Still open, human call: TASK-722** — the release stance: every firmware env links the GPL-3.0 library, whose MP3/AAC decoders are Helix (RPSL, GPL-incompatible), validated the same day |
 
 ---
 

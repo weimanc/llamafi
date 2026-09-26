@@ -163,7 +163,7 @@ prose on another board. They are here because this file is the index and is read
 
 **Where the live work is:** M-HARNESS2 is the active programme —
 [tasks-harness2.md § Totals](tasks-harness2.md) names the live rows per phase and what blocks each.
-Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-722.** (675 here; 676–679, 682, 683, 684 and 713–715 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement. The COUNT is gated by `check_board_currency`'s B5 arm; these labels are not derivable and are why the sentence survives.)
+Its Phase 2 hardware fallout is filed **below** as TASK-662…668. **Next free task id: TASK-723.** (675 here; 676–679, 682, 683, 684 and 713–715 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682 the pin retest, 683 the speaker-DUT current-draw measurement. The COUNT is gated by `check_board_currency`'s B5 arm; these labels are not derivable and are why the sentence survives.)
 (675 here; 676–679, 682, 683, 684 on tasks-harness2.md — 677–679 are PROP-011 rig ground truth, 682
 the pin retest, 683 the speaker-DUT current-draw measurement; 685–712 filed here since, 713–715 on
 tasks-harness2.md.) This line rotted once already, at TASK-709 — six days stale, until
@@ -187,6 +187,7 @@ closed, and the retired board's prose, is in
 | TASK-486 | P3 | SKELETON | [M-VENDORING](../architecture/designs/M-VENDORING-upstream-policy.md) — five vendored trees, five conventions, no upstream refs recorded |
 | TASK-549 | P3 | **PARTIAL 2026-08-27 (`278ca00`, branch `rnd/testarch-oq-spikes`) — rung 2 done, rung 1 blocked** | §10 OQ-B **priced: +8 B `.dram0.bss`**, kill gate cleared, handed to Architect for the `set fault arena allocFail` design. OQ-A still blocked — host shim drafted but never compiled, this machine has no `gcc-c++`/`cc1plus` and no `sudo` to install it (separate gap from OQ-B's; that one just needed the project's pinned `$PIO` path, not a bare `pio` on `PATH`). See [PROP-010](../rnd/proposals/PROP-010-testarch-host-shim-and-fault-surface-spikes.md), [EXP-023](../rnd/reports/EXP-023-testarch-t1-host-shim-spike.md)/[EXP-024](../rnd/reports/EXP-024-testarch-set-fault-alloc-byte-cost.md). OQ-C closed in the design doc (no incident found), OQ-D split out as TASK-550. |
 | TASK-568 | P3 | **OPEN — filed 2026-09-01** | @QM: record the 2026-09-01 outward-attribution episode as an LL, and rule on the proposed attribution BP (Architect: adopt, do **not** mechanise in `check-docs`). [Design](../architecture/designs/M-TESTARCH-precedence-hierarchy.md) §5.1. **Owner:** @QM. |
+| TASK-722 | P2 | **OPEN — filed 2026-09-26** | human: audioI2S is GPL-3.0 but its MP3/AAC decoders are Helix (RPSL, GPL-incompatible); Helix headers restored 2026-09-26, conflict remains — decide: replace decoders/library, or stop distributing images — [LOCAL_PATCHES](../../app/lib/ESP32-audioI2S/LOCAL_PATCHES.md), [checklist §4](../process/publish_checklist.md) |
 
 ---
 
