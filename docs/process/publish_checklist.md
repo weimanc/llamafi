@@ -142,6 +142,7 @@ afterthought — date, tip hash, range size, sweep outcome, licence-scan status.
 | 2026-07-18 | `69eb581` | 430 commits | 3 doc sites redacted (coords), SSID → `<home-ssid>` in 4 files, tree-only | not run |
 | 2026-08-02 | `50197f4`, `e943dac` | +137, then README fix | clean | not run |
 | 2026-08-07 | `8a499a1` | +62 | SSID leak found **pre-push** (`e824e14`), fixed by rebase | not run |
+| *(pending)* | — | 743 unpushed | SSID in 17 commits + 7 messages, found 2026-09-26; `filter-branch` over `public/master..master`, verified 0 hits. **Board/doc citations of old hashes left dangling on purpose (human, 2026-09-26)** — commits in that range were re-hashed, so a cited id may not resolve; find it by subject | not run |
 
 ---
 
