@@ -2522,13 +2522,15 @@ what `@VE` exists to catch (VE "challenges Developer on testability before imple
 finalised" per AGENTS.md) — a solo session that never explicitly invokes the role skips the check
 the six-person model relies on to catch this.
 
-**Status**: half-fixed via existing-doc edit, half still open. Rather than a new BP,
-[dut_workflow.md §5b](../process/dut_workflow.md) now states the rule directly ("An interactive DUT
-session is not lasting coverage") where every future DUT session will actually read it. **Still
-open, and bigger than a doc fix**: `docs/agents/architect.md`'s Module Design Doc template has no
-Exit-Criteria line requiring a test id, so a design doc can check off "DUT verified" without one —
-proposed to the human, not applied, since it edits the cross-project team-role template rather than
-a project-local process doc.
+**Status**: fixed via existing-doc edit, not a new BP. [dut_workflow.md §5b](../process/dut_workflow.md)
+now states the rule directly ("An interactive DUT session is not lasting coverage"). Human approved
+the second half too: `docs/agents/architect.md`'s Module Design Doc template now has an `## As-built`
+section and an explicit Exit-Criteria rule requiring a `test_plan.md`/`suite/*.py` id (or a named,
+explicit reason there isn't one) — a design can no longer check off "DUT verified" as if that were
+the same claim as "has a regression test." Fixing that template surfaced a second, unrelated bug in
+the same file: the ADR template's own `Status:` line listed `deprecated`, which is not in the actual
+C4 gate's closed vocabulary (`app/tools/gate/check_docs.py:482`) — would have failed the gate the
+first time anyone used it. No live ADR had hit it yet; fixed before one did.
 
 ### LL-159 — The memory-budget discipline held on first live use, including its own honesty
 

@@ -53,7 +53,7 @@ Entry format:
 
 ```markdown
 ### ADR-NNN — [YYYY-MM-DD] — [Title]
-**Status**: proposed | accepted | deprecated | superseded
+**Status**: proposed | accepted | done | implemented | resolved | closed | applied | retired | superseded | rejected
 **Context**: The situation, forces at play, and what needs a decision
 **Decision**: What was decided and why
 **Consequences**: What becomes easier, harder, or constrained as a result
@@ -64,6 +64,8 @@ Rules:
 - Architect authors ADRs; human sign-off required to move `proposed` → `accepted`
 - Every significant cross-cutting design choice gets an ADR — no verbal-only decisions
 - Superseded ADRs are retained, not deleted
+- `Status:` is the exact closed vocabulary above, bare word only (TASK-508 ruling, BP-065,
+  same C4 gate as design docs) — `deprecated` is not in it, use `retired` or `superseded`
 
 ---
 
@@ -79,7 +81,7 @@ Entry format:
 # Design — [Title]
 
 > Owner: Architect | Developer
-> Status: draft | accepted | implemented | superseded
+> Status: proposed | accepted | done | implemented | resolved | closed | applied | retired | superseded | rejected
 > Date: YYYY-MM-DD
 > Feeds: ADR-NNN (if a decision crystallised from this)
 > Tracked-as: TASK-NNN (if implementation in progress)
@@ -91,10 +93,13 @@ Entry format:
 ## Lean / decision
 ## Open questions
 ## Exit criteria
+## As-built (filled once work lands — see Rules)
 ```
 
 Rules:
 - Design doc is a working document, not a permanent record — when a decision crystallises, capture it in an ADR and mark the design doc `Feeds: ADR-NNN`
+- `Status:` is the exact closed vocabulary above, bare word only — no inline commit/date/rationale on that line (TASK-508 ruling, BP-065). `draft`/`planned` fold into `proposed`. Commit hashes, dates, DUT results and any deviation from the design go in `## As-built` instead, filled the moment the work lands, not appended to the header
+- **`## Exit criteria` must include at least one line naming a `test_plan.md`/`suite/*.py` test id (or the harness scope that will carry it), not only DUT-verification or build-gate items.** A design is not `implemented` on a passing interactive DUT session alone — that coverage does not outlive the shell that ran it. If the feature genuinely has no automatable check, say so explicitly and name what stands in for it (LL-158, TASK-724: shipped DUT-verified with `test_ids: []` and no suite coverage, because nothing forced the question)
 - `Registers:` is filled before the doc goes to panel/human review: reserve the feature id(s) in `feature_inventory.yaml` (a minimal entry with status/pointer suffices) and add the implied `cross_feature_matrix.yaml` X-entries (description + risk from the design; `test_coverage: []` until VE lands the suite). A design with no new feature and no new interaction edge states `Registers: —` explicitly
 - May be Developer-owned when it is a feature implementation plan rather than an architectural exploration; Architect reviews for cross-cutting impact
 - Architect curates the directory and the entry format; per-file `Owner:` header indicates the authoring agent
