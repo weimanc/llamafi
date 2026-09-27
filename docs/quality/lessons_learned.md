@@ -2480,3 +2480,113 @@ the work", and subjects are where ids get typed by habit.
 body; the gate reads subjects. Cheap, and it keeps the exception ledger for cases that need it.
 
 **Status**: open — BP candidate, for the human
+
+---
+
+## Retrospective — 2026-09-27 — TASK-724 (first new feature work since M-SRCLAYOUT + M-HARNESS2)
+
+**Context**: TASK-724 (WebRadio/Player internal-DAC midscale-silence fix, from external PR
+weimanc/llamafi#1) is the first genuinely new feature landed since the two structural programmes
+that preceded it — M-SRCLAYOUT (TASK-471/476, the source-layout refactor that relocated
+`mb_arena.{h,cpp}` and decomposed `main.cpp`, closed ~2026-08-26) and M-HARNESS2 (the test-harness
+remediation programme — falsifier taxonomy, R34 runtime gates, `run/test-targeted --scope`, still
+landing rows through 2026-09-19). Everything in between was refactor/harness/audit work; this is
+the first check of whether the result actually helps building something new. Full sequence: design
+doc (`M-WEBRADIO-DAC-STABILITY.md`) → `Audio.cpp` fix + `PATCH-DAC-1` → DUT verification on two
+boards. Read from git log (`5756f561`, `95e29aa1`, `158f5c13`) and the session transcript, not from
+memory, per this role's own rule.
+
+### LL-158 — The refreshed test harness sat completely unused on its first real feature
+
+**Observation**: TASK-724 shipped with `test_ids: []` and zero new rows in `suite/webradio.py` or
+`suite/player.py` — despite those files already containing **1553 and 2089 lines** of exactly this
+shape of test (`webradio.py:872` etc. already has `dut.cmd("set wrStop 1", ...)`, the identical
+idiom this session rediscovered by trial and error, see LL-160). DUT verification was done entirely
+as ad-hoc serial pokes from a throwaway shell session — real coverage (stability, no crash, no
+leak, pool-neutral DMA) but it evaporates the moment the tmux session closes. Nothing in
+`run/test-targeted --scope webradio` or `--scope Player` will ever re-run these checks, and no R34
+falsifier declaration exists for this behavior, so the whole harness-refactor investment (`falsifier
+taxonomy`, declared classes, runtime poison-transcript grading) contributed nothing to verifying the
+first new feature it saw.
+
+**Root cause**: Nothing in the Architect/Developer workflow *requires* a test id before a task can
+move to DUT verification — the design doc's Exit Criteria checklist has DUT items but no "write the
+test" item, and `feature_inventory.yaml`'s `test_ids: []` is silently acceptable at `in_progress`.
+VE's role (test-plan authorship before implementation finalizes) was not invoked at all in this
+session — no `@VE` was addressed, and nothing forced that gap to surface before code landed.
+
+**Suggested improvement**: A design doc's Exit Criteria should carry an explicit "a `suite/*.py`
+id exists and is registered in `test_plan.md`" line, not just "DUT verified" — the two are
+currently conflated and this session shows they aren't the same thing. Separately: this is exactly
+what `@VE` exists to catch (VE "challenges Developer on testability before implementation
+finalised" per AGENTS.md) — a solo session that never explicitly invokes the role skips the check
+the six-person model relies on to catch this.
+
+**Status**: open — BP candidate, for the human
+
+### LL-159 — The memory-budget discipline held on first live use, including its own honesty
+
+**Observation**: The design doc rejected the PR's 8×512 DMA-ring widening using **archived**
+`[membudget]` figures (WebRadio ~5100 B, Player ~2416 B free-DMA) explicitly marked as "of unknown
+build... re-derive fresh" in its own Open Questions — rather than asserting them as settled fact.
+When DUT-verified later the same day, the fresh Player figure came back at ~4112 B, nearly double
+the stale archived one — the conclusion (reject the ring widening) still held, because the gap
+needed (+8192 B) was large regardless, but a less careful writeup could easily have overstated
+confidence in a number that turned out to be significantly off. Matches
+[[feedback_check_mem_budget_before_probing]] and [[project_webradio_headroom_finding]]'s standing
+advice, and is the first time either has been tested against genuinely new (non-refactor) work.
+
+**Root cause**: n/a — this is a positive finding, recorded so the practice is credited rather than
+only ever appearing as a corrective lesson.
+
+**Suggested improvement**: None needed; keep flagging cited figures as provisional-until-fresh in
+design docs, as this one did.
+
+**Status**: reviewed — holds up, no change proposed
+
+### LL-160 — A stale-log WARN was read as "board not live" without checking the orphaned-monitor pattern first
+
+**Observation**: `run/monitor-read` printed its standard staleness WARN (log not written for
+~565 000 s). That was treated as sufficient grounds to declare the board "not confirmed live" and
+skip all DUT verification for a full turn — without first running the exact check
+[[feedback_check_orphaned_monitors_before_blaming_hardware]] already prescribes (`pgrep -f '[p]io
+device monitor'`, `tmux ls`) to distinguish a dead log file from a dead board. Only after the user
+said "DUT is connected" was that check run, and it immediately showed the log was stale, not the
+board — a fresh `monitor-start` had the board answering in under a minute.
+
+**Root cause**: The staleness WARN's own text names the right next step (`check: pgrep ... and its
+/proc/<pid>/fd`), but it wasn't followed before concluding — the existing lesson was known but not
+applied at the point it mattered.
+
+**Suggested improvement**: Treat the monitor-read staleness WARN as "run the orphan check before
+concluding anything," not as a conclusion by itself. No process change needed beyond actually doing
+what the existing lesson and the WARN message both already say.
+
+**Status**: open — BP candidate, for the human
+
+### LL-161 — The same docs-gate rule was violated twice in one session, and the exact command syntax it needed was already sitting in the test suite
+
+**Observation**: Two separate, unrelated frictions in the same session:
+(a) `check-docs`'s C4 gate (design-doc `Status:` must be an exact closed-vocabulary word, TASK-508
+ruling) was tripped once when the design doc was first written (`'draft'` needed to fold to
+`'proposed'`), fixed, and then tripped **again** later the same session on a different edit of the
+same field (`'implemented (host-verified only...)'` — a parenthetical annotation, the same shape of
+mistake as the first one).
+(b) DUT command-syntax was rediscovered by trial and error — `set wrStop` alone returned
+`{"ok":false,"error":"bad args"}`, and `set wrStop 1` (a dummy value the command itself ignores) was
+found by guessing — when `app/tools/suite/serialdbg/webradio.py:872` already uses exactly that
+idiom, and grepping it first would have skipped the failed attempt.
+
+**Root cause**: (a) a rule learned once in a session doesn't automatically generalize to the next
+occurrence of the same shape within the same session — there was no re-check step before a second
+free-text `Status:`-adjacent field went out. (b) ad-hoc serial exploration went straight to trying
+commands against the live device instead of checking whether the existing suite already encodes the
+answer — the same shape of gap `[[feedback_inventory_tools_before_building]]` names for host tools,
+here applied to DUT command syntax instead.
+
+**Suggested improvement**: (a) no process fix proposed beyond attentiveness — noting it because it
+cost two gate-fail cycles instead of one. (b) before ad-hoc `get`/`set` exploration on a live board,
+grep `app/tools/suite/serialdbg/` for the same var name first; the suite almost certainly already
+demonstrates the exact syntax, including quirks like a required-but-ignored value argument.
+
+**Status**: open — BP candidate, for the human
