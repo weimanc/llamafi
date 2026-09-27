@@ -271,8 +271,9 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 **Adopted from**: LL-053
 **Date adopted**: 2026-06-06 (pending human sign-off)
 **Rule**: Use `./run/test` (full suite) or `./run/test-targeted T1,T2,...` (feature-specific). These scripts enforce the 6-step sequence atomically with a `trap EXIT` restore guarantee — do not issue the raw steps manually. If the `run/` scripts are unavailable, the manual sequence is: (1) `tmux kill-session -t spotify-mon`, (2) `pio run -e cyd2usb_winamp_debug -t upload`, (3) `sleep 8`, (4) `tools/suite/serialdbg/runner.py` (TASK-480), (5) `pio run -e cyd2usb_winamp -t upload`, (6) restart monitor. Never skip steps 1 or 2.
-**Rationale**: Two of the three failed launch attempts in the 2026-06-06 session were caused by skipping steps 1 and 2 respectively. Each failure consumed a serial-port-open + Python startup + error-read cycle (~30-60s each). The `run/test` trap ensures prod firmware is restored even on Ctrl-C or mid-step failure.
+**Rationale — SUPERSEDED (2026-09-27): steps 2 and 5 (debug flash, prod-restore flash) were deleted by ADR-067/TASK-633 (2026-09-06)**. DUT entry points now verify-and-refuse (exit 3, `elf-mismatch`) instead of flashing anything — a run declares the env it needs, checks the board's build identity, and never flashes or restores firmware itself. The board keeps whatever build was last flashed, including after the run. The surviving sequence (verify build → kill monitor → run tests → restart monitor, the restart still trap-guarded) is documented in `docs/process/project_run_scripts.md` ("All three scripts run the same sequence (BP-020), as revised by ADR-067/TASK-633"). Flash the board yourself first, with `run/flash-debug` / `run/flash-player` / `run/flash-webradio`, before invoking a test entry point.
 **Applies to**: VE (mandatory pre-run checklist), All agents (treat this as an atomic operation — do not split across turns)
+(the no-flash/no-restore half is mechanically enforced, blocking at zero, by `gate/check_entrypoint_lifecycle.py`)
 
 ---
 
@@ -384,6 +385,7 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 **Rationale**: TLS contention is about concurrent open sessions, not response size. Spotify's persistent session holds ~40 k contiguous heap. A new TLS handshake for any host needs ~50–70 k contiguous. If Spotify's session is open simultaneously, the new connection will fail under heap fragmentation — regardless of how small or fast the intended transfer is. T272 confirmed real contention for `fetchTeletext()` (the smallest fetch in the project, 1.1 KB) after ADR-044 explicitly said it was safe to omit tlsYield. The pattern is already established by `fetchWeather`, `fetchCrypto`, `fetchHeatmap`, `fetchStockChart` — new fetchers must match it by default.
 **How to apply**: Before `WiFiClientSecure client; HTTPClient http;` → call `spotifyTask::tlsYield();`. After `http.end();` (and in any early-return or error path) → call `spotifyTask::tlsResume();`. If the code path exits via multiple branches, add tlsResume to every exit point before the function returns.
 **Applies to**: Developer (implementation default for any new `fetchXxx()` in dataTaskStorage), Architect (any ADR that proposes omitting tlsYield for a new fetcher must include measured maxAlloc evidence)
+(mechanically enforced since TASK-632 by `gate/check_app_conformance.py` row A5 — every HTTPS session-open site attributable to an app must sit inside a tlsYield()/tlsResume() bracket)
 
 ---
 
@@ -721,6 +723,7 @@ LL-101; BP-046 adopted 2026-07-11 from LL-105.)_
 **Rule**: A `tasks*.md` row holds only: task id, priority, status, a one-line title/summary, a link to the governing design doc (only when one exists), and the landing commit hash(es). It does not hold the verification narrative — diff summaries, byte-deltas, DUT logs, judgment-call rationale. That evidence lives in the commit message (which already carries it in full on this project) and, for tasks with a governing design doc, in that doc's `BP-065` as-built section, updated by the agent executing the task **in the same commit that lands the work** — not as a follow-up, and not duplicated a third time into the board. A design doc under `docs/architecture/designs/*.md` is warranted only for a genuine design or architectural decision; a mechanical or hygiene task (a stale count, a doc-comment sync, a one-line promotion) gets a thin row and no separate doc at all — its record is the commit message alone. Applies **going forward only**: already-landed verbose rows are handled by ordinary archive passes (moved to `tasks-archive.md` per the existing convention), never retroactively rewritten to fit this shape.
 **Rationale**: A single session landed ~30 tasks and several rows in `tasks-architecture.md` grew past 1,000 words each, because the row was the only place execution evidence had anywhere to go once a task closed — the same failure shape that grew `main.cpp` to 5,880 lines and `run_serialdbg_tests.py` to 10,229: one file absorbs everything of a kind because nothing else is designated to hold it. Unpacking a bloated row showed it was three different kinds of content pasted together — design intent (already has a home: the design doc), execution evidence (the commit message already has this, in full — the row was a second, worse copy), and scheduling state (the only thing a board actually needs). `BP-065` already put the as-built record in the design doc at landing time; this rule is the direct extension of that pattern to the board itself, closing the gap that let the duplication happen.
 **Applies to**: All (PM especially — board maintenance; Developer/Architect — commit-time as-built updates)
+(mechanically enforced since TASK-669 by `gate/check_board_currency.py` B2 — a row reading DONE/CLOSED/FIXED/LANDED with no commit hash is a blocking finding)
 
 ---
 
@@ -805,6 +808,7 @@ the same symptom (`wrState=5` — the state that flag assigns) to radio-browser.
 twenty days before WP-F re-derived it as a fresh finding. The lesson existed and cost nothing to
 write; what was missing was a rule at authoring time.
 **Applies to**: Developer (who adds the injector), VE (who arms it in a test)
+(mechanically enforced since TASK-635 by `gate/check_armed_injectors.py` — every arming `set`/`dbgSet` key must be accounted for in `armedInjectors.h`, either as a registered injector or with a documented reason it is not one)
 
 ---
 
