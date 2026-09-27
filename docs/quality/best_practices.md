@@ -259,7 +259,8 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 ### BP-019 — Resolve DUT serial port by USB VID:PID, never hardcode
 
 **Adopted from**: LL-052
-**Date adopted**: 2026-06-06 (pending human sign-off)
+**Date adopted**: 2026-06-06, sign-off confirmed 2026-09-27 (human) — recorded late; the rule had
+already been followed project-wide throughout the gap
 **Rule**: Use `./run/port` to print the resolved port, or `PORT=/dev/ttyUSBn ./run/<script>` to override. All `run/` scripts resolve the port automatically via `run/lib.sh::resolve_port()` (CH340 VID:PID `1A86:7523`). Never hardcode `/dev/ttyUSB0` or `/dev/ttyUSB1` in commands, scripts, or agent briefings.
 **Rationale**: The port number is non-deterministic across sessions and hardware configurations. Re-discovering it manually costs time every session and introduces copy-paste errors (wrong port in flash command after looking it up for monitor). A VID:PID lookup is deterministic and self-documenting.
 **Applies to**: All agents and humans — use `./run/<script>` and port resolution is automatic. Only use `./run/port` directly when you need to inspect or log the port value.
@@ -269,7 +270,9 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 ### BP-020 — Pre-validation sequence: kill monitor → debug flash → test → prod flash → restart monitor
 
 **Adopted from**: LL-053
-**Date adopted**: 2026-06-06 (pending human sign-off)
+**Date adopted**: 2026-06-06, sign-off confirmed 2026-09-27 (human) — recorded late; the original
+rule had already been followed project-wide throughout the gap, and its no-flash/no-restore half
+is separately superseded below
 **Rule**: Use `./run/test` (full suite) or `./run/test-targeted T1,T2,...` (feature-specific). These scripts enforce the 6-step sequence atomically with a `trap EXIT` restore guarantee — do not issue the raw steps manually. If the `run/` scripts are unavailable, the manual sequence is: (1) `tmux kill-session -t spotify-mon`, (2) `pio run -e cyd2usb_winamp_debug -t upload`, (3) `sleep 8`, (4) `tools/suite/serialdbg/runner.py` (TASK-480), (5) `pio run -e cyd2usb_winamp -t upload`, (6) restart monitor. Never skip steps 1 or 2.
 **Rationale — SUPERSEDED (2026-09-27): steps 2 and 5 (debug flash, prod-restore flash) were deleted by ADR-067/TASK-633 (2026-09-06)**. DUT entry points now verify-and-refuse (exit 3, `elf-mismatch`) instead of flashing anything — a run declares the env it needs, checks the board's build identity, and never flashes or restores firmware itself. The board keeps whatever build was last flashed, including after the run. The surviving sequence (verify build → kill monitor → run tests → restart monitor, the restart still trap-guarded) is documented in `docs/process/project_run_scripts.md` ("All three scripts run the same sequence (BP-020), as revised by ADR-067/TASK-633"). Flash the board yourself first, with `run/flash-debug` / `run/flash-player` / `run/flash-webradio`, before invoking a test entry point.
 **Applies to**: VE (mandatory pre-run checklist), All agents (treat this as an atomic operation — do not split across turns)
@@ -280,7 +283,8 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 ### BP-021 — Use targeted test IDs for new-feature validation; reserve full suite for regression
 
 **Adopted from**: LL-054
-**Date adopted**: 2026-06-06 (pending human sign-off)
+**Date adopted**: 2026-06-06, sign-off confirmed 2026-09-27 (human) — recorded late; the rule had
+already been followed project-wide throughout the gap
 **Rule**: When validating newly implemented features, run only the relevant test IDs: `./run/test-targeted T-SET-01,T-SET-02,T-SET-08` (example). For the always-passing smoke preset: `./run/test-smoke`. Run `./run/test` (full suite) only for regression checks after refactors or cross-cutting changes.
 **Rationale**: The full suite takes 8-10 minutes; settings tests are near the end. Launching the full suite after implementing settings sections made the agent wait through stock/crypto/weather/GoL tests before seeing any relevant output. Targeted runs give signal in < 30s.
 **Applies to**: VE (document filter presets in `docs/process/dut_workflow.md`: smoke, settings, stock, per-feature), PM (schedule full regression suite only at milestone boundaries, not after every feature)
@@ -290,7 +294,8 @@ Entries promoted from `lessons_learned.md` on explicit human approval. All agent
 ### BP-022 — Calibration arithmetic: desk-check extrapolation targets before flash; state sizeX/Y_px explicitly
 
 **Adopted from**: LL-055
-**Date adopted**: 2026-06-06 (pending human sign-off)
+**Date adopted**: 2026-06-06, sign-off confirmed 2026-09-27 (human) — recorded late; the rule had
+already been followed project-wide throughout the gap
 **Rule**: Any calibration computation that extrapolates from tap targets to screen edges must state the driver's `sizeX_px` / `sizeY_px` values (320/240) explicitly in a comment, and must be desk-checked: verify that each of the four extrapolated edges equals 0, 319, 0, 239. Any `map(raw, calMin, calMax, 0, X)` where X ≠ sizeX_px (or sizeY_px) is a bug.
 **Rationale**: Two separate calibration bugs (xMax extrapolation and marker mapping) both stemmed from using 274 (canvas width − 1) instead of 319 (screen width − 1). Both were detectable without hardware. Neither was caught before flash because no desk-check step existed.
 **Applies to**: Developer (calibration or coordinate-transform code: comment the driver contract, desk-check the four edge values), VE (code review checklist: check any `map(raw, ...)` against driver sizeXY)
