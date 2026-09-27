@@ -201,6 +201,22 @@ Quick smoke preset (< 2 min, always-passing, confirms basic shell health):
 ./run/test-smoke
 ```
 
+**Before improvising `get`/`set` commands by hand against a live board, grep the existing suite
+first** — `app/tools/suite/serialdbg/<app>.py` (e.g. `webradio.py`, `player.py`, `shell.py`) already
+demonstrates the exact syntax for almost every command an app exposes, including quirks a first
+attempt won't guess (e.g. `set wrStop 1` — the value is required by the parser and ignored by the
+handler; a bare `set wrStop` returns `bad args`). TASK-724 (2026-09-27) rediscovered that exact
+idiom by trial and error when it was already sitting at
+`app/tools/suite/serialdbg/webradio.py:872`.
+
+**An interactive DUT session is not lasting coverage.** Poking a board over `tmux send-keys` /
+`monitor-read` to verify a fix is real evidence while the session is open, but it verifies nothing
+once the shell closes — nothing in `run/test-targeted --scope <app>` will ever re-run those checks,
+and no R34 falsifier declaration exists for behavior that was only ever typed by hand. If the
+interactive session confirms new/changed behavior, that behavior needs a `suite/serialdbg/` id
+(and a `test_plan.md` entry) before the task is `implemented` — not only DUT-verified once. TASK-724
+shipped with `test_ids: []` and no new suite rows despite exactly this gap.
+
 ### 5c. Regression suite
 
 Full suite only at milestone boundaries or after cross-cutting refactors:

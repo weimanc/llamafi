@@ -2522,7 +2522,13 @@ what `@VE` exists to catch (VE "challenges Developer on testability before imple
 finalised" per AGENTS.md) — a solo session that never explicitly invokes the role skips the check
 the six-person model relies on to catch this.
 
-**Status**: open — BP candidate, for the human
+**Status**: half-fixed via existing-doc edit, half still open. Rather than a new BP,
+[dut_workflow.md §5b](../process/dut_workflow.md) now states the rule directly ("An interactive DUT
+session is not lasting coverage") where every future DUT session will actually read it. **Still
+open, and bigger than a doc fix**: `docs/agents/architect.md`'s Module Design Doc template has no
+Exit-Criteria line requiring a test id, so a design doc can check off "DUT verified" without one —
+proposed to the human, not applied, since it edits the cross-project team-role template rather than
+a project-local process doc.
 
 ### LL-159 — The memory-budget discipline held on first live use, including its own honesty
 
@@ -2562,7 +2568,13 @@ applied at the point it mattered.
 concluding anything," not as a conclusion by itself. No process change needed beyond actually doing
 what the existing lesson and the WARN message both already say.
 
-**Status**: open — BP candidate, for the human
+**Status**: fixed via existing-doc edit, not a new BP. The lesson already existed twice over
+([[feedback_stale_log_looks_like_dead_device]], [[feedback_check_orphaned_monitors_before_blaming_hardware]])
+and still didn't prevent recurrence — because it lived only in personal memory, not in a doc every
+session for this repo actually loads. `CLAUDE.md`'s own monitor-read paragraph only warned about the
+*other* direction (stale log looking healthy); it now names both directions and points at the
+already-written [dut_workflow.md §5f](../process/dut_workflow.md) triage table, which had row 3 for
+exactly this and was never consulted.
 
 ### LL-161 — The same docs-gate rule was violated twice in one session, and the exact command syntax it needed was already sitting in the test suite
 
@@ -2589,4 +2601,10 @@ cost two gate-fail cycles instead of one. (b) before ad-hoc `get`/`set` explorat
 grep `app/tools/suite/serialdbg/` for the same var name first; the suite almost certainly already
 demonstrates the exact syntax, including quirks like a required-but-ignored value argument.
 
-**Status**: open — BP candidate, for the human
+**Status**: (a) fixed via existing-doc edit, not a new BP — BP-065 already states this rule
+verbatim (`best_practices.md:681`); the actual gap was this design doc not following its own
+already-adopted template. Restructured `M-WEBRADIO-DAC-STABILITY.md` to move the header's `Note:`
+line into a proper `## As-built` section, as BP-065 prescribes, rather than adding a rule that
+already existed. (b) fixed the same way as LL-158/160 — [dut_workflow.md §5b](../process/dut_workflow.md)
+now states this directly, next to the `run/test-targeted` reference where it will actually be read
+before, not after, the trial-and-error.

@@ -87,10 +87,17 @@ Arduino sketch (`SpotifyDiyThing/SpotifyDiyThing.ino`) that polls the Spotify We
   when the fault was localised to DUT1's micro-USB connector, so there is no uptime measurement left
   to interrupt. What the pre-flash read is still for: knowing whether the log you are about to
   reason from is LIVE. A capture whose `uptime=` does not advance between two reads is a stale file,
-  not a healthy board — it has twice been mistaken for one here. The usual reason a run refuses is
+  not a healthy board — it has twice been mistaken for one here. **The trap runs the other way too:**
+  a `monitor-read` WARN or a frozen capture is not proof the board is dead either — it has been
+  mistaken for that as well (TASK-576), and again cost a session when a live board sat unverified
+  for a full turn until the DUT was confirmed present. Before concluding "not live" from a stale
+  read alone, run the row-3 triage first — `pgrep -f '[p]io device monitor'`, `tmux ls`, then a
+  fresh `run/monitor-start` — in [dut_workflow.md §5f](docs/process/dut_workflow.md); it is cheap
+  (well under a minute) and it is the documented first step for *any* doubt about whether a board
+  is reachable, not only for suspected flapping. The usual reason a run refuses is
   benign and **expected, not a defect**: the debug env bakes the git hash into the build id, so a
   HEAD move invalidates the flashed artifact and the next run refuses with `elf-mismatch`.
-  Full note: [dut_workflow.md §5a](docs/process/dut_workflow.md).
+  Full note: [dut_workflow.md §5a/§5f](docs/process/dut_workflow.md).
 - **DUT entry points verify and refuse — they never flash and never restore (ADR-067).** Every
   `run/test*`, soak and gate script *reads* the board's build identity and **refuses with exit 3**
   (`elf-mismatch`, a RIG condition) if it is not running the build the run declared. **You flash the

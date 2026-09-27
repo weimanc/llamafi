@@ -2,11 +2,8 @@
 
 > Owner: Architect
 > Status: implemented
-> Note: DUT-verified 2026-09-27 (`cyd2usb_webradio` + `cyd2usb_player`, no crash, pool-neutral —
-> see TASK-724). Not verified: whether the pop is actually gone (needs a listener with the
-> speaker attached; not checkable from this session).
 > Date: 2026-09-27
-> Feeds: (ADR TBD — pending a listening check)
+> Feeds: (ADR TBD — pending a listening check; see As-built)
 > Tracked-as: TASK-724
 > Source: external PR weimanc/llamafi#1 (bvarbanov90), `Audio.cpp` hunks only. The rest of that PR
 > (EQ panel, drive range, Settings, tests) is **out of scope** here.
@@ -155,7 +152,14 @@ verified** this in the vendored driver/IDF version; listed only as a question.
 8×512 ring; the budget does not close, and there is no measured underrun that justifies the bytes.
 Revisit ring size only after Option A is DUT-verified and a real stall case is recorded.
 
-## DUT verification (2026-09-27, post-implementation)
+## As-built
+
+Shipped as designed (Option A, `95e29aa1`), no deviation. **DUT-verified 2026-09-27**
+(`cyd2usb_webradio` + `cyd2usb_player`, TASK-724): no crash, pool-neutral, see the table below.
+**Not verified — cannot be from a text session:** whether the pop is actually gone. That needs a
+person listening with the speaker attached; nothing here confirms or denies it.
+
+### DUT verification (2026-09-27, post-implementation)
 
 Fresh `[membudget] CP2-decoder-init` captures on this HEAD, both against the live board
 (ESP32-2432S028R, `/dev/ttyUSB0`):
