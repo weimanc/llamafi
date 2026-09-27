@@ -2692,3 +2692,20 @@ features:
       proven 6/6. The two auto-advance-on-EOF ids could not be closed on hardware — they
       need real playback, which TASK-442 currently prevents.
 
+
+  - id: webradio-dac-001
+    name: WebRadio internal-DAC midscale silence (no rail-step pops)
+    milestone: M-WEBRADIO
+    status: proposed
+    description: |
+      Reserved by docs/architecture/designs/M-WEBRADIO-DAC-STABILITY.md (proposed, 2026-09-27).
+      Internal-DAC PCM is unsigned, so silence is 0x8000; the vendored ESP32-audioI2S zero-fills
+      the DMA ring on underrun, ctor, stop, pause and decode error, stepping the DAC to the rail.
+      Lean: Option A, gated on m_f_internalDAC, zero DMA-pool cost. The 8x512 ring from PR #1
+      is not affordable (see the design's memory budget).
+    git_ref: ""
+    components:
+      - app/lib/ESP32-audioI2S/src/Audio.cpp
+    cross_features: [webradio-001]
+    test_ids: []
+    notes: Reservation only; Developer completes at implementation, VE attaches test ids.

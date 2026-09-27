@@ -1839,3 +1839,17 @@ interactions:
       design doc's "What this does NOT change" section. Stock's sub-view residual (List <->
       Chart-detail while foreground, no resume() call) is a named open question (OQ2) in the
       design doc, not closed by this entry.
+
+  - id: X071
+    feature_a: webradio-dac-001
+    feature_b: webradio-001
+    interaction_type: shared_resource
+    description: |
+      The I2S DMA ring is allocated by Audio() from the same 8-bit internal pool as the decoder
+      arena and InBuff, and is not modelled in mem_manifest.yaml. Any ring-size change (PR #1's
+      8x512) or fill change moves free DMA at decoder-init; measured CP2 freeDma is 5100 B
+      (WebRadio) / 2416 B (Player), so +8192 B does not fit. Option A must be pool-neutral.
+    risk: high
+    test_coverage: []
+    notes: |
+      Reserved 2026-09-27 by M-WEBRADIO-DAC-STABILITY.md. Exit criterion: CP2 freeDma unchanged.
