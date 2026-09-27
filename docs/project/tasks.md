@@ -14,6 +14,22 @@ Tasks ref feature IDs + git branches/commits for traceability. Agents report sta
 
 > Completed/closed/fixed/resolved tasks are periodically moved to [tasks-archive.md](tasks-archive.md) to keep this file WIP-only. **Last archive pass: 2026-08-15** — 80 closed entries / 7 561 lines swept out, and the M-WINAMP-PLAYER board split into its own file (see below). `tasks.md` went 9 787 → ~1 200 lines. Verified: 480 distinct task ids across the three files, no duplicates, none lost. Note for the next pass: result/resolution sub-sections are `###`-level in this project and must travel with their parent task — splitting on heading level alone orphans them. Prior pass: 2026-08-07 (moved 7 fully-closed milestone sections — M-CERT-ERRCODE remainder, M-APP-ORDER, M-WEBRADIO-WINAMP-UI, M-WEBRADIO-REAL-VIS, M-PR-LOCATIONS, M-MEMPLAN hygiene, M-CEEFAX — 2,513 lines — see archive file for the batch note). Prior pass: 2026-07-12 (TASK-143..313 range, 149 entries).
 
+> **PM sync 2026-09-27 (first publish since 2026-08-07, and what it found).** Pushed `8a499a1e..f0ef43d4`
+> (746 commits, both `main` and `master`). **Process now lives in the repo:**
+> [publish_checklist.md](../process/publish_checklist.md) (it was one agent's memory note). **The home
+> SSID leaked a third time** — 17 commits and 7 messages, every one a raw DUT-log paste — and was
+> removed pre-push by rewriting the unpushed range; board/doc citations of the re-hashed commits
+> were left dangling **by human decision**, so a cited hash may not resolve (find it by subject).
+> **Licence audit (ScanCode, first ever run): TASK-722, P2, human.** The vendored `ESP32-audioI2S` is
+> GPL-3.0 but its MP3/AAC decoders are Helix (RPSL, GPL-incompatible) with headers stripped upstream;
+> that code had been public since 2026-06-28. Headers, RPSL/RCSL texts and licence files for
+> `ESP32-audioI2S`/`SD`/`WiFiClientSecure` are now in the tree and the README says **do not
+> redistribute firmware images** until TASK-722 is decided. Also this pass: **TASK-637 skeptically
+> reviewed** ([review](../verification/reviews/TASK-637-skeptical-review.md) — guard not test-asserted,
+> `T_APPKEY_01` still bodyless, R-3 ruling first); `app/gen/read_keys.py` regenerated (TASK-718 had left
+> it stale, gate 8 red); `run/check` 11/11 with the board attached. **Board counts unchanged**
+> (harness2 98 rows / 75 closed / 23 live, `recount_board.py`). Owed: `test_serial_classify.py`
+> hard-codes a by-id device path and fails with the board unplugged (not yet filed).
 > **PM sync 2026-09-18 (DUT verification + two independent-review catches, same day as the chain
 > above).** TASK-706's design was itself revised once — an independent Opus/Architect review found
 > its first draft's mechanism wrong (severity mischaracterized, no design-space section, a live
