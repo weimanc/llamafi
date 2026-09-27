@@ -89,6 +89,35 @@ The guard returns false, which the caller already handles, so it degrades like a
 Flash sits at 69.1 % with ~811 KB free, and excluding them would have meant a `library.json`
 srcFilter — a further patch for no functional gain. They are unreachable, not absent.
 
+## PATCH-DAC-1 — built-in DAC gets midpoint silence, never literal zero
+**File:** `src/Audio.cpp` (ctor, `stopSong()`, `playI2Sremains()`, `pauseResume()`, `sendBytes()`) ·
+**Task:** TASK-724 · **Design:** `docs/architecture/designs/M-WEBRADIO-DAC-STABILITY.md` (Option A) ·
+**Status:** live
+
+Upstream was written for external I2S DACs, where a literal-zero PCM word is silence. The ESP32
+built-in DAC consumes **unsigned** PCM (`playSample()` adds `0x80008000`), so silence there is the
+midpoint `0x8000` — a literal zero is the negative rail, heard as a pop. Five upstream sites wrote or
+produced literal zero into the DMA ring: `tx_desc_auto_clear` (any underrun), the ctor's initial
+`i2s_zero_dma_buffer()`, `stopSong()`, `pauseResume()`, and `sendBytes()`'s recoverable-decode-error
+path. All five are now gated on `m_f_internalDAC`: the built-in-DAC branch calls `playI2Sremains()`
+(midpoint-primed via the normal sample path) or, for the decode-error case, simply leaves the queued
+audio alone; the external-I2S branch is byte-identical to upstream.
+
+`playI2Sremains()` also gained a bound: it filled `m_validSamples = dma_buf_len * dma_buf_count` in
+one pass, which exceeds the `m_outBuff` capacity (2048 stereo frames) for any DMA config larger than
+production's 8×256 — latent since PATCH-MEMBUDGET-4, never triggered because no shipping env used a
+bigger ring. Now fills in `m_outBuff`-sized chunks, safe for any configured ring size.
+
+**Zero DMA-pool cost** — no `dma_buf_len`/`dma_buf_count` change. A PR (external, weimanc/llamafi#1)
+proposed also widening the ring to 8×512; the design doc's memory budget found that does not fit
+(measured free-DMA at decoder-init: ~5.1 KB WebRadio / ~2.4 KB Player, both go negative at +8 KB) and
+it was not taken.
+
+**Side effect, not hidden:** with `tx_desc_auto_clear` off, a genuine underrun on the built-in DAC now
+replays the last primed content (≈46 ms at 8×256) instead of stepping to the rail — quieter (a buzz/
+stutter) rather than a click, but not literal silence unless volume is 0. Not yet DUT-verified for
+audible correctness (see the design doc's exit criteria).
+
 ---
 
 ## The other local file in this tree (relocated 2026-08-26, TASK-476)

@@ -643,6 +643,41 @@ elsewhere in the suite.
 investigated (unrelated code path, Winamp gesture/volume-debounce tests, not stock-fetch), flagging
 here rather than dropping silently. Worth a look if they recur.
 
+## Open — TASK-724 (2026-09-27, filed by @PM from Architect design doc)
+
+### TASK-724 — WebRadio/Player internal-DAC midscale silence (no rail-step pops)
+
+**Priority:** P2 · **Status:** implemented, DUT verification owed · **Owner:** Developer
+
+Design: `docs/architecture/designs/M-WEBRADIO-DAC-STABILITY.md` (Option A). Source: external PR
+weimanc/llamafi#1 (bvarbanov90), `Audio.cpp` hunks only — the rest of that PR (EQ panel, drive
+range, Settings, tests) is out of scope for this task.
+
+The built-in DAC consumes unsigned PCM (silence = 0x8000); the vendored `ESP32-audioI2S` fork wrote
+literal-zero into the DMA ring on underrun (`tx_desc_auto_clear`), construction, `stopSong()`,
+`pauseResume()` and a recoverable decode error in `sendBytes()` — each one a full-scale DC step to
+the negative rail, heard as a pop. Fixed by gating all five sites on `m_f_internalDAC`: the built-in
+DAC branch primes/leaves midpoint content via `playI2Sremains()` instead; external I2S is byte-
+identical to upstream. `playI2Sremains()` also had a latent read past `m_outBuff` for any DMA config
+bigger than production's 8×256 (never triggered, no shipping env used one) — now fills in bounded
+chunks. See `app/lib/ESP32-audioI2S/LOCAL_PATCHES.md` PATCH-DAC-1 for the full record.
+
+**Explicitly not done:** the PR's 8×512 DMA-ring widening. The design doc's memory budget shows it
+doesn't fit — measured free-DMA at decoder-init is ~5.1 KB (WebRadio) / ~2.4 KB (Player), and +8 KB
+takes both negative. Zero DMA-pool cost was a hard constraint for this task.
+
+**Verified:** `run/check` (host build gate, all envs) — see commit for result. **Not yet verified:**
+any DUT check from the design doc's exit criteria — no confirmed-live board this session (monitor
+log stale, >6 days since last write; treated as not verifiably live per the stale-log lesson, not
+flashed). Owed before this task can close:
+- fresh `[membudget] CP2-decoder-init freeDma` on WebRadio and Player, confirmed unchanged vs.
+  pre-change (pool-neutrality claim above is from archived records, not re-measured on this HEAD)
+- listening check: play → stop → station change → pause/resume, no audible pop
+- forced-stall run to characterise the stale-ring replay behavior (buzz/stutter, not silence, at
+  audible volume with auto-clear off)
+- confirm which task calls `stopSong()`/`pauseResume()` and that the ~46 ms blocking fill there is
+  acceptable
+
 ## Open — TASK-386 (2026-08-01, filed from a third full-suite `run/test` pass, post-TASK-384)
 
 Re-ran `./run/test` after TASK-384 landed. **Result: 122 passed, 4 failed, 41 skipped, 3 flaked** —

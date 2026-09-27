@@ -1,10 +1,11 @@
 # Design — WebRadio internal-DAC stability (midscale silence, DMA window)
 
 > Owner: Architect
-> Status: proposed
+> Status: implemented
+> Note: host-verified only (`run/check` green) — DUT verification owed, see TASK-724
 > Date: 2026-09-27
-> Feeds: (ADR TBD — only if Option A is accepted and DUT-verified)
-> Tracked-as: — (no task yet; PM to file on acceptance)
+> Feeds: (ADR TBD — only if DUT-verified with no regressions)
+> Tracked-as: TASK-724
 > Source: external PR weimanc/llamafi#1 (bvarbanov90), `Audio.cpp` hunks only. The rest of that PR
 > (EQ panel, drive range, Settings, tests) is **out of scope** here.
 > Registers: webradio-dac-001 · X071

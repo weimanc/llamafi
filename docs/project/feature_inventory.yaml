@@ -2696,16 +2696,20 @@ features:
   - id: webradio-dac-001
     name: WebRadio internal-DAC midscale silence (no rail-step pops)
     milestone: M-WEBRADIO
-    status: proposed
+    status: in_progress
     description: |
-      Reserved by docs/architecture/designs/M-WEBRADIO-DAC-STABILITY.md (proposed, 2026-09-27).
-      Internal-DAC PCM is unsigned, so silence is 0x8000; the vendored ESP32-audioI2S zero-fills
-      the DMA ring on underrun, ctor, stop, pause and decode error, stepping the DAC to the rail.
-      Lean: Option A, gated on m_f_internalDAC, zero DMA-pool cost. The 8x512 ring from PR #1
-      is not affordable (see the design's memory budget).
-    git_ref: ""
+      docs/architecture/designs/M-WEBRADIO-DAC-STABILITY.md, Option A. Internal-DAC PCM is
+      unsigned, so silence is 0x8000; the vendored ESP32-audioI2S zero-filled the DMA ring on
+      underrun, ctor, stop, pause and decode error, stepping the DAC to the rail. Fixed: all five
+      sites gated on m_f_internalDAC, zero DMA-pool cost. The 8x512 ring from PR #1 was not taken
+      (see the design's memory budget — does not fit). See LOCAL_PATCHES.md PATCH-DAC-1.
+    git_ref: "TASK-724 (pending commit)"
     components:
       - app/lib/ESP32-audioI2S/src/Audio.cpp
+      - app/lib/ESP32-audioI2S/LOCAL_PATCHES.md
     cross_features: [webradio-001]
     test_ids: []
-    notes: Reservation only; Developer completes at implementation, VE attaches test ids.
+    notes: >
+      status in_progress, not implemented: host build only, no DUT verification this session
+      (monitor log stale >6 days; board not treated as confirmed-live). See TASK-724 for the
+      owed DUT checklist before this can close.

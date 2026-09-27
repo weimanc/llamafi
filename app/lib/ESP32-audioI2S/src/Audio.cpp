@@ -198,7 +198,12 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
     m_i2s_config.dma_buf_len          = 512;
 #endif
     m_i2s_config.use_apll             = APLL_DISABLE; // must be disabled in V2.0.1-RC1
-    m_i2s_config.tx_desc_auto_clear   = true;   // new in V1.0.1
+    // TASK-724 (M-WEBRADIO-DAC-STABILITY, Option A): the external-I2S path treats
+    // literal zero as silence, so auto-clearing an underrun there is correct and
+    // unchanged. The ESP32 built-in DAC consumes unsigned PCM (playSample() adds
+    // 0x80008000), where silence is the midpoint 0x8000 — auto-clearing to literal
+    // zero drives it to the negative rail, a full-scale DC step heard as a pop.
+    m_i2s_config.tx_desc_auto_clear   = !internalDAC;
     m_i2s_config.fixed_mclk           = I2S_PIN_NO_CHANGE;
 
 
@@ -242,8 +247,6 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
         m_f_forceMono = false;
     }
 
-    i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
-
     for(int i = 0; i <3; i++) {
         m_filter[i].a0  = 1;
         m_filter[i].a1  = 0;
@@ -251,6 +254,14 @@ Audio::Audio(bool internalDAC /* = false */, uint8_t channelEnabled /* = I2S_DAC
         m_filter[i].b1  = 0;
         m_filter[i].b2  = 0;
     }
+
+    // TASK-724: prime every DMA descriptor with midpoint silence (0x8000) on the
+    // built-in DAC instead of literal zero (the negative rail). playI2Sremains()
+    // runs the same conversion playback uses; m_bitsPerSample/m_channels default
+    // to 16/2 (Audio.h) at this point in construction, so the 16-bit stereo path
+    // is what runs. External I2S keeps the driver's normal zero-fill.
+    if(m_f_internalDAC) playI2Sremains();
+    else                i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
 }
 //---------------------------------------------------------------------------------------------------------------------
 void Audio::setBufsize(int rambuf_sz, int psrambuf_sz) {
@@ -2368,7 +2379,10 @@ uint32_t Audio::stopSong() {
     }
 #endif                                           // AUDIO_NO_SD_FS
     memset(m_outBuff, 0, sizeof(m_outBuff));     //Clear OutputBuffer
-    i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
+    // TASK-724: see playI2Sremains() below — literal zero is the rail, not
+    // silence, on the built-in DAC.
+    if(m_f_internalDAC) playI2Sremains();
+    else                i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
     return pos;
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -2378,11 +2392,26 @@ void Audio::playI2Sremains() { // returns true if all dma_buffs flushed
     if(getBitsPerSample() > 8) memset(m_outBuff,   0, sizeof(m_outBuff));     //Clear OutputBuffer (signed)
     else                       memset(m_outBuff, 128, sizeof(m_outBuff));     //Clear OutputBuffer (unsigned, PCM 8u)
 
-    m_validSamples = m_i2s_config.dma_buf_len * m_i2s_config.dma_buf_count;
-    while(m_validSamples) {
-        playChunk();
+    // TASK-724: m_validSamples counts decoded frames, and a 16-bit stereo frame
+    // occupies two int16_t entries in m_outBuff — a DMA config sized past
+    // m_outBuff's capacity (2048 stereo frames) would read out of bounds. Fill
+    // the DMA ring in bounded chunks instead, so this stays memory-safe for any
+    // configured dma_buf_len/dma_buf_count.
+    size_t outputFrames = sizeof(m_outBuff) / sizeof(m_outBuff[0]);
+    if(getBitsPerSample() == 16 && getChannels() == 2) outputFrames /= 2;
+    if(outputFrames == 0) outputFrames = 1;
+
+    size_t dmaFramesRemaining = (size_t)m_i2s_config.dma_buf_len * (size_t)m_i2s_config.dma_buf_count;
+    while(dmaFramesRemaining) {
+        const size_t chunkFrames = dmaFramesRemaining < outputFrames ? dmaFramesRemaining : outputFrames;
+        m_validSamples = (int16_t)chunkFrames;
+        while(m_validSamples) playChunk();
+        dmaFramesRemaining -= chunkFrames;
     }
-    i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
+    // Built-in DAC: the ring is now primed with midpoint silence (0x8000, via
+    // playSample()'s +0x80008000 bias) — do not overwrite it with a literal-zero
+    // zero_dma_buffer() call. External I2S keeps the original zero-fill.
+    if(!m_f_internalDAC) i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
     return;
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -2393,7 +2422,9 @@ bool Audio::pauseResume() {
         retVal = true;
         if(!m_f_running) {
             memset(m_outBuff, 0, sizeof(m_outBuff));               //Clear OutputBuffer
-            i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
+            // TASK-724: see playI2Sremains() above.
+            if(m_f_internalDAC) playI2Sremains();
+            else                i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
         }
     }
     return retVal;
@@ -4194,7 +4225,11 @@ int Audio::sendBytes(uint8_t* data, size_t len) {
     }
     if(ret < 0) { // Error, skip the frame...
         if(m_f_Log) if(m_codec == CODEC_M4A){log_i("begin not found"); return 1;}
-        i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
+        // TASK-724: a recoverable decode error is not silence — on the built-in
+        // DAC, clearing the ring to literal zero here produces the same rail
+        // pop as an underrun (see the ctor comment) and discards already-queued
+        // audio for no reason. Leave the ring alone; external I2S is unchanged.
+        if(!m_f_internalDAC) i2s_zero_dma_buffer((i2s_port_t)m_i2s_num);
         if(!getChannels() && (ret == -2)) {
              ; // suppress errorcode MAINDATA_UNDERFLOW
         }
