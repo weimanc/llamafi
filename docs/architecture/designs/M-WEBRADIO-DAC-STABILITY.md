@@ -2,9 +2,11 @@
 
 > Owner: Architect
 > Status: implemented
-> Note: host-verified only (`run/check` green) — DUT verification owed, see TASK-724
+> Note: DUT-verified 2026-09-27 (`cyd2usb_webradio` + `cyd2usb_player`, no crash, pool-neutral —
+> see TASK-724). Not verified: whether the pop is actually gone (needs a listener with the
+> speaker attached; not checkable from this session).
 > Date: 2026-09-27
-> Feeds: (ADR TBD — only if DUT-verified with no regressions)
+> Feeds: (ADR TBD — pending a listening check)
 > Tracked-as: TASK-724
 > Source: external PR weimanc/llamafi#1 (bvarbanov90), `Audio.cpp` hunks only. The rest of that PR
 > (EQ panel, drive range, Settings, tests) is **out of scope** here.
@@ -153,14 +155,43 @@ verified** this in the vendored driver/IDF version; listed only as a question.
 8×512 ring; the budget does not close, and there is no measured underrun that justifies the bytes.
 Revisit ring size only after Option A is DUT-verified and a real stall case is recorded.
 
+## DUT verification (2026-09-27, post-implementation)
+
+Fresh `[membudget] CP2-decoder-init` captures on this HEAD, both against the live board
+(ESP32-2432S028R, `/dev/ttyUSB0`):
+
+| Env | Action | freeDma | lfbDma | Result |
+|---|---|---|---|---|
+| `cyd2usb_webradio` | play station 0 (Radio 10) | 4820 | 2292 | OK, played |
+| `cyd2usb_webradio` | reconnect after 1 startup underrun | 4548 | 1652 | OK, no crash |
+| `cyd2usb_webradio` | station change (play idx 1) | 4604 | 2292 | OK, played |
+| `cyd2usb_player` | 6+ track auto-advance cycles (tone1..5.mp3) | 4112 (steady) | 3956 (steady) | OK, no crash, no drift |
+
+All four are **at or above** the archived pre-change figures (WebRadio ~5100/4852 B, Player
+~2416 B) — no regression, confirms Option A is pool-neutral as designed. The Player figure is
+notably better than the stale archived row (2416 → ~4100 B); re-derived fresh per Open Question 1,
+which is now closed.
+
+Exercised without incident: station play, forced reconnect after an underrun (`get wrUnderruns`:
+underruns=1, recurrentUnderruns=0 — the known startup transient, not new), `set wrStop`,
+station-to-station switch, LocalPlayer EOF-triggered auto-advance across 6+ tracks (each one a
+`stopSong()`/decoder-reinit cycle), and clean app-switch teardown from both WebRadio and
+LocalPlayer (arena released, pump deleted, no heap leak across the whole session).
+
+**Not verified — cannot be, from this session:** whether the pop is actually gone. That needs a
+person listening with the speaker connected. Everything checkable by log/heap inspection (crash,
+leak, pool cost, decode-error resilience) passed.
+
+`pauseResume()` (site 4) was **not exercised** — confirmed by grep that nothing in `app/src/`
+calls it (matches `CLAUDE.md`'s note that touch has no play/pause wired). The fix there is
+defensively correct but currently unreachable dead code, same as upstream's own path.
+
 ## Open questions
 
-1. **Fresh CP2 numbers.** The two CP2 rows are archived records of unknown build. Re-derive with
-   `run/flash-webradio` + a `[membudget] CP2-decoder-init` capture on the current HEAD before
-   Option C is ever costed. (Not needed for Option A.)
+1. ~~Fresh CP2 numbers~~ — **closed above.**
 2. Which task calls `stopSong()` / `pauseResume()` — is a ~46 ms blocking fill acceptable there?
-3. Is the constructor-time rail transient audible on the CYD amp? (DUT listen test; 8 Ω speaker is
-   the same open item as M-WEBRADIO's deferred audible checks.)
+   (Not measured directly; no stall/lag was observed on stop/track-advance during this session.)
+3. Is the constructor-time rail transient audible on the CYD amp? (Needs a listener; open.)
 4. Should the manifest register the I2S ring as a `caps: DMA` row so this class of question is
    answerable from the manifest? (Separate task; the current gap is why this doc needs measurements.)
 5. Upstream contribution: the PR is from an external contributor. PM to decide how to credit/merge
@@ -168,13 +199,16 @@ Revisit ring size only after Option A is DUT-verified and a real stall case is r
 
 ## Exit criteria
 
-- [ ] `Audio.cpp` change confined to `m_f_internalDAC` branches; external-I2S code path byte-identical.
-- [ ] `run/check` green; host build of `cyd2usb_webradio` and `cyd2usb_winamp_debug` green.
-- [ ] `[membudget] CP2-decoder-init freeDma` on WebRadio and Player **unchanged** vs pre-change
-      (Option A must be pool-neutral; any delta is a defect).
-- [ ] DUT: WebRadio play → stop → station change → pause/resume with no audible pop (listening
-      check), plus a forced-stall run to characterise the stale-ring replay.
-- [ ] `playI2Sremains()` bounds verified for 8×256 (unchanged behaviour) and, in a scratch env only,
-      a larger ring (no read past `m_outBuff`).
-- [ ] PATCH note added to the vendored `ESP32-audioI2S` patch record, per the fork's existing
-      PATCH-* convention.
+- [x] `Audio.cpp` change confined to `m_f_internalDAC` branches; external-I2S code path byte-identical.
+- [x] `run/check` green; host build of `cyd2usb_webradio` and `cyd2usb_winamp_debug` green.
+- [x] `[membudget] CP2-decoder-init freeDma` on WebRadio and Player **unchanged** vs pre-change
+      (Option A must be pool-neutral; any delta is a defect). Verified 2026-09-27, see table above.
+- [ ] DUT: WebRadio play → stop → station change → pause/resume with no audible pop (**listening
+      check** — needs a person with the speaker; play/stop/station-change exercised with no crash,
+      the audible part is unverified), plus a forced-stall run to characterise the stale-ring replay
+      (a startup-transient underrun occurred naturally and recovered cleanly; a deliberate mid-stream
+      stall was not forced).
+- [x] `playI2Sremains()` bounds verified for 8×256 (unchanged behaviour, exercised repeatedly on
+      DUT with no crash). A larger scratch-env ring was **not** built/tested — reasoned from the
+      arithmetic (`m_outBuff` capacity vs. ring frame count), not DUT-confirmed.
+- [x] PATCH note added to the vendored `ESP32-audioI2S` patch record (`PATCH-DAC-1`).

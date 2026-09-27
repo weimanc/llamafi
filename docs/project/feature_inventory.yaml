@@ -2710,6 +2710,7 @@ features:
     cross_features: [webradio-001]
     test_ids: []
     notes: >
-      status in_progress, not implemented: host build only, no DUT verification this session
-      (monitor log stale >6 days; board not treated as confirmed-live). See TASK-724 for the
-      owed DUT checklist before this can close.
+      status in_progress, not implemented: DUT-verified 2026-09-27 for stability (both
+      cyd2usb_webradio and cyd2usb_player, no crash/leak, CP2 freeDma at or above pre-change
+      figures) but the listening check (does the pop actually go away) needs a person with the
+      speaker and could not run from this session. See TASK-724.

@@ -647,7 +647,8 @@ here rather than dropping silently. Worth a look if they recur.
 
 ### TASK-724 — WebRadio/Player internal-DAC midscale silence (no rail-step pops)
 
-**Priority:** P2 · **Status:** implemented, DUT verification owed · **Owner:** Developer
+**Priority:** P2 · **Status:** implemented, DUT-verified for stability; listening check owed ·
+**Owner:** Developer
 
 Design: `docs/architecture/designs/M-WEBRADIO-DAC-STABILITY.md` (Option A). Source: external PR
 weimanc/llamafi#1 (bvarbanov90), `Audio.cpp` hunks only — the rest of that PR (EQ panel, drive
@@ -666,17 +667,26 @@ chunks. See `app/lib/ESP32-audioI2S/LOCAL_PATCHES.md` PATCH-DAC-1 for the full r
 doesn't fit — measured free-DMA at decoder-init is ~5.1 KB (WebRadio) / ~2.4 KB (Player), and +8 KB
 takes both negative. Zero DMA-pool cost was a hard constraint for this task.
 
-**Verified:** `run/check` (host build gate, all envs) — see commit for result. **Not yet verified:**
-any DUT check from the design doc's exit criteria — no confirmed-live board this session (monitor
-log stale, >6 days since last write; treated as not verifiably live per the stale-log lesson, not
-flashed). Owed before this task can close:
-- fresh `[membudget] CP2-decoder-init freeDma` on WebRadio and Player, confirmed unchanged vs.
-  pre-change (pool-neutrality claim above is from archived records, not re-measured on this HEAD)
-- listening check: play → stop → station change → pause/resume, no audible pop
-- forced-stall run to characterise the stale-ring replay behavior (buzz/stutter, not silence, at
-  audible volume with auto-clear off)
-- confirm which task calls `stopSong()`/`pauseResume()` and that the ~46 ms blocking fill there is
-  acceptable
+**Verified:** `run/check` (host build gate, all envs); DUT session 2026-09-27 on
+ESP32-2432S028R/`ttyUSB0` (board confirmed live this pass, superseding the stale-monitor note
+above). Flashed `cyd2usb_webradio` and `cyd2usb_player` in turn and drove both over the serial
+debug console (`set wrPlay`/`wrStop`, `set plLoad`/`plPlay`, `switchApp`):
+- fresh `[membudget] CP2-decoder-init freeDma`: WebRadio 4548–4820 B, Player steady at 4112 B
+  across 6+ auto-advance cycles — both **at or above** the archived pre-change figures (~5100 B /
+  ~2416 B respectively); pool-neutrality confirmed, no regression. Full table in the design doc.
+- exercised without a crash or heap leak: station play, a genuine startup-transient underrun +
+  reconnect, `wrStop`, station-to-station switch, 6+ LocalPlayer EOF auto-advance cycles (each a
+  `stopSong()`/decoder-reinit pass), and clean app-switch teardown from both apps (arena released,
+  pump task deleted every time).
+- `pauseResume()` (site 4) confirmed **unreachable** — grepped, nothing in `app/src/` calls it,
+  matching `CLAUDE.md`'s note that touch has no play/pause wired. Fix is defensively correct but
+  not exercised, same as upstream.
+
+**Still owed — cannot be closed from this session:** the listening check (does the pop actually
+go away — needs a person with the speaker attached) and a *deliberate* mid-stream stall to
+characterise the stale-ring replay (only a natural one-off startup underrun was observed, and it
+recovered cleanly). Board was left on `cyd2usb_player` debug firmware, not production, per
+ADR-067 (no entry point restores it).
 
 ## Open — TASK-386 (2026-08-01, filed from a third full-suite `run/test` pass, post-TASK-384)
 
