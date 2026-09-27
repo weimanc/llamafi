@@ -48,6 +48,7 @@ failure**.
 
 | board | row | kind | why | owner | since |
 |---|---|---|---|---|---|
+| `docs/project/tasks.md` | `TASK-725` | stale-open | filing/wording commits (`bbdb5c0e`, `6c72b87a`) name the id in the subject; the underlying fix (repoint `test_serial_classify.py`'s `REAL` fixture off the live DUT path) has not landed | TASK-725 | 2026-09-27 |
 | `docs/project/tasks-harness2.md` | `TASK-564` | uncited-closure | pre-rule closure, uncited; the log offers `1ae7557` | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-574` | stale-open | pre-rule: work landed under this id (`6e5f866`) and the row was never reconciled | TASK-669 | 2026-09-07 |
 | `docs/project/tasks-harness2.md` | `TASK-576` | stale-open | pre-rule: work landed under this id (`e58c2a3`) and the row was never reconciled | TASK-669 | 2026-09-07 |
