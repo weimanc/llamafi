@@ -420,7 +420,10 @@ that was accepted without a second vantage. The M-WIFI-DIAG work (TASK-274/275) 
 H-A (the AP) but even it stopped at "suspected AP-side"; nobody put a second radio on the problem until
 now. This is the fourth instance of the same habit already recorded here: LL-001 (TLS blamed on certs
 before checking the clock), LL-082 (chasing the network before reading the test spec), and the
-"diagnosis-ahead-of-verification" family — *treating a plausible cause as a confirmed one*.
+"diagnosis-ahead-of-verification" family — *treating a plausible cause as a confirmed one*. LL-014
+(2026-05-08, folded here 2026-09-27) is in fact the earliest, most on-point instance and was missing
+from this list: "don't blame the network for a consistent failure without a positive test or a
+mechanism consistent with every observed fact" — the same gap, at spike scale, two months earlier.
 
 **Root cause**: A single-vantage observer cannot distinguish "my device failed" from "the thing my
 device talks to failed." Every WebRadio failure was observed only from the DUT, which sees an AP
@@ -968,7 +971,7 @@ Triggering work: re-scope of the Winamp UI architecture (ADR-006), creation and 
 
 **Suggested improvement**: When introducing the *first* feature with any cross-feature link, promote `cross_feature_matrix.yaml` from untracked to tracked in the same commit, and add the entry. Don't wait for a "second" interaction to justify the file.
 
-**Status**: open
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `docs/agents/developer.md:13`/`:54` already states this rule verbatim ("When two+ features share state, have dependency, or could conflict, record immediately"), and this entry's own Observation already quotes it.
 
 ---
 
@@ -1048,7 +1051,7 @@ Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and 
 
 **Suggested improvement**: For Developer-initiated work, add a checklist gate before commit: (a) Architect consulted on any scope-defining decision not covered by an existing ADR? (b) VE notified with a test entry (even if `planned-deferred`)? (c) `feature_inventory.yaml` updated? (d) PM informed via `tasks.md` entry? Failing any of these is fine — but should be a deliberate "skip with reason," not an oversight. Same gate applies in reverse for tasks PM tracks but no one implements.
 
-**Status**: open
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `docs/agents/AGENTS.md`'s "Inter-Agent Protocol" section already states each of the specific hand-offs this entry asks for (Developer notifies VE, Developer consults Architect on cross-component decisions, PM prompts QM after milestones); the gap here is a not-followed rule, not an undocumented one.
 
 ### LL-011 — 2026-05-07 — Dev-environment infra still belongs in PM tracker
 
@@ -1084,7 +1087,7 @@ Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and 
 
 **Suggested improvement**: Treat numeric error codes as the *symptom*, never the *cause*. Cross-check with: where in the request stream did the failure happen (first write vs last write — different cause); did the server send a response before the close (means a different protocol-level reject); does the lib's request shape match what the server documents and accepts (spec cross-check)? Don't accept "the fix didn't work" until each of those is checked.
 
-**Status**: open — caught and patched (LOCAL_PATCHES.md #4–6). Promotion candidate.
+**Status**: duplicate of LL-119 (folded 2026-09-27) — same root cause ("an error constant with more than one return site is not a diagnosis until you name which site fired"), generalized and adopted there as BP-055.
 
 ### LL-014 — 2026-05-08 — Don't blame the network without a positive test
 
@@ -1096,7 +1099,7 @@ Triggering work: M4 polish (TASK-011), M2 skin bake tool tier 1 (TASK-012), and 
 
 **Suggested improvement**: Before blaming the network for a *consistent* failure mode (sporadic ones really often are network), require either (a) a positive test that excludes the firmware/lib (e.g. curl from host succeeds where DUT fails), or (b) a mechanism explanation consistent with every other observed fact. If neither is available, treat "it's the network" as a hypothesis on equal footing with "it's the lib", not the default.
 
-**Status**: open — directly applicable to TASK-019 / future M-IO investigations. Promotion candidate.
+**Status**: duplicate of LL-096 (folded 2026-09-27) — same root cause (attributing a failure to the network/a shared external dependency without an independent positive test), recurring at larger scale and still open as a BP candidate there.
 
 ### LL-016 — 2026-05-09 — "Swap X" is under-specified when a feature has multiple layers
 
@@ -1292,7 +1295,7 @@ Triggering work: TASK-066 (fix `ACT_PLAY_URI` context_uri wire-up) + TASK-067 (T
 
 **Suggested improvement B**: PM's Symptom field for visual/UI bugs must include the user's exact quoted wording alongside any technical translation. Quote first, interpret second. If the interpretation changes after clarification, update both fields.
 
-**Status**: open
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — Suggested improvement A is already `best_practices.md` BP-006 ("Visual sign-off for range-dependent renderers must cover zero, max, and one intermediate state"), which is itself adopted **from this entry** (`Adopted from: LL-025`); the Status line here was simply never updated when BP-006 was promoted. Suggested improvement B (PM exact-quote requirement) is NOT covered by BP-006 or any other BP — that half genuinely still needs a real doc edit or a fresh BP; flagging for follow-up rather than promoting it here.
 
 ---
 
@@ -1310,7 +1313,7 @@ Triggering work: TASK-066 (fix `ACT_PLAY_URI` context_uri wire-up) + TASK-067 (T
 
 **User feedback (direct)**: *"I've had 4 agent sessions getting the slider sprite drawn. It's been an uphill battle. The reference image was given at the start. R&D examined it. And yet I still had to iterate a bunch more times, including using my human feedback on pixel differences — while you have all the resources to make the validation."*
 
-**Status**: open
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — this entry's own "Structural fix" is `best_practices.md` BP-007 ("Reference image consumed → paired visual validation item required"), adopted **from this entry** (`Adopted from: LL-026`); the Status line here was simply never updated when BP-007 was promoted.
 
 ---
 
@@ -1412,7 +1415,7 @@ The `check_build.sh` gate (BP-008) caught compile errors but has no visibility i
 3. Path strings in tool scripts should be derived from `pathlib.Path(__file__).parent` (relative to the script file), not from the caller's working directory. A script that uses `"SpotifyDiyThing/gen/..."` as a literal string instead of `Path(__file__).parent / "../gen/..."` is fragile to any invocation from a non-standard cwd.
 4. The restructure gate (`check_build.sh`) should be complemented by a `tools/smoke_test.sh` that imports each Python module (e.g. `python3 -c "import coords"`) and runs each shell script with `--help` or `--dry-run`. Absence of this gate is what allowed the stale paths to survive TASK-083.
 
-**Status**: open — six functional stale paths remain unresolved in `app/tools/`. A fix task should be filed (see recommendations in this retrospective).
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-009 ("Structural refactors must include a grep-for-old-paths step and tool-script smoke test") is adopted **from this entry** (`Adopted from: LL-029`); the Status line here was simply never updated when BP-009 was promoted. Note: the entry's own residual finding — six functional stale paths in `app/tools/` — is an implementation gap, not a process gap, and may still need its own fix task filed; that is out of scope for this doc-triage pass and is flagged in the pass's report.
 
 ---
 
@@ -1446,7 +1449,7 @@ The `check_build.sh` gate (BP-008) caught compile errors but has no visibility i
 2. `T088` specifically should be treated as a live inventory of dead zones, not a static set of coordinates. When a new hit-zone is added to the firmware, T088's coordinate list must be audited and the dead-zone coords that are now inside the new zone must be removed or reclassified.
 3. The fix pattern is `_restore_spotify()` (or analogous state-restore helpers) as teardown in any test that may switch the active app as a side effect. Tests that exercise taskbar coords should always restore state before returning.
 
-**Status**: open — sub-step not yet added to task template. Promote to BP if human approves.
+**Status**: duplicate of LL-046 (folded 2026-09-27) — same root cause (an existing test's precondition silently invalidated by a later, unrelated feature change, with no mechanism to flag it for re-check), recurring here at the hit-zone layer.
 
 ---
 
@@ -1567,7 +1570,7 @@ Triggering work: TASK-093 (MatrixApp), TASK-094 (LifeApp), TASK-095 (WeatherApp 
 
 **Suggested improvement**: Developer's `done` criterion for any task tagged `feature: <id> (new)` must include a `feature_inventory.yaml` entry with `status: implemented`, `git_ref`, `files`, and at minimum `test_ids: []`. This is not optional housekeeping — it is the registration act that makes the feature exist to PM, VE, and QM. A task that ships code without this entry is `in_progress`, not `done`.
 
-**Status**: open — promotion candidate alongside LL-032/BP-010. Together they close both ends: Developer registers at implementation (this LL), VE populates test_ids at test-time (BP-010).
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `docs/agents/developer.md:53` already states this rule verbatim ("Update inventory immediately: Update `feature_inventory.yaml` in same commit as feature — never defer").
 
 ---
 
@@ -1625,7 +1628,7 @@ Triggering work: user bug report — PLEDIT shows chrome but no track rows durin
 - Tests that exercise resource-constrained paths (heap allocation, stack depth, timing jitter) should be annotated `[RESOURCE-SENSITIVE]` analogously to `[FLAKE]`. A new milestone or significant feature addition (any new FreeRTOS task, large static allocation, or app subclass) should trigger a re-run of all `[RESOURCE-SENSITIVE]` tests as part of the merge checklist.
 - T114 specifically: update its precondition from a commit hash to a firmware capability description, and add it to the resource-sensitive re-run list for any future App or task addition.
 
-**Status**: open — promotion candidate. Closely related to LL-034 (VE test gap on App ABC) — the pattern of "test written, not re-run after subsequent changes" is recurring.
+**Status**: duplicate of LL-046 (folded 2026-09-27) — same root cause (an existing test's precondition silently invalidated by a later, unrelated change, with no re-run trigger), recurring here at the resource-sensitivity layer. Still closely related to LL-034 (VE test gap on App ABC), which is a different but adjacent pattern (intermittent-test tagging) and is not folded.
 
 ---
 
@@ -1743,7 +1746,7 @@ Triggering incident: user observed "NET ERR -99" on screen while manually cyclin
 
 **Suggested improvement**: After any design revision driven by a review finding, update both the ADR and the design doc in the same edit pass before closing the finding. Treat "update ADR" as a mandatory step of resolving a decision-level finding — not an optional follow-up. A checklist item on the review template would enforce this.
 
-**Status**: open — second incident recorded under LL-046 (same root cause; code change during VE run). Escalate to BP.
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-065 ("A document describing landed work says so, and names the commit") already requires a design doc's/ADR's status and as-built section to update in the same commit as the work it describes, which is exactly this entry's ask generalized and adopted. See also the "LL-045 recurrence note" immediately below, folded into this entry the same day.
 
 ---
 
@@ -1765,7 +1768,7 @@ Triggering work: full M-TOUCH-UX milestone — hitbox.h primitive (TASK-114), sh
 
 **Context**: TASK-118 VE execution. T076 (hit-zone boundary sweep, 8 taps) and T081 (transport suite, 5 taps) ran sequential `cmd tap` calls with only `set_cooldown_zero()` between them. After TASK-117 wired `g_shellBusy` into `cmdTap` (correct — T-CDWN-02 requires it), any transport tap that enqueues a Spotify action sets `g_shellBusy=true`. The next tap in the sweep arrived while busy was still true and was returned as `skipped:true, hit:CANVAS` — a test failure for the wrong reason.
 
-**Observation**: T076/T079/T081 were written for a world where `cmdTap` had no busy gate. The gate was a new constraint added by TASK-117. No one checked whether existing tests remained valid under the new gate. The harness fix (`_poll_shell_busy(False)` before each tap) was mechanical and correct, but the gap between "gate added" and "existing tests audited" was never closed.
+**Observation**: T076/T079/T081 were written for a world where `cmdTap` had no busy gate. The gate was a new constraint added by TASK-117. No one checked whether existing tests remained valid under the new gate. The harness fix (`_poll_shell_busy(False)` before each tap) was mechanical and correct, but the gap between "gate added" and "existing tests audited" was never closed. (LL-031, 2026-05-24, and LL-039, 2026-05-25, folded here 2026-09-27, are earlier instances of the identical root cause — a new hit-zone and, separately, a new subsystem each silently invalidated an existing test's precondition with no mechanism to flag it for re-check.)
 
 **Root cause**: Existing tests are not systematically re-evaluated when a new tap-path gate is introduced. The gate is an implicit precondition for every `cmd tap` call; existing tests inherited an undocumented precondition mismatch.
 
@@ -1858,7 +1861,7 @@ Sister lesson to LL-040 (proxy metric vs actual constraint) and LL-038 (large he
 
 **Suggested improvement (extension to LL-045)**: The sync rule must apply to implementation-driven changes as well as review-driven changes. Add to the Developer checklist (LL-010): "if this commit changes an interaction described in an ADR or design doc, update the doc in the same commit." The git diff is the enforcement point — if an ADR is named in the commit context but not in the diff, that is a flag.
 
-**Status**: escalate to BP together with LL-045. Two incidents of the same root cause, two days apart, same codebase.
+**Status**: duplicate of LL-045 (folded 2026-09-27) — same root cause, two days apart, same codebase; LL-045 is now resolved as fixed via existing-doc edit (BP-065).
 
 ---
 
@@ -1909,7 +1912,7 @@ The compounding error: once in `startConfigPortal()`, `drd->stop()` has already 
 
 4. **Harness note for `run_serialdbg_tests.py`**: `Dut.__init__()` opens the serial port. If the DUT was recently reset, opening the port triggers DTR reset #1. The `_wait_for_ready()` drain loop waits for the WiFi-connected banner, but it does NOT prevent DRD triggering on a rapid second reset. Harness reconnect / restart logic must respect the 10s gap.
 
-**Status**: open — items 1–3 are BP candidates
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-018 ("DUT reset via host tools: wait ≥12s between any two resets; prefer physical button") is adopted **from this entry** (`Adopted from: LL-051`); the Status line here was simply never updated when BP-018 was promoted. (BP-018 was itself later amended 2026-09-01 per TASK-555 — see the BP entry for the current, unverified-precaution framing; the mechanism this entry names, `DoubleResetDetector`, was removed from firmware the following week and no longer applies, but the wait itself is retained as a precaution.)
 
 ---
 
@@ -1938,7 +1941,7 @@ done)
 ```
 All other tools (`flash.sh`, monitor alias, test harness) call `$(dut_port.sh)` instead of hardcoding the port. Document in `docs/process/dut_workflow.md`.
 
-**Status**: open — BP candidate (BP-019)
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-019 ("Resolve DUT serial port by USB VID:PID, never hardcode") is adopted **from this entry** (`Adopted from: LL-052`); the Status line here was simply never updated when BP-019 was promoted.
 
 ---
 
@@ -1961,7 +1964,7 @@ All other tools (`flash.sh`, monitor alias, test harness) call `$(dut_port.sh)` 
 ```
 A `--filter` flag already exists (or should); targeted test runs for new features avoid the full 10-minute suite during development.
 
-**Status**: open — BP candidate (BP-020)
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-020 ("Pre-validation sequence: kill monitor → debug flash → test → prod flash → restart monitor") is adopted **from this entry** (`Adopted from: LL-053`); the Status line here was simply never updated when BP-020 was promoted.
 
 ---
 
@@ -1978,7 +1981,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 2. Each VE test plan entry should cross-reference which harness test ID covers it (or mark "manual only — no harness test").
 3. Add a "smoke" preset: a minimal fast-passing subset (T080/T083/T091/T092/T147/T162/T-SET-01/02/08) that confirms basic shell health in <2 min.
 
-**Status**: open — BP candidate (BP-021)
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-021 ("Use targeted test IDs for new-feature validation; reserve full suite for regression") is adopted **from this entry** (`Adopted from: LL-054`); the Status line here was simply never updated when BP-021 was promoted.
 
 ---
 
@@ -1997,7 +2000,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 2. Pre-flash arithmetic check for any calibration-related change: write out the four edge targets and verify they equal 0, 319, 0, 239.
 3. Code review checklist item: "any `map(raw, calMin, calMax, 0, X)` — confirm X matches driver sizeXY_px."
 
-**Status**: open — BP candidate (BP-022)
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-022 ("Calibration arithmetic: desk-check extrapolation targets before flash; state sizeX/Y_px explicitly") is adopted **from this entry** (`Adopted from: LL-055`); the Status line here was simply never updated when BP-022 was promoted.
 
 ---
 
@@ -2011,7 +2014,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Suggested improvement**: Create `docs/process/dut_workflow.md` as the single DUT operations reference covering: first-time setup, build variants, flash (with/without SPIFFS), serial monitor, targeted feature validation, regression suite, and how to interpret results. See new file created alongside this retrospective.
 
-**Status**: open — adopted (dut_workflow.md created this session)
+**Status**: resolved — `docs/process/dut_workflow.md` was created the same session this entry describes; stray "open" prefix on the Status line removed 2026-09-27 (no BP needed — the fix is the doc itself, which already exists).
 
 ---
 
@@ -2083,7 +2086,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 **Suggested improvement**: When adding a new touch zone that owns its own state machine, treat the injection dispatcher (`drainInjectionQueue`) as a required update site alongside the physical dispatcher (`appHandleInput`). Checklist: physical dispatcher updated? injection dispatcher updated?
 
-**Status**: open
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-004 ("Mirror every physical-touch branch in `injectTouch()` in the same commit") already states this rule; this entry is the same class of divergence one dispatcher layer over (`drainInjectionQueue`/gesture API instead of `injectTouch()`/`checkForInput()`), not a distinct uncovered rule.
 
 ---
 
@@ -2138,7 +2141,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 
 ### LL-119 — 2026-08-08 — An error constant with more than one return site inside the callee is not a diagnosis, and a suppressed log level is what stops it from becoming one
 **Context**: TASK-408 (SD card phase-0 probe, a HARD GATE for M-WINAMP-PLAYER) was committed **BLOCKED** (e7c5ba3) on the finding that `SD.begin()` "fails once spotifyTask/dataTask are running concurrently (esp_vfs_fat_register ESP_ERR_NO_MEM on a table that should be empty) — runtime heap/concurrency corruption, not a hardware issue." A mount-once-at-boot workaround was built on that reading, its 27 712 B cost was recorded as unexplained and over budget, and the task was handed off with "do not resume by re-attempting the workaround path blind — start from finding the actual corruption source." There was no corruption. `esp_vfs_fat_register()` returns `ESP_ERR_NO_MEM` from **two unrelated sites**: the `FF_VOLUMES` context table being full, and a plain `calloc()` failing. It was the second. The mount needs one **contiguous** byte-addressable block of `sizeof(vfs_fat_ctx_t) + max_files * sizeof(FIL)`, and with `FF_MAX_SS=4096` / `FF_FS_TINY=0` in this precompiled IDF that is **24 964 B in one piece** at Arduino's default `max_files=5` — which is exactly the "unexplained" 27 712 B. Mount succeeds at every heap state above that size and fails at every state below it, at every `max_files` setting, DUT-reproduced both ways.
-**Observation**: Three things independently pointed away from the true cause, and all three were avoidable. (1) The error constant was read as if it had one meaning; the phrase "on a table that should be empty" shows the *first* return site was assumed and then reasoned from. (2) `heap_caps_get_free_size(MALLOC_CAP_INTERNAL)` was the metric used to judge whether memory was the problem — it counts the 32-bit-only D/IRAM region, which cannot serve a byte-addressable `calloc`, so the heap looked healthy and *reinforced* the corruption story. The number that actually gates the mount is `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT`; in the same snapshot the two read 49 140 vs 42 996, and under load 45 044 vs 4 852. (3) The one line that distinguishes the two return sites — `sd_diskio.cpp:800 esp_vfs_fat_register failed 0x(101)` — is a `log_e`, invisible at the debug env's then-current `CORE_DEBUG_LEVEL=0`. It was raised to 1 during that same session, which is what made the disambiguation possible at all.
+**Observation**: Three things independently pointed away from the true cause, and all three were avoidable. (1) The error constant was read as if it had one meaning; the phrase "on a table that should be empty" shows the *first* return site was assumed and then reasoned from. (2) `heap_caps_get_free_size(MALLOC_CAP_INTERNAL)` was the metric used to judge whether memory was the problem — it counts the 32-bit-only D/IRAM region, which cannot serve a byte-addressable `calloc`, so the heap looked healthy and *reinforced* the corruption story. The number that actually gates the mount is `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT`; in the same snapshot the two read 49 140 vs 42 996, and under load 45 044 vs 4 852. (3) The one line that distinguishes the two return sites — `sd_diskio.cpp:800 esp_vfs_fat_register failed 0x(101)` — is a `log_e`, invisible at the debug env's then-current `CORE_DEBUG_LEVEL=0`. It was raised to 1 during that same session, which is what made the disambiguation possible at all. (LL-013, 2026-05-08, folded here 2026-09-27, is the same shape three months earlier: a shared mbedtls error code funneled three distinct library bugs through one symptom, and the fix there was the same — stop treating the code as the cause and trace which call site actually produced it.)
 **Root cause**: The investigation treated an error *constant* as the diagnosis and moved straight to hypothesis-building, rather than opening the function that returned it and establishing which branch fired. Same family as LL-115 / BP-048 part 1 — a coherent, internally-consistent narrative built on an unverified source-read — but with a cheaper disproof available than either: the callee is fifteen lines and shipped in the framework package on disk.
 **Suggested improvement**: When an error value comes back from a library call, read the callee and enumerate its return sites for that value **before** forming a theory; if more than one site can produce it, identify which one fired and say so explicitly in the write-up. If the distinguishing evidence is behind a suppressed log level, raising that level is the first diagnostic step, not an afterthought — and a diagnosis that cannot name its return site should be recorded as a hypothesis, not a finding. Corollary for this codebase specifically: `MALLOC_CAP_INTERNAL` over-reports what `malloc`/`calloc` can serve; use `MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT` whenever the question is "can this allocation succeed."
 **Status**: adopted → **BP-055** (human, 2026-08-08)
@@ -2297,7 +2300,7 @@ A `--filter` flag already exists (or should); targeted test runs for new feature
 **Observation**: The test failure presented as "fetch never completes" with no visible error — the only diagnostic was the raw LOG_D serial line (`GET -1 elapsed=…`) which the test harness does not capture. Diagnosis required adding a `cryptoHttpCode` dbgGet surface.  
 **Root cause**: TLS root CA was pinned by copy-pasting the cert in force at the time the code was written. No mechanism exists to detect CA rotation before it causes failures in production or test.  
 **Suggested improvement**: (1) When a TLS endpoint starts returning -1 and the API URL is otherwise valid, check the live cert chain first (`openssl s_client` or `curl -vI`). (2) The ADR-029 rotation table should include a periodic validation step (e.g., quarterly `openssl s_client` check for each pinned host). (3) `lastCryptoHttpCode()` diagnostic (now exposed via `get cryptoHttpCode` serial command) should be checked when T_CX_05 fails.  
-**Status**: open — propose BP-030 on TLS cert rotation check cadence (see best_practices.md)
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-030 ("Validate pinned TLS root CA against the live cert chain before closing a feature that adds a new HTTPS endpoint") is adopted **from this entry** (`Adopted from: LL-067`); the Status line here was simply never updated when BP-030 was promoted.
 
 ---
 
@@ -2440,7 +2443,7 @@ cite coordinates because that is what is in front of the author at the time.
 "symbol not found" as a finding rather than a skip — a mirror gate that silently skips what it
 cannot find rots into decoration. Applied in `app/tools/gate/check_no_mirrors.py`.
 
-**Status**: open — BP candidate, for the human
+**Status**: fixed via existing-doc edit, not a new BP (2026-09-27) — `best_practices.md` BP-064 ("Cite symbols, not coordinates") already states the general rule this entry restates for registers specifically ("refer to code by symbol... do not cite a bare `file.ext:NNN` coordinate as the primary reference"); this is a confirming recurrence, not a new uncovered rule.
 
 ### LL-156 — 2026-09-19 — A first cohort is a probe, not a batch
 
